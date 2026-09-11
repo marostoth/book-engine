@@ -1,8 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
-import { Node as TiptapNode, mergeAttributes } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
-import Paragraph from "@tiptap/extension-paragraph";
 import Highlight from "@tiptap/extension-highlight";
 import Image from "@tiptap/extension-image";
 import { parseChapterMarkdown } from "../lib/markdown";
@@ -11,93 +9,7 @@ import { applyHighlightsToHtml, createW3CHighlight } from "../lib/highlights";
 import { FootnoteItem, HighlightItem } from "../lib/types";
 import { FootnotePopover } from "./FootnotePopover";
 import { SelectionMenu } from "./SelectionMenu";
-
-// Custom TipTap Paragraph node preserving paragraph anchors as HTML node attributes
-const AnchorParagraph = Paragraph.extend({
-  name: "paragraph",
-  addAttributes() {
-    return {
-      anchor: {
-        default: null,
-        parseHTML: (element) => {
-          const raw = element.getAttribute("data-anchor");
-          return raw ? raw.replace(/^\^/, "") : null;
-        },
-        renderHTML: (attributes) => {
-          if (!attributes.anchor) {
-            return {};
-          }
-          return {
-            "data-anchor": attributes.anchor,
-          };
-        },
-      },
-    };
-  },
-});
-
-// Custom TipTap Footnote Reference node preserving elevated superscript citation tags
-const FootnoteRef = TiptapNode.create({
-  name: "footnoteRef",
-  group: "inline",
-  inline: true,
-  atom: true,
-  selectable: false,
-
-  addAttributes() {
-    return {
-      fnId: {
-        default: "",
-        parseHTML: (element) => element.getAttribute("data-fn") || "",
-        renderHTML: (attributes) => ({
-          "data-fn": attributes.fnId,
-        }),
-      },
-      number: {
-        default: "",
-        parseHTML: (element) =>
-          element.getAttribute("data-fn") ||
-          element.textContent?.replace(/[\[\]]/g, "") ||
-          "",
-        renderHTML: () => ({}),
-      },
-    };
-  },
-
-  parseHTML() {
-    return [
-      {
-        tag: "sup.footnote-callout",
-      },
-      {
-        tag: "sup[data-fn]",
-      },
-      {
-        tag: "span.footnote-callout",
-      },
-      {
-        tag: "span[data-fn]",
-      },
-    ];
-  },
-
-  renderHTML({ node, HTMLAttributes }) {
-    const fnId = node.attrs.fnId || "1";
-    const num = node.attrs.number || fnId;
-    return [
-      "sup",
-      mergeAttributes(
-        {
-          class:
-            "footnote-callout text-xs align-super text-amber-700 dark:text-amber-400 font-sans font-semibold cursor-pointer hover:underline ml-0.5 select-none inline-block",
-          "data-fn": fnId,
-        },
-        HTMLAttributes
-      ),
-      `[${num}]`,
-    ];
-  },
-});
+import { AnchorParagraph, FootnoteRef } from "./reader/TipTapExtensions";
 
 interface ReaderProps {
   bookId: string;
@@ -153,157 +65,120 @@ export const Reader: React.FC<ReaderProps> = ({
         multicolor: true,
       }),
     ],
-    content: "",
-    editable: false, // Reading mode
     editorProps: {
       attributes: {
-        class: "reader-prose max-w-prose mx-auto px-8 py-12 focus:outline-none select-text",
+        class:
+          "prose prose-neutral dark:prose-invert max-w-none focus:outline-none font-serif text-lg leading-relaxed antialiased",
+      },
+      handleClick: (_view, _pos, event) => {
+        const target = event.target as HTMLElement;
+        const callout = target.closest(".footnote-callout");
+        if (callout) {
+          event.preventDefault();
+          const fnId = callout.getAttribute("data-fn");
+          if (fnId && footnotes[fnId]) {
+            const rect = callout.getBoundingClientRect();
+            setFootnotePos({
+              x: rect.left + rect.width / 2,
+              y: rect.top,
+            });
+            setActiveFootnote(footnotes[fnId]);
+          }
+          return true;
+        }
+        return false;
       },
     },
+    editable: false,
   });
 
-  // Load content when markdown, bionic mode, or highlights change
+  // Parse markdown, extract footnotes, resolve asset URLs, and inject into TipTap
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || !markdown) return;
 
     const parsed = parseChapterMarkdown(markdown, bookId, vaultPath);
     setFootnotes(parsed.footnotes);
 
-    // Apply persistent W3C highlights to HTML
-    let renderedHtml = applyHighlightsToHtml(parsed.html, highlights);
-
-    // Apply Bionic reading if enabled
+    let html = parsed.html;
     if (isBionic) {
-      renderedHtml = applyBionicReading(renderedHtml);
+      html = applyBionicReading(html);
+    }
+    if (highlights && highlights.length > 0) {
+      html = applyHighlightsToHtml(html, highlights);
     }
 
-    editor.commands.setContent(renderedHtml);
+    editor.commands.setContent(html);
+  }, [editor, markdown, isBionic, highlights, bookId, vaultPath]);
 
-    // If no target anchor, reset scroll to top
-    if (!targetAnchor && containerRef.current) {
-      containerRef.current.scrollTop = 0;
-      onProgressChange(0);
-    }
-  }, [editor, markdown, bookId, vaultPath, isBionic, highlights, onProgressChange, targetAnchor]);
-
-  // Scroll to target anchor when jumping from search
+  // Jump to target paragraph anchor when requested
   useEffect(() => {
     if (!targetAnchor || !containerRef.current) return;
 
+    const cleanAnchor = targetAnchor.replace(/^\^/, "");
     const timer = setTimeout(() => {
       if (!containerRef.current) return;
-      const cleanAnchor = targetAnchor.replace(/^\^/, "");
-      const targetEl = containerRef.current.querySelector(
-        `[data-anchor="${targetAnchor}"], [data-anchor="${cleanAnchor}"], [data-anchor="^${cleanAnchor}"]`
-      );
-      if (targetEl) {
-        const parentP = targetEl.closest("p") || targetEl;
-        parentP.scrollIntoView({ behavior: "smooth", block: "center" });
-
-        // Visual flash pulse to orient reader
-        parentP.classList.add("ring-2", "ring-amber-500/50", "bg-amber-500/10", "rounded-lg", "p-2", "transition-all", "duration-700");
+      const el = containerRef.current.querySelector(`[data-anchor="${cleanAnchor}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("bg-amber-100/50", "dark:bg-amber-900/30", "transition-colors", "duration-500");
         setTimeout(() => {
-          parentP.classList.remove("ring-2", "ring-amber-500/50", "bg-amber-500/10", "rounded-lg", "p-2");
-        }, 2200);
+          el.classList.remove("bg-amber-100/50", "dark:bg-amber-900/30");
+        }, 2000);
       }
     }, 100);
 
     return () => clearTimeout(timer);
   }, [targetAnchor, markdown]);
 
-  // Scroll Progress Tracking
+  // Handle scroll progress tracking
   const handleScroll = () => {
     if (!containerRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
-    const maxScroll = scrollHeight - clientHeight;
-    const percent = maxScroll > 0 ? Math.min(100, Math.max(0, (scrollTop / maxScroll) * 100)) : 0;
-    onProgressChange(Math.round(percent));
+    const total = scrollHeight - clientHeight;
+    if (total <= 0) {
+      onProgressChange(100);
+    } else {
+      const pct = Math.min(100, Math.max(0, Math.round((scrollTop / total) * 100)));
+      onProgressChange(pct);
+    }
   };
 
-  // Intercept Footnote clicks and hovers
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+  // Floating selection menu handling
+  const handleMouseUp = () => {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || !selection.toString().trim()) {
+      setSelectionPos(null);
+      return;
+    }
 
-    const showFootnote = (target: HTMLElement) => {
-      const fnId = target.getAttribute("data-fn") || "1";
-      const noteItem = footnotes[fnId] || {
-        id: fnId,
-        number: fnId,
-        text: `Citation [^${fnId}]: Full reference detailed in chapter citations.`,
-      };
-      const rect = target.getBoundingClientRect();
-      setFootnotePos({
-        x: rect.left + rect.width / 2,
-        y: rect.top,
-      });
-      setActiveFootnote(noteItem);
-    };
+    const text = selection.toString().trim();
+    if (text.length < 2) {
+      setSelectionPos(null);
+      return;
+    }
 
-    const handleClick = (e: MouseEvent) => {
-      const target = (e.target as HTMLElement).closest(".footnote-callout") as HTMLElement | null;
-      if (target) {
-        e.preventDefault();
-        e.stopPropagation();
-        showFootnote(target);
-      } else {
-        setActiveFootnote(null);
+    // Locate nearest anchor attribute
+    let anchor: string | undefined;
+    let node: Node | null = selection.anchorNode;
+    while (node && node !== containerRef.current) {
+      if (node instanceof HTMLElement && node.hasAttribute("data-anchor")) {
+        anchor = `^${node.getAttribute("data-anchor")}`;
+        break;
       }
-    };
+      node = node.parentNode;
+    }
 
-    const handleMouseOver = (e: MouseEvent) => {
-      const target = (e.target as HTMLElement).closest(".footnote-callout") as HTMLElement | null;
-      if (target) {
-        showFootnote(target);
-      }
-    };
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    setSelectionPos({
+      x: rect.left + rect.width / 2,
+      y: rect.top,
+    });
+    setSelectedText(text);
+    setSelectedAnchor(anchor);
+  };
 
-    container.addEventListener("click", handleClick);
-    container.addEventListener("mouseover", handleMouseOver);
-    return () => {
-      container.removeEventListener("click", handleClick);
-      container.removeEventListener("mouseover", handleMouseOver);
-    };
-  }, [footnotes]);
-
-  // Selection Tracking for Floating Pill Toolbar
-  useEffect(() => {
-    const handleSelectionChange = () => {
-      const selection = window.getSelection();
-      if (!selection || selection.isCollapsed || !selection.toString().trim()) {
-        setSelectionPos(null);
-        setSelectedText("");
-        setSelectedAnchor(undefined);
-        return;
-      }
-
-      const text = selection.toString().trim();
-      if (text.length < 2) return;
-
-      const range = selection.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-
-      // Find nearby paragraph anchor if available
-      let anchorNode: HTMLElement | null = range.commonAncestorContainer as HTMLElement;
-      if (anchorNode.nodeType === Node.TEXT_NODE) {
-        anchorNode = anchorNode.parentElement;
-      }
-      const parentWithAnchor = anchorNode?.closest("[data-anchor]") as HTMLElement | null;
-      const anchorEl = parentWithAnchor || anchorNode?.closest("p")?.querySelector(".anchor-tag");
-      const anchorId = anchorEl?.getAttribute("data-anchor") || undefined;
-
-      setSelectionPos({
-        x: rect.left + rect.width / 2,
-        y: rect.top,
-      });
-      setSelectedText(text);
-      setSelectedAnchor(anchorId);
-    };
-
-    document.addEventListener("selectionchange", handleSelectionChange);
-    return () => document.removeEventListener("selectionchange", handleSelectionChange);
-  }, []);
-
+  // Add highlight using W3C Text Quote Selector standard
   const handleHighlight = () => {
     const selection = window.getSelection();
     if (!selection) return;
@@ -314,42 +189,55 @@ export const Reader: React.FC<ReaderProps> = ({
     }
 
     setSelectionPos(null);
+    selection.removeAllRanges();
   };
 
+  // Add quote to notes pane
   const handleAddNote = () => {
+    if (!selectedText) return;
     onAddNoteFromSelection(selectedText, selectedAnchor);
     setSelectionPos(null);
+    window.getSelection()?.removeAllRanges();
   };
 
+  // Copy markdown quote anchor link
   const handleCopyLink = () => {
     const anchor = selectedAnchor ? ` (#${selectedAnchor})` : "";
     const quote = `> "${selectedText}"${anchor}`;
     navigator.clipboard.writeText(quote);
     setSelectionPos(null);
+    window.getSelection()?.removeAllRanges();
   };
 
   return (
     <div
       ref={containerRef}
       onScroll={handleScroll}
-      className="relative flex-1 h-full overflow-y-auto overflow-x-hidden selection:bg-amber-200 dark:selection:bg-nord-accent/30 selection:text-inherit"
+      onMouseUp={handleMouseUp}
+      className="relative flex-1 h-full overflow-y-auto overflow-x-hidden bg-[var(--theme-bg)] scroll-smooth px-8 py-12 md:px-16 lg:px-24"
     >
-      <EditorContent editor={editor} />
+      <div className="max-w-3xl mx-auto min-h-full pb-32">
+        <EditorContent editor={editor} />
+      </div>
 
-      {/* Floating Selection Toolbar Pill */}
-      <SelectionMenu
-        position={selectionPos}
-        onHighlight={handleHighlight}
-        onAddNote={handleAddNote}
-        onCopyLink={handleCopyLink}
-      />
+      {/* Popover citation footnote resolver */}
+      {activeFootnote && footnotePos && (
+        <FootnotePopover
+          footnote={activeFootnote}
+          position={footnotePos}
+          onClose={() => setActiveFootnote(null)}
+        />
+      )}
 
-      {/* Popover Footnote Card */}
-      <FootnotePopover
-        footnote={activeFootnote}
-        position={footnotePos}
-        onClose={() => setActiveFootnote(null)}
-      />
+      {/* Floating selection toolbar for highlights & reflection notes */}
+      {selectionPos && selectedText && (
+        <SelectionMenu
+          position={selectionPos}
+          onHighlight={handleHighlight}
+          onAddNote={handleAddNote}
+          onCopyLink={handleCopyLink}
+        />
+      )}
     </div>
   );
 };

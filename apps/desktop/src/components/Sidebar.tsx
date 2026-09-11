@@ -1,8 +1,6 @@
 import React, { useState, useMemo } from "react";
 import {
   ChevronLeft,
-  ChevronRight,
-  ChevronDown,
   BookOpen,
   Hash,
   ListTree,
@@ -12,6 +10,7 @@ import {
 } from "lucide-react";
 import { BookMeta, ChapterMeta, BookMetadata, TOCItem } from "../lib/types";
 import { BookSelector } from "./BookSelector";
+import { TOCItemRow } from "./sidebar/TOCItemRow";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -46,25 +45,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }));
   };
 
-  // Helper to map a TOC item to its corresponding spine chapter
   const findChapterForTOC = useMemo(() => {
     return (item: TOCItem): ChapterMeta | null => {
       if (!bookMeta) return null;
       const spine = bookMeta.spine;
       const tTitle = item.title.trim().toLowerCase();
 
-      // 1. Exact title match
       for (const ch of spine) {
         if (ch.title.trim().toLowerCase() === tTitle) return ch;
       }
 
-      // 2. Prefix/substring match
       for (const ch of spine) {
         const cTitle = ch.title.trim().toLowerCase();
         if (tTitle.startsWith(cTitle) || cTitle.startsWith(tTitle)) return ch;
       }
 
-      // 3. Fallback: match first subitem
       if (item.subitems && item.subitems.length > 0) {
         for (const sub of item.subitems) {
           for (const ch of spine) {
@@ -79,7 +74,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     };
   }, [bookMeta]);
 
-  // Filtered chapters for search
   const filteredSpine = useMemo(() => {
     if (!bookMeta) return [];
     if (!searchFilter.trim()) return bookMeta.spine;
@@ -87,7 +81,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return bookMeta.spine.filter((ch) => ch.title.toLowerCase().includes(q));
   }, [bookMeta, searchFilter]);
 
-  // Filtered TOC for search
   const filteredTOC = useMemo(() => {
     if (!bookMeta) return [];
     if (!searchFilter.trim()) return bookMeta.toc;
@@ -117,7 +110,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         isOpen ? "w-80" : "w-0 overflow-hidden border-none"
       }`}
     >
-      {/* Header with Interactive Book Selector */}
+      {/* Header with Book Selector */}
       <div className="p-3 border-b border-black/5 dark:border-white/5 flex items-center justify-between gap-1">
         <div className="min-w-0 flex-1">
           <BookSelector
@@ -149,10 +142,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-300"
             }`}
           >
-            <ListTree className="w-3.5 h-3.5 text-amber-600 dark:text-nord-accent" />
+            <ListTree className="w-3.5 h-3.5" />
             <span>Contents</span>
           </button>
-
           <button
             type="button"
             onClick={() => setActiveTab("chapters")}
@@ -162,13 +154,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-300"
             }`}
           >
-            <ListOrdered className="w-3.5 h-3.5 text-amber-600 dark:text-nord-accent" />
-            <span>Chapters ({bookMeta?.spine.length || 0})</span>
+            <ListOrdered className="w-3.5 h-3.5" />
+            <span>Spine</span>
           </button>
         </div>
       </div>
 
-      {/* Search filter within active book */}
+      {/* Search Filter */}
       <div className="px-3 py-1.5">
         <div className="relative">
           <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" />
@@ -185,97 +177,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Main List Area */}
       <div className="flex-1 overflow-y-auto p-2.5 space-y-1">
         {activeTab === "toc" && hasNestedTOC ? (
-          /* Hierarchical Nested TOC Tree */
           <div className="space-y-1">
-            {filteredTOC.map((item) => {
-              const matchedCh = findChapterForTOC(item);
-              const isActive = matchedCh?.id === activeChapterId;
-              const hasSubs = Boolean(item.subitems && item.subitems.length > 0);
-              const isCollapsed = Boolean(collapsedSections[item.id]);
-
-              return (
-                <div key={item.id} className="space-y-0.5">
-                  {/* Level 1 Node */}
-                  <div
-                    onClick={() => {
-                      if (matchedCh) {
-                        onSelectChapter(matchedCh);
-                      }
-                    }}
-                    className={`group w-full text-left p-2 rounded-xl transition-all duration-150 flex items-start justify-between gap-1.5 cursor-pointer border ${
-                      isActive
-                        ? "bg-amber-500/10 dark:bg-nord-accent/15 text-amber-900 dark:text-nord-accent border-amber-500/20 dark:border-nord-accent/30 font-semibold"
-                        : "hover:bg-black/5 dark:hover:bg-white/5 border-transparent text-neutral-800 dark:text-neutral-200"
-                    }`}
-                  >
-                    <div className="flex items-start gap-1.5 min-w-0 flex-1">
-                      {hasSubs && (
-                        <button
-                          type="button"
-                          onClick={(e) => toggleSection(item.id, e)}
-                          className="mt-0.5 p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 text-neutral-400 flex-shrink-0"
-                          title={isCollapsed ? "Expand Section" : "Collapse Section"}
-                        >
-                          {isCollapsed ? (
-                            <ChevronRight className="w-3.5 h-3.5" />
-                          ) : (
-                            <ChevronDown className="w-3.5 h-3.5" />
-                          )}
-                        </button>
-                      )}
-
-                      <div className="min-w-0 flex-1">
-                        <span className="text-xs leading-snug line-clamp-2">
-                          {item.title}
-                        </span>
-                        {matchedCh && (
-                          <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-neutral-400 dark:text-neutral-500 font-normal">
-                            <span>{matchedCh.word_count} words</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {isActive && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-600 dark:bg-nord-accent animate-pulse flex-shrink-0 mt-1" />
-                    )}
-                  </div>
-
-                  {/* Level 2 Subitems */}
-                  {hasSubs && !isCollapsed && (
-                    <div className="pl-4 ml-2 border-l border-black/5 dark:border-white/5 space-y-0.5">
-                      {item.subitems?.map((sub) => {
-                        const subCh = findChapterForTOC(sub);
-                        const isSubActive = subCh?.id === activeChapterId;
-
-                        return (
-                          <button
-                            key={sub.id}
-                            type="button"
-                            onClick={() => {
-                              if (subCh) onSelectChapter(subCh);
-                            }}
-                            className={`w-full text-left p-2 rounded-lg transition-all duration-150 flex items-center justify-between gap-1 text-xs ${
-                              isSubActive
-                                ? "bg-amber-500/10 dark:bg-nord-accent/15 text-amber-900 dark:text-nord-accent font-medium border border-amber-500/20 dark:border-nord-accent/30"
-                                : "hover:bg-black/5 dark:hover:bg-white/5 text-neutral-600 dark:text-neutral-300"
-                            }`}
-                          >
-                            <span className="truncate flex-1">{sub.title}</span>
-                            {isSubActive && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-600 dark:bg-nord-accent animate-pulse flex-shrink-0" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {filteredTOC.map((item) => (
+              <TOCItemRow
+                key={item.id}
+                item={item}
+                matchedCh={findChapterForTOC(item)}
+                activeChapterId={activeChapterId}
+                isCollapsed={Boolean(collapsedSections[item.id])}
+                onToggleSection={toggleSection}
+                onSelectChapter={onSelectChapter}
+                findChapterForTOC={findChapterForTOC}
+              />
+            ))}
           </div>
         ) : (
-          /* Linear Chapter Sequence */
           <div className="space-y-1">
             {filteredSpine.map((chapter, idx) => {
               const isActive = chapter.id === activeChapterId;
@@ -319,7 +235,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
 
-      {/* Footer Stats & Quick Notes Drawer Link */}
+      {/* Footer Stats */}
       {bookMeta && (
         <div className="p-3 border-t border-black/5 dark:border-white/5 text-[11px] text-neutral-400 dark:text-neutral-500 flex items-center justify-between">
           <span>{bookMeta.total_chapters} Chapters</span>

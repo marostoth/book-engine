@@ -49,6 +49,20 @@ book-engine/
 │   └── desktop/                 # Tauri v2 native desktop application & React frontend
 │       ├── src/                 # React 18+ client application
 │       │   ├── components/      # UI components (Reader, Sidebar, TopNav, Modals, Popovers)
+│       │   │   ├── analytics/       # Modular analytics subcomponents
+│       │   │   │   ├── HeatmapGrid.tsx      # GitHub-style annual FSRS study activity heatmap
+│       │   │   │   └── VelocityTable.tsx    # Chapter reading velocity, completion & WPM table
+│       │   │   ├── notes/           # Modular notes drawer subcomponents
+│       │   │   │   ├── DrawerFilterBar.tsx  # Chapter, color & search filter controls
+│       │   │   │   └── NoteEntryCard.tsx    # Highlight / reflection quote card
+│       │   │   ├── practice/        # Modular practice drill subcomponents
+│       │   │   │   ├── ClozeDrill.tsx       # Extractive Cloze completion drill
+│       │   │   │   ├── RatingBar.tsx        # FSRS-4.5 Again/Hard/Good/Easy rating bar
+│       │   │   │   └── ScrambleDrill.tsx    # Drag/click scrambled clause reconstruction drill
+│       │   │   ├── reader/          # Modular TipTap custom extensions
+│       │   │   │   └── TipTapExtensions.ts  # AnchorParagraph & FootnoteRef custom Prosemirror nodes
+│       │   │   ├── sidebar/         # Modular sidebar subcomponents
+│       │   │   │   └── TOCItemRow.tsx       # Hierarchical TOC tree item row
 │       │   │   ├── AnalyticsModal.tsx   # FSRS retention heatmap & reading velocity dashboard modal
 │       │   │   ├── BookSelector.tsx     # Dynamic vault library switcher popover
 │       │   │   ├── FootnotePopover.tsx  # Floating UI citation preview popover
@@ -62,8 +76,18 @@ book-engine/
 │       │   │   ├── SettingsPopover.tsx  # Reader preferences & Gatekeeper settings popover
 │       │   │   ├── Sidebar.tsx          # Hierarchical TOC & linear chapter navigation drawer
 │       │   │   └── TopNav.tsx           # Top navigation chrome, progress bar, view modes & themes
+│       │   ├── hooks/           # Modular application custom hooks
+│       │   │   └── useBookSession.ts    # Book loading, reading progress, session timing & chapter jumping
 │       │   ├── lib/             # Core TypeScript utilities, transformers, and contracts
-│       │   │   ├── api.ts               # Tauri IPC invoke wrappers with browser dev fallbacks
+│       │   │   ├── api/             # Modular Tauri IPC & dev mock client modules
+│       │   │   │   ├── analyticsApi.ts      # Study analytics, reading session & velocity IPC client
+│       │   │   │   ├── clientBase.ts        # Tauri detection & safe invoke wrapper
+│       │   │   │   ├── fallbackAnalytics.ts # In-memory analytics mock generators
+│       │   │   │   ├── fallbackNotes.ts     # In-memory note persistence fallback
+│       │   │   │   ├── mockData.ts          # Default mock book catalogs & sample chapters
+│       │   │   │   ├── notesApi.ts          # Cross-chapter note aggregation & summary export IPC
+│       │   │   │   └── practiceApi.ts       # FSRS practice card synchronization & review IPC
+│       │   │   ├── api.ts               # Unified API client facade with browser dev fallbacks
 │       │   │   ├── bionic.ts            # Deterministic bionic fixation bolding transformer
 │       │   │   ├── highlights.ts        # W3C Text Quote Selector parser & serializer
 │       │   │   ├── markdown.ts          # Chapter Markdown preprocessor & anchor normalizer
@@ -82,14 +106,26 @@ book-engine/
 │           │   └── icon.png             # 512x512 master application branding asset
 │           ├── src/
 │           │   ├── commands.rs          # Asynchronous Tauri IPC command handlers
-│           │   ├── db.rs                # SQLite connection, FTS5 indexer, and card store
+│           │   ├── db/                  # Modular SQLite storage, FTS5 indexer & analytics
+│           │   │   ├── analytics.rs         # Retention metrics, study analytics & review heatmap
+│           │   │   ├── fsrs_parser.rs       # Practice card markdown extraction & verbatim validator
+│           │   │   ├── fsrs_store.rs        # FSRS practice card synchronization & review submission
+│           │   │   ├── indexer.rs           # Background vault indexing & FTS5 full-text search
+│           │   │   ├── models.rs            # SQLite row models and analytics transfer structs
+│           │   │   ├── reading_velocity.rs  # Chapter reading session recording & velocity calculations
+│           │   │   ├── schema.rs            # SQLite database initialization & migrations
+│           │   │   └── mod.rs               # Ephemeral SQLite database module root & test suite
 │           │   ├── fsrs.rs              # Local FSRS-4.5 spaced repetition scheduling engine
 │           │   ├── lib.rs               # Application builder, plugin setup, and invoke router
 │           │   ├── main.rs              # Tauri binary executable entrypoint
-│           │   └── vault.rs             # File vault scanner, manifest deserializer & I/O
+│           │   ├── vault/               # Modular vault file I/O & notes aggregation
+│           │   │   ├── models.rs            # Vault metadata and note structures
+│           │   │   ├── notes.rs             # Chapter reflection notes loader, saver & summary export
+│           │   │   ├── reader.rs            # Vault root resolution, book discovery & chapter I/O
+│           │   │   └── mod.rs               # Vault module facade
 │           ├── Cargo.toml       # Rust dependency manifest (rusqlite, tokio, tauri v2)
 │           └── tauri.conf.json  # Tauri v2 window, security, and bundle configuration
-
+│ 
 ├── inbox/                       # Ingestion quarantine & staging directory
 │   ├── .gitkeep                 # Tracked directory marker
 │   └── processed/               # Quarantined & processed binary source documents (.epub, .pdf)
@@ -104,6 +140,7 @@ book-engine/
 │       │   ├── epub_parser.py           # XHTML chapter extractor & typography normalizer
 │       │   ├── models.py                # Pydantic schema validation for metadata and cards
 │       │   ├── pdf_parser.py            # Sequential chapter-by-chapter PDF parser & asset filter
+│       │   ├── pdf_sanitizer.py         # PDF slug normalization, markdown & author sanitization
 │       │   ├── pipeline.py              # End-to-end ingestion pipeline coordinator
 │       │   ├── salience.py              # Deterministic salience scorer & Cloze deck generator
 │       │   └── sample_generator.py      # Starter sample generator for development

@@ -1,9 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
-  BookMeta,
-  BookMetadata,
   ChapterMeta,
-  HighlightItem,
   Theme,
   ViewMode,
   PracticeCardItem,
@@ -11,17 +8,10 @@ import {
   ReaderPreferences,
 } from "./lib/types";
 import {
-  fetchBookMeta,
-  fetchChapter,
-  fetchLibraryBooks,
-  fetchNotes,
-  persistNotes,
   syncPracticeDeck,
   getDueCards,
-  recordReadingProgress,
-  getVaultPath,
 } from "./lib/api";
-import { parseHighlightsFromNotes, serializeHighlightsToNotes } from "./lib/highlights";
+import { useBookSession } from "./hooks/useBookSession";
 import { Sidebar } from "./components/Sidebar";
 import { TopNav } from "./components/TopNav";
 import { Reader } from "./components/Reader";
@@ -58,36 +48,43 @@ export const App: React.FC = () => {
   const [gatekeeperModalOpen, setGatekeeperModalOpen] = useState<boolean>(false);
   const [pendingChapter, setPendingChapter] = useState<ChapterMeta | null>(null);
 
-  // Phase 5 Drawers & Analytics Modals
+  // Drawers & Analytics Modals
   const [notesDrawerOpen, setNotesDrawerOpen] = useState<boolean>(false);
   const [analyticsModalOpen, setAnalyticsModalOpen] = useState<boolean>(false);
-
-  // Vault Library & Active Book
-  const [vaultPath, setVaultPath] = useState<string>("");
-  const [availableBooks, setAvailableBooks] = useState<BookMetadata[]>([]);
-  const [activeBookId, setActiveBookId] = useState<string>(() => {
-    return localStorage.getItem("book_engine_active_book_id") || "sample";
-  });
-
-  const [bookMeta, setBookMeta] = useState<BookMeta | null>(null);
-  const [activeChapter, setActiveChapter] = useState<ChapterMeta | null>(null);
-  const [chapterMarkdown, setChapterMarkdown] = useState<string>("");
-  const [progressPercent, setProgressPercent] = useState<number>(0);
-
-  // W3C Highlights
-  const [highlights, setHighlights] = useState<HighlightItem[]>([]);
-
-  // Search & Target Anchor Jumping
   const [searchOpen, setSearchOpen] = useState<boolean>(false);
-  const [targetAnchor, setTargetAnchor] = useState<string | undefined>();
 
   // Quote passed from SelectionMenu to NotesPane
   const [insertedQuote, setInsertedQuote] = useState<{ quote: string; anchorId?: string } | null>(null);
 
-  // Load canonical vault path on mount
-  useEffect(() => {
-    getVaultPath().then(setVaultPath).catch(() => {});
+  const refreshPracticeCards = useCallback(async (bId: string) => {
+    if (!bId) return;
+    try {
+      await syncPracticeDeck(bId);
+      const cards = await getDueCards(bId);
+      setDueCards(cards);
+    } catch (err) {
+      console.warn("Failed to refresh practice cards:", err);
+    }
   }, []);
+
+  // Book session state hook
+  const {
+    vaultPath,
+    availableBooks,
+    activeBookId,
+    bookMeta,
+    activeChapter,
+    setActiveChapter,
+    chapterMarkdown,
+    progressPercent,
+    setProgressPercent,
+    highlights,
+    targetAnchor,
+    setTargetAnchor,
+    handleSelectBook,
+    handleAddHighlight,
+    handleSelectSearchResult,
+  } = useBookSession(refreshPracticeCards);
 
   // Sync theme to body class
   useEffect(() => {
@@ -106,111 +103,7 @@ export const App: React.FC = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Refresh and synchronize practice cards for active book
-  const refreshPracticeCards = async (bookId?: string) => {
-    const bId = bookId || activeBookId;
-    if (!bId) return;
-    try {
-      await syncPracticeDeck(bId);
-      const cards = await getDueCards(bId);
-      setDueCards(cards);
-    } catch (err) {
-      console.warn("Failed to refresh practice cards:", err);
-    }
-  };
-
-  // Discover available library books and hydrate active book from localStorage
-  useEffect(() => {
-    fetchLibraryBooks().then((books) => {
-      setAvailableBooks(books);
-      const savedId = localStorage.getItem("book_engine_active_book_id");
-      const targetId =
-        savedId && books.some((b) => b.id === savedId)
-          ? savedId
-          : books[0]?.id || "sample";
-
-      setActiveBookId(targetId);
-      loadBook(targetId);
-    });
-  }, []);
-
-  const loadBook = async (bookId: string) => {
-    try {
-      const meta = await fetchBookMeta(bookId);
-      setBookMeta(meta);
-      if (meta.spine && meta.spine.length > 0) {
-        const firstCh = meta.spine[0];
-        setActiveChapter(firstCh);
-        setTargetAnchor(undefined);
-      }
-      refreshPracticeCards(bookId);
-    } catch (err) {
-      console.error("Failed to load book metadata:", bookId, err);
-    }
-  };
-
-  const handleSelectBook = (bookId: string) => {
-    setActiveBookId(bookId);
-    localStorage.setItem("book_engine_active_book_id", bookId);
-    loadBook(bookId);
-  };
-
-  // Load chapter text and hydrate highlights when activeChapter changes (Single-Chapter Virtualization)
-  useEffect(() => {
-    if (!bookMeta || !activeChapter) return;
-
-    fetchChapter(bookMeta.book_id, activeChapter.file_path).then((md) => {
-      setChapterMarkdown(md);
-      setProgressPercent(0);
-    });
-
-    // Hydrate W3C highlights from chapter notes file
-    const notesFile = activeChapter.file_path.replace(".md", "-notes.md");
-    fetchNotes(bookMeta.book_id, notesFile).then((notesContent) => {
-      const parsedHighlights = parseHighlightsFromNotes(notesContent);
-      setHighlights(parsedHighlights);
-    });
-  }, [bookMeta, activeChapter]);
-
-  // Track active reading time and record progress to SQLite backend
-  useEffect(() => {
-    if (!activeBookId || !activeChapter) return;
-
-    let elapsedSecs = 0;
-    const interval = setInterval(() => {
-      if (document.hasFocus()) {
-        elapsedSecs += 5;
-        // Periodically report reading session every 15 seconds
-        if (elapsedSecs % 15 === 0) {
-          const isCompleted = progressPercent >= 90;
-          recordReadingProgress(
-            activeBookId,
-            activeChapter.file_path,
-            15,
-            activeChapter.word_count,
-            isCompleted
-          );
-        }
-      }
-    }, 5000);
-
-    return () => {
-      clearInterval(interval);
-      const remainder = elapsedSecs % 15;
-      if (remainder > 0 && activeBookId && activeChapter) {
-        recordReadingProgress(
-          activeBookId,
-          activeChapter.file_path,
-          remainder,
-          activeChapter.word_count,
-          progressPercent >= 90
-        );
-      }
-    };
-  }, [activeBookId, activeChapter, progressPercent]);
-
   const handleSelectChapter = (chapter: ChapterMeta) => {
-    // Check Chapter Gatekeeper Mode
     if (
       preferences.gatekeeperMode &&
       activeChapter &&
@@ -249,40 +142,11 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleAddHighlight = (newHighlight: HighlightItem) => {
-    if (!bookMeta || !activeChapter) return;
-
-    const updated = [...highlights, newHighlight];
-    setHighlights(updated);
-
-    // Asynchronously persist highlights to vault notes
-    const notesFile = activeChapter.file_path.replace(".md", "-notes.md");
-    fetchNotes(bookMeta.book_id, notesFile).then((currentNotes) => {
-      const updatedNotes = serializeHighlightsToNotes(currentNotes, updated);
-      persistNotes(bookMeta.book_id, notesFile, updatedNotes);
-    });
-  };
-
-  const handleSelectSearchResult = (chapterFile: string, anchor?: string) => {
-    if (!bookMeta) return;
-
-    // Check if target chapter is different from active chapter
-    if (!activeChapter || activeChapter.file_path !== chapterFile) {
-      const targetChapter = bookMeta.spine.find((ch) => ch.file_path === chapterFile);
-      if (targetChapter) {
-        setActiveChapter(targetChapter);
-      }
-    }
-
-    setTargetAnchor(anchor);
-  };
-
   const isFocus = viewMode === "focus";
   const isDual = viewMode === "dual";
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[var(--theme-bg)] text-[var(--theme-text)]">
-      {/* Translucent Collapsible Sidebar (hidden in Focus Mode) */}
       {!isFocus && (
         <Sidebar
           isOpen={sidebarOpen}
@@ -296,9 +160,7 @@ export const App: React.FC = () => {
         />
       )}
 
-      {/* Main Reading Canvas */}
       <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
-        {/* Editorial Top Navigation Header */}
         <TopNav
           currentBookId={activeBookId}
           bookTitle={bookMeta?.title}
@@ -322,12 +184,10 @@ export const App: React.FC = () => {
           onOpenAnalytics={() => setAnalyticsModalOpen(true)}
           preferences={preferences}
           onPreferencesChange={handlePreferencesChange}
-          onResyncDeck={() => refreshPracticeCards()}
+          onResyncDeck={() => refreshPracticeCards(activeBookId)}
         />
 
-        {/* Content Container (Reader + Optional Dual-Pane Notes) */}
         <div className="flex-1 flex h-[calc(100vh-3.5rem)] overflow-hidden">
-          {/* TipTap Virtualized Chapter Reader */}
           <Reader
             bookId={bookMeta?.book_id || activeBookId}
             vaultPath={vaultPath}
@@ -345,7 +205,6 @@ export const App: React.FC = () => {
             }}
           />
 
-          {/* Dual-Pane Side-by-Side Reflection Notes (when in dual mode) */}
           {isDual && !isFocus && activeChapter && bookMeta && (
             <NotesPane
               bookId={bookMeta.book_id}
@@ -357,14 +216,12 @@ export const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Omni-Search Modal Command Palette */}
       <OmniSearchModal
         isOpen={searchOpen}
         onClose={() => setSearchOpen(false)}
         onSelectResult={handleSelectSearchResult}
       />
 
-      {/* Extractive Practice Suite Modal */}
       <PracticeModal
         isOpen={practiceModalOpen}
         onClose={() => setPracticeModalOpen(false)}
@@ -374,7 +231,6 @@ export const App: React.FC = () => {
         bookTitle={bookMeta?.title || "Book Engine"}
       />
 
-      {/* Chapter Gatekeeper Modal */}
       <GatekeeperModal
         isOpen={gatekeeperModalOpen}
         onClose={() => setGatekeeperModalOpen(false)}
@@ -384,7 +240,6 @@ export const App: React.FC = () => {
         onReviewSubmitted={handleReviewSubmitted}
       />
 
-      {/* Phase 5: Unified Notes & Highlights Drawer */}
       <NotesDrawer
         isOpen={notesDrawerOpen}
         onClose={() => setNotesDrawerOpen(false)}
@@ -392,7 +247,6 @@ export const App: React.FC = () => {
         onNavigateToAnchor={handleSelectSearchResult}
       />
 
-      {/* Phase 5: Retention & Reading Analytics Dashboard */}
       <AnalyticsModal
         isOpen={analyticsModalOpen}
         onClose={() => setAnalyticsModalOpen(false)}
