@@ -8,6 +8,7 @@ import {
   ListTree,
   ListOrdered,
   Search,
+  BookMarked,
 } from "lucide-react";
 import { BookMeta, ChapterMeta, BookMetadata, TOCItem } from "../lib/types";
 import { BookSelector } from "./BookSelector";
@@ -20,6 +21,7 @@ interface SidebarProps {
   onSelectBook: (bookId: string) => void;
   activeChapterId: string;
   onSelectChapter: (chapter: ChapterMeta) => void;
+  onOpenNotesDrawer?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -30,6 +32,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectBook,
   activeChapterId,
   onSelectChapter,
+  onOpenNotesDrawer,
 }) => {
   const [activeTab, setActiveTab] = useState<"toc" | "chapters">("toc");
   const [searchFilter, setSearchFilter] = useState("");
@@ -316,10 +319,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
 
-      {/* Footer Stats */}
+      {/* Footer Stats & Quick Notes Drawer Link */}
       {bookMeta && (
         <div className="p-3 border-t border-black/5 dark:border-white/5 text-[11px] text-neutral-400 dark:text-neutral-500 flex items-center justify-between">
           <span>{bookMeta.total_chapters} Chapters</span>
+          {onOpenNotesDrawer && (
+            <button
+              onClick={onOpenNotesDrawer}
+              className="flex items-center gap-1 font-medium text-amber-700 dark:text-nord-accent hover:underline cursor-pointer"
+              title="Open Unified Notes & Highlights Drawer"
+            >
+              <BookMarked className="w-3 h-3" />
+              <span>Notes Drawer</span>
+            </button>
+          )}
           <span>{bookMeta.total_words.toLocaleString()} Words</span>
         </div>
       )}

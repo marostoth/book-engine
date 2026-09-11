@@ -45,9 +45,11 @@ book-engine/
 │   └── desktop/                 # Tauri v2 native desktop application & React frontend
 │       ├── src/                 # React 18+ client application
 │       │   ├── components/      # UI components (Reader, Sidebar, TopNav, Modals, Popovers)
+│       │   │   ├── AnalyticsModal.tsx   # FSRS retention heatmap & reading velocity dashboard modal
 │       │   │   ├── BookSelector.tsx     # Dynamic vault library switcher popover
 │       │   │   ├── FootnotePopover.tsx  # Floating UI citation preview popover
 │       │   │   ├── GatekeeperModal.tsx  # Chapter Gatekeeper 3-card recall challenge modal
+│       │   │   ├── NotesDrawer.tsx      # Unified slide-over notes & W3C highlights drawer with summary export
 │       │   │   ├── NotesPane.tsx        # Dual-pane Markdown reflection notes editor
 │       │   │   ├── OmniSearchModal.tsx  # Ctrl+K global full-text search palette
 │       │   │   ├── PracticeModal.tsx    # Extractive practice suite (Cloze & Scramble drills)
@@ -61,6 +63,7 @@ book-engine/
 │       │   │   ├── bionic.ts            # Deterministic bionic fixation bolding transformer
 │       │   │   ├── highlights.ts        # W3C Text Quote Selector parser & serializer
 │       │   │   ├── markdown.ts          # Chapter Markdown preprocessor & anchor normalizer
+│       │   │   ├── notesAggregator.ts   # Cross-chapter note aggregation, anchor sorting & summary compiler
 │       │   │   └── types.ts             # Canonical TypeScript interfaces & data contracts
 │       │   ├── App.tsx          # Application shell, global state coordinator & router
 │       │   ├── index.css        # Editorial design tokens, typography, and margin glyphs
@@ -364,6 +367,73 @@ The backend scans `vault/books/` dynamically on startup and command invocation, 
 - Raw paragraph anchors (`^p-001`, `§p-001`) are stripped from inline text bodies during markdown ingestion into HTML.
 - Parsed into headless custom node attributes (`<p data-anchor="p-001">`) via TipTap's `AnchorParagraph` extension.
 - Displayed via CSS pseudo-element (`.reader-prose p[data-anchor]::before`) as a subtle, muted `§` glyph in the left margin (`left: -1.75rem`) that smoothly reveals on paragraph hover without polluting text selection or clipboard payloads.
+
+---
+
+## 8. Study Analytics Dashboard & Aggregated Notes Drawer: As-Built Implementation (Phase 5)
+
+### Unified Notes & Highlights Drawer (`apps/desktop/src/components/NotesDrawer.tsx`)
+Aggregates all chapter notes and W3C highlights across the active book:
+- **Strict Read-Only Vault Access:** Reads `vault/notes/<book-id>/ch-*-notes.md` without modifying any vault files during scanning or aggregation.
+- **Chronological & Anchor Sorting:** Uses `notesAggregator.ts` to parse embedded W3C highlights JSON comments and markdown reflection notes, ordering entries chronologically by Chapter spine sequence and then by Paragraph Anchor (`^p-xxx`).
+- **Interactive Paragraph Navigation:** Clicking any highlight or note snippet in the drawer invokes `onNavigateToAnchor`, seamlessly switching the active chapter (if necessary) and smoothly scrolling the reader canvas directly to that paragraph anchor.
+- **Publication-Ready Summary Export:** The "Export Summary" button compiles all highlights and personal reflections across the entire book into a single clean, formatted Markdown file: `vault/notes/<book-id>/summary-export.md`.
+
+### Retention & Reading Analytics Dashboard (`apps/desktop/src/components/AnalyticsModal.tsx`)
+A study analytics modal accessible from `TopNav.tsx` or `SettingsPopover.tsx`:
+- **FSRS Retention Heatmap:** Renders a 52-week GitHub-style annual activity grid visualizing card reviews submitted per day, with intensity tiers, cell hover tooltips, and study streak statistics (current streak, longest streak, total yearly reviews).
+- **Retention Statistics Cards:**
+  - **Cards Due Today:** Number of reviews scheduled for the current day.
+  - **Mastered Cards:** Cards that have graduated to mature stability ($\ge 21$ days).
+  - **FSRS Retention Rate Percentage:** Calculated using the canonical power-law retrievability formula $R(t, S) = (1 + 19/9 \cdot t/S)^{-0.5}$ over reviewed cards.
+- **Reading Velocity & Time:**
+  - Active reading timer tracks focused reading session seconds.
+  - Calculates average words-per-minute (WPM) across completed chapters ($\ge 90\%$ read).
+  - Detailed chapter-by-chapter breakdown table (words, time spent, velocity in WPM, completion status).
+
+### Ephemeral SQLite Schema Extensions (`apps/desktop/src-tauri/src/db.rs`)
+Stored strictly in OS AppData (`%APPDATA%\book-engine\app_cache\index.db`):
+```sql
+CREATE TABLE IF NOT EXISTS review_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    card_id TEXT NOT NULL,
+    book_id TEXT NOT NULL,
+    rating INTEGER NOT NULL,
+    reviewed_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_review_logs_date ON review_logs (reviewed_at);
+
+CREATE TABLE IF NOT EXISTS reading_sessions (
+    book_id TEXT NOT NULL,
+    chapter_file TEXT NOT NULL,
+    seconds_spent INTEGER NOT NULL DEFAULT 0,
+    words_read INTEGER NOT NULL DEFAULT 0,
+    completed INTEGER NOT NULL DEFAULT 0,
+    last_read_at INTEGER NOT NULL,
+    PRIMARY KEY (book_id, chapter_file)
+);
+```
+
+### Tauri v2 IPC Interface Additions (`apps/desktop/src-tauri/`)
+
+| Command | Signature | Description |
+| :--- | :--- | :--- |
+| `get_all_book_notes` | `(book_id: String) -> Result<Vec<AggregatedNoteItem>, String>` | Scans `vault/notes/<book-id>/ch-*-notes.md`, parses W3C highlights & Markdown reflection items, extracts `^p-xxx` anchors, and returns entries sorted in reading order. |
+| `export_book_summary` | `(book_id: String) -> Result<String, String>` | Compiles all chapter notes, reflections, and quotes into a unified Markdown summary file: `vault/notes/<book-id>/summary-export.md`. |
+| `get_study_analytics` | `(book_id: Option<String>) -> Result<StudyAnalytics, String>` | Returns complete analytics: daily review activity, card counts grouped by state (New, Learning, Review, Relearning), retention rate %, mastered cards, cards due today, and total vault words / estimated reading time. |
+| `load_all_book_notes` | `(book_id: String) -> Result<Vec<ChapterNoteFile>, String>` | Scans `vault/notes/<book_id>/` in strictly read-only mode, returning all raw chapter notes files. |
+| `export_summary` | `(book_id: String, content: String) -> Result<String, String>` | Writes arbitrary compiled executive summary string directly to `vault/notes/<book_id>/summary-export.md`. |
+| `get_review_heatmap` | `(book_id: Option<String>) -> Result<Vec<DayReviewActivity>, String>` | Queries `review_logs` table in `index.db` to return daily card review counts for the heatmap. |
+| `get_retention_metrics` | `(book_id: Option<String>) -> Result<RetentionMetrics, String>` | Computes due today, mastered cards, and FSRS power-law retrievability $R(t, S)$ retention %. |
+| `get_reading_velocity` | `(book_id: Option<String>) -> Result<ReadingVelocityStats, String>` | Aggregates reading time, words read, completed chapters, and WPM across chapters. |
+| `record_reading_progress`| `(book_id: String, chapter_file: String, seconds_spent: u64, words_read: usize, completed: bool) -> Result<(), String>` | Commits active reading session time and completion status to `index.db`. |
+
+### Retention Rate Formula Standard
+Retention rate is computed as:
+$$\text{Retention Rate} = \frac{\text{Total Reviews} - \text{Again Count}}{\text{Total Reviews}} \times 100\%$$
+with fallback to the aggregate FSRS power-law retrievability $R(t, S) = (1 + 19/9 \cdot t/S)^{-0.5}$ when no reviews have been recorded yet in `review_logs`.
+
+
 
 
 

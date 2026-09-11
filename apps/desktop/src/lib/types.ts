@@ -116,3 +116,89 @@ export interface ReaderPreferences {
   dailyTarget: number;
 }
 
+export interface ChapterNoteFile {
+  file_name: string;
+  chapter_file: string;
+  content: string;
+}
+
+export type EntryType = "highlight" | "note";
+
+export interface AggregatedEntry {
+  id: string;
+  type: EntryType;
+  chapterFile: string;
+  chapterTitle: string;
+  chapterOrder: number;
+  anchor?: string;
+  text: string;
+  prefix?: string;
+  suffix?: string;
+  color?: string;
+  sectionHeading?: string;
+  createdAt?: string;
+}
+
+export interface DayReviewActivity {
+  date: string;
+  count: number;
+}
+
+export interface RetentionMetrics {
+  due_today: number;
+  total_cards: number;
+  mastered_cards: number;
+  retention_rate: number;
+}
+
+export interface ChapterReadingStatItem {
+  chapter_file: string;
+  chapter_title?: string;
+  seconds_spent: number;
+  words_read: number;
+  completed: boolean;
+  wpm: number;
+  last_read_at: number;
+}
+
+export interface ReadingVelocityStats {
+  total_seconds: number;
+  completed_chapters: number;
+  total_words_read: number;
+  average_wpm: number;
+  chapter_stats: ChapterReadingStatItem[];
+}
+
+export interface AggregatedNoteItem {
+  id: string;
+  item_type: "highlight" | "note";
+  chapter_file: string;
+  chapter_title: string;
+  chapter_order: number;
+  anchor?: string | null;
+  text: string;
+  color?: string | null;
+  section_heading?: string | null;
+  created_at?: string | null;
+}
+
+export interface StateCounts {
+  new_count: number;
+  learning_count: number;
+  review_count: number;
+  relearning_count: number;
+  total_cards: number;
+}
+
+export interface StudyAnalytics {
+  daily_reviews: DayReviewActivity[];
+  state_counts: StateCounts;
+  retention_rate: number;
+  cards_due_today: number;
+  mastered_cards: number;
+  total_vault_words: number;
+  estimated_reading_time_mins: number;
+}
+
+
+

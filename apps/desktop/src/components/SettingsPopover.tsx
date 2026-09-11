@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Settings, ShieldCheck, Target, RefreshCw, X, Sliders } from "lucide-react";
+import { Settings, ShieldCheck, Target, RefreshCw, X, Sliders, BarChart3 } from "lucide-react";
 import { ReaderPreferences } from "../lib/types";
 
 interface SettingsPopoverProps {
   preferences: ReaderPreferences;
   onPreferencesChange: (prefs: ReaderPreferences) => void;
   onResyncDeck?: () => void;
+  onOpenAnalytics?: () => void;
   dueCardsCount?: number;
 }
 
@@ -13,6 +14,7 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
   preferences,
   onPreferencesChange,
   onResyncDeck,
+  onOpenAnalytics,
   dueCardsCount = 0,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -170,28 +172,37 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
               </div>
             </div>
 
-            {/* Re-sync Deck / Database Cache Action */}
-            {onResyncDeck && (
-              <>
-                <div className="h-[1px] bg-black/5 dark:bg-white/5" />
-                <div className="pt-1 flex items-center justify-between text-xs">
-                  <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                    {dueCardsCount} cards due currently
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onResyncDeck();
-                      setIsOpen(false);
-                    }}
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium text-amber-700 dark:text-nord-accent bg-amber-500/10 dark:bg-nord-accent/15 hover:bg-amber-500/20 dark:hover:bg-nord-accent/25 transition-colors"
-                  >
-                    <RefreshCw className="w-3 h-3" />
-                    <span>Sync Deck</span>
-                  </button>
-                </div>
-              </>
-            )}
+            {/* Re-sync Deck & Analytics Actions */}
+            <div className="h-[1px] bg-black/5 dark:bg-white/5" />
+            <div className="pt-1 flex items-center justify-between gap-2 text-xs">
+              {onOpenAnalytics && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onOpenAnalytics();
+                    setIsOpen(false);
+                  }}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium text-neutral-700 dark:text-neutral-200 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                >
+                  <BarChart3 className="w-3 h-3 text-amber-600 dark:text-nord-accent" />
+                  <span>Analytics</span>
+                </button>
+              )}
+
+              {onResyncDeck && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onResyncDeck();
+                    setIsOpen(false);
+                  }}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium text-amber-700 dark:text-nord-accent bg-amber-500/10 dark:bg-nord-accent/15 hover:bg-amber-500/20 dark:hover:bg-nord-accent/25 transition-colors ml-auto"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>Sync Deck ({dueCardsCount})</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -18,6 +18,7 @@ import {
   persistNotes,
   syncPracticeDeck,
   getDueCards,
+  recordReadingProgress,
 } from "./lib/api";
 import { parseHighlightsFromNotes, serializeHighlightsToNotes } from "./lib/highlights";
 import { Sidebar } from "./components/Sidebar";
@@ -27,6 +28,8 @@ import { NotesPane } from "./components/NotesPane";
 import { OmniSearchModal } from "./components/OmniSearchModal";
 import { PracticeModal } from "./components/PracticeModal";
 import { GatekeeperModal } from "./components/GatekeeperModal";
+import { NotesDrawer } from "./components/NotesDrawer";
+import { AnalyticsModal } from "./components/AnalyticsModal";
 
 export const App: React.FC = () => {
   const [theme, setTheme] = useState<Theme>("paper");
@@ -53,6 +56,10 @@ export const App: React.FC = () => {
   const [practiceModalOpen, setPracticeModalOpen] = useState<boolean>(false);
   const [gatekeeperModalOpen, setGatekeeperModalOpen] = useState<boolean>(false);
   const [pendingChapter, setPendingChapter] = useState<ChapterMeta | null>(null);
+
+  // Phase 5 Drawers & Analytics Modals
+  const [notesDrawerOpen, setNotesDrawerOpen] = useState<boolean>(false);
+  const [analyticsModalOpen, setAnalyticsModalOpen] = useState<boolean>(false);
 
   // Vault Library & Active Book
   const [availableBooks, setAvailableBooks] = useState<BookMetadata[]>([]);
@@ -158,6 +165,43 @@ export const App: React.FC = () => {
     });
   }, [bookMeta, activeChapter]);
 
+  // Track active reading time and record progress to SQLite backend
+  useEffect(() => {
+    if (!activeBookId || !activeChapter) return;
+
+    let elapsedSecs = 0;
+    const interval = setInterval(() => {
+      if (document.hasFocus()) {
+        elapsedSecs += 5;
+        // Periodically report reading session every 15 seconds
+        if (elapsedSecs % 15 === 0) {
+          const isCompleted = progressPercent >= 90;
+          recordReadingProgress(
+            activeBookId,
+            activeChapter.file_path,
+            15,
+            activeChapter.word_count,
+            isCompleted
+          );
+        }
+      }
+    }, 5000);
+
+    return () => {
+      clearInterval(interval);
+      const remainder = elapsedSecs % 15;
+      if (remainder > 0 && activeBookId && activeChapter) {
+        recordReadingProgress(
+          activeBookId,
+          activeChapter.file_path,
+          remainder,
+          activeChapter.word_count,
+          progressPercent >= 90
+        );
+      }
+    };
+  }, [activeBookId, activeChapter, progressPercent]);
+
   const handleSelectChapter = (chapter: ChapterMeta) => {
     // Check Chapter Gatekeeper Mode
     if (
@@ -212,7 +256,7 @@ export const App: React.FC = () => {
     });
   };
 
-  const handleSelectSearchResult = (chapterFile: string, anchor: string) => {
+  const handleSelectSearchResult = (chapterFile: string, anchor?: string) => {
     if (!bookMeta) return;
 
     // Check if target chapter is different from active chapter
@@ -241,6 +285,7 @@ export const App: React.FC = () => {
           onSelectBook={handleSelectBook}
           activeChapterId={activeChapter?.id || ""}
           onSelectChapter={handleSelectChapter}
+          onOpenNotesDrawer={() => setNotesDrawerOpen(true)}
         />
       )}
 
@@ -266,6 +311,8 @@ export const App: React.FC = () => {
           onOpenSearch={() => setSearchOpen(true)}
           dueCardsCount={dueCards.length}
           onOpenPractice={() => setPracticeModalOpen(true)}
+          onOpenNotesDrawer={() => setNotesDrawerOpen(true)}
+          onOpenAnalytics={() => setAnalyticsModalOpen(true)}
           preferences={preferences}
           onPreferencesChange={handlePreferencesChange}
           onResyncDeck={() => refreshPracticeCards()}
@@ -326,6 +373,23 @@ export const App: React.FC = () => {
         cards={dueCards}
         onComplete={handleGatekeeperComplete}
         onReviewSubmitted={handleReviewSubmitted}
+      />
+
+      {/* Phase 5: Unified Notes & Highlights Drawer */}
+      <NotesDrawer
+        isOpen={notesDrawerOpen}
+        onClose={() => setNotesDrawerOpen(false)}
+        bookMeta={bookMeta}
+        onNavigateToAnchor={handleSelectSearchResult}
+      />
+
+      {/* Phase 5: Retention & Reading Analytics Dashboard */}
+      <AnalyticsModal
+        isOpen={analyticsModalOpen}
+        onClose={() => setAnalyticsModalOpen(false)}
+        activeBookId={activeBookId}
+        bookMeta={bookMeta}
+        preferences={preferences}
       />
     </div>
   );

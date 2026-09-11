@@ -99,3 +99,85 @@ pub async fn get_deck_stats(book_id: Option<String>) -> Result<crate::db::DeckSt
         .map_err(|e| format!("Failed to get deck stats: {}", e))
 }
 
+#[command]
+pub async fn load_all_book_notes(book_id: String) -> Result<Vec<crate::vault::ChapterNoteFile>, String> {
+    tokio::task::spawn_blocking(move || crate::vault::scan_all_notes(&book_id))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+        .map_err(|e| format!("Failed to load book notes: {}", e))
+}
+
+#[command]
+pub async fn export_summary(book_id: String, content: String) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || crate::vault::export_summary_file(&book_id, &content))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+        .map_err(|e| format!("Failed to export summary: {}", e))
+}
+
+#[command]
+pub async fn get_review_heatmap(book_id: Option<String>) -> Result<Vec<crate::db::DayReviewActivity>, String> {
+    tokio::task::spawn_blocking(move || crate::db::get_review_heatmap_blocking(book_id.as_deref()))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+        .map_err(|e| format!("Failed to get review heatmap: {}", e))
+}
+
+#[command]
+pub async fn get_retention_metrics(book_id: Option<String>) -> Result<crate::db::RetentionMetrics, String> {
+    tokio::task::spawn_blocking(move || crate::db::get_retention_metrics_blocking(book_id.as_deref()))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+        .map_err(|e| format!("Failed to get retention metrics: {}", e))
+}
+
+#[command]
+pub async fn get_reading_velocity(book_id: Option<String>) -> Result<crate::db::ReadingVelocityStats, String> {
+    tokio::task::spawn_blocking(move || crate::db::get_reading_velocity_blocking(book_id.as_deref()))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+        .map_err(|e| format!("Failed to get reading velocity: {}", e))
+}
+
+#[command]
+pub async fn record_reading_progress(
+    book_id: String,
+    chapter_file: String,
+    seconds_spent: u64,
+    words_read: usize,
+    completed: bool,
+) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        crate::db::record_reading_session_blocking(&book_id, &chapter_file, seconds_spent, words_read, completed)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))?
+    .map_err(|e| format!("Failed to record reading progress: {}", e))
+}
+
+#[command]
+pub async fn get_all_book_notes(book_id: String) -> Result<Vec<crate::vault::AggregatedNoteItem>, String> {
+    tokio::task::spawn_blocking(move || crate::vault::parse_all_book_notes(&book_id))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+        .map_err(|e| format!("Failed to parse all book notes: {}", e))
+}
+
+#[command]
+pub async fn export_book_summary(book_id: String) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || crate::vault::compile_and_export_book_summary(&book_id))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+        .map_err(|e| format!("Failed to export book summary: {}", e))
+}
+
+#[command]
+pub async fn get_study_analytics(book_id: Option<String>) -> Result<crate::db::StudyAnalytics, String> {
+    tokio::task::spawn_blocking(move || crate::db::get_study_analytics_blocking(book_id.as_deref()))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+        .map_err(|e| format!("Failed to get study analytics: {}", e))
+}
+
+
+

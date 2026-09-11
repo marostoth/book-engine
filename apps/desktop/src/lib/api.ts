@@ -419,3 +419,356 @@ export async function getDeckStats(bookId?: string): Promise<DeckStats> {
   };
 }
 
+export async function fetchAllBookNotes(bookId: string): Promise<import("./types").ChapterNoteFile[]> {
+  if (isTauri) {
+    try {
+      return await tauriInvoke<import("./types").ChapterNoteFile[]>("load_all_book_notes", { bookId });
+    } catch (e) {
+      console.warn("Tauri load_all_book_notes failed, falling back:", e);
+    }
+  }
+
+  // Fallback rich starter notes for dev preview
+  const ch1Notes = localStorage.getItem(`notes_${bookId}_ch-01-notes.md`) || `# Reflections: Chapter 1 - Consistency Models
+
+<!-- highlights-json
+[
+  {
+    "id": "hl-sample-1",
+    "exact": "In distributed computing, linearizability is defined as a strong consistency guarantee where all operations appear to execute atomically",
+    "prefix": "",
+    "suffix": " at a specific point",
+    "anchor": "^p-001",
+    "color": "yellow",
+    "createdAt": "${new Date(Date.now() - 86400000 * 2).toISOString()}"
+  },
+  {
+    "id": "hl-sample-2",
+    "exact": "The primary purpose of vector clocks is determining the partial ordering of events",
+    "prefix": "",
+    "suffix": " in an asynchronous distributed system",
+    "anchor": "^p-002",
+    "color": "emerald",
+    "createdAt": "${new Date(Date.now() - 86400000).toISOString()}"
+  }
+]
+-->
+
+## Key Takeaways
+
+- Linearizability guarantees total ordering for read and write operations (^p-001).
+- Vector clocks track distributed causality without synchronized physical clocks (^p-002).
+
+## Open Inquiries
+
+- How do large-scale databases truncate vector clock dimensions without losing causal consistency?
+`;
+
+  const ch2Notes = localStorage.getItem(`notes_${bookId}_ch-02-notes.md`) || `# Reflections: Chapter 2 - State Machine Replication
+
+<!-- highlights-json
+[
+  {
+    "id": "hl-sample-3",
+    "exact": "The Paxos consensus algorithm is considered to be the canonical protocol",
+    "prefix": "",
+    "suffix": " for reaching agreement",
+    "anchor": "^p-002",
+    "color": "blue",
+    "createdAt": "${new Date().toISOString()}"
+  }
+]
+-->
+
+## Key Takeaways
+
+- State machine replication requires deterministic transitions across all replicas (^p-001).
+- Paxos guarantees safety under asynchronous network partitions (^p-002).
+
+## Open Inquiries
+
+- What are the empirical latency differences between Multi-Paxos and Raft leader leases?
+`;
+
+  return [
+    {
+      file_name: "ch-01-notes.md",
+      chapter_file: "ch-01.md",
+      content: ch1Notes,
+    },
+    {
+      file_name: "ch-02-notes.md",
+      chapter_file: "ch-02.md",
+      content: ch2Notes,
+    },
+  ];
+}
+
+export async function exportSummary(bookId: string, content: string): Promise<string> {
+  if (isTauri) {
+    try {
+      return await tauriInvoke<string>("export_summary", { bookId, content });
+    } catch (e) {
+      console.warn("Tauri export_summary failed, falling back:", e);
+    }
+  }
+
+  localStorage.setItem(`summary_export_${bookId}`, content);
+  return `vault/notes/${bookId}/summary-export.md`;
+}
+
+export async function getAllBookNotes(bookId: string): Promise<import("./types").AggregatedNoteItem[]> {
+  if (isTauri) {
+    try {
+      return await tauriInvoke<import("./types").AggregatedNoteItem[]>("get_all_book_notes", { bookId });
+    } catch (e) {
+      console.warn("Tauri get_all_book_notes failed, falling back to client aggregation:", e);
+    }
+  }
+
+  // Fallback: aggregate from mock note files
+  const files = await fetchAllBookNotes(bookId);
+  const { aggregateBookNotes } = await import("./notesAggregator");
+  const meta = await fetchBookMeta(bookId);
+  const entries = aggregateBookNotes(meta, files);
+  return entries.map((e) => ({
+    id: e.id,
+    item_type: e.type,
+    chapter_file: e.chapterFile,
+    chapter_title: e.chapterTitle,
+    chapter_order: e.chapterOrder,
+    anchor: e.anchor || null,
+    text: e.text,
+    color: e.color || null,
+    section_heading: e.sectionHeading || null,
+    created_at: e.createdAt || null,
+  }));
+}
+
+export async function exportBookSummary(bookId: string): Promise<string> {
+  if (isTauri) {
+    try {
+      return await tauriInvoke<string>("export_book_summary", { bookId });
+    } catch (e) {
+      console.warn("Tauri export_book_summary failed, falling back to client export:", e);
+    }
+  }
+
+  // Fallback: generate summary markdown and persist to localStorage
+  const files = await fetchAllBookNotes(bookId);
+  const { aggregateBookNotes, generateSummaryMarkdown } = await import("./notesAggregator");
+  const meta = await fetchBookMeta(bookId);
+  const entries = aggregateBookNotes(meta, files);
+  const md = generateSummaryMarkdown(meta, entries);
+  localStorage.setItem(`summary_export_${bookId}`, md);
+  return `vault/notes/${bookId}/summary-export.md`;
+}
+
+export async function getStudyAnalytics(bookId?: string): Promise<import("./types").StudyAnalytics> {
+  if (isTauri) {
+    try {
+      return await tauriInvoke<import("./types").StudyAnalytics>("get_study_analytics", { bookId: bookId || null });
+    } catch (e) {
+      console.warn("Tauri get_study_analytics failed, falling back:", e);
+    }
+  }
+
+  // Fallback calculations for web dev preview
+  const [heatmap, retention] = await Promise.all([
+    fetchReviewHeatmap(bookId),
+    fetchRetentionMetrics(bookId),
+  ]);
+
+  const totalVaultWords = 22400;
+
+  return {
+    daily_reviews: heatmap,
+    state_counts: {
+      new_count: 5,
+      learning_count: 3,
+      review_count: 8,
+      relearning_count: 0,
+      total_cards: 16,
+    },
+    retention_rate: retention.retention_rate,
+    cards_due_today: retention.due_today,
+    mastered_cards: retention.mastered_cards,
+    total_vault_words: totalVaultWords,
+    estimated_reading_time_mins: Math.round(totalVaultWords / 225),
+  };
+}
+
+
+export async function fetchReviewHeatmap(bookId?: string): Promise<import("./types").DayReviewActivity[]> {
+  if (isTauri) {
+    try {
+      return await tauriInvoke<import("./types").DayReviewActivity[]>("get_review_heatmap", { bookId });
+    } catch (e) {
+      console.warn("Tauri get_review_heatmap failed, falling back:", e);
+    }
+  }
+
+  // Generate realistic 365-day activity pattern for web preview
+  const activities: import("./types").DayReviewActivity[] = [];
+  const now = new Date();
+  for (let i = 364; i >= 0; i--) {
+    const d = new Date(now.getTime() - i * 86400000);
+    const dateStr = d.toISOString().split("T")[0];
+    const dayOfWeek = d.getDay();
+    // Simulate active streaks and weekday rhythms
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const rand = Math.random();
+    let count = 0;
+    if (i < 90) {
+      // Recent active period
+      if (rand > 0.25) {
+        count = isWeekend ? Math.floor(rand * 8) + 2 : Math.floor(rand * 18) + 4;
+      }
+    } else if (i < 240) {
+      // Intermittent activity
+      if (rand > 0.45) {
+        count = Math.floor(rand * 12) + 1;
+      }
+    } else {
+      // Early onboarding
+      if (rand > 0.6) {
+        count = Math.floor(rand * 6) + 1;
+      }
+    }
+    if (count > 0) {
+      activities.push({ date: dateStr, count });
+    }
+  }
+  return activities;
+}
+
+export async function fetchRetentionMetrics(bookId?: string): Promise<import("./types").RetentionMetrics> {
+  if (isTauri) {
+    try {
+      return await tauriInvoke<import("./types").RetentionMetrics>("get_retention_metrics", { bookId });
+    } catch (e) {
+      console.warn("Tauri get_retention_metrics failed, falling back:", e);
+    }
+  }
+
+  return {
+    due_today: 4,
+    total_cards: 16,
+    mastered_cards: 7,
+    retention_rate: 93.4,
+  };
+}
+
+export async function fetchReadingVelocity(bookId?: string): Promise<import("./types").ReadingVelocityStats> {
+  if (isTauri) {
+    try {
+      return await tauriInvoke<import("./types").ReadingVelocityStats>("get_reading_velocity", { bookId });
+    } catch (e) {
+      console.warn("Tauri get_reading_velocity failed, falling back:", e);
+    }
+  }
+
+  // Calculate from localStorage or provide initial realistic stats
+  const storedSessions = localStorage.getItem(`reading_sessions_${bookId || "all"}`);
+  if (storedSessions) {
+    try {
+      return JSON.parse(storedSessions);
+    } catch {}
+  }
+
+  return {
+    total_seconds: 5280, // ~1h 28m
+    completed_chapters: 2,
+    total_words_read: 22400,
+    average_wpm: 254.5,
+    chapter_stats: [
+      {
+        chapter_file: "ch-01.md",
+        chapter_title: "Chapter 1: Consistency Models",
+        seconds_spent: 2640,
+        words_read: 11400,
+        completed: true,
+        wpm: 259.1,
+        last_read_at: Math.floor(Date.now() / 1000) - 86400,
+      },
+      {
+        chapter_file: "ch-02.md",
+        chapter_title: "Chapter 2: State Machine Replication",
+        seconds_spent: 2640,
+        words_read: 11000,
+        completed: true,
+        wpm: 250.0,
+        last_read_at: Math.floor(Date.now() / 1000),
+      },
+    ],
+  };
+}
+
+export async function recordReadingProgress(
+  bookId: string,
+  chapterFile: string,
+  secondsSpent: number,
+  wordsRead: number,
+  completed: boolean
+): Promise<void> {
+  if (isTauri) {
+    try {
+      await tauriInvoke("record_reading_progress", {
+        bookId,
+        chapterFile,
+        secondsSpent,
+        wordsRead,
+        completed,
+      });
+      return;
+    } catch (e) {
+      console.warn("Tauri record_reading_progress failed:", e);
+    }
+  }
+
+  // Update fallback in localStorage
+  try {
+    const key = `reading_sessions_${bookId}`;
+    const cur: import("./types").ReadingVelocityStats = JSON.parse(
+      localStorage.getItem(key) ||
+        JSON.stringify({
+          total_seconds: 0,
+          completed_chapters: 0,
+          total_words_read: 0,
+          average_wpm: 0,
+          chapter_stats: [],
+        })
+    );
+
+    let ch = cur.chapter_stats.find((s) => s.chapter_file === chapterFile);
+    if (!ch) {
+      ch = {
+        chapter_file: chapterFile,
+        seconds_spent: 0,
+        words_read: 0,
+        completed: false,
+        wpm: 0,
+        last_read_at: Math.floor(Date.now() / 1000),
+      };
+      cur.chapter_stats.push(ch);
+    }
+
+    ch.seconds_spent += secondsSpent;
+    ch.words_read = Math.max(ch.words_read, wordsRead);
+    ch.completed = ch.completed || completed;
+    ch.last_read_at = Math.floor(Date.now() / 1000);
+    ch.wpm = ch.seconds_spent > 0 ? Math.round(ch.words_read / (ch.seconds_spent / 60)) : 0;
+
+    cur.total_seconds = cur.chapter_stats.reduce((acc, s) => acc + s.seconds_spent, 0);
+    cur.total_words_read = cur.chapter_stats.reduce((acc, s) => acc + s.words_read, 0);
+    cur.completed_chapters = cur.chapter_stats.filter((s) => s.completed).length;
+    cur.average_wpm =
+      cur.total_seconds > 0 ? Math.round(cur.total_words_read / (cur.total_seconds / 60)) : 0;
+
+    localStorage.setItem(key, JSON.stringify(cur));
+  } catch (err) {
+    console.warn("Failed to update localStorage reading session:", err);
+  }
+}
+
+

@@ -48,6 +48,59 @@ pub struct DeckStats {
     pub total_cards: usize,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DayReviewActivity {
+    pub date: String,
+    pub count: usize,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RetentionMetrics {
+    pub due_today: usize,
+    pub total_cards: usize,
+    pub mastered_cards: usize,
+    pub retention_rate: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ChapterReadingStatItem {
+    pub chapter_file: String,
+    pub seconds_spent: u64,
+    pub words_read: usize,
+    pub completed: bool,
+    pub wpm: f64,
+    pub last_read_at: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ReadingVelocityStats {
+    pub total_seconds: u64,
+    pub completed_chapters: usize,
+    pub total_words_read: usize,
+    pub average_wpm: f64,
+    pub chapter_stats: Vec<ChapterReadingStatItem>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct StateCounts {
+    pub new_count: usize,
+    pub learning_count: usize,
+    pub review_count: usize,
+    pub relearning_count: usize,
+    pub total_cards: usize,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct StudyAnalytics {
+    pub daily_reviews: Vec<DayReviewActivity>,
+    pub state_counts: StateCounts,
+    pub retention_rate: f64,
+    pub cards_due_today: usize,
+    pub mastered_cards: usize,
+    pub total_vault_words: usize,
+    pub estimated_reading_time_mins: usize,
+}
+
 /// Returns the OS AppData path for the ephemeral database: %APPDATA%\book-engine\app_cache\index.db
 pub fn get_db_path() -> Result<PathBuf> {
     let base = if let Ok(appdata) = std::env::var("APPDATA") {
@@ -112,7 +165,26 @@ pub fn open_or_create_db() -> Result<Connection> {
              last_review INTEGER NOT NULL DEFAULT 0,
              reps INTEGER NOT NULL DEFAULT 0
          );
-         CREATE INDEX IF NOT EXISTS idx_fsrs_due ON fsrs_cards (due, book_id);"
+         CREATE INDEX IF NOT EXISTS idx_fsrs_due ON fsrs_cards (due, book_id);
+
+         CREATE TABLE IF NOT EXISTS review_logs (
+             id INTEGER PRIMARY KEY AUTOINCREMENT,
+             card_id TEXT NOT NULL,
+             book_id TEXT NOT NULL,
+             rating INTEGER NOT NULL,
+             reviewed_at INTEGER NOT NULL
+         );
+         CREATE INDEX IF NOT EXISTS idx_review_logs_date ON review_logs (reviewed_at);
+
+         CREATE TABLE IF NOT EXISTS reading_sessions (
+             book_id TEXT NOT NULL,
+             chapter_file TEXT NOT NULL,
+             seconds_spent INTEGER NOT NULL DEFAULT 0,
+             words_read INTEGER NOT NULL DEFAULT 0,
+             completed INTEGER NOT NULL DEFAULT 0,
+             last_read_at INTEGER NOT NULL,
+             PRIMARY KEY (book_id, chapter_file)
+         );"
     ).context("Failed to initialize database tables")?;
 
     Ok(conn)
@@ -136,7 +208,7 @@ pub fn index_vault_blocking() -> Result<IndexSummary> {
         });
     }
 
-    let tx = conn.transaction()?;
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
 
     for book_entry in std::fs::read_dir(&books_dir)? {
         let book_entry = book_entry?;
@@ -618,7 +690,425 @@ pub fn submit_card_review_blocking(card_id: &str, rating_val: u8) -> Result<crat
         ],
     )?;
 
+    // Persist review record to review_logs table for analytics heatmap
+    let book_id: String = conn.query_row(
+        "SELECT book_id FROM fsrs_cards WHERE card_id = ?",
+        params![card_id],
+        |r| r.get(0),
+    ).unwrap_or_else(|_| "sample".to_string());
+
+    let _ = conn.execute(
+        "INSERT INTO review_logs (card_id, book_id, rating, reviewed_at) VALUES (?, ?, ?, ?)",
+        params![card_id, book_id, rating_val as i64, now],
+    );
+
     Ok(schedule)
+}
+
+/// Queries review activity per day for FSRS GitHub-style heatmap.
+pub fn get_review_heatmap_blocking(book_id: Option<&str>) -> Result<Vec<DayReviewActivity>> {
+    let conn = open_or_create_db()?;
+
+    let (where_clause, params_vec): (&str, Vec<rusqlite::types::Value>) = match book_id {
+        Some(b) => ("WHERE book_id = ?", vec![b.to_string().into()]),
+        None => ("", vec![]),
+    };
+
+    let sql = format!(
+        "SELECT strftime('%Y-%m-%d', reviewed_at, 'unixepoch') as day, COUNT(*) as cnt
+         FROM review_logs
+         {}
+         GROUP BY day
+         ORDER BY day ASC",
+        where_clause
+    );
+
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map(
+        rusqlite::params_from_iter(params_vec.iter().cloned()),
+        |r| Ok(DayReviewActivity {
+            date: r.get(0)?,
+            count: r.get(1)?,
+        })
+    )?;
+
+    let mut activities: Vec<DayReviewActivity> = rows.filter_map(|r| r.ok()).collect();
+
+    // Fallback: If review_logs has no records yet, check fsrs_cards with last_review > 0
+    if activities.is_empty() {
+        let card_sql = format!(
+            "SELECT strftime('%Y-%m-%d', last_review, 'unixepoch') as day, COUNT(*) as cnt
+             FROM fsrs_cards
+             {} {}
+             GROUP BY day
+             ORDER BY day ASC",
+            if where_clause.is_empty() { "WHERE" } else { "WHERE book_id = ? AND" },
+            "last_review > 0"
+        );
+        let mut card_stmt = conn.prepare(&card_sql)?;
+        let card_rows = card_stmt.query_map(
+            rusqlite::params_from_iter(params_vec),
+            |r| Ok(DayReviewActivity {
+                date: r.get(0)?,
+                count: r.get(1)?,
+            })
+        )?;
+        activities = card_rows.filter_map(|r| r.ok()).collect();
+    }
+
+    Ok(activities)
+}
+
+/// Calculates retention stats (due today, total mastered cards, FSRS power-law retention percentage).
+pub fn get_retention_metrics_blocking(book_id: Option<&str>) -> Result<RetentionMetrics> {
+    let conn = open_or_create_db()?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+
+    let (where_clause, params_vec): (&str, Vec<rusqlite::types::Value>) = match book_id {
+        Some(b) => ("WHERE book_id = ?", vec![b.to_string().into()]),
+        None => ("", vec![]),
+    };
+
+    let total_cards: usize = conn.query_row(
+        &format!("SELECT COUNT(*) FROM fsrs_cards {}", where_clause),
+        rusqlite::params_from_iter(params_vec.iter().cloned()),
+        |r| r.get(0),
+    ).unwrap_or(0);
+
+    // Cards due today: due <= now + 86400 or reps = 0
+    let due_where = if where_clause.is_empty() {
+        "WHERE (due <= ? OR reps = 0)"
+    } else {
+        "WHERE (due <= ? OR reps = 0) AND book_id = ?"
+    };
+    let mut due_params: Vec<rusqlite::types::Value> = vec![(now + 86400).into()];
+    if let Some(b) = book_id {
+        due_params.push(b.to_string().into());
+    }
+
+    let due_today: usize = conn.query_row(
+        &format!("SELECT COUNT(*) FROM fsrs_cards {}", due_where),
+        rusqlite::params_from_iter(due_params),
+        |r| r.get(0),
+    ).unwrap_or(0);
+
+    // Mastered cards: state = 2 (Review) and stability >= 21.0
+    let mastered_where = if where_clause.is_empty() {
+        "WHERE state = 2 AND stability >= 21.0"
+    } else {
+        "WHERE state = 2 AND stability >= 21.0 AND book_id = ?"
+    };
+    let mastered_cards: usize = conn.query_row(
+        &format!("SELECT COUNT(*) FROM fsrs_cards {}", mastered_where),
+        rusqlite::params_from_iter(params_vec.iter().cloned()),
+        |r| r.get(0),
+    ).unwrap_or(0);
+
+    // Current retention rate calculation via calculate_retrievability
+    let mut stmt = conn.prepare(
+        &format!("SELECT stability, last_review FROM fsrs_cards {} AND reps > 0",
+            if where_clause.is_empty() { "WHERE 1=1" } else { where_clause }
+        )
+    )?;
+
+    let reviewed_rows = stmt.query_map(
+        rusqlite::params_from_iter(params_vec),
+        |row| {
+            let stability: f64 = row.get(0)?;
+            let last_review: i64 = row.get(1)?;
+            Ok((stability, last_review))
+        }
+    )?;
+
+    let mut sum_retrievability = 0.0;
+    let mut reviewed_count = 0usize;
+
+    for row in reviewed_rows.flatten() {
+        let (stability, last_review) = row;
+        let elapsed_days = if last_review > 0 {
+            ((now - last_review).max(0) as f64) / 86400.0
+        } else {
+            0.0
+        };
+        let r = crate::fsrs::calculate_retrievability(elapsed_days, stability);
+        sum_retrievability += r;
+        reviewed_count += 1;
+    }
+
+    let retention_rate = if reviewed_count > 0 {
+        ((sum_retrievability / reviewed_count as f64) * 1000.0).round() / 10.0
+    } else {
+        90.0 // Default target retention
+    };
+
+    Ok(RetentionMetrics {
+        due_today,
+        total_cards,
+        mastered_cards,
+        retention_rate,
+    })
+}
+
+/// Increments or updates reading session metrics for a chapter.
+pub fn record_reading_session_blocking(
+    book_id: &str,
+    chapter_file: &str,
+    seconds_spent: u64,
+    words_read: usize,
+    completed: bool,
+) -> Result<()> {
+    let conn = open_or_create_db()?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+
+    conn.execute(
+        "INSERT INTO reading_sessions (book_id, chapter_file, seconds_spent, words_read, completed, last_read_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT(book_id, chapter_file) DO UPDATE SET
+             seconds_spent = seconds_spent + ?3,
+             words_read = MAX(words_read, ?4),
+             completed = MAX(completed, ?5),
+             last_read_at = ?6",
+        params![
+            book_id,
+            chapter_file,
+            seconds_spent as i64,
+            words_read as i64,
+            if completed { 1 } else { 0 },
+            now,
+        ],
+    )?;
+
+    Ok(())
+}
+
+/// Calculates reading velocity and time across chapters.
+pub fn get_reading_velocity_blocking(book_id: Option<&str>) -> Result<ReadingVelocityStats> {
+    let conn = open_or_create_db()?;
+
+    let (where_clause, params_vec): (&str, Vec<rusqlite::types::Value>) = match book_id {
+        Some(b) => ("WHERE book_id = ?", vec![b.to_string().into()]),
+        None => ("", vec![]),
+    };
+
+    let sql = format!(
+        "SELECT chapter_file, seconds_spent, words_read, completed, last_read_at
+         FROM reading_sessions
+         {}
+         ORDER BY chapter_file ASC",
+        where_clause
+    );
+
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map(
+        rusqlite::params_from_iter(params_vec),
+        |r| {
+            let chapter_file: String = r.get(0)?;
+            let seconds_spent: i64 = r.get(1)?;
+            let words_read: i64 = r.get(2)?;
+            let completed_int: i64 = r.get(3)?;
+            let last_read_at: i64 = r.get(4)?;
+
+            let secs = seconds_spent.max(0) as u64;
+            let words = words_read.max(0) as usize;
+            let wpm = if secs > 0 {
+                ((words as f64) / (secs as f64 / 60.0)).round()
+            } else {
+                0.0
+            };
+
+            Ok(ChapterReadingStatItem {
+                chapter_file,
+                seconds_spent: secs,
+                words_read: words,
+                completed: completed_int == 1,
+                wpm,
+                last_read_at,
+            })
+        }
+    )?;
+
+    let chapter_stats: Vec<ChapterReadingStatItem> = rows.filter_map(|r| r.ok()).collect();
+
+    let mut total_seconds = 0u64;
+    let mut total_words_read = 0usize;
+    let mut completed_chapters = 0usize;
+
+    for item in &chapter_stats {
+        total_seconds += item.seconds_spent;
+        total_words_read += item.words_read;
+        if item.completed {
+            completed_chapters += 1;
+        }
+    }
+
+    let average_wpm = if total_seconds > 0 {
+        ((total_words_read as f64) / (total_seconds as f64 / 60.0)).round()
+    } else {
+        0.0
+    };
+
+    Ok(ReadingVelocityStats {
+        total_seconds,
+        completed_chapters,
+        total_words_read,
+        average_wpm,
+        chapter_stats,
+    })
+}
+
+/// Aggregates full study analytics: review frequency, card states, retention rate,
+/// mastered count, cards due today, and total vault words / reading time.
+pub fn get_study_analytics_blocking(book_id: Option<&str>) -> Result<StudyAnalytics> {
+    let conn = open_or_create_db()?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+
+    let (where_clause, params_vec): (&str, Vec<rusqlite::types::Value>) = match book_id {
+        Some(b) => ("WHERE book_id = ?", vec![b.to_string().into()]),
+        None => ("", vec![]),
+    };
+
+    // 1. State counts
+    let new_count: usize = conn.query_row(
+        &format!("SELECT COUNT(*) FROM fsrs_cards {} {}",
+            if where_clause.is_empty() { "WHERE" } else { "WHERE book_id = ? AND" },
+            "state = 0"),
+        rusqlite::params_from_iter(params_vec.iter().cloned()),
+        |r| r.get(0),
+    ).unwrap_or(0);
+
+    let learning_count: usize = conn.query_row(
+        &format!("SELECT COUNT(*) FROM fsrs_cards {} {}",
+            if where_clause.is_empty() { "WHERE" } else { "WHERE book_id = ? AND" },
+            "state = 1"),
+        rusqlite::params_from_iter(params_vec.iter().cloned()),
+        |r| r.get(0),
+    ).unwrap_or(0);
+
+    let review_count: usize = conn.query_row(
+        &format!("SELECT COUNT(*) FROM fsrs_cards {} {}",
+            if where_clause.is_empty() { "WHERE" } else { "WHERE book_id = ? AND" },
+            "state = 2"),
+        rusqlite::params_from_iter(params_vec.iter().cloned()),
+        |r| r.get(0),
+    ).unwrap_or(0);
+
+    let relearning_count: usize = conn.query_row(
+        &format!("SELECT COUNT(*) FROM fsrs_cards {} {}",
+            if where_clause.is_empty() { "WHERE" } else { "WHERE book_id = ? AND" },
+            "state = 3"),
+        rusqlite::params_from_iter(params_vec.iter().cloned()),
+        |r| r.get(0),
+    ).unwrap_or(0);
+
+    let total_cards = new_count + learning_count + review_count + relearning_count;
+
+    let state_counts = StateCounts {
+        new_count,
+        learning_count,
+        review_count,
+        relearning_count,
+        total_cards,
+    };
+
+    // 2. Daily review frequency
+    let daily_reviews = get_review_heatmap_blocking(book_id)?;
+
+    // 3. Retention rate: (total_reviews - again_count) / total_reviews
+    let total_reviews: usize = conn.query_row(
+        &format!("SELECT COUNT(*) FROM review_logs {}", where_clause),
+        rusqlite::params_from_iter(params_vec.iter().cloned()),
+        |r| r.get(0),
+    ).unwrap_or(0);
+
+    let again_count: usize = conn.query_row(
+        &format!("SELECT COUNT(*) FROM review_logs {} {}",
+            if where_clause.is_empty() { "WHERE" } else { "WHERE book_id = ? AND" },
+            "rating = 1"),
+        rusqlite::params_from_iter(params_vec.iter().cloned()),
+        |r| r.get(0),
+    ).unwrap_or(0);
+
+    let retention_rate = if total_reviews > 0 {
+        (((total_reviews - again_count) as f64 / total_reviews as f64) * 1000.0).round() / 10.0
+    } else {
+        let ret = get_retention_metrics_blocking(book_id)?;
+        ret.retention_rate
+    };
+
+    // 4. Cards due today & Mastered cards
+    let due_where = if where_clause.is_empty() {
+        "WHERE (due <= ? OR reps = 0)"
+    } else {
+        "WHERE (due <= ? OR reps = 0) AND book_id = ?"
+    };
+    let mut due_params: Vec<rusqlite::types::Value> = vec![(now + 86400).into()];
+    if let Some(b) = book_id {
+        due_params.push(b.to_string().into());
+    }
+    let cards_due_today: usize = conn.query_row(
+        &format!("SELECT COUNT(*) FROM fsrs_cards {}", due_where),
+        rusqlite::params_from_iter(due_params),
+        |r| r.get(0),
+    ).unwrap_or(0);
+
+    let mastered_where = if where_clause.is_empty() {
+        "WHERE state = 2 AND stability >= 21.0"
+    } else {
+        "WHERE state = 2 AND stability >= 21.0 AND book_id = ?"
+    };
+    let mastered_cards: usize = conn.query_row(
+        &format!("SELECT COUNT(*) FROM fsrs_cards {}", mastered_where),
+        rusqlite::params_from_iter(params_vec),
+        |r| r.get(0),
+    ).unwrap_or(0);
+
+    // 5. Total vault words & estimated reading time
+    let mut total_vault_words: usize = 0;
+    if let Ok(vault_root) = find_vault_root() {
+        let books_dir = vault_root.join("books");
+        if let Some(b_id) = book_id {
+            let meta_path = books_dir.join(b_id).join("_meta.json");
+            if let Ok(meta_str) = std::fs::read_to_string(&meta_path) {
+                if let Ok(val) = serde_json::from_str::<serde_json::Value>(&meta_str) {
+                    total_vault_words = val["total_words"].as_u64().unwrap_or(0) as usize;
+                }
+            }
+        } else if let Ok(read_dir) = std::fs::read_dir(&books_dir) {
+            for entry in read_dir.flatten() {
+                let meta_path = entry.path().join("_meta.json");
+                if let Ok(meta_str) = std::fs::read_to_string(&meta_path) {
+                    if let Ok(val) = serde_json::from_str::<serde_json::Value>(&meta_str) {
+                        total_vault_words += val["total_words"].as_u64().unwrap_or(0) as usize;
+                    }
+                }
+            }
+        }
+    }
+
+    let estimated_reading_time_mins = if total_vault_words > 0 {
+        total_vault_words / 225
+    } else {
+        0
+    };
+
+    Ok(StudyAnalytics {
+        daily_reviews,
+        state_counts,
+        retention_rate,
+        cards_due_today,
+        mastered_cards,
+        total_vault_words,
+        estimated_reading_time_mins,
+    })
 }
 
 #[cfg(test)]
@@ -642,6 +1132,12 @@ mod tests {
         println!("[+] Synced {} cards from sample", synced);
         assert!(synced > 0, "Expected at least 1 card synced from sample");
 
+        // Reset one card to due to guarantee test idempotency across repeated runs
+        if let Ok(conn) = open_or_create_db() {
+            let _ = conn.execute("UPDATE fsrs_cards SET due = 0, reps = 0, state = 0 WHERE book_id = 'sample' AND rowid IN (SELECT rowid FROM fsrs_cards WHERE book_id = 'sample' LIMIT 1)", []);
+        }
+
+
         let due = get_due_cards_blocking(Some("sample")).expect("Failed to get due cards");
         assert!(!due.is_empty(), "Expected due cards for sample");
 
@@ -653,5 +1149,45 @@ mod tests {
         let stats = get_deck_stats_blocking(Some("sample")).expect("Failed to get stats");
         assert!(stats.total_cards > 0);
     }
+
+
+    #[test]
+    fn test_phase5_analytics() {
+        let _ = sync_practice_deck_blocking("sample");
+        let due = get_due_cards_blocking(Some("sample")).expect("Failed to get due cards");
+        if !due.is_empty() {
+            let _ = submit_card_review_blocking(&due[0].card_id, 4);
+        }
+
+        let heatmap = get_review_heatmap_blocking(Some("sample")).expect("Failed to get heatmap");
+        assert!(!heatmap.is_empty(), "Expected at least 1 day in review heatmap");
+
+        let retention = get_retention_metrics_blocking(Some("sample")).expect("Failed to get retention");
+        assert!(retention.retention_rate >= 0.0 && retention.retention_rate <= 100.0);
+
+        record_reading_session_blocking("sample", "ch-01.md", 120, 250, true)
+            .expect("Failed to record reading session");
+
+        let velocity = get_reading_velocity_blocking(Some("sample")).expect("Failed to get reading velocity");
+        assert!(velocity.total_seconds >= 120);
+        assert!(velocity.completed_chapters >= 1);
+        assert!(velocity.average_wpm > 0.0);
+
+        // Test Phase 5 IPC endpoints: get_study_analytics_blocking
+        let analytics = get_study_analytics_blocking(Some("sample")).expect("Failed to get study analytics");
+        assert!(analytics.retention_rate >= 0.0 && analytics.retention_rate <= 100.0);
+        assert!(analytics.total_vault_words > 0);
+        assert_eq!(
+            analytics.state_counts.total_cards,
+            analytics.state_counts.new_count + analytics.state_counts.learning_count + analytics.state_counts.review_count + analytics.state_counts.relearning_count
+        );
+
+        // Test Phase 5 IPC endpoints: parse_all_book_notes and compile_and_export_book_summary
+        let notes = crate::vault::parse_all_book_notes("sample").expect("Failed to parse book notes");
+        println!("[+] Parsed {} aggregated notes from sample", notes.len());
+        let export_path = crate::vault::compile_and_export_book_summary("sample").expect("Failed to export summary");
+        assert!(std::path::Path::new(&export_path).exists(), "Exported summary file must exist");
+    }
+
 }
 

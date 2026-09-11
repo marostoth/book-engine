@@ -10,6 +10,8 @@ import {
   Coffee,
   Moon,
   Brain,
+  BarChart3,
+  BookMarked,
 } from "lucide-react";
 import { Theme, ViewMode, BookMetadata, ReaderPreferences } from "../lib/types";
 import { BookSelector } from "./BookSelector";
@@ -34,6 +36,8 @@ interface TopNavProps {
   onOpenSearch: () => void;
   dueCardsCount?: number;
   onOpenPractice?: () => void;
+  onOpenNotesDrawer?: () => void;
+  onOpenAnalytics?: () => void;
   preferences: ReaderPreferences;
   onPreferencesChange: (prefs: ReaderPreferences) => void;
   onResyncDeck?: () => void;
@@ -58,6 +62,8 @@ export const TopNav: React.FC<TopNavProps> = ({
   onOpenSearch,
   dueCardsCount = 0,
   onOpenPractice,
+  onOpenNotesDrawer,
+  onOpenAnalytics,
   preferences,
   onPreferencesChange,
   onResyncDeck,
@@ -114,13 +120,13 @@ export const TopNav: React.FC<TopNavProps> = ({
         </div>
       </div>
 
-      {/* Right controls: Practice, Search, Bionic, Notes, Themes, Settings */}
+      {/* Right controls: Practice, Analytics, Notes Drawer, Search, Bionic, Split, Themes, Settings */}
       <div className="flex items-center gap-1.5 flex-shrink-0 flex-nowrap">
         {/* Practice Suite Button with Due Badge */}
         {onOpenPractice && (
           <button
             onClick={onOpenPractice}
-            className="flex items-center gap-1.5 px-2.5 h-8 flex-shrink-0 whitespace-nowrap rounded-lg border border-amber-500/30 dark:border-nord-accent/30 bg-amber-500/10 dark:bg-nord-accent/15 hover:bg-amber-500/20 dark:hover:bg-nord-accent/25 text-amber-900 dark:text-nord-accent text-xs font-medium transition-colors"
+            className="flex items-center gap-1.5 px-2.5 h-8 flex-shrink-0 whitespace-nowrap rounded-lg border border-amber-500/30 dark:border-nord-accent/30 bg-amber-500/10 dark:bg-nord-accent/15 hover:bg-amber-500/20 dark:hover:bg-nord-accent/25 text-amber-900 dark:text-nord-accent text-xs font-medium transition-colors cursor-pointer"
             title="Open Extractive Practice Suite"
           >
             <Brain className="w-3.5 h-3.5 text-amber-600 dark:text-nord-accent flex-shrink-0" />
@@ -133,10 +139,34 @@ export const TopNav: React.FC<TopNavProps> = ({
           </button>
         )}
 
+        {/* Analytics Dashboard Trigger Button */}
+        {onOpenAnalytics && (
+          <button
+            onClick={onOpenAnalytics}
+            className="flex items-center gap-1.5 px-2.5 h-8 flex-shrink-0 whitespace-nowrap rounded-lg border border-black/10 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/10 dark:hover:bg-white/10 text-neutral-600 dark:text-neutral-300 text-xs font-medium transition-colors cursor-pointer"
+            title="Study & Reading Analytics (FSRS Heatmap, Retention, Velocity)"
+          >
+            <BarChart3 className="w-3.5 h-3.5 text-amber-600 dark:text-nord-accent flex-shrink-0" />
+            <span className="hidden md:inline">Analytics</span>
+          </button>
+        )}
+
+        {/* Unified Notes & Highlights Drawer Trigger Button */}
+        {onOpenNotesDrawer && (
+          <button
+            onClick={onOpenNotesDrawer}
+            className="flex items-center gap-1.5 px-2.5 h-8 flex-shrink-0 whitespace-nowrap rounded-lg border border-black/10 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/10 dark:hover:bg-white/10 text-neutral-600 dark:text-neutral-300 text-xs font-medium transition-colors cursor-pointer"
+            title="Open Unified Notes & Highlights Drawer"
+          >
+            <BookMarked className="w-3.5 h-3.5 text-amber-600 dark:text-nord-accent flex-shrink-0" />
+            <span className="hidden sm:inline">Notes</span>
+          </button>
+        )}
+
         {/* Omni-Search Trigger Button */}
         <button
           onClick={onOpenSearch}
-          className="flex items-center gap-1.5 flex-nowrap whitespace-nowrap flex-shrink-0 h-8 px-2.5 rounded-lg border border-black/10 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/10 dark:hover:bg-white/10 text-neutral-600 dark:text-neutral-300 text-xs transition-colors"
+          className="flex items-center gap-1.5 flex-nowrap whitespace-nowrap flex-shrink-0 h-8 px-2.5 rounded-lg border border-black/10 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/10 dark:hover:bg-white/10 text-neutral-600 dark:text-neutral-300 text-xs transition-colors cursor-pointer"
           title="Omni-Search (Ctrl + K / Cmd + K)"
         >
           <Search className="w-3.5 h-3.5 text-neutral-400 flex-shrink-0" />
@@ -151,7 +181,7 @@ export const TopNav: React.FC<TopNavProps> = ({
         {/* Bionic Reading Toggle */}
         <button
           onClick={onToggleBionic}
-          className={`flex items-center gap-1 px-2.5 h-8 flex-shrink-0 whitespace-nowrap rounded-lg text-xs font-medium transition-all ${
+          className={`flex items-center gap-1 px-2.5 h-8 flex-shrink-0 whitespace-nowrap rounded-lg text-xs font-medium transition-all cursor-pointer ${
             isBionic
               ? "bg-amber-600 text-white shadow-sm"
               : "text-neutral-600 dark:text-neutral-300 hover:bg-black/5 dark:hover:bg-white/5"
@@ -164,26 +194,26 @@ export const TopNav: React.FC<TopNavProps> = ({
 
         <div className="w-[1px] h-4 bg-black/10 dark:bg-white/10 mx-1 flex-shrink-0" />
 
-        {/* Dual-Pane View Mode Toggle */}
+        {/* Dual-Pane View Mode Toggle (Split) */}
         {!isFocus && (
           <button
             onClick={() => onViewModeChange(viewMode === "dual" ? "reading" : "dual")}
-            className={`flex items-center gap-1 px-2.5 h-8 flex-shrink-0 whitespace-nowrap rounded-lg text-xs font-medium transition-all ${
+            className={`flex items-center gap-1 px-2.5 h-8 flex-shrink-0 whitespace-nowrap rounded-lg text-xs font-medium transition-all cursor-pointer ${
               viewMode === "dual"
                 ? "bg-neutral-800 dark:bg-nord-accent text-white dark:text-nord-bg shadow-sm"
                 : "text-neutral-600 dark:text-neutral-300 hover:bg-black/5 dark:hover:bg-white/5"
             }`}
-            title="Toggle Dual-Pane Notes"
+            title="Toggle Dual-Pane Side-by-Side Editor"
           >
             <Columns className="w-3.5 h-3.5 flex-shrink-0" />
-            <span className="hidden sm:inline">Notes</span>
+            <span className="hidden sm:inline">Split</span>
           </button>
         )}
 
         {/* Focus Mode Toggle */}
         <button
           onClick={() => onViewModeChange(isFocus ? "reading" : "focus")}
-          className={`h-8 w-8 flex items-center justify-center flex-shrink-0 rounded-lg text-neutral-600 dark:text-neutral-300 hover:bg-black/5 dark:hover:bg-white/5 transition-colors ${
+          className={`h-8 w-8 flex items-center justify-center flex-shrink-0 rounded-lg text-neutral-600 dark:text-neutral-300 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer ${
             isFocus ? "text-amber-600 dark:text-nord-accent font-semibold" : ""
           }`}
           title={isFocus ? "Exit Focus Mode" : "Enter Focus Mode"}
