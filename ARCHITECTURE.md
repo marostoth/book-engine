@@ -160,11 +160,25 @@ When a book mounts, `sync_practice_deck` reads `vault/notes/<book-id>/practice-d
 - **Programmatic Verbatim Validation:** Cross-checks that every `answer_key` exists as an exact character substring in the chapter text (`vault/books/<book-id>/<chapter_file>`). Non-verbatim or speculative cards are rejected.
 - Uses `INSERT OR IGNORE` so user review history and FSRS metrics are never overwritten on re-syncs.
 
+### Tauri v2 IPC Interface (`apps/desktop/src-tauri/`)
+All deck synchronization and review calculations are executed on background threads (`tokio::task::spawn_blocking`) without blocking the UI:
+
+| Command | Signature | Description |
+| :--- | :--- | :--- |
+| `sync_practice_deck` | `(book_id: String) -> Result<usize, String>` | Scans `vault/notes/<book_id>/practice-deck.md`, performs verbatim substring verification against chapter Markdown, and populates `fsrs_cards`. |
+| `get_due_cards` | `(book_id: Option<String>) -> Result<Vec<PracticeCardItem>, String>` | Retrieves cards due for review (`due <= now` or `due == 0`), sorted by due timestamp. |
+| `submit_review` | `(card_id: String, rating: u8) -> Result<CardSchedule, String>` | Evaluates FSRS-4.5 rating (1=Again, 2=Hard, 3=Good, 4=Easy), computes new stability, difficulty, state, and next interval, and commits to SQLite. |
+| `get_deck_stats` | `(book_id: Option<String>) -> Result<DeckStats, String>` | Aggregates deck volume, due count, learning vs. review ratios, and retention metrics. |
+
 ### Practice Suite & Gatekeeper UI Components
-- **TopNav Practice Button:** Displays live due badge count. Opens distraction-free `PracticeModal.tsx`.
-- **Deterministic Cloze Drill:** Real-time input validation, "Show Answer" reveal, 4-tier FSRS rating buttons with interval estimates, and `Jump to §p-xxx` anchor navigation.
-- **Scrambled Argument Drill:** Clickable badge pills allowing users to reassemble sentence clauses with verbatim sequence checking.
-- **Reader Settings & Chapter Gatekeeper:** `SettingsPopover.tsx` allows toggling Gatekeeper Mode and configuring Daily Review Target. When Gatekeeper is enabled, advancing chapters requires solving a 3-card recall challenge.
+- **TopNav Practice Button:** Displays live due badge count. Opens distraction-free `PracticeModal.tsx` with Cloze and Scramble tabs.
+- **Deterministic Cloze Drill:** Real-time character/word input validation, "Show Answer" reveal, 4-tier FSRS rating buttons with estimated next intervals, and a `Jump to §p-xxx` anchor navigation button that scrolls the reader canvas directly to the source sentence.
+- **Scrambled Argument Drill:** Clickable badge pills allowing users to reassemble sentence clauses into proper sequence with deterministic verbatim order verification.
+- **Reader Settings Popover (`SettingsPopover.tsx`):** Provides toggles for `gatekeeperMode` and a stepper for `dailyTarget` (5–100 cards), persisting to `ReaderPreferences` in `localStorage`. Includes a manual "Sync Deck" action with live due counts.
+- **Chapter Gatekeeper Workflow (`GatekeeperModal.tsx`):**
+  - When Gatekeeper Mode is active, clicking any subsequent chapter in `Sidebar.tsx` or completing a chapter triggers a Gatekeeper interception modal.
+  - Presents a mandatory 3-card recall challenge sampled from the current chapter/book's practice deck.
+  - Once the user satisfies all 3 cards with ratings, the gatekeeper unlocks the chapter and routes navigation to the target chapter. Users can also defer or bypass with an explicit override.
 
 ---
 
