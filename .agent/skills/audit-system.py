@@ -472,6 +472,101 @@ def check_fts_benchmark() -> DiagnosticResult:
 
 
 # ----------------------------------------------------------------------
+# 7. Desktop Runtime Launch Smoke Test
+# ----------------------------------------------------------------------
+def check_desktop_runtime_launch() -> DiagnosticResult:
+    start_time = time.perf_counter()
+    errors: List[str] = []
+
+    # Executable discovery: prefer release, fall back to debug
+    release_exe = DESKTOP_DIR / "src-tauri" / "target" / "release" / "book-engine-desktop.exe"
+    debug_exe = DESKTOP_DIR / "src-tauri" / "target" / "debug" / "book-engine-desktop.exe"
+
+    target_exe: Optional[Path] = None
+    if release_exe.exists():
+        target_exe = release_exe
+    elif debug_exe.exists():
+        target_exe = debug_exe
+
+    if not target_exe:
+        return DiagnosticResult(
+            name="7. Desktop Runtime Launch",
+            target="target/release or debug",
+            metric="Binary not found",
+            passed=False,
+            errors=["Desktop binary not found at target/release or debug. Run 'cargo build' first."],
+            duration_s=time.perf_counter() - start_time,
+        )
+
+    rel_target = str(target_exe.relative_to(ROOT_DIR)).replace("\\", "/")
+
+    # Subprocess smoke run
+    try:
+        proc = subprocess.Popen(
+            [str(target_exe)],
+            cwd=str(DESKTOP_DIR),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        smoke_duration = 5.0
+        poll_interval = 0.5
+        elapsed = 0.0
+        exited_early = False
+        exit_code = None
+
+        while elapsed < smoke_duration:
+            ret = proc.poll()
+            if ret is not None:
+                exited_early = True
+                exit_code = ret
+                break
+            time.sleep(poll_interval)
+            elapsed += poll_interval
+
+        if exited_early:
+            _, stderr_bytes = proc.communicate(timeout=2)
+            stderr_text = stderr_bytes.decode("utf-8", errors="replace").strip()
+            errors.append(
+                f"Desktop binary exited prematurely after {elapsed:.1f}s with code {exit_code}. Stderr: {stderr_text}"
+            )
+            passed = False
+            metric = f"Early exit ({exit_code}) at {elapsed:.1f}s"
+        else:
+            passed = True
+            metric = f"Stable for 5.0s ({target_exe.parent.name} binary)"
+
+        # Clean termination of process tree
+        if sys.platform == "win32":
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        else:
+            try:
+                proc.terminate()
+                proc.wait(timeout=3)
+            except Exception:
+                proc.kill()
+
+    except Exception as e:
+        passed = False
+        metric = "Spawn execution error"
+        errors.append(f"Failed to launch desktop binary: {e}")
+
+    duration = time.perf_counter() - start_time
+    return DiagnosticResult(
+        name="7. Desktop Runtime Launch",
+        target=rel_target,
+        metric=metric,
+        passed=passed,
+        errors=errors,
+        duration_s=duration,
+    )
+
+
+# ----------------------------------------------------------------------
 # ASCII Summary Table Formatter
 # ----------------------------------------------------------------------
 def print_audit_table(results: List[DiagnosticResult], use_color: bool = True) -> None:
@@ -551,6 +646,9 @@ def main() -> int:
     print("    -> Evaluating FTS5 Search Latency Benchmark...", flush=True)
     results.append(check_fts_benchmark())
 
+    print("    -> Evaluating Desktop Runtime Launch Smoke Test...", flush=True)
+    results.append(check_desktop_runtime_launch())
+
     print_audit_table(results, use_color=use_color)
 
     failed_results = [r for r in results if not r.passed]
@@ -568,7 +666,7 @@ def main() -> int:
         print("\n" + status_msg + "\n", file=sys.stderr)
         return 1
 
-    pass_msg = f"{ANSI_GREEN}[+] SYSTEM HEALTH: 100% PASS. All 6 diagnostic vectors passed.{ANSI_RESET}" if use_color else "[+] SYSTEM HEALTH: 100% PASS. All 6 diagnostic vectors passed."
+    pass_msg = f"{ANSI_GREEN}[+] SYSTEM HEALTH: 100% PASS. All 7 diagnostic vectors passed.{ANSI_RESET}" if use_color else "[+] SYSTEM HEALTH: 100% PASS. All 7 diagnostic vectors passed."
     print("\n" + pass_msg + "\n", flush=True)
     return 0
 
