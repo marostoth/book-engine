@@ -1,0 +1,161 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --theme-bg: #FBFBFA;
+  --theme-surface: #F4F4F0;
+  --theme-border: #E6E4DD;
+  --theme-text: #2A2826;
+  --theme-muted: #736F6E;
+  --theme-accent: #9A3412;
+}
+
+body.theme-paper {
+  --theme-bg: #FBFBFA;
+  --theme-surface: #F4F4F0;
+  --theme-border: #E6E4DD;
+  --theme-text: #2A2826;
+  --theme-muted: #736F6E;
+  --theme-accent: #9A3412;
+  background-color: #FBFBFA;
+  color: #2A2826;
+}
+
+body.theme-sepia {
+  --theme-bg: #F4ECD8;
+  --theme-surface: #EAE0C8;
+  --theme-border: #D8CCB0;
+  --theme-text: #3D3226;
+  --theme-muted: #857463;
+  --theme-accent: #A2522B;
+  background-color: #F4ECD8;
+  color: #3D3226;
+}
+
+body.theme-nord {
+  --theme-bg: #2E3440;
+  --theme-surface: #3B4252;
+  --theme-border: #4C566A;
+  --theme-text: #ECEFF4;
+  --theme-muted: #949FB5;
+  --theme-accent: #88C0D0;
+  background-color: #2E3440;
+  color: #ECEFF4;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--theme-border);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--theme-muted);
+}
+
+/* TipTap Editor Prose Styling */
+.reader-prose {
+  font-family: 'Newsreader', Georgia, Cambria, 'Times New Roman', serif;
+  font-size: 1.1875rem; /* 19px */
+  line-height: 1.85;
+}
+
+.reader-prose h1 {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+  font-size: 2.25rem;
+}
+
+.reader-prose h2 {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+}
+
+.reader-prose p {
+  margin-bottom: 1.5rem;
+  text-align: justify;
+  text-justify: inter-word;
+  hyphens: auto;
+}
+
+.reader-prose blockquote {
+  border-left: 3px solid var(--theme-accent);
+  padding-left: 1.25rem;
+  font-style: italic;
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+  opacity: 0.9;
+}
+
+.reader-prose img {
+  border-radius: 0.5rem;
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* Footnote callout pills */
+.footnote-callout {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--theme-accent);
+  background-color: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 9999px;
+  width: 1.35rem;
+  height: 1.35rem;
+  margin-left: 0.2rem;
+  vertical-align: super;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  user-select: none;
+}
+
+.footnote-callout:hover {
+  transform: scale(1.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Paragraph Anchor Markers */
+.anchor-tag {
+  font-family: 'Inter', monospace;
+  font-size: 0.7rem;
+  color: var(--theme-muted);
+  opacity: 0.4;
+  margin-left: 0.5rem;
+  user-select: none;
+  transition: opacity 0.2s ease;
+}
+
+p:hover .anchor-tag {
+  opacity: 0.85;
+}
+
+/* Bionic Reading Fixation */
+.bionic-fixation {
+  font-weight: 700;
+  color: inherit;
+}
+
+/* TipTap Editor focused style */
+.tiptap:focus {
+  outline: none;
+}
