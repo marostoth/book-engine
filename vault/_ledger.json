@@ -1,0 +1,24 @@
+[
+  {
+    "sha256": "35761df3eaa325f0f4d6dbf9261237f43abf3ee9e3c3c7d3dd10248b2bd6cc7b",
+    "book_id": "sample",
+    "title": "Principles of Distributed Systems",
+    "author": "Leslie Lamport & Friends",
+    "filename": "sample.epub",
+    "processed_at": "2026-09-11T12:00:00.000000+00:00",
+    "total_chapters": 2,
+    "total_words": 458,
+    "anchors_verified": "PASS"
+  },
+  {
+    "sha256": "f7f3714e486caaab4333bba1f71a5a2603eed132105418795cf1683490dbb3e5",
+    "book_id": "wealth-of-nations",
+    "title": "An Inquiry into the Nature and Causes of the Wealth of Nations",
+    "author": "Adam Smith",
+    "filename": "wealth-of-nations.epub",
+    "processed_at": "2026-09-11T12:00:00.000000+00:00",
+    "total_chapters": 37,
+    "total_words": 387438,
+    "anchors_verified": "PASS"
+  }
+]

@@ -114,6 +114,19 @@ To generate a convenient desktop shortcut (`Book Engine.lnk`) configured with au
 powershell -ExecutionPolicy Bypass -File scripts/create_desktop_shortcut.ps1
 ```
 
+#### Build Production Release & Windows Installer (NSIS)
+To compile the optimized release executable and native Windows installer package:
+
+```bash
+# From apps/desktop directory (or root via npm --prefix apps/desktop run tauri build)
+npm run tauri build
+```
+
+The build produces:
+- **Standalone Portable Binary**: `apps/desktop/src-tauri/target/release/book-engine-desktop.exe` (~13.8 MB)
+- **Windows NSIS Setup Package**: `apps/desktop/src-tauri/target/release/bundle/nsis/Book Engine_0.1.0_x64-setup.exe` (~3.5 MB)
+
+
 ---
 
 ### 3. Verification & Benchmarking Suite

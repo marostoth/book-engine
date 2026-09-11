@@ -40,7 +40,8 @@ book-engine/
 ├── .agent/
 │   └── skills/                  # Autonomous verification harnesses
 │       ├── audit-anchors.py         # Verifies paragraph anchor & footnote definition integrity
-│       └── benchmark-fts.py         # Benchmarks SQLite FTS5 query latency (<15ms target)
+│       ├── benchmark-fts.py         # Benchmarks SQLite FTS5 query latency (<15ms target)
+│       └── process-inbox.py         # Automated fail-safe batch book intake pipeline & ledger manager
 ├── apps/
 │   └── desktop/                 # Tauri v2 native desktop application & React frontend
 │       ├── src/                 # React 18+ client application
@@ -69,6 +70,13 @@ book-engine/
 │       │   ├── index.css        # Editorial design tokens, typography, and margin glyphs
 │       │   └── main.tsx         # React DOM mount entrypoint
 │       └── src-tauri/           # Rust backend shell (Tauri v2 + SQLite)
+│           ├── icons/           # High-resolution native application branding icons
+│           │   ├── source-icon.svg      # Master vector editorial monogram
+│           │   ├── icon.ico             # Windows multi-resolution taskbar & titlebar icon
+│           │   ├── 32x32.png            # Compact native icon
+│           │   ├── 128x128.png          # Medium application icon
+│           │   ├── 128x128@2x.png       # Retina high-DPI icon
+│           │   └── icon.png             # 512x512 master application branding asset
 │           ├── src/
 │           │   ├── commands.rs          # Asynchronous Tauri IPC command handlers
 │           │   ├── db.rs                # SQLite connection, FTS5 indexer, and card store
@@ -78,6 +86,10 @@ book-engine/
 │           │   └── vault.rs             # File vault scanner, manifest deserializer & I/O
 │           ├── Cargo.toml       # Rust dependency manifest (rusqlite, tokio, tauri v2)
 │           └── tauri.conf.json  # Tauri v2 window, security, and bundle configuration
+
+├── inbox/                       # Ingestion quarantine & staging directory
+│   ├── .gitkeep                 # Tracked directory marker
+│   └── processed/               # Quarantined & processed binary source documents (.epub, .pdf)
 ├── packages/
 │   └── ingestion/               # Python CLI & deterministic parsing pipeline
 │       ├── ingest/              # Ingestion library modules
@@ -432,6 +444,53 @@ CREATE TABLE IF NOT EXISTS reading_sessions (
 Retention rate is computed as:
 $$\text{Retention Rate} = \frac{\text{Total Reviews} - \text{Again Count}}{\text{Total Reviews}} \times 100\%$$
 with fallback to the aggregate FSRS power-law retrievability $R(t, S) = (1 + 19/9 \cdot t/S)^{-0.5}$ when no reviews have been recorded yet in `review_logs`.
+
+---
+
+## 9. Production Packaging & Standalone Release: As-Built Implementation (Phase 6)
+
+### Application Branding & Native Icon Suite (`apps/desktop/src-tauri/icons/`)
+- **Monogram Motif:** Master SVG vector (`source-icon.svg`) featuring an editorial open-book monogram with warm golden-amber pages (`#f59e0b`, `#d97706`), dual-leaf spine crease, silk ribbon bookmark, and subtle dark slate squircle tile (`#18181b`).
+- **Multi-Resolution Native Assets:**
+  - `icon.ico`: Multi-layer Windows taskbar and titlebar icon (16x16, 24x24, 32x32, 48x48, 64x64, 128x128, 256x256).
+  - `32x32.png`: Compact system tray and header icon.
+  - `128x128.png` & `128x128@2x.png`: High-DPI application launcher icons.
+  - `icon.png`: 512x512 master application branding asset.
+
+### Production Bundle Configuration (`apps/desktop/src-tauri/tauri.conf.json`)
+- **Product Identity:** `productName: "Book Engine"`, bundle identifier `com.bookengine.reader`.
+- **Window Constraints:** Minimum width enforced at `900px`, minimum height at `600px`, default dimensions `1280x860px` with native window titlebar decorations.
+- **Bundle Target:** Configured for Windows NSIS setup package generation:
+  ```json
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  }
+  ```
+  `installMode: "currentUser"` eliminates elevation prompts and installs cleanly into the user's profile directory.
+
+### Production Build Outputs & Release Artifacts
+Compiled via `npm run tauri build`:
+- **Portable Standalone Executable:**
+  - Path: `apps/desktop/src-tauri/target/release/book-engine-desktop.exe`
+  - Size: ~13.8 MB
+  - Self-contained binary with embedded WebView2 bindings and optimized SQLite FTS5 engine.
+- **Windows NSIS Installer Package:**
+  - Path: `apps/desktop/src-tauri/target/release/bundle/nsis/Book Engine_0.1.0_x64-setup.exe`
+  - Size: ~3.5 MB
+  - Setup installer with desktop shortcut generation, start menu entry, and clean uninstaller.
+
 
 
 

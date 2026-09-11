@@ -18,6 +18,13 @@ src-tauri/target/
 # User vault & raw media (Keep repo lightweight & private)
 *.epub
 *.pdf
+*.mobi
+inbox/*.epub
+inbox/*.pdf
+inbox/*.mobi
+inbox/processed/*
+!inbox/processed/.gitkeep
+!inbox/.gitkeep
 vault/books/*
 !vault/books/.gitkeep
 vault/notes/*

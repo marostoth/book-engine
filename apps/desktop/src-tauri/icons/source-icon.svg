@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#242429" />
+      <stop offset="50%" stop-color="#18181b" />
+      <stop offset="100%" stop-color="#0e0e11" />
+    </linearGradient>
+
+    <!-- Subtle Border Glow -->
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#52525b" stop-opacity="0.6" />
+      <stop offset="100%" stop-color="#27272a" stop-opacity="0.3" />
+    </linearGradient>
+
+    <!-- Left Book Page Gradient -->
+    <linearGradient id="leftPageGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="40%" stop-color="#d97706" />
+      <stop offset="100%" stop-color="#92400e" />
+    </linearGradient>
+
+    <!-- Right Book Page Gradient -->
+    <linearGradient id="rightPageGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24" />
+      <stop offset="50%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#b45309" />
+    </linearGradient>
+
+    <!-- Ribbon Gradient -->
+    <linearGradient id="ribbonGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fffbeb" />
+      <stop offset="70%" stop-color="#fef3c7" />
+      <stop offset="100%" stop-color="#fde68a" />
+    </linearGradient>
+
+    <!-- Soft Drop Shadow -->
+    <filter id="pageShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.5" />
+    </filter>
+  </defs>
+
+  <!-- Base App Tile (Squircle with 112px radius) -->
+  <rect x="16" y="16" width="480" height="480" rx="112" ry="112" fill="url(#bgGrad)" stroke="url(#borderGrad)" stroke-width="4" />
+
+  <!-- Inner Ambient Glow Ring -->
+  <rect x="22" y="22" width="468" height="468" rx="106" ry="106" fill="none" stroke="#ffffff" stroke-opacity="0.04" stroke-width="2" />
+
+  <!-- Book Monogram Graphic Group -->
+  <g filter="url(#pageShadow)">
+    <!-- Base Page Binding Foundation -->
+    <path d="M120 376 C 180 370, 230 388, 256 404 C 282 388, 332 370, 392 376 L 392 388 C 332 382, 282 400, 256 416 C 230 400, 180 382, 120 388 Z" fill="#78350f" opacity="0.7" />
+
+    <!-- Left Book Wing / Leaf -->
+    <path d="M 256 392
+             C 224 374, 180 358, 124 362
+             C 114 363, 108 355, 108 344
+             L 108 144
+             C 108 132, 116 124, 128 126
+             C 182 134, 226 152, 256 172
+             Z"
+          fill="url(#leftPageGrad)" />
+
+    <!-- Left Page Highlights & Editorial Text Lines -->
+    <path d="M 148 184 L 228 198" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-opacity="0.25" />
+    <path d="M 148 224 L 228 238" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-opacity="0.2" />
+    <path d="M 148 264 L 228 278" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-opacity="0.2" />
+    <path d="M 148 304 L 204 314" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-opacity="0.15" />
+
+    <!-- Right Book Wing / Leaf -->
+    <path d="M 256 392
+             C 288 374, 332 358, 388 362
+             C 398 363, 404 355, 404 344
+             L 404 144
+             C 404 132, 396 124, 384 126
+             C 330 134, 286 152, 256 172
+             Z"
+          fill="url(#rightPageGrad)" />
+
+    <!-- Right Page Highlights & Editorial Text Lines -->
+    <path d="M 284 198 L 364 184" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-opacity="0.3" />
+    <path d="M 284 238 L 364 224" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-opacity="0.25" />
+    <path d="M 284 278 L 364 264" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-opacity="0.25" />
+    <path d="M 284 318 L 340 308" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-opacity="0.2" />
+
+    <!-- Central Spine Valley Crease -->
+    <path d="M 256 172 L 256 396" stroke="#451a03" stroke-width="4" stroke-linecap="round" opacity="0.5" />
+
+    <!-- Elegant Suspended Bookmark Ribbon -->
+    <path d="M 248 140
+             L 264 140
+             L 264 272
+             L 256 260
+             L 248 272
+             Z"
+          fill="url(#ribbonGrad)" />
+  </g>
+
+  <!-- Accent Star Glyph (Top Right Editorial Sparkle) -->
+  <path d="M 374 88 Q 384 104 400 114 Q 384 124 374 140 Q 364 124 348 114 Q 364 104 374 88 Z" fill="#fbbf24" opacity="0.85" />
+</svg>
