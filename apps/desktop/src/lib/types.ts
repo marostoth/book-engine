@@ -75,3 +75,44 @@ export interface SearchResult {
   snippet: string;
   rank: number;
 }
+
+export interface PracticeCardItem {
+  card_id: string;
+  book_id: string;
+  chapter_file: string;
+  anchor: string;
+  item_type: "cloze" | "scramble";
+  prompt: string;
+  answer: string;
+  state: number;
+  stability: number;
+  difficulty: number;
+  due: number;
+  last_review: number;
+  reps: number;
+}
+
+export interface CardSchedule {
+  card_id: string;
+  state: number;
+  stability: number;
+  difficulty: number;
+  due: number;
+  last_review: number;
+  reps: number;
+  interval_days: number;
+}
+
+export interface DeckStats {
+  due_count: number;
+  new_count: number;
+  learning_count: number;
+  review_count: number;
+  total_cards: number;
+}
+
+export interface ReaderPreferences {
+  gatekeeperMode: boolean;
+  dailyTarget: number;
+}
+

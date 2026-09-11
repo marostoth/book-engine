@@ -60,14 +60,46 @@ Highlights store `exact`, `prefix`, and `suffix` context fields alongside paragr
 
 ---
 
-## 4. Zero-Hallucination Practice Architecture
+## 4. Zero-Hallucination Practice Architecture: As-Built Implementation (Phase 4)
 
-*(Pending Implementation — Phase 4)*
+### Local FSRS-4.5 Scheduling Engine (`apps/desktop/src-tauri/src/fsrs.rs`)
+Review intervals and memory retention calculations are computed locally via the Free Spaced Repetition Scheduler (FSRS-4.5) algorithm without network dependencies:
+- **Card States:** `New (0)`, `Learning (1)`, `Review (2)`, `Relearning (3)`.
+- **4-Tier Rating Scale:** `Again (1)`, `Hard (2)`, `Good (3)`, `Easy (4)`.
+- **Math Standard:** Initial stability $S_0(G)$, difficulty $D_0(G)$, power-law retrievability $R(t, S) = (1 + 19/9 \cdot t/S)^{-0.5}$, and stability updates for successful recall ($S'$) or forgetting ($S'_{forget}$). Target retention is configured to $90\%$ ($r = 0.90$).
 
-1. **Salience Scorer:** Ranks sentences based on glossary matches, bold formatting, definitional syntax, and summary sections.
-2. **Deterministic Cloze Engine:** Masks proper nouns, cataloged glossary terms, or bold phrases. Answers are exact string slices.
-3. **Scrambled Argument Reordering:** Randomizes sequential clauses or list items for manual reassembly.
-4. **FSRS Scheduling:** Review intervals calculated locally via the Free Spaced Repetition Scheduler algorithm in SQLite.
+### Ephemeral SQLite Schema (`%APPDATA%\book-engine\app_cache\index.db`)
+Card state, stability, difficulty, and scheduling timestamps are strictly decoupled from the Markdown vault:
+```sql
+CREATE TABLE IF NOT EXISTS fsrs_cards (
+    card_id TEXT PRIMARY KEY,
+    book_id TEXT NOT NULL,
+    chapter_file TEXT NOT NULL,
+    anchor TEXT,
+    item_type TEXT NOT NULL, -- 'cloze' | 'scramble'
+    prompt TEXT NOT NULL,
+    answer TEXT NOT NULL,
+    state INTEGER NOT NULL DEFAULT 0,
+    stability REAL NOT NULL DEFAULT 0.0,
+    difficulty REAL NOT NULL DEFAULT 0.0,
+    due INTEGER NOT NULL DEFAULT 0,
+    last_review INTEGER NOT NULL DEFAULT 0,
+    reps INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_fsrs_due ON fsrs_cards (due, book_id);
+```
+
+### Background Deck Synchronization & Verbatim Guardrail
+When a book mounts, `sync_practice_deck` reads `vault/notes/<book-id>/practice-deck.md`:
+- Parses Cloze items (`{{c1::target}}` and `==target==`) and scrambled clauses.
+- **Programmatic Verbatim Validation:** Cross-checks that every `answer_key` exists as an exact character substring in the chapter text (`vault/books/<book-id>/<chapter_file>`). Non-verbatim or speculative cards are rejected.
+- Uses `INSERT OR IGNORE` so user review history and FSRS metrics are never overwritten on re-syncs.
+
+### Practice Suite & Gatekeeper UI Components
+- **TopNav Practice Button:** Displays live due badge count. Opens distraction-free `PracticeModal.tsx`.
+- **Deterministic Cloze Drill:** Real-time input validation, "Show Answer" reveal, 4-tier FSRS rating buttons with interval estimates, and `Jump to §p-xxx` anchor navigation.
+- **Scrambled Argument Drill:** Clickable badge pills allowing users to reassemble sentence clauses with verbatim sequence checking.
+- **Reader Settings & Chapter Gatekeeper:** `SettingsPopover.tsx` allows toggling Gatekeeper Mode and configuring Daily Review Target. When Gatekeeper is enabled, advancing chapters requires solving a 3-card recall challenge.
 
 ---
 

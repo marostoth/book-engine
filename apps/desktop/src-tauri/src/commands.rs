@@ -66,3 +66,36 @@ pub async fn search_vault(query: String) -> Result<Vec<crate::db::SearchResult>,
         .map_err(|e| format!("Task join error: {}", e))?
         .map_err(|e| format!("Failed to search vault: {}", e))
 }
+
+#[command]
+pub async fn sync_practice_deck(book_id: String) -> Result<usize, String> {
+    tokio::task::spawn_blocking(move || crate::db::sync_practice_deck_blocking(&book_id))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+        .map_err(|e| format!("Failed to sync practice deck: {}", e))
+}
+
+#[command]
+pub async fn get_due_cards(book_id: Option<String>) -> Result<Vec<crate::db::PracticeCardItem>, String> {
+    tokio::task::spawn_blocking(move || crate::db::get_due_cards_blocking(book_id.as_deref()))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+        .map_err(|e| format!("Failed to get due cards: {}", e))
+}
+
+#[command]
+pub async fn submit_review(card_id: String, rating: u8) -> Result<crate::fsrs::CardSchedule, String> {
+    tokio::task::spawn_blocking(move || crate::db::submit_card_review_blocking(&card_id, rating))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+        .map_err(|e| format!("Failed to submit review: {}", e))
+}
+
+#[command]
+pub async fn get_deck_stats(book_id: Option<String>) -> Result<crate::db::DeckStats, String> {
+    tokio::task::spawn_blocking(move || crate::db::get_deck_stats_blocking(book_id.as_deref()))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+        .map_err(|e| format!("Failed to get deck stats: {}", e))
+}
+

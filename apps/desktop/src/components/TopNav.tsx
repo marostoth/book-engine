@@ -9,9 +9,11 @@ import {
   Sun,
   Coffee,
   Moon,
+  Brain,
 } from "lucide-react";
-import { Theme, ViewMode, BookMetadata } from "../lib/types";
+import { Theme, ViewMode, BookMetadata, ReaderPreferences } from "../lib/types";
 import { BookSelector } from "./BookSelector";
+import { SettingsPopover } from "./SettingsPopover";
 
 interface TopNavProps {
   currentBookId?: string;
@@ -30,6 +32,11 @@ interface TopNavProps {
   isBionic: boolean;
   onToggleBionic: () => void;
   onOpenSearch: () => void;
+  dueCardsCount?: number;
+  onOpenPractice?: () => void;
+  preferences: ReaderPreferences;
+  onPreferencesChange: (prefs: ReaderPreferences) => void;
+  onResyncDeck?: () => void;
 }
 
 export const TopNav: React.FC<TopNavProps> = ({
@@ -49,6 +56,11 @@ export const TopNav: React.FC<TopNavProps> = ({
   isBionic,
   onToggleBionic,
   onOpenSearch,
+  dueCardsCount = 0,
+  onOpenPractice,
+  preferences,
+  onPreferencesChange,
+  onResyncDeck,
 }) => {
   const isFocus = viewMode === "focus";
 
@@ -102,8 +114,25 @@ export const TopNav: React.FC<TopNavProps> = ({
         </div>
       </div>
 
-      {/* Right controls: Search, Theme, Bionic, Dual-Pane, Focus */}
+      {/* Right controls: Practice, Search, Bionic, Notes, Themes, Settings */}
       <div className="flex items-center gap-1.5">
+        {/* Practice Suite Button with Due Badge */}
+        {onOpenPractice && (
+          <button
+            onClick={onOpenPractice}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-amber-500/30 dark:border-nord-accent/30 bg-amber-500/10 dark:bg-nord-accent/15 hover:bg-amber-500/20 dark:hover:bg-nord-accent/25 text-amber-900 dark:text-nord-accent text-xs font-medium transition-colors"
+            title="Open Extractive Practice Suite"
+          >
+            <Brain className="w-3.5 h-3.5 text-amber-600 dark:text-nord-accent" />
+            <span className="hidden sm:inline">Practice</span>
+            {dueCardsCount > 0 && (
+              <span className="px-1.5 py-0.2 text-[9px] font-bold rounded-full bg-amber-600 dark:bg-nord-accent text-white">
+                {dueCardsCount}
+              </span>
+            )}
+          </button>
+        )}
+
         {/* Omni-Search Trigger Button */}
         <button
           onClick={onOpenSearch}
@@ -202,7 +231,18 @@ export const TopNav: React.FC<TopNavProps> = ({
             <Moon className="w-3.5 h-3.5" />
           </button>
         </div>
+
+        <div className="w-[1px] h-4 bg-black/10 dark:bg-white/10 mx-1" />
+
+        {/* Settings Popover */}
+        <SettingsPopover
+          preferences={preferences}
+          onPreferencesChange={onPreferencesChange}
+          onResyncDeck={onResyncDeck}
+          dueCardsCount={dueCardsCount}
+        />
       </div>
     </header>
   );
 };
+

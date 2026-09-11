@@ -1,8 +1,12 @@
 pub mod vault;
 pub mod db;
 pub mod commands;
+pub mod fsrs;
 
-use commands::{get_library_books, list_books, load_book_meta, load_chapter, load_notes, save_notes, index_vault, search_vault};
+use commands::{
+    get_library_books, list_books, load_book_meta, load_chapter, load_notes, save_notes,
+    index_vault, search_vault, sync_practice_deck, get_due_cards, submit_review, get_deck_stats,
+};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -25,7 +29,11 @@ pub fn run() {
             load_notes,
             save_notes,
             index_vault,
-            search_vault
+            search_vault,
+            sync_practice_deck,
+            get_due_cards,
+            submit_review,
+            get_deck_stats
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

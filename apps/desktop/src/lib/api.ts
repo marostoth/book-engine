@@ -1,4 +1,4 @@
-import { BookMeta, BookMetadata, BookSummary } from "./types";
+import { BookMeta, BookMetadata, BookSummary, PracticeCardItem, CardSchedule, DeckStats } from "./types";
 
 // Detect if running inside a Tauri v2 Webview
 const isTauri = typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || "__TAURI__" in window);
@@ -272,3 +272,150 @@ export async function indexVault(): Promise<{ chapters_indexed: number; paragrap
   }
   return { chapters_indexed: 2, paragraphs_indexed: 20 };
 }
+
+// In-memory store for fallback cards in browser dev mode
+const fallbackCardsMemory: PracticeCardItem[] = [
+  {
+    card_id: "card-ch-01-001",
+    book_id: "sample",
+    chapter_file: "ch-01.md",
+    anchor: "^p-001",
+    item_type: "cloze",
+    prompt: "In distributed computing, {{c1::linearizability}} is defined as a strong consistency guarantee where all operations appear to execute atomically at a specific point in time between their invocation and response.",
+    answer: "linearizability",
+    state: 0,
+    stability: 0.0,
+    difficulty: 0.0,
+    due: Math.floor(Date.now() / 1000) - 100,
+    last_review: 0,
+    reps: 0,
+  },
+  {
+    card_id: "card-ch-01-002",
+    book_id: "sample",
+    chapter_file: "ch-01.md",
+    anchor: "^p-002",
+    item_type: "cloze",
+    prompt: "The primary purpose of {{c1::vector clocks}} is determining the partial ordering of events in an asynchronous distributed system without synchronized physical time.",
+    answer: "vector clocks",
+    state: 0,
+    stability: 0.0,
+    difficulty: 0.0,
+    due: Math.floor(Date.now() / 1000) - 50,
+    last_review: 0,
+    reps: 0,
+  },
+  {
+    card_id: "card-ch-01-003",
+    book_id: "sample",
+    chapter_file: "ch-01.md",
+    anchor: "^p-003",
+    item_type: "scramble",
+    prompt: "Under network partitions, | the CAP theorem is defined as the trade-off | stating that a distributed data store can simultaneously provide at most two out of | Consistency, Availability, and Partition tolerance.",
+    answer: "Under network partitions, the CAP theorem is defined as the trade-off stating that a distributed data store can simultaneously provide at most two out of Consistency, Availability, and Partition tolerance.",
+    state: 0,
+    stability: 0.0,
+    difficulty: 0.0,
+    due: Math.floor(Date.now() / 1000) - 10,
+    last_review: 0,
+    reps: 0,
+  },
+  {
+    card_id: "card-ch-01-006",
+    book_id: "sample",
+    chapter_file: "ch-01.md",
+    anchor: "^p-006",
+    item_type: "cloze",
+    prompt: "{{c1::Byzantine fault tolerance}} represents the capability of a distributed cluster to defend against arbitrary or malicious node failures.",
+    answer: "Byzantine fault tolerance",
+    state: 0,
+    stability: 0.0,
+    difficulty: 0.0,
+    due: Math.floor(Date.now() / 1000) - 5,
+    last_review: 0,
+    reps: 0,
+  },
+];
+
+export async function syncPracticeDeck(bookId: string): Promise<number> {
+  if (isTauri) {
+    try {
+      return await tauriInvoke("sync_practice_deck", { bookId });
+    } catch (e) {
+      console.warn("Tauri sync_practice_deck failed:", e);
+    }
+  }
+  return fallbackCardsMemory.length;
+}
+
+export async function getDueCards(bookId?: string): Promise<PracticeCardItem[]> {
+  if (isTauri) {
+    try {
+      return await tauriInvoke("get_due_cards", { bookId });
+    } catch (e) {
+      console.warn("Tauri get_due_cards failed:", e);
+    }
+  }
+  const now = Math.floor(Date.now() / 1000);
+  return fallbackCardsMemory.filter((c) => c.due <= now || c.reps === 0);
+}
+
+export async function submitReview(cardId: string, rating: number): Promise<CardSchedule> {
+  if (isTauri) {
+    try {
+      return await tauriInvoke("submit_review", { cardId, rating });
+    } catch (e) {
+      console.warn("Tauri submit_review failed:", e);
+    }
+  }
+
+  const card = fallbackCardsMemory.find((c) => c.card_id === cardId);
+  const now = Math.floor(Date.now() / 1000);
+  const intervalDays = rating === 1 ? 0 : rating === 2 ? 1 : rating === 3 ? 3 : 7;
+  const due = intervalDays === 0 ? now + 600 : now + intervalDays * 86400;
+
+  if (card) {
+    card.state = rating === 1 ? 1 : 2;
+    card.stability = rating === 1 ? 0.4 : rating * 1.2;
+    card.difficulty = Math.max(1, 7 - rating);
+    card.due = due;
+    card.last_review = now;
+    card.reps += 1;
+  }
+
+  return {
+    card_id: cardId,
+    state: rating === 1 ? 1 : 2,
+    stability: rating === 1 ? 0.4 : rating * 1.2,
+    difficulty: Math.max(1, 7 - rating),
+    due,
+    last_review: now,
+    reps: (card?.reps || 0),
+    interval_days: intervalDays,
+  };
+}
+
+export async function getDeckStats(bookId?: string): Promise<DeckStats> {
+  if (isTauri) {
+    try {
+      return await tauriInvoke("get_deck_stats", { bookId });
+    } catch (e) {
+      console.warn("Tauri get_deck_stats failed:", e);
+    }
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const due = fallbackCardsMemory.filter((c) => c.due <= now || c.reps === 0).length;
+  const newCards = fallbackCardsMemory.filter((c) => c.state === 0).length;
+  const learning = fallbackCardsMemory.filter((c) => c.state === 1 || c.state === 3).length;
+  const review = fallbackCardsMemory.filter((c) => c.state === 2).length;
+
+  return {
+    due_count: due,
+    new_count: newCards,
+    learning_count: learning,
+    review_count: review,
+    total_cards: fallbackCardsMemory.length,
+  };
+}
+

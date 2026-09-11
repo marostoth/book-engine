@@ -1,18 +1,58 @@
 import React, { useEffect, useState } from "react";
-import { BookMeta, BookMetadata, ChapterMeta, HighlightItem, Theme, ViewMode } from "./lib/types";
-import { fetchBookMeta, fetchChapter, fetchLibraryBooks, fetchNotes, persistNotes } from "./lib/api";
+import {
+  BookMeta,
+  BookMetadata,
+  ChapterMeta,
+  HighlightItem,
+  Theme,
+  ViewMode,
+  PracticeCardItem,
+  CardSchedule,
+  ReaderPreferences,
+} from "./lib/types";
+import {
+  fetchBookMeta,
+  fetchChapter,
+  fetchLibraryBooks,
+  fetchNotes,
+  persistNotes,
+  syncPracticeDeck,
+  getDueCards,
+} from "./lib/api";
 import { parseHighlightsFromNotes, serializeHighlightsToNotes } from "./lib/highlights";
 import { Sidebar } from "./components/Sidebar";
 import { TopNav } from "./components/TopNav";
 import { Reader } from "./components/Reader";
 import { NotesPane } from "./components/NotesPane";
 import { OmniSearchModal } from "./components/OmniSearchModal";
+import { PracticeModal } from "./components/PracticeModal";
+import { GatekeeperModal } from "./components/GatekeeperModal";
 
 export const App: React.FC = () => {
   const [theme, setTheme] = useState<Theme>("paper");
   const [viewMode, setViewMode] = useState<ViewMode>("reading");
   const [isBionic, setIsBionic] = useState<boolean>(false);
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
+
+  // Reader Preferences (Gatekeeper mode & Daily Target)
+  const [preferences, setPreferences] = useState<ReaderPreferences>(() => {
+    try {
+      const saved = localStorage.getItem("book_engine_preferences");
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return { gatekeeperMode: false, dailyTarget: 20 };
+  });
+
+  const handlePreferencesChange = (newPrefs: ReaderPreferences) => {
+    setPreferences(newPrefs);
+    localStorage.setItem("book_engine_preferences", JSON.stringify(newPrefs));
+  };
+
+  // Practice Suite & Due Cards State
+  const [dueCards, setDueCards] = useState<PracticeCardItem[]>([]);
+  const [practiceModalOpen, setPracticeModalOpen] = useState<boolean>(false);
+  const [gatekeeperModalOpen, setGatekeeperModalOpen] = useState<boolean>(false);
+  const [pendingChapter, setPendingChapter] = useState<ChapterMeta | null>(null);
 
   // Vault Library & Active Book
   const [availableBooks, setAvailableBooks] = useState<BookMetadata[]>([]);
@@ -52,6 +92,19 @@ export const App: React.FC = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  // Refresh and synchronize practice cards for active book
+  const refreshPracticeCards = async (bookId?: string) => {
+    const bId = bookId || activeBookId;
+    if (!bId) return;
+    try {
+      await syncPracticeDeck(bId);
+      const cards = await getDueCards(bId);
+      setDueCards(cards);
+    } catch (err) {
+      console.warn("Failed to refresh practice cards:", err);
+    }
+  };
+
   // Discover available library books and hydrate active book from localStorage
   useEffect(() => {
     fetchLibraryBooks().then((books) => {
@@ -76,6 +129,7 @@ export const App: React.FC = () => {
         setActiveChapter(firstCh);
         setTargetAnchor(undefined);
       }
+      refreshPracticeCards(bookId);
     } catch (err) {
       console.error("Failed to load book metadata:", bookId, err);
     }
@@ -105,8 +159,43 @@ export const App: React.FC = () => {
   }, [bookMeta, activeChapter]);
 
   const handleSelectChapter = (chapter: ChapterMeta) => {
+    // Check Chapter Gatekeeper Mode
+    if (
+      preferences.gatekeeperMode &&
+      activeChapter &&
+      chapter.id !== activeChapter.id
+    ) {
+      const chapterCards = dueCards.filter(
+        (c) =>
+          c.chapter_file === activeChapter.file_path ||
+          c.chapter_file.includes(activeChapter.id)
+      );
+      const candidates = chapterCards.length > 0 ? chapterCards : dueCards;
+
+      if (candidates.length > 0) {
+        setPendingChapter(chapter);
+        setGatekeeperModalOpen(true);
+        return;
+      }
+    }
+
     setTargetAnchor(undefined);
     setActiveChapter(chapter);
+  };
+
+  const handleGatekeeperComplete = () => {
+    if (pendingChapter) {
+      setTargetAnchor(undefined);
+      setActiveChapter(pendingChapter);
+      setPendingChapter(null);
+    }
+    setGatekeeperModalOpen(false);
+  };
+
+  const handleReviewSubmitted = (cardId: string, schedule: CardSchedule) => {
+    if (schedule.interval_days > 0) {
+      setDueCards((prev) => prev.filter((c) => c.card_id !== cardId));
+    }
   };
 
   const handleAddHighlight = (newHighlight: HighlightItem) => {
@@ -175,6 +264,11 @@ export const App: React.FC = () => {
           isBionic={isBionic}
           onToggleBionic={() => setIsBionic(!isBionic)}
           onOpenSearch={() => setSearchOpen(true)}
+          dueCardsCount={dueCards.length}
+          onOpenPractice={() => setPracticeModalOpen(true)}
+          preferences={preferences}
+          onPreferencesChange={handlePreferencesChange}
+          onResyncDeck={() => refreshPracticeCards()}
         />
 
         {/* Content Container (Reader + Optional Dual-Pane Notes) */}
@@ -212,6 +306,26 @@ export const App: React.FC = () => {
         isOpen={searchOpen}
         onClose={() => setSearchOpen(false)}
         onSelectResult={handleSelectSearchResult}
+      />
+
+      {/* Extractive Practice Suite Modal */}
+      <PracticeModal
+        isOpen={practiceModalOpen}
+        onClose={() => setPracticeModalOpen(false)}
+        cards={dueCards}
+        onReviewSubmitted={handleReviewSubmitted}
+        onJumpToAnchor={handleSelectSearchResult}
+        bookTitle={bookMeta?.title || "Book Engine"}
+      />
+
+      {/* Chapter Gatekeeper Modal */}
+      <GatekeeperModal
+        isOpen={gatekeeperModalOpen}
+        onClose={() => setGatekeeperModalOpen(false)}
+        targetChapterTitle={pendingChapter?.title || "Next Chapter"}
+        cards={dueCards}
+        onComplete={handleGatekeeperComplete}
+        onReviewSubmitted={handleReviewSubmitted}
       />
     </div>
   );
