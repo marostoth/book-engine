@@ -126,12 +126,13 @@ pub fn index_vault_blocking() -> Result<IndexSummary> {
                     continue;
                 }
 
-                let content = std::fs::read_to_string(&ch_path)?;
+                let raw_content = std::fs::read_to_string(&ch_path)?;
+                let content = raw_content.replace("\r\n", "\n");
 
                 // Simple hash to detect updates
                 let content_hash = format!("{:x}", md5_hash(&content));
 
-                // Check if already indexed with same hash
+                // Check if already indexed with same hash and has indexed rows
                 let mut check_stmt = tx.prepare_cached(
                     "SELECT content_hash FROM indexed_chapters WHERE book_id = ? AND chapter_id = ?"
                 )?;
@@ -139,8 +140,14 @@ pub fn index_vault_blocking() -> Result<IndexSummary> {
                     .query_row(params![&book_id, &ch_id], |row| row.get(0))
                     .ok();
 
+                let existing_count: i64 = tx.query_row(
+                    "SELECT COUNT(*) FROM search_index WHERE book_id = ? AND chapter_id = ?",
+                    params![&book_id, &ch_id],
+                    |row| row.get(0),
+                ).unwrap_or(0);
+
                 if let Some(ref h) = existing_hash {
-                    if h == &content_hash {
+                    if h == &content_hash && existing_count > 0 {
                         // Already up to date
                         continue;
                     }
@@ -273,3 +280,20 @@ fn md5_hash(text: &str) -> u64 {
     text.hash(&mut hasher);
     hasher.finish()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_index_and_search() {
+        let summary = index_vault_blocking().expect("Indexing vault failed");
+        println!("[+] Indexed {} chapters, {} paragraphs in {} ms",
+            summary.chapters_indexed, summary.paragraphs_indexed, summary.duration_ms);
+
+        let results = search_vault_blocking("division of labour").expect("Search failed");
+        println!("[+] Search 'division of labour' returned {} results", results.len());
+        assert!(!results.is_empty(), "Expected search results for 'division of labour'");
+    }
+}
+

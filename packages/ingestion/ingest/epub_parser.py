@@ -32,6 +32,71 @@ def extract_metadata(book: epub.EpubBook, fallback_id: str) -> Tuple[str, str, s
     return safe_book_id, title, author, language
 
 
+def normalize_toc_hierarchy(items: List[TOCItem]) -> List[TOCItem]:
+    """Structure flat or semi-flat TOC lists into hierarchical Books/Parts -> Chapters -> Sections."""
+    book_part_pattern = re.compile(r"^(?:BOOK|PART|VOLUME)\s+([IVXLCDM\d]+)", re.IGNORECASE)
+    chapter_pattern = re.compile(r"^(?:CHAPTER|CHAP\.)\s+([IVXLCDM\d]+)", re.IGNORECASE)
+
+    has_books = any(book_part_pattern.match(it.title.strip()) for it in items)
+    has_chapters = any(chapter_pattern.match(it.title.strip()) for it in items)
+
+    if not (has_books and has_chapters):
+        return items
+
+    normalized: List[TOCItem] = []
+    current_book: Optional[TOCItem] = None
+
+    for it in items:
+        title = it.title.strip()
+        is_book = bool(book_part_pattern.match(title))
+        is_chapter = bool(chapter_pattern.match(title))
+
+        if is_book:
+            current_book = TOCItem(
+                id=it.id,
+                title=it.title,
+                href=it.href,
+                level=1,
+                subitems=list(it.subitems)
+            )
+            for s in current_book.subitems:
+                s.level = 2
+                for ss in s.subitems:
+                    ss.level = 3
+            normalized.append(current_book)
+        elif is_chapter and current_book is not None:
+            ch_copy = TOCItem(
+                id=it.id,
+                title=it.title,
+                href=it.href,
+                level=2,
+                subitems=list(it.subitems)
+            )
+            for s in ch_copy.subitems:
+                s.level = 3
+                for ss in s.subitems:
+                    ss.level = 4
+            current_book.subitems.append(ch_copy)
+        else:
+            if current_book is not None and not is_chapter and not is_book and "license" not in title.lower() and "gutenberg" not in title.lower():
+                ch_copy = TOCItem(
+                    id=it.id,
+                    title=it.title,
+                    href=it.href,
+                    level=2,
+                    subitems=list(it.subitems)
+                )
+                for s in ch_copy.subitems:
+                    s.level = 3
+                current_book.subitems.append(ch_copy)
+            else:
+                current_book = None
+                it.level = 1
+                normalized.append(it)
+
+    return normalized
+
+
 def parse_toc(toc_list: Any, level: int = 1) -> List[TOCItem]:
     """Recursively parse ebooklib's book.toc into hierarchical TOCItem list."""
     items: List[TOCItem] = []
@@ -78,67 +143,100 @@ def parse_toc(toc_list: Any, level: int = 1) -> List[TOCItem]:
                 subitems=[]
             ))
 
+    if level == 1:
+        return normalize_toc_hierarchy(items)
+
     return items
+
+
+BLOCK_CONTAINERS = {"div", "section", "article", "main", "body"}
+BLOCK_ELEMENTS = {"p", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "ul", "ol", "table", "pre", "div", "section", "article"}
 
 
 def html_to_markdown_blocks(soup: BeautifulSoup) -> List[str]:
     """Convert HTML content into a list of clean Markdown blocks (paragraphs, headers, etc.)."""
     blocks: List[str] = []
-
-    # Target the body if available
     root = soup.body if soup.body else soup
 
-    for child in root.children:
-        if isinstance(child, NavigableString):
-            text = str(child).strip()
+    def process_node(node: Tag | NavigableString) -> None:
+        if isinstance(node, NavigableString):
+            text = str(node).strip()
             if text:
                 blocks.append(text)
-            continue
+            return
 
-        if not isinstance(child, Tag):
-            continue
+        for child in node.children:
+            if isinstance(child, NavigableString):
+                text = str(child).strip()
+                if text:
+                    blocks.append(text)
+                continue
 
-        tag_name = child.name.lower()
+            if not isinstance(child, Tag):
+                continue
 
-        # Headings
-        if tag_name in ("h1", "h2", "h3", "h4", "h5", "h6"):
-            level = int(tag_name[1])
-            h_text = _render_inline(child).strip()
-            if h_text:
-                blocks.append(f"{'#' * level} {h_text}")
+            tag_name = child.name.lower()
 
-        # Paragraphs & Divs
-        elif tag_name in ("p", "div", "section", "article"):
-            p_text = _render_inline(child).strip()
-            if p_text:
-                blocks.append(p_text)
+            # Headings
+            if tag_name in ("h1", "h2", "h3", "h4", "h5", "h6"):
+                level = int(tag_name[1])
+                h_text = _render_inline(child).strip()
+                if h_text:
+                    blocks.append(f"{'#' * level} {h_text}")
 
-        # Blockquotes
-        elif tag_name == "blockquote":
-            b_text = _render_inline(child).strip()
-            if b_text:
-                quoted = "\n".join(f"> {line}" for line in b_text.splitlines())
-                blocks.append(quoted)
+            # Containers: recurse if contains block elements, else treat as single block
+            elif tag_name in BLOCK_CONTAINERS:
+                has_child_blocks = any(isinstance(c, Tag) and c.name.lower() in BLOCK_ELEMENTS for c in child.children)
+                if has_child_blocks:
+                    process_node(child)
+                else:
+                    text = _render_inline(child).strip()
+                    if text:
+                        blocks.append(text)
 
-        # Lists
-        elif tag_name in ("ul", "ol"):
-            list_items: List[str] = []
-            is_ordered = (tag_name == "ol")
-            for idx, li in enumerate(child.find_all("li", recursive=False), start=1):
-                li_text = _render_inline(li).strip()
-                if li_text:
-                    prefix = f"{idx}." if is_ordered else "-"
-                    list_items.append(f"{prefix} {li_text}")
-            if list_items:
-                blocks.append("\n".join(list_items))
+            # Paragraphs
+            elif tag_name == "p":
+                p_text = _render_inline(child).strip()
+                if p_text:
+                    blocks.append(p_text)
 
-        # Standalone Images
-        elif tag_name == "img":
-            alt = child.get("alt", "")
-            src = child.get("src", "")
-            if src:
-                blocks.append(f"![{alt}]({src})")
+            # Blockquotes
+            elif tag_name == "blockquote":
+                b_text = _render_inline(child).strip()
+                if b_text:
+                    quoted = "\n".join(f"> {line}" for line in b_text.splitlines() if line.strip())
+                    blocks.append(quoted)
 
+            # Lists
+            elif tag_name in ("ul", "ol"):
+                list_items: List[str] = []
+                is_ordered = (tag_name == "ol")
+                for idx, li in enumerate(child.find_all("li", recursive=False), start=1):
+                    li_text = _render_inline(li).strip()
+                    if li_text:
+                        prefix = f"{idx}." if is_ordered else "-"
+                        list_items.append(f"{prefix} {li_text}")
+                if list_items:
+                    blocks.append("\n".join(list_items))
+
+            # Tables
+            elif tag_name == "table":
+                rows: List[str] = []
+                for tr in child.find_all("tr"):
+                    cells = [_render_inline(td).strip() for td in tr.find_all(["td", "th"])]
+                    if any(cells):
+                        rows.append(" | ".join(cells))
+                if rows:
+                    blocks.append("\n".join(rows))
+
+            # Standalone Images
+            elif tag_name == "img":
+                alt = child.get("alt", "")
+                src = child.get("src", "")
+                if src:
+                    blocks.append(f"![{alt}]({src})")
+
+    process_node(root)
     return blocks
 
 

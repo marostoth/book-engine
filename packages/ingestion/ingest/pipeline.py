@@ -110,7 +110,7 @@ def ingest_epub(epub_path: Path, vault_dir: Path, custom_book_id: Optional[str] 
         total_words += words
 
         # Determine chapter title from heading or metadata
-        ch_title_match = re.search(r"^#\s+(.+)$", anchored_md, re.MULTILINE)
+        ch_title_match = re.search(r"^#{1,3}\s+(.+)$", anchored_md, re.MULTILINE)
         ch_title = ch_title_match.group(1).strip() if ch_title_match else f"Chapter {chapter_index}"
 
         # Write chapter file: ch-01.md, ch-02.md, ...
