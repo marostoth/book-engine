@@ -37,7 +37,7 @@ You are acting as a Principal Systems & Frontend Engineer specializing in local-
 - **Determinism:** Normalization must be idempotent. Re-running ingestion on the same file must generate identical Markdown and paragraph anchors.
 
 ### TypeScript / Frontend
-- **Tooling:** Svelte or React, TipTap/ProseMirror, Tailwind CSS.
+- **Tooling:** React 18+, TipTap/ProseMirror, Tailwind CSS, Floating UI.
 - **Typing:** Strict mode enabled (`noImplicitAny: true`, `strictNullChecks: true`).
 - **Editor:** Markdown AST transformations must occur through headless custom nodes.
 
@@ -52,6 +52,6 @@ Before declaring any task or phase complete:
 
 ---
 
-## 4. Excecution Rules
+## 4. Execution Rules
 
 - **Process Hygiene**: Never leave dev servers, Vite watchers, or background test instances running after completing a task. Always terminate background processes or run builds headlessly.

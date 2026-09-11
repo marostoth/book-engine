@@ -62,6 +62,8 @@ Highlights store `exact`, `prefix`, and `suffix` context fields alongside paragr
 
 ## 4. Zero-Hallucination Practice Architecture
 
+*(Pending Implementation — Phase 4)*
+
 1. **Salience Scorer:** Ranks sentences based on glossary matches, bold formatting, definitional syntax, and summary sections.
 2. **Deterministic Cloze Engine:** Masks proper nouns, cataloged glossary terms, or bold phrases. Answers are exact string slices.
 3. **Scrambled Argument Reordering:** Randomizes sequential clauses or list items for manual reassembly.
@@ -233,7 +235,7 @@ When a chapter HTML payload is prepared for mounting into TipTap:
 
 ---
 
-## 7. Dynamic Vault Library & Anchor Rendering Standards (Phase 4)
+## 7. Dynamic Vault Library & Anchor Rendering Standards (Phase 3 Extension / Polish)
 
 ### Dynamic Vault Scanner (`scan_library_books`)
 The backend scans `vault/books/` dynamically on startup and command invocation, discovering all book directories containing valid `_meta.json` manifests.
