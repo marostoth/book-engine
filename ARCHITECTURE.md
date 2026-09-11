@@ -33,6 +33,71 @@ TAURI V2 DESKTOP APPLICATION
     ├── Popover Footnote Resolver
     └── Extractive Practice & Gatekeeper Suite
 
+### As-Built Directory Manifest
+
+```
+book-engine/
+├── .agent/
+│   └── skills/                  # Autonomous verification harnesses
+│       ├── audit-anchors.py         # Verifies paragraph anchor & footnote definition integrity
+│       └── benchmark-fts.py         # Benchmarks SQLite FTS5 query latency (<15ms target)
+├── apps/
+│   └── desktop/                 # Tauri v2 native desktop application & React frontend
+│       ├── src/                 # React 18+ client application
+│       │   ├── components/      # UI components (Reader, Sidebar, TopNav, Modals, Popovers)
+│       │   │   ├── BookSelector.tsx     # Dynamic vault library switcher popover
+│       │   │   ├── FootnotePopover.tsx  # Floating UI citation preview popover
+│       │   │   ├── GatekeeperModal.tsx  # Chapter Gatekeeper 3-card recall challenge modal
+│       │   │   ├── NotesPane.tsx        # Dual-pane Markdown reflection notes editor
+│       │   │   ├── OmniSearchModal.tsx  # Ctrl+K global full-text search palette
+│       │   │   ├── PracticeModal.tsx    # Extractive practice suite (Cloze & Scramble drills)
+│       │   │   ├── Reader.tsx           # Virtualized TipTap chapter canvas with margin anchors
+│       │   │   ├── SelectionMenu.tsx    # Floating UI selection toolbar (Highlight, Note, Link)
+│       │   │   ├── SettingsPopover.tsx  # Reader preferences & Gatekeeper settings popover
+│       │   │   ├── Sidebar.tsx          # Hierarchical TOC & linear chapter navigation drawer
+│       │   │   └── TopNav.tsx           # Top navigation chrome, progress bar, view modes & themes
+│       │   ├── lib/             # Core TypeScript utilities, transformers, and contracts
+│       │   │   ├── api.ts               # Tauri IPC invoke wrappers with browser dev fallbacks
+│       │   │   ├── bionic.ts            # Deterministic bionic fixation bolding transformer
+│       │   │   ├── highlights.ts        # W3C Text Quote Selector parser & serializer
+│       │   │   ├── markdown.ts          # Chapter Markdown preprocessor & anchor normalizer
+│       │   │   └── types.ts             # Canonical TypeScript interfaces & data contracts
+│       │   ├── App.tsx          # Application shell, global state coordinator & router
+│       │   ├── index.css        # Editorial design tokens, typography, and margin glyphs
+│       │   └── main.tsx         # React DOM mount entrypoint
+│       └── src-tauri/           # Rust backend shell (Tauri v2 + SQLite)
+│           ├── src/
+│           │   ├── commands.rs          # Asynchronous Tauri IPC command handlers
+│           │   ├── db.rs                # SQLite connection, FTS5 indexer, and card store
+│           │   ├── fsrs.rs              # Local FSRS-4.5 spaced repetition scheduling engine
+│           │   ├── lib.rs               # Application builder, plugin setup, and invoke router
+│           │   ├── main.rs              # Tauri binary executable entrypoint
+│           │   └── vault.rs             # File vault scanner, manifest deserializer & I/O
+│           ├── Cargo.toml       # Rust dependency manifest (rusqlite, tokio, tauri v2)
+│           └── tauri.conf.json  # Tauri v2 window, security, and bundle configuration
+├── packages/
+│   └── ingestion/               # Python CLI & deterministic parsing pipeline
+│       ├── ingest/              # Ingestion library modules
+│       │   ├── anchors.py               # Deterministic paragraph anchor (^p-xxx) injector
+│       │   ├── assets.py                # EPUB embedded image & diagram extractor
+│       │   ├── cli.py                   # Command-line entrypoint (`book-ingest`)
+│       │   ├── endnotes.py              # Backmatter endnote relocation to inline footnotes
+│       │   ├── epub_parser.py           # XHTML chapter extractor & typography normalizer
+│       │   ├── models.py                # Pydantic schema validation for metadata and cards
+│       │   ├── pipeline.py              # End-to-end ingestion pipeline coordinator
+│       │   ├── salience.py              # Deterministic salience scorer & Cloze deck generator
+│       │   └── sample_generator.py      # Starter sample generator for development
+│       ├── tests/               # Pytest verification suite for anchors, TOC, and pipeline
+│       └── pyproject.toml       # Python package configuration and CLI entrypoints
+├── scripts/
+│   └── create_desktop_shortcut.ps1 # One-click Windows desktop shortcut generator
+├── vault/                       # SOLE PERMANENT RECORD: User Markdown vault (Versioned / Syncable)
+│   ├── books/<book-id>/         # Chapter Markdown (`ch-XX.md`), `_meta.json`, and extracted assets
+│   └── notes/<book-id>/         # Chapter notes, serialized highlights, and study decks
+└── %APPDATA%\book-engine\       # EPHEMERAL CACHE: OS AppData (Never in vault; reconstructible)
+    └── app_cache/index.db       # SQLite database (FTS5 search index + FSRS card review states)
+```
+
 ---
 
 ## 2. Ingestion & Content Normalization

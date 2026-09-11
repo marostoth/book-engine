@@ -55,3 +55,4 @@ Before declaring any task or phase complete:
 ## 4. Execution Rules
 
 - **Process Hygiene**: Never leave dev servers, Vite watchers, or background test instances running after completing a task. Always terminate background processes or run builds headlessly.
+- **Directory Manifest Synchronization**: Whenever a task creates, deletes, renames, or relocates files or modules, update the 'As-Built Directory Manifest' in `ARCHITECTURE.md` to reflect current disk reality before staging commits. Never introduce duplicate utility or model directories.
