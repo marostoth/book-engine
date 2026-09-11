@@ -65,7 +65,7 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className={`p-2 rounded-lg transition-colors flex items-center justify-center ${
+        className={`h-8 w-8 rounded-lg transition-colors flex items-center justify-center flex-shrink-0 ${
           isOpen
             ? "bg-black/10 dark:bg-white/10 text-neutral-900 dark:text-neutral-100"
             : "text-neutral-600 dark:text-neutral-300 hover:bg-black/5 dark:hover:bg-white/5"
@@ -80,7 +80,7 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
       {/* Popover Card with 100% Solid Opaque Theme Background */}
       {isOpen && (
         <div
-          className="absolute right-0 top-full mt-2 w-84 max-w-[90vw] z-50 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-2xl p-4 bg-white dark:bg-stone-900 overflow-hidden select-none animate-in fade-in zoom-in-95 duration-100"
+          className="absolute right-0 top-full mt-2 w-80 min-w-[320px] max-w-[90vw] z-50 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-2xl p-5 bg-white dark:bg-stone-900 overflow-hidden select-none animate-in fade-in zoom-in-95 duration-100"
           style={{ backgroundColor: "var(--theme-surface)" }}
         >
           {/* Header */}
@@ -99,7 +99,7 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
 
           <div className="space-y-4 pt-3.5">
             {/* Chapter Gatekeeper Mode Toggle */}
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center justify-between gap-4">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <ShieldCheck className="w-4 h-4 text-amber-600 dark:text-nord-accent flex-shrink-0" />
@@ -107,7 +107,7 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
                     Chapter Gatekeeper
                   </span>
                 </div>
-                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5 leading-relaxed">
+                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 leading-relaxed">
                   Require solving 3 recall cards before unlocking subsequent chapters.
                 </p>
               </div>
@@ -134,7 +134,7 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
             <div className="h-[1px] bg-black/5 dark:bg-white/5" />
 
             {/* Daily Review Target Stepper */}
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center justify-between gap-4">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <Target className="w-4 h-4 text-amber-600 dark:text-nord-accent flex-shrink-0" />
@@ -142,12 +142,12 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
                     Daily Review Target
                   </span>
                 </div>
-                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 leading-relaxed">
                   Target cards scheduled per study session.
                 </p>
               </div>
 
-              <div className="flex items-center gap-1.5 bg-black/[0.04] dark:bg-white/[0.06] p-1 rounded-lg border border-black/5 dark:border-white/5">
+              <div className="flex items-center gap-1.5 bg-black/[0.04] dark:bg-white/[0.06] p-1 rounded-lg border border-black/5 dark:border-white/5 flex-shrink-0">
                 <button
                   type="button"
                   onClick={() => handleTargetChange(-5)}

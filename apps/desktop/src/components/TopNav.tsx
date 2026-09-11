@@ -75,11 +75,11 @@ export const TopNav: React.FC<TopNavProps> = ({
       </div>
 
       {/* Left controls: Sidebar toggle & Title */}
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="flex items-center gap-3 min-w-0 flex-1 mr-3 overflow-hidden">
         {!isFocus && (
           <button
             onClick={onToggleSidebar}
-            className={`p-2 rounded-lg transition-colors ${
+            className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
               sidebarOpen
                 ? "text-neutral-700 dark:text-neutral-300 bg-black/5 dark:bg-white/5"
                 : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 hover:bg-black/5 dark:hover:bg-white/5"
@@ -92,7 +92,7 @@ export const TopNav: React.FC<TopNavProps> = ({
 
         {/* Compact Book Selector shown when sidebar is collapsed */}
         {!sidebarOpen && availableBooks && onSelectBook && (
-          <div className="w-52 max-w-[32vw]">
+          <div className="w-52 max-w-[32vw] flex-shrink-0">
             <BookSelector
               currentBookId={currentBookId || ""}
               currentTitle={bookTitle || "Select Book"}
@@ -104,7 +104,7 @@ export const TopNav: React.FC<TopNavProps> = ({
           </div>
         )}
 
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-2 min-w-0 overflow-hidden">
           <h1 className="text-sm font-semibold truncate text-neutral-800 dark:text-neutral-100">
             {chapterTitle}
           </h1>
@@ -115,18 +115,18 @@ export const TopNav: React.FC<TopNavProps> = ({
       </div>
 
       {/* Right controls: Practice, Search, Bionic, Notes, Themes, Settings */}
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1.5 flex-shrink-0 flex-nowrap">
         {/* Practice Suite Button with Due Badge */}
         {onOpenPractice && (
           <button
             onClick={onOpenPractice}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-amber-500/30 dark:border-nord-accent/30 bg-amber-500/10 dark:bg-nord-accent/15 hover:bg-amber-500/20 dark:hover:bg-nord-accent/25 text-amber-900 dark:text-nord-accent text-xs font-medium transition-colors"
+            className="flex items-center gap-1.5 px-2.5 h-8 flex-shrink-0 whitespace-nowrap rounded-lg border border-amber-500/30 dark:border-nord-accent/30 bg-amber-500/10 dark:bg-nord-accent/15 hover:bg-amber-500/20 dark:hover:bg-nord-accent/25 text-amber-900 dark:text-nord-accent text-xs font-medium transition-colors"
             title="Open Extractive Practice Suite"
           >
-            <Brain className="w-3.5 h-3.5 text-amber-600 dark:text-nord-accent" />
+            <Brain className="w-3.5 h-3.5 text-amber-600 dark:text-nord-accent flex-shrink-0" />
             <span className="hidden sm:inline">Practice</span>
             {dueCardsCount > 0 && (
-              <span className="px-1.5 py-0.2 text-[9px] font-bold rounded-full bg-amber-600 dark:bg-nord-accent text-white">
+              <span className="px-1.5 py-0.2 text-[9px] font-bold rounded-full bg-amber-600 dark:bg-nord-accent text-white flex-shrink-0">
                 {dueCardsCount}
               </span>
             )}
@@ -136,46 +136,46 @@ export const TopNav: React.FC<TopNavProps> = ({
         {/* Omni-Search Trigger Button */}
         <button
           onClick={onOpenSearch}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/10 dark:hover:bg-white/10 text-neutral-600 dark:text-neutral-300 text-xs transition-colors"
+          className="flex items-center gap-1.5 flex-nowrap whitespace-nowrap flex-shrink-0 h-8 px-2.5 rounded-lg border border-black/10 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/10 dark:hover:bg-white/10 text-neutral-600 dark:text-neutral-300 text-xs transition-colors"
           title="Omni-Search (Ctrl + K / Cmd + K)"
         >
-          <Search className="w-3.5 h-3.5 text-neutral-400" />
+          <Search className="w-3.5 h-3.5 text-neutral-400 flex-shrink-0" />
           <span className="hidden md:inline">Search</span>
-          <kbd className="font-mono text-[9px] px-1 py-0.2 rounded bg-black/5 dark:bg-white/10 border border-black/5 dark:border-white/5 text-neutral-400">
+          <kbd className="font-mono text-[9px] px-1 py-0.2 rounded bg-black/5 dark:bg-white/10 border border-black/5 dark:border-white/5 text-neutral-400 flex-shrink-0">
             Ctrl K
           </kbd>
         </button>
 
-        <div className="w-[1px] h-4 bg-black/10 dark:bg-white/10 mx-0.5" />
+        <div className="w-[1px] h-4 bg-black/10 dark:bg-white/10 mx-0.5 flex-shrink-0" />
 
         {/* Bionic Reading Toggle */}
         <button
           onClick={onToggleBionic}
-          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+          className={`flex items-center gap-1 px-2.5 h-8 flex-shrink-0 whitespace-nowrap rounded-lg text-xs font-medium transition-all ${
             isBionic
               ? "bg-amber-600 text-white shadow-sm"
               : "text-neutral-600 dark:text-neutral-300 hover:bg-black/5 dark:hover:bg-white/5"
           }`}
           title="Toggle Bionic Fixation Reading"
         >
-          <Sparkles className="w-3.5 h-3.5" />
+          <Sparkles className="w-3.5 h-3.5 flex-shrink-0" />
           <span className="hidden sm:inline">Bionic</span>
         </button>
 
-        <div className="w-[1px] h-4 bg-black/10 dark:bg-white/10 mx-1" />
+        <div className="w-[1px] h-4 bg-black/10 dark:bg-white/10 mx-1 flex-shrink-0" />
 
         {/* Dual-Pane View Mode Toggle */}
         {!isFocus && (
           <button
             onClick={() => onViewModeChange(viewMode === "dual" ? "reading" : "dual")}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`flex items-center gap-1 px-2.5 h-8 flex-shrink-0 whitespace-nowrap rounded-lg text-xs font-medium transition-all ${
               viewMode === "dual"
                 ? "bg-neutral-800 dark:bg-nord-accent text-white dark:text-nord-bg shadow-sm"
                 : "text-neutral-600 dark:text-neutral-300 hover:bg-black/5 dark:hover:bg-white/5"
             }`}
             title="Toggle Dual-Pane Notes"
           >
-            <Columns className="w-3.5 h-3.5" />
+            <Columns className="w-3.5 h-3.5 flex-shrink-0" />
             <span className="hidden sm:inline">Notes</span>
           </button>
         )}
@@ -183,7 +183,7 @@ export const TopNav: React.FC<TopNavProps> = ({
         {/* Focus Mode Toggle */}
         <button
           onClick={() => onViewModeChange(isFocus ? "reading" : "focus")}
-          className={`p-2 rounded-lg text-neutral-600 dark:text-neutral-300 hover:bg-black/5 dark:hover:bg-white/5 transition-colors ${
+          className={`h-8 w-8 flex items-center justify-center flex-shrink-0 rounded-lg text-neutral-600 dark:text-neutral-300 hover:bg-black/5 dark:hover:bg-white/5 transition-colors ${
             isFocus ? "text-amber-600 dark:text-nord-accent font-semibold" : ""
           }`}
           title={isFocus ? "Exit Focus Mode" : "Enter Focus Mode"}
@@ -191,13 +191,13 @@ export const TopNav: React.FC<TopNavProps> = ({
           {isFocus ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
         </button>
 
-        <div className="w-[1px] h-4 bg-black/10 dark:bg-white/10 mx-1" />
+        <div className="w-[1px] h-4 bg-black/10 dark:bg-white/10 mx-1 flex-shrink-0" />
 
         {/* Theme Selectors */}
-        <div className="flex items-center gap-0.5 p-1 rounded-lg bg-black/5 dark:bg-white/5">
+        <div className="flex items-center gap-0.5 p-1 rounded-lg bg-black/5 dark:bg-white/5 flex-shrink-0 h-8">
           <button
             onClick={() => onThemeChange("paper")}
-            className={`p-1.5 rounded-md text-xs transition-all ${
+            className={`p-1 rounded-md text-xs transition-all ${
               theme === "paper"
                 ? "bg-white text-neutral-900 shadow-sm font-semibold"
                 : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
@@ -209,7 +209,7 @@ export const TopNav: React.FC<TopNavProps> = ({
 
           <button
             onClick={() => onThemeChange("sepia")}
-            className={`p-1.5 rounded-md text-xs transition-all ${
+            className={`p-1 rounded-md text-xs transition-all ${
               theme === "sepia"
                 ? "bg-[#EAE0C8] text-[#3D3226] shadow-sm font-semibold"
                 : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
@@ -221,7 +221,7 @@ export const TopNav: React.FC<TopNavProps> = ({
 
           <button
             onClick={() => onThemeChange("nord")}
-            className={`p-1.5 rounded-md text-xs transition-all ${
+            className={`p-1 rounded-md text-xs transition-all ${
               theme === "nord"
                 ? "bg-[#3B4252] text-[#88C0D0] shadow-sm font-semibold"
                 : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
@@ -232,7 +232,7 @@ export const TopNav: React.FC<TopNavProps> = ({
           </button>
         </div>
 
-        <div className="w-[1px] h-4 bg-black/10 dark:bg-white/10 mx-1" />
+        <div className="w-[1px] h-4 bg-black/10 dark:bg-white/10 mx-1 flex-shrink-0" />
 
         {/* Settings Popover */}
         <SettingsPopover
