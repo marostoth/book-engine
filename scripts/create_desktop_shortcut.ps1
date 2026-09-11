@@ -26,7 +26,7 @@ $launchCommand = "Get-NetTCPConnection -LocalPort 5173 -ErrorAction SilentlyCont
 $wshShell = New-Object -ComObject WScript.Shell
 $shortcut = $wshShell.CreateShortcut($shortcutPath)
 $shortcut.TargetPath = "powershell.exe"
-$shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Minimized -Command `"$launchCommand`""
+$shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -Command `"$launchCommand`""
 $shortcut.WorkingDirectory = $appsDesktop
 $shortcut.Description = "Book Engine - Local-First Academic Reader"
 
@@ -34,8 +34,8 @@ if (Test-Path $iconPath) {
     $shortcut.IconLocation = "$iconPath, 0"
 }
 
-# WindowStyle: 7 = Minimized (so the terminal remains tucked away while Tauri opens)
-$shortcut.WindowStyle = 7
+# WindowStyle: 1 = Normal (prevents Windows STARTUPINFO from forcing child GUI into minimized state)
+$shortcut.WindowStyle = 1
 $shortcut.Save()
 
 Write-Host "[+] Desktop shortcut created successfully!"

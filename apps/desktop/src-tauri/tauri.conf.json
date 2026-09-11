@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Book Engine",
         "width": 1280,
         "height": 860,
@@ -19,7 +20,11 @@
         "minHeight": 600,
         "resizable": true,
         "fullscreen": false,
-        "decorations": true
+        "decorations": true,
+        "center": true,
+        "visible": true,
+        "focus": true,
+        "shadow": true
       }
     ],
     "security": {
