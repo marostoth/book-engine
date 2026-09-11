@@ -15,6 +15,7 @@ from ingest.endnotes import EndnoteRegistry, relocate_chapter_footnotes
 from ingest.anchors import inject_paragraph_anchors, extract_anchors
 from ingest.salience import generate_chapter_practice_cards, format_practice_deck_markdown
 from ingest.epub_parser import extract_metadata, parse_toc, html_to_markdown_blocks
+from ingest.pdf_parser import PDFParser
 
 
 def ingest_epub(epub_path: Path, vault_dir: Path, custom_book_id: Optional[str] = None) -> BookMeta:
@@ -176,10 +177,18 @@ def ingest_epub(epub_path: Path, vault_dir: Path, custom_book_id: Optional[str] 
     return book_meta
 
 
+def ingest_pdf(pdf_path: Path, vault_dir: Path, custom_book_id: Optional[str] = None) -> BookMeta:
+    """Ingest a PDF file into vault/books/<book-id>/ and vault/notes/<book-id>/."""
+    parser = PDFParser(pdf_path, vault_dir, custom_book_id)
+    return parser.parse()
+
+
 def ingest_book(file_path: Path, vault_dir: Path, book_id: Optional[str] = None) -> BookMeta:
     """Entry point dispatching to appropriate ingestion handler based on file suffix."""
     suffix = file_path.suffix.lower()
     if suffix == ".epub":
         return ingest_epub(file_path, vault_dir, book_id)
+    elif suffix == ".pdf":
+        return ingest_pdf(file_path, vault_dir, book_id)
     else:
-        raise NotImplementedError(f"Unsupported file format '{suffix}'. Only .epub is currently implemented.")
+        raise NotImplementedError(f"Unsupported file format '{suffix}'. Only .epub and .pdf are currently implemented.")

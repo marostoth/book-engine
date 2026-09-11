@@ -20,5 +20,16 @@
     "total_chapters": 37,
     "total_words": 387438,
     "anchors_verified": "PASS"
+  },
+  {
+    "sha256": "9083ff3f26ba3cb13cb45a64bd1d1d6713d4394b82ac393e36b18dae1c3e13da",
+    "book_id": "principles-of-marketing-19ed",
+    "title": "Principles of Marketing, Global Edition",
+    "author": "Philip Kotler & Gary Armstrong",
+    "filename": "[MKTG] Kotler P., Armstrong G. Principles of Marketing 19ed 2023.pdf",
+    "processed_at": "2026-09-11T18:21:27.739150+00:00",
+    "total_chapters": 20,
+    "total_words": 472924,
+    "anchors_verified": "PASS"
   }
 ]

@@ -9,8 +9,8 @@ from ingest.pipeline import ingest_book
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Ingest an EPUB or document into the local vault.")
-    parser.add_argument("file_path", type=Path, help="Path to source document (e.g. sample.epub)")
+    parser = argparse.ArgumentParser(description="Ingest an EPUB or PDF document into the local vault.")
+    parser.add_argument("file_path", type=Path, help="Path to source document (e.g. book.epub, book.pdf)")
     parser.add_argument("--vault", type=Path, default=Path("vault"), help="Path to local Markdown vault root")
     parser.add_argument("--book-id", type=str, default=None, help="Custom identifier for the book directory")
 

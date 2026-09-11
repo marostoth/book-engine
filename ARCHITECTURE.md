@@ -95,10 +95,12 @@ book-engine/
 │       ├── ingest/              # Ingestion library modules
 │       │   ├── anchors.py               # Deterministic paragraph anchor (^p-xxx) injector
 │       │   ├── assets.py                # EPUB embedded image & diagram extractor
+│       │   ├── batch.py                 # Batch document intake utility (.epub & .pdf)
 │       │   ├── cli.py                   # Command-line entrypoint (`book-ingest`)
 │       │   ├── endnotes.py              # Backmatter endnote relocation to inline footnotes
 │       │   ├── epub_parser.py           # XHTML chapter extractor & typography normalizer
 │       │   ├── models.py                # Pydantic schema validation for metadata and cards
+│       │   ├── pdf_parser.py            # Sequential chapter-by-chapter PDF parser & asset filter
 │       │   ├── pipeline.py              # End-to-end ingestion pipeline coordinator
 │       │   ├── salience.py              # Deterministic salience scorer & Cloze deck generator
 │       │   └── sample_generator.py      # Starter sample generator for development
