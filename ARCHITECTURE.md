@@ -40,8 +40,10 @@ book-engine/
 ├── .agent/
 │   └── skills/                  # Autonomous verification harnesses
 │       ├── audit-anchors.py         # Verifies paragraph anchor & footnote definition integrity
+│       ├── audit-practice.py        # Audits zero-hallucination verbatim extractive study cards
 │       ├── benchmark-fts.py         # Benchmarks SQLite FTS5 query latency (<15ms target)
-│       └── process-inbox.py         # Automated fail-safe batch book intake pipeline & ledger manager
+│       ├── process-inbox.py         # Automated fail-safe batch book intake pipeline & ledger manager
+│       └── test-index-rebuild.py    # Verifies self-healing FTS5 index reconstruction from vault
 ├── apps/
 │   └── desktop/                 # Tauri v2 native desktop application & React frontend
 │       ├── src/                 # React 18+ client application

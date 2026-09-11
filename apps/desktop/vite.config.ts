@@ -13,4 +13,18 @@ export default defineConfig({
     },
   },
   envPrefix: ["VITE_", "TAURI_"],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("@tiptap") || id.includes("prosemirror")) {
+            return "vendor-editor";
+          }
+          if (id.includes("lucide-react") || id.includes("@floating-ui")) {
+            return "vendor-ui";
+          }
+        },
+      },
+    },
+  },
 });
