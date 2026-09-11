@@ -1,0 +1,9 @@
+README.md
+pyproject.toml
+book_engine_ingestion.egg-info/PKG-INFO
+book_engine_ingestion.egg-info/SOURCES.txt
+book_engine_ingestion.egg-info/dependency_links.txt
+book_engine_ingestion.egg-info/entry_points.txt
+book_engine_ingestion.egg-info/requires.txt
+book_engine_ingestion.egg-info/top_level.txt
+ingest/__init__.py

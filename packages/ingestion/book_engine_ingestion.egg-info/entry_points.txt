@@ -1,0 +1,2 @@
+[console_scripts]
+book-ingest = ingest.cli:main

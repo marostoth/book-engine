@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "book-engine-ingestion"
+version = "0.1.0"
+description = "Deterministic Ingestion & Content Pipeline for Local Book Engine"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "ebooklib>=0.18",
+    "beautifulsoup4>=4.12.0",
+    "pymupdf4llm>=1.28.0",
+    "pydantic>=2.6.0",
+    "pytest>=8.0.0",
+]
+
+[project.scripts]
+book-ingest = "ingest.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
