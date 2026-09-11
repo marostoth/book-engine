@@ -41,6 +41,7 @@ book-engine/
 │   └── skills/                  # Autonomous verification harnesses
 │       ├── audit-anchors.py         # Verifies paragraph anchor & footnote definition integrity
 │       ├── audit-practice.py        # Audits zero-hallucination verbatim extractive study cards
+│       ├── audit-system.py          # Universal dynamic health orchestrator (Ledger, Anchors, Cards, Rust, TS, FTS5)
 │       ├── benchmark-fts.py         # Benchmarks SQLite FTS5 query latency (<15ms target)
 │       ├── process-inbox.py         # Automated fail-safe batch book intake pipeline & ledger manager
 │       └── test-index-rebuild.py    # Verifies self-healing FTS5 index reconstruction from vault
