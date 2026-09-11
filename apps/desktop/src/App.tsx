@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { BookMeta, ChapterMeta, Theme, ViewMode } from "./lib/types";
-import { fetchBookMeta, fetchChapter } from "./lib/api";
+import { BookMeta, ChapterMeta, HighlightItem, Theme, ViewMode } from "./lib/types";
+import { fetchBookMeta, fetchChapter, fetchNotes, persistNotes } from "./lib/api";
+import { parseHighlightsFromNotes, serializeHighlightsToNotes } from "./lib/highlights";
 import { Sidebar } from "./components/Sidebar";
 import { TopNav } from "./components/TopNav";
 import { Reader } from "./components/Reader";
 import { NotesPane } from "./components/NotesPane";
+import { OmniSearchModal } from "./components/OmniSearchModal";
 
 export const App: React.FC = () => {
   const [theme, setTheme] = useState<Theme>("paper");
@@ -17,6 +19,13 @@ export const App: React.FC = () => {
   const [chapterMarkdown, setChapterMarkdown] = useState<string>("");
   const [progressPercent, setProgressPercent] = useState<number>(0);
 
+  // W3C Highlights
+  const [highlights, setHighlights] = useState<HighlightItem[]>([]);
+
+  // Search & Target Anchor Jumping
+  const [searchOpen, setSearchOpen] = useState<boolean>(false);
+  const [targetAnchor, setTargetAnchor] = useState<string | undefined>();
+
   // Quote passed from SelectionMenu to NotesPane
   const [insertedQuote, setInsertedQuote] = useState<{ quote: string; anchorId?: string } | null>(null);
 
@@ -24,6 +33,18 @@ export const App: React.FC = () => {
   useEffect(() => {
     document.body.className = `theme-${theme} antialiased overflow-hidden select-none`;
   }, [theme]);
+
+  // Global Ctrl + K / Cmd + K keyboard shortcut
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearchOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   // Load initial book metadata
   useEffect(() => {
@@ -36,17 +57,54 @@ export const App: React.FC = () => {
     });
   }, []);
 
-  // Load chapter text when activeChapter changes (Single-Chapter Virtualization)
+  // Load chapter text and hydrate highlights when activeChapter changes (Single-Chapter Virtualization)
   useEffect(() => {
     if (!bookMeta || !activeChapter) return;
+
     fetchChapter(bookMeta.book_id, activeChapter.file_path).then((md) => {
       setChapterMarkdown(md);
       setProgressPercent(0);
     });
+
+    // Hydrate W3C highlights from chapter notes file
+    const notesFile = activeChapter.file_path.replace(".md", "-notes.md");
+    fetchNotes(bookMeta.book_id, notesFile).then((notesContent) => {
+      const parsedHighlights = parseHighlightsFromNotes(notesContent);
+      setHighlights(parsedHighlights);
+    });
   }, [bookMeta, activeChapter]);
 
   const handleSelectChapter = (chapter: ChapterMeta) => {
+    setTargetAnchor(undefined);
     setActiveChapter(chapter);
+  };
+
+  const handleAddHighlight = (newHighlight: HighlightItem) => {
+    if (!bookMeta || !activeChapter) return;
+
+    const updated = [...highlights, newHighlight];
+    setHighlights(updated);
+
+    // Asynchronously persist highlights to vault notes
+    const notesFile = activeChapter.file_path.replace(".md", "-notes.md");
+    fetchNotes(bookMeta.book_id, notesFile).then((currentNotes) => {
+      const updatedNotes = serializeHighlightsToNotes(currentNotes, updated);
+      persistNotes(bookMeta.book_id, notesFile, updatedNotes);
+    });
+  };
+
+  const handleSelectSearchResult = (chapterFile: string, anchor: string) => {
+    if (!bookMeta) return;
+
+    // Check if target chapter is different from active chapter
+    if (!activeChapter || activeChapter.file_path !== chapterFile) {
+      const targetChapter = bookMeta.spine.find((ch) => ch.file_path === chapterFile);
+      if (targetChapter) {
+        setActiveChapter(targetChapter);
+      }
+    }
+
+    setTargetAnchor(anchor);
   };
 
   const isFocus = viewMode === "focus";
@@ -79,6 +137,7 @@ export const App: React.FC = () => {
           onViewModeChange={setViewMode}
           isBionic={isBionic}
           onToggleBionic={() => setIsBionic(!isBionic)}
+          onOpenSearch={() => setSearchOpen(true)}
         />
 
         {/* Content Container (Reader + Optional Dual-Pane Notes) */}
@@ -87,7 +146,10 @@ export const App: React.FC = () => {
           <Reader
             markdown={chapterMarkdown}
             isBionic={isBionic}
+            highlights={highlights}
+            targetAnchor={targetAnchor}
             onProgressChange={setProgressPercent}
+            onAddHighlight={handleAddHighlight}
             onAddNoteFromSelection={(quote, anchorId) => {
               setInsertedQuote({ quote, anchorId });
               if (viewMode !== "dual") {
@@ -107,6 +169,13 @@ export const App: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Omni-Search Modal Command Palette */}
+      <OmniSearchModal
+        isOpen={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        onSelectResult={handleSelectSearchResult}
+      />
     </div>
   );
 };

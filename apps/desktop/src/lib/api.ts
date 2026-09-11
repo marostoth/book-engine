@@ -181,3 +181,64 @@ export async function persistNotes(bookId: string, notesFile: string, content: s
 
   localStorage.setItem(`notes_${bookId}_${notesFile}`, content);
 }
+
+export async function searchVault(query: string): Promise<import("./types").SearchResult[]> {
+  if (isTauri) {
+    try {
+      return await tauriInvoke<import("./types").SearchResult[]>("search_vault", { query });
+    } catch (e) {
+      console.warn("Tauri search_vault failed, falling back:", e);
+    }
+  }
+
+  // Fallback client-side search across fallback chapters for dev preview
+  const results: import("./types").SearchResult[] = [];
+  const qLower = query.toLowerCase().trim();
+  if (!qLower) return results;
+
+  for (const [chFile, content] of Object.entries(FALLBACK_CHAPTERS)) {
+    const chId = chFile.replace(".md", "");
+    const titleMatch = content.match(/^#\s+(.+)$/m);
+    const title = titleMatch ? titleMatch[1] : chId;
+
+    const blocks = content.split("\n\n");
+    for (const block of blocks) {
+      if (block.toLowerCase().includes(qLower) && !block.startsWith("#")) {
+        let anchor = "";
+        let text = block;
+        if (block.includes("^p-")) {
+          const idx = block.lastIndexOf("^p-");
+          anchor = block.slice(idx).trim();
+          text = block.slice(0, idx).trim();
+        }
+
+        // Highlight matched word with <mark>
+        const regex = new RegExp(`(${qLower})`, "gi");
+        const highlighted = text.replace(regex, "<mark>$1</mark>");
+
+        results.push({
+          book_id: "sample",
+          chapter_id: chId,
+          chapter_title: title,
+          chapter_file: chFile,
+          anchor,
+          snippet: highlighted,
+          rank: -1.0,
+        });
+      }
+    }
+  }
+
+  return results;
+}
+
+export async function indexVault(): Promise<{ chapters_indexed: number; paragraphs_indexed: number }> {
+  if (isTauri) {
+    try {
+      return await tauriInvoke("index_vault");
+    } catch (e) {
+      console.warn("Tauri index_vault failed:", e);
+    }
+  }
+  return { chapters_indexed: 2, paragraphs_indexed: 20 };
+}

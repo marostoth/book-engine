@@ -5,6 +5,7 @@ import {
   Maximize2,
   Minimize2,
   Sparkles,
+  Search,
   Sun,
   Coffee,
   Moon,
@@ -22,6 +23,7 @@ interface TopNavProps {
   onViewModeChange: (mode: ViewMode) => void;
   isBionic: boolean;
   onToggleBionic: () => void;
+  onOpenSearch: () => void;
 }
 
 export const TopNav: React.FC<TopNavProps> = ({
@@ -35,6 +37,7 @@ export const TopNav: React.FC<TopNavProps> = ({
   onViewModeChange,
   isBionic,
   onToggleBionic,
+  onOpenSearch,
 }) => {
   const isFocus = viewMode === "focus";
 
@@ -74,8 +77,23 @@ export const TopNav: React.FC<TopNavProps> = ({
         </div>
       </div>
 
-      {/* Right controls: Theme, Bionic, Dual-Pane, Focus */}
+      {/* Right controls: Search, Theme, Bionic, Dual-Pane, Focus */}
       <div className="flex items-center gap-1.5">
+        {/* Omni-Search Trigger Button */}
+        <button
+          onClick={onOpenSearch}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/10 dark:hover:bg-white/10 text-neutral-600 dark:text-neutral-300 text-xs transition-colors"
+          title="Omni-Search (Ctrl + K / Cmd + K)"
+        >
+          <Search className="w-3.5 h-3.5 text-neutral-400" />
+          <span className="hidden md:inline">Search</span>
+          <kbd className="font-mono text-[9px] px-1 py-0.2 rounded bg-black/5 dark:bg-white/10 border border-black/5 dark:border-white/5 text-neutral-400">
+            Ctrl K
+          </kbd>
+        </button>
+
+        <div className="w-[1px] h-4 bg-black/10 dark:bg-white/10 mx-0.5" />
+
         {/* Bionic Reading Toggle */}
         <button
           onClick={onToggleBionic}

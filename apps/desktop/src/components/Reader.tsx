@@ -4,21 +4,28 @@ import StarterKit from "@tiptap/starter-kit";
 import Highlight from "@tiptap/extension-highlight";
 import { parseChapterMarkdown } from "../lib/markdown";
 import { applyBionicReading } from "../lib/bionic";
-import { FootnoteItem } from "../lib/types";
+import { applyHighlightsToHtml, createW3CHighlight } from "../lib/highlights";
+import { FootnoteItem, HighlightItem } from "../lib/types";
 import { FootnotePopover } from "./FootnotePopover";
 import { SelectionMenu } from "./SelectionMenu";
 
 interface ReaderProps {
   markdown: string;
   isBionic: boolean;
+  highlights: HighlightItem[];
+  targetAnchor?: string;
   onProgressChange: (progressPercent: number) => void;
+  onAddHighlight: (highlight: HighlightItem) => void;
   onAddNoteFromSelection: (quote: string, anchorId?: string) => void;
 }
 
 export const Reader: React.FC<ReaderProps> = ({
   markdown,
   isBionic,
+  highlights,
+  targetAnchor,
   onProgressChange,
+  onAddHighlight,
   onAddNoteFromSelection,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -51,22 +58,51 @@ export const Reader: React.FC<ReaderProps> = ({
     },
   });
 
-  // Load content when markdown changes (virtualized chapter swap)
+  // Load content when markdown, bionic mode, or highlights change
   useEffect(() => {
     if (!editor) return;
 
     const parsed = parseChapterMarkdown(markdown);
     setFootnotes(parsed.footnotes);
 
-    const finalHtml = isBionic ? applyBionicReading(parsed.html) : parsed.html;
-    editor.commands.setContent(finalHtml);
+    // Apply persistent W3C highlights to HTML
+    let renderedHtml = applyHighlightsToHtml(parsed.html, highlights);
 
-    // Reset scroll to top on chapter change
-    if (containerRef.current) {
+    // Apply Bionic reading if enabled
+    if (isBionic) {
+      renderedHtml = applyBionicReading(renderedHtml);
+    }
+
+    editor.commands.setContent(renderedHtml);
+
+    // If no target anchor, reset scroll to top
+    if (!targetAnchor && containerRef.current) {
       containerRef.current.scrollTop = 0;
       onProgressChange(0);
     }
-  }, [editor, markdown, isBionic, onProgressChange]);
+  }, [editor, markdown, isBionic, highlights, onProgressChange, targetAnchor]);
+
+  // Scroll to target anchor when jumping from search
+  useEffect(() => {
+    if (!targetAnchor || !containerRef.current) return;
+
+    const timer = setTimeout(() => {
+      if (!containerRef.current) return;
+      const targetEl = containerRef.current.querySelector(`[data-anchor="${targetAnchor}"]`);
+      if (targetEl) {
+        const parentP = targetEl.closest("p") || targetEl;
+        parentP.scrollIntoView({ behavior: "smooth", block: "center" });
+
+        // Visual flash pulse to orient reader
+        parentP.classList.add("ring-2", "ring-amber-500/50", "bg-amber-500/10", "rounded-lg", "p-2", "transition-all", "duration-700");
+        setTimeout(() => {
+          parentP.classList.remove("ring-2", "ring-amber-500/50", "bg-amber-500/10", "rounded-lg", "p-2");
+        }, 2200);
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [targetAnchor, markdown]);
 
   // Scroll Progress Tracking
   const handleScroll = () => {
@@ -104,7 +140,6 @@ export const Reader: React.FC<ReaderProps> = ({
         e.stopPropagation();
         showFootnote(target);
       } else {
-        // Dismiss footnote if clicked outside
         setActiveFootnote(null);
       }
     };
@@ -136,6 +171,8 @@ export const Reader: React.FC<ReaderProps> = ({
       }
 
       const text = selection.toString().trim();
+      if (text.length < 2) return;
+
       const range = selection.getRangeAt(0);
       const rect = range.getBoundingClientRect();
 
@@ -160,9 +197,14 @@ export const Reader: React.FC<ReaderProps> = ({
   }, []);
 
   const handleHighlight = () => {
-    if (!editor) return;
-    // Apply highlight mark or custom style
-    document.execCommand("hiliteColor", false, "#fef08a");
+    const selection = window.getSelection();
+    if (!selection) return;
+
+    const w3cHl = createW3CHighlight(selection, selectedAnchor);
+    if (w3cHl) {
+      onAddHighlight(w3cHl);
+    }
+
     setSelectionPos(null);
   };
 

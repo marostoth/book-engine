@@ -43,3 +43,19 @@ pub async fn save_notes(book_id: String, notes_file: String, content: String) ->
         .map_err(|e| format!("Task join error: {}", e))?
         .map_err(|e| format!("Failed to save notes: {}", e))
 }
+
+#[command]
+pub async fn index_vault() -> Result<crate::db::IndexSummary, String> {
+    tokio::task::spawn_blocking(crate::db::index_vault_blocking)
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+        .map_err(|e| format!("Failed to index vault: {}", e))
+}
+
+#[command]
+pub async fn search_vault(query: String) -> Result<Vec<crate::db::SearchResult>, String> {
+    tokio::task::spawn_blocking(move || crate::db::search_vault_blocking(&query))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+        .map_err(|e| format!("Failed to search vault: {}", e))
+}

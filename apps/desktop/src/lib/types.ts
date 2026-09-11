@@ -53,6 +53,17 @@ export interface HighlightItem {
   exact: string;
   prefix: string;
   suffix: string;
-  anchorId?: string;
+  anchor?: string;
+  color?: string;
   createdAt: string;
+}
+
+export interface SearchResult {
+  book_id: string;
+  chapter_id: string;
+  chapter_title: string;
+  chapter_file: string;
+  anchor: string;
+  snippet: string;
+  rank: number;
 }
