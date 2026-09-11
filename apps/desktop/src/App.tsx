@@ -86,9 +86,11 @@ export const App: React.FC = () => {
     handleSelectSearchResult,
   } = useBookSession(refreshPracticeCards);
 
-  // Sync theme to body class
+  // Sync theme and dark mode class to root / body
   useEffect(() => {
-    document.body.className = `theme-${theme} antialiased overflow-hidden select-none`;
+    const isDark = theme === "nord";
+    document.documentElement.classList.toggle("dark", isDark);
+    document.body.className = `theme-${theme} ${isDark ? "dark" : ""} antialiased overflow-hidden select-none`;
   }, [theme]);
 
   // Global Ctrl + K / Cmd + K keyboard shortcut

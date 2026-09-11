@@ -29,35 +29,35 @@ export const SelectionMenu: React.FC<SelectionMenuProps> = ({
       className="fixed z-50 transform -translate-x-1/2 -translate-y-full mb-2 pointer-events-auto transition-all duration-150 animate-in fade-in zoom-in-95"
       style={{ left: `${position.x}px`, top: `${position.y - 8}px` }}
     >
-      <div className="flex items-center gap-1 px-1.5 py-1 rounded-full shadow-xl border bg-white/90 dark:bg-nord-surface/90 backdrop-blur-md border-black/10 dark:border-white/10 text-xs font-medium">
+      <div className="flex items-center gap-1 px-1.5 py-1 rounded-full shadow-xl border bg-[var(--theme-surface)]/95 backdrop-blur-md border-[var(--theme-border)] text-xs font-medium text-[var(--theme-text)]">
         <button
           onClick={onHighlight}
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-amber-600 dark:text-amber-400 transition-colors"
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-full hover:bg-[var(--theme-accent)]/15 text-[var(--theme-accent)] transition-colors"
           title="Highlight passage"
         >
           <Highlighter className="w-3.5 h-3.5" />
           <span>Highlight</span>
         </button>
 
-        <div className="w-[1px] h-3.5 bg-black/10 dark:bg-white/10" />
+        <div className="w-[1px] h-3.5 bg-[var(--theme-border)]" />
 
         <button
           onClick={onAddNote}
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-sky-600 dark:text-sky-400 transition-colors"
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-full hover:bg-[var(--theme-accent)]/15 text-[var(--theme-accent)] transition-colors"
           title="Attach reflection note"
         >
           <FileText className="w-3.5 h-3.5" />
           <span>Note</span>
         </button>
 
-        <div className="w-[1px] h-3.5 bg-black/10 dark:bg-white/10" />
+        <div className="w-[1px] h-3.5 bg-[var(--theme-border)]" />
 
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-emerald-600 dark:text-emerald-400 transition-colors"
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-full hover:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 transition-colors"
           title="Copy quote anchor link"
         >
-          {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+          {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5 text-[var(--theme-muted)]" />}
           <span>{copied ? "Copied" : "Copy Link"}</span>
         </button>
       </div>

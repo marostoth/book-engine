@@ -21,30 +21,30 @@ export const FootnotePopover: React.FC<FootnotePopoverProps> = ({
       style={{ left: `${position.x}px`, top: `${position.y}px` }}
     >
       <div
-        className="w-80 max-w-sm rounded-xl p-3.5 shadow-2xl border border-stone-200 dark:border-stone-800 text-xs bg-white dark:bg-stone-900"
+        className="w-80 max-w-sm rounded-xl p-3.5 shadow-2xl border border-[var(--theme-border)] text-xs bg-[var(--theme-surface)] text-[var(--theme-text)]"
         style={{ backgroundColor: "var(--theme-surface)" }}
       >
-        <div className="flex items-center justify-between pb-2 mb-2 border-b border-black/5 dark:border-white/5">
-          <div className="flex items-center gap-1.5 font-semibold text-amber-700 dark:text-amber-400">
+        <div className="flex items-center justify-between pb-2 mb-2 border-b border-[var(--theme-border)]">
+          <div className="flex items-center gap-1.5 font-semibold text-[var(--theme-accent)]">
             <Bookmark className="w-3.5 h-3.5" />
             <span>Citation [^{footnote.number}]</span>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
+            className="p-1 rounded-full hover:bg-[var(--theme-accent)]/15 text-[var(--theme-muted)] hover:text-[var(--theme-text)] transition-colors"
           >
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        <p className="font-serif leading-relaxed text-sm text-neutral-800 dark:text-neutral-200 select-text">
+        <p className="font-serif leading-relaxed text-sm text-[var(--theme-text)] select-text">
           {footnote.text}
         </p>
       </div>
 
       {/* Downward triangle pointer */}
       <div
-        className="w-3 h-3 border-r border-b border-stone-200 dark:border-stone-800 transform rotate-45 mx-auto -mt-1.5"
+        className="w-3 h-3 border-r border-b border-[var(--theme-border)] transform rotate-45 mx-auto -mt-1.5"
         style={{ backgroundColor: "var(--theme-surface)" }}
       />
     </div>

@@ -67,23 +67,23 @@ export const BookSelector: React.FC<BookSelectorProps> = ({
         aria-expanded={isOpen}
       >
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-8 h-8 rounded-lg bg-amber-500/10 dark:bg-nord-accent/15 border border-amber-500/20 dark:border-nord-accent/30 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
-            <Library className="w-4 h-4 text-amber-700 dark:text-nord-accent" />
+          <div className="w-8 h-8 rounded-lg bg-[var(--theme-accent)]/10 border border-[var(--theme-accent)]/20 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+            <Library className="w-4 h-4 text-[var(--theme-accent)]" />
           </div>
 
           <div className="min-w-0 flex-1">
-            <h2 className="text-xs font-semibold truncate tracking-tight text-neutral-900 dark:text-neutral-100">
+            <h2 className="text-xs font-semibold truncate tracking-tight text-[var(--theme-text)]">
               {currentTitle || "Select a Book"}
             </h2>
-            <p className="text-[10.5px] text-neutral-500 dark:text-neutral-400 truncate">
+            <p className="text-[10.5px] text-[var(--theme-muted)] truncate">
               {currentAuthor || "Local Vault Library"}
             </p>
           </div>
         </div>
 
         <ChevronDown
-          className={`w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500 flex-shrink-0 transition-transform duration-200 ${
-            isOpen ? "rotate-180 text-neutral-700 dark:text-neutral-200" : "group-hover:text-neutral-700 dark:group-hover:text-neutral-200"
+          className={`w-3.5 h-3.5 text-[var(--theme-muted)] flex-shrink-0 transition-transform duration-200 ${
+            isOpen ? "rotate-180 text-[var(--theme-text)]" : "group-hover:text-[var(--theme-text)]"
           }`}
         />
       </button>
@@ -91,16 +91,16 @@ export const BookSelector: React.FC<BookSelectorProps> = ({
       {/* Dropdown Popover Menu with 100% Solid Opaque Background */}
       {isOpen && (
         <div
-          className="absolute left-0 top-full mt-2 w-84 max-w-[90vw] z-50 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-2xl p-2.5 bg-white dark:bg-stone-900 overflow-hidden"
+          className="absolute left-0 top-full mt-2 w-84 max-w-[90vw] z-50 rounded-2xl border border-[var(--theme-border)] shadow-2xl p-2.5 bg-[var(--theme-surface)] text-[var(--theme-text)] overflow-hidden"
           style={{ backgroundColor: "var(--theme-surface)" }}
         >
           {/* Popover Header */}
-          <div className="px-3 py-2 border-b border-black/10 dark:border-white/10 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs font-semibold tracking-wide uppercase text-neutral-600 dark:text-neutral-300">
-              <BookOpen className="w-3.5 h-3.5 text-amber-600 dark:text-nord-accent" />
+          <div className="px-3 py-2 border-b border-[var(--theme-border)] flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs font-semibold tracking-wide uppercase text-[var(--theme-text)]">
+              <BookOpen className="w-3.5 h-3.5 text-[var(--theme-accent)]" />
               <span>Vault Library</span>
             </div>
-            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-neutral-600 dark:text-neutral-300">
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[var(--theme-bg)] border border-[var(--theme-border)] text-[var(--theme-muted)]">
               {books.length} {books.length === 1 ? "Book" : "Books"}
             </span>
           </div>
@@ -108,7 +108,7 @@ export const BookSelector: React.FC<BookSelectorProps> = ({
           {/* Book List */}
           <div className="mt-2 max-h-80 overflow-y-auto space-y-1.5 p-1">
             {books.length === 0 ? (
-              <div className="p-4 text-center text-xs text-neutral-500">
+              <div className="p-4 text-center text-xs text-[var(--theme-muted)]">
                 No books discovered in vault/books/
               </div>
             ) : (
@@ -121,19 +121,19 @@ export const BookSelector: React.FC<BookSelectorProps> = ({
                     onClick={() => handleSelect(book.id)}
                     className={`w-full text-left p-3 rounded-xl transition-all duration-150 flex items-start justify-between gap-3 border ${
                       isSelected
-                        ? "bg-amber-500/15 dark:bg-nord-accent/20 border-amber-500/40 dark:border-nord-accent/40 text-amber-950 dark:text-nord-accent shadow-sm"
-                        : "bg-black/[0.03] dark:bg-white/[0.04] border-black/5 dark:border-white/5 hover:bg-black/[0.07] dark:hover:bg-white/[0.08] hover:border-black/15 dark:hover:border-white/15 text-neutral-800 dark:text-neutral-200"
+                        ? "bg-[var(--theme-accent)]/15 border-[var(--theme-accent)]/40 text-[var(--theme-text)] shadow-sm"
+                        : "bg-[var(--theme-bg)]/60 border-[var(--theme-border)]/50 hover:bg-[var(--theme-bg)] hover:border-[var(--theme-border)] text-[var(--theme-text)]"
                     }`}
                   >
                     <div className="min-w-0 flex-1">
-                      <h3 className="text-xs font-bold leading-snug line-clamp-2">
+                      <h3 className="text-xs font-bold leading-snug line-clamp-2 text-[var(--theme-text)]">
                         {book.title}
                       </h3>
-                      <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5 truncate font-medium">
+                      <p className="text-[11px] text-[var(--theme-muted)] mt-0.5 truncate font-medium">
                         {book.author}
                       </p>
 
-                      <div className="flex items-center gap-2 mt-2 text-[10px] text-neutral-500 dark:text-neutral-400">
+                      <div className="flex items-center gap-2 mt-2 text-[10px] text-[var(--theme-muted)]">
                         <span className="flex items-center gap-1 font-medium">
                           <Layers className="w-3 h-3" />
                           {book.chapter_count} {book.chapter_count === 1 ? "chapter" : "chapters"}
@@ -145,7 +145,7 @@ export const BookSelector: React.FC<BookSelectorProps> = ({
                     </div>
 
                     {isSelected && (
-                      <div className="flex-shrink-0 mt-0.5 w-5 h-5 rounded-full bg-amber-600 dark:bg-nord-accent text-white flex items-center justify-center shadow-sm">
+                      <div className="flex-shrink-0 mt-0.5 w-5 h-5 rounded-full bg-[var(--theme-accent)] text-white flex items-center justify-center shadow-sm">
                         <Check className="w-3 h-3 stroke-[3]" />
                       </div>
                     )}

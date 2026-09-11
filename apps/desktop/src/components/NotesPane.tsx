@@ -71,11 +71,11 @@ export const NotesPane: React.FC<NotesPaneProps> = ({
   };
 
   return (
-    <div className="w-96 flex-shrink-0 border-l border-black/10 dark:border-white/10 bg-white/75 dark:bg-nord-surface/75 backdrop-blur-md flex flex-col h-full z-10 animate-in slide-in-from-right duration-200">
+    <div className="w-96 flex-shrink-0 border-l border-[var(--theme-border)] bg-[var(--theme-surface)]/85 text-[var(--theme-text)] backdrop-blur-md flex flex-col h-full z-10 animate-in slide-in-from-right duration-200">
       {/* Header */}
-      <div className="p-3.5 border-b border-black/5 dark:border-white/5 flex items-center justify-between">
-        <div className="flex items-center gap-1.5 text-xs font-semibold text-neutral-800 dark:text-neutral-100">
-          <FileText className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+      <div className="p-3.5 border-b border-[var(--theme-border)] flex items-center justify-between">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--theme-text)]">
+          <FileText className="w-3.5 h-3.5 text-[var(--theme-accent)]" />
           <span>Chapter Reflections</span>
         </div>
 
@@ -83,7 +83,7 @@ export const NotesPane: React.FC<NotesPaneProps> = ({
           {/* Mode Switch: Edit / Preview */}
           <button
             onClick={() => setMode(mode === "edit" ? "preview" : "edit")}
-            className="p-1.5 rounded-md text-xs text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+            className="p-1.5 rounded-md text-xs text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-accent)]/10 transition-colors"
             title={mode === "edit" ? "Preview Markdown" : "Edit Notes"}
           >
             {mode === "edit" ? <Eye className="w-3.5 h-3.5" /> : <Edit3 className="w-3.5 h-3.5" />}
@@ -94,8 +94,8 @@ export const NotesPane: React.FC<NotesPaneProps> = ({
             onClick={handleManualSave}
             className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all ${
               isSaved
-                ? "text-neutral-400 dark:text-neutral-500"
-                : "text-amber-700 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20"
+                ? "text-[var(--theme-muted)]"
+                : "text-[var(--theme-accent)] bg-[var(--theme-accent)]/10 hover:bg-[var(--theme-accent)]/20"
             }`}
             title={isSaved ? "Saved to vault" : "Click to save"}
           >
@@ -112,22 +112,22 @@ export const NotesPane: React.FC<NotesPaneProps> = ({
             value={content}
             onChange={handleChange}
             placeholder="Capture personal reflections, hypotheses, and chapter connections..."
-            className="w-full h-full bg-transparent resize-none focus:outline-none font-mono text-xs leading-relaxed text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400"
+            className="w-full h-full bg-transparent resize-none focus:outline-none font-mono text-xs leading-relaxed text-[var(--theme-text)] placeholder:text-[var(--theme-muted)]"
             spellCheck={false}
           />
         ) : (
-          <div className="prose prose-sm dark:prose-invert font-sans text-xs leading-relaxed select-text">
+          <div className="reader-prose max-w-none font-sans text-xs leading-relaxed select-text text-[var(--theme-text)]">
             {content.split("\n\n").map((para, i) => {
               if (para.startsWith("# ")) {
                 return (
-                  <h3 key={i} className="font-semibold text-sm mt-2 mb-1">
+                  <h3 key={i} className="font-semibold text-sm mt-2 mb-1 text-[var(--theme-text)]">
                     {para.slice(2)}
                   </h3>
                 );
               }
               if (para.startsWith("## ")) {
                 return (
-                  <h4 key={i} className="font-semibold text-xs mt-3 mb-1 text-neutral-700 dark:text-neutral-300">
+                  <h4 key={i} className="font-semibold text-xs mt-3 mb-1 text-[var(--theme-text)]">
                     {para.slice(3)}
                   </h4>
                 );
@@ -136,14 +136,14 @@ export const NotesPane: React.FC<NotesPaneProps> = ({
                 return (
                   <blockquote
                     key={i}
-                    className="border-l-2 border-sky-500 pl-2.5 my-2 italic text-neutral-600 dark:text-neutral-400 text-xs"
+                    className="border-l-2 border-[var(--theme-accent)] pl-2.5 my-2 italic text-[var(--theme-muted)] text-xs"
                   >
                     {para.replace(/^>\s?/, "")}
                   </blockquote>
                 );
               }
               return (
-                <p key={i} className="mb-2 text-neutral-700 dark:text-neutral-300">
+                <p key={i} className="mb-2 text-[var(--theme-text)]">
                   {para}
                 </p>
               );
@@ -153,7 +153,7 @@ export const NotesPane: React.FC<NotesPaneProps> = ({
       </div>
 
       {/* File target indicator */}
-      <div className="p-2.5 border-t border-black/5 dark:border-white/5 text-[10px] text-neutral-400 dark:text-neutral-500 truncate font-mono">
+      <div className="p-2.5 border-t border-[var(--theme-border)] text-[10px] text-[var(--theme-muted)] truncate font-mono">
         vault/notes/{bookId}/{notesFileName}
       </div>
     </div>

@@ -79,50 +79,50 @@ export const OmniSearchModal: React.FC<OmniSearchModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-2xl rounded-2xl shadow-2xl border bg-white/95 dark:bg-nord-surface/95 backdrop-blur-xl border-black/10 dark:border-white/10 overflow-hidden flex flex-col max-h-[75vh]"
+        className="relative w-full max-w-2xl rounded-2xl shadow-2xl border bg-[var(--theme-surface)] text-[var(--theme-text)] border-[var(--theme-border)] overflow-hidden flex flex-col max-h-[75vh]"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
         {/* Search Input Bar */}
-        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-black/10 dark:border-white/10">
-          <Search className="w-5 h-5 text-neutral-400 dark:text-neutral-500 flex-shrink-0" />
+        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-[var(--theme-border)]">
+          <Search className="w-5 h-5 text-[var(--theme-muted)] flex-shrink-0" />
           <input
             ref={inputRef}
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search vault chapters and paragraph anchors (e.g. consensus, ^p-003)..."
-            className="flex-1 bg-transparent text-sm focus:outline-none placeholder:text-neutral-400 text-neutral-900 dark:text-neutral-100"
+            className="flex-1 bg-transparent text-sm focus:outline-none placeholder:text-[var(--theme-muted)] text-[var(--theme-text)]"
           />
           {query && (
             <button
               onClick={() => setQuery("")}
-              className="p-1 rounded-full text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
+              className="p-1 rounded-full text-[var(--theme-muted)] hover:text-[var(--theme-text)]"
             >
               <X className="w-4 h-4" />
             </button>
           )}
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-black/5 dark:bg-white/10 text-neutral-400 border border-black/5 dark:border-white/5">
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--theme-bg)] text-[var(--theme-muted)] border border-[var(--theme-border)]">
             ESC
           </span>
         </div>
 
         {/* Results List */}
-        <div className="flex-1 overflow-y-auto p-2 divide-y divide-black/5 dark:divide-white/5">
+        <div className="flex-1 overflow-y-auto p-2 divide-y divide-[var(--theme-border)]">
           {isSearching && (
-            <div className="p-8 text-center text-xs text-neutral-400 animate-pulse">
+            <div className="p-8 text-center text-xs text-[var(--theme-muted)] animate-pulse">
               Querying SQLite FTS5 index...
             </div>
           )}
 
           {!isSearching && results.length === 0 && query.trim() && (
-            <div className="p-8 text-center text-xs text-neutral-400">
+            <div className="p-8 text-center text-xs text-[var(--theme-muted)]">
               No matching paragraphs found for &quot;{query}&quot;
             </div>
           )}
 
           {!isSearching && !query.trim() && (
-            <div className="p-8 text-center text-xs text-neutral-400">
+            <div className="p-8 text-center text-xs text-[var(--theme-muted)]">
               Type keywords to search across all book chapters with sub-15ms FTS5 retrieval.
             </div>
           )}
@@ -139,17 +139,17 @@ export const OmniSearchModal: React.FC<OmniSearchModalProps> = ({
                 onMouseEnter={() => setSelectedIndex(index)}
                 className={`p-3 rounded-xl cursor-pointer transition-all duration-150 flex flex-col gap-1.5 ${
                   isSelected
-                    ? "bg-amber-500/10 dark:bg-nord-accent/15 border border-amber-500/25 dark:border-nord-accent/30"
-                    : "hover:bg-black/5 dark:hover:bg-white/5 border border-transparent"
+                    ? "bg-[var(--theme-accent)]/15 border border-[var(--theme-accent)]/30 text-[var(--theme-text)]"
+                    : "hover:bg-[var(--theme-bg)] border border-transparent text-[var(--theme-text)]"
                 }`}
               >
                 <div className="flex items-center justify-between text-xs">
-                  <span className="flex items-center gap-1.5 font-semibold text-neutral-800 dark:text-neutral-200">
-                    <BookOpen className="w-3.5 h-3.5 text-amber-600 dark:text-nord-accent" />
+                  <span className="flex items-center gap-1.5 font-semibold text-[var(--theme-text)]">
+                    <BookOpen className="w-3.5 h-3.5 text-[var(--theme-accent)]" />
                     {res.chapter_title}
                   </span>
                   {res.anchor && (
-                    <span className="flex items-center gap-1 font-mono text-[11px] text-neutral-400 dark:text-neutral-500 bg-black/5 dark:bg-white/5 px-2 py-0.5 rounded">
+                    <span className="flex items-center gap-1 font-mono text-[11px] text-[var(--theme-muted)] bg-[var(--theme-bg)] border border-[var(--theme-border)] px-2 py-0.5 rounded">
                       <Hash className="w-3 h-3" />
                       {res.anchor}
                     </span>
@@ -157,7 +157,7 @@ export const OmniSearchModal: React.FC<OmniSearchModalProps> = ({
                 </div>
 
                 <div
-                  className="font-serif text-xs leading-relaxed text-neutral-600 dark:text-neutral-300 line-clamp-2 select-none [&_mark]:bg-amber-300/80 [&_mark]:dark:bg-nord-accent/40 [&_mark]:rounded [&_mark]:px-0.5 [&_mark]:text-inherit font-normal"
+                  className="font-serif text-xs leading-relaxed text-[var(--theme-muted)] line-clamp-2 select-none [&_mark]:bg-[var(--theme-accent)]/30 [&_mark]:text-[var(--theme-text)] [&_mark]:rounded [&_mark]:px-0.5 font-normal"
                   dangerouslySetInnerHTML={{ __html: res.snippet }}
                 />
               </div>
@@ -166,7 +166,7 @@ export const OmniSearchModal: React.FC<OmniSearchModalProps> = ({
         </div>
 
         {/* Footer info */}
-        <div className="px-4 py-2 bg-black/[0.02] dark:bg-white/[0.02] border-t border-black/5 dark:border-white/5 text-[10px] text-neutral-400 flex items-center justify-between">
+        <div className="px-4 py-2 bg-[var(--theme-bg)]/50 border-t border-[var(--theme-border)] text-[10px] text-[var(--theme-muted)] flex items-center justify-between">
           <span>
             {results.length > 0 ? `${results.length} results found` : "SQLite FTS5 Query Accelerator"}
           </span>

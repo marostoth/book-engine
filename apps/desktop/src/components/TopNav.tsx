@@ -71,11 +71,11 @@ export const TopNav: React.FC<TopNavProps> = ({
   const isFocus = viewMode === "focus";
 
   return (
-    <header className="relative z-20 flex-shrink-0 h-14 border-b border-black/10 dark:border-white/10 bg-white/70 dark:bg-nord-surface/70 backdrop-blur-md flex items-center justify-between px-4">
+    <header className="relative z-20 flex-shrink-0 h-14 border-b border-[var(--theme-border)] bg-[var(--theme-surface)]/85 backdrop-blur-md flex items-center justify-between px-4 transition-colors duration-150">
       {/* Reading Progress Bar pinned to very top of header */}
       <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-black/5 dark:bg-white/5">
         <div
-          className="h-full bg-amber-600 dark:bg-nord-accent transition-all duration-150 ease-out"
+          className="h-full bg-[var(--theme-accent)] transition-all duration-150 ease-out"
           style={{ width: `${progressPercent}%` }}
         />
       </div>
@@ -111,10 +111,10 @@ export const TopNav: React.FC<TopNavProps> = ({
         )}
 
         <div className="flex items-center gap-2 min-w-0 overflow-hidden">
-          <h1 className="text-sm font-semibold truncate text-neutral-800 dark:text-neutral-100">
+          <h1 className="text-sm font-semibold truncate text-[var(--theme-text)]">
             {chapterTitle}
           </h1>
-          <span className="text-[11px] font-medium text-neutral-400 dark:text-neutral-500 flex-shrink-0">
+          <span className="text-[11px] font-medium text-[var(--theme-muted)] flex-shrink-0">
             {progressPercent}%
           </span>
         </div>

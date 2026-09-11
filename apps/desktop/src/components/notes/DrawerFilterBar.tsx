@@ -23,20 +23,20 @@ export const DrawerFilterBar: React.FC<DrawerFilterBarProps> = ({
   filteredCount,
 }) => {
   return (
-    <div className="p-3 border-b border-black/5 dark:border-white/5 space-y-2.5 bg-black/[0.01] dark:bg-white/[0.01] flex-shrink-0">
+    <div className="p-3 border-b border-[var(--theme-border)] space-y-2.5 bg-[var(--theme-surface)]/30 flex-shrink-0">
       <div className="relative">
-        <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+        <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--theme-muted)]" />
         <input
           type="text"
           placeholder="Search highlights, reflections, or ^p-anchors..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="w-full pl-8.5 pr-3 py-1.5 text-xs rounded-xl border border-black/10 dark:border-white/10 bg-white/70 dark:bg-black/20 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-amber-500/60"
+          className="w-full pl-8.5 pr-3 py-1.5 text-xs rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg)] text-[var(--theme-text)] placeholder:text-[var(--theme-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-accent)]"
         />
         {searchQuery && (
           <button
             onClick={() => onSearchChange("")}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--theme-muted)] hover:text-[var(--theme-text)]"
           >
             <X className="w-3 h-3" />
           </button>
@@ -44,13 +44,13 @@ export const DrawerFilterBar: React.FC<DrawerFilterBarProps> = ({
       </div>
 
       <div className="flex items-center justify-between gap-2 text-xs">
-        <div className="flex items-center p-0.5 rounded-lg bg-black/[0.04] dark:bg-white/[0.06] border border-black/5 dark:border-white/5">
+        <div className="flex items-center p-0.5 rounded-lg bg-[var(--theme-bg)] border border-[var(--theme-border)]">
           <button
             onClick={() => onFilterChange("all")}
             className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
               filterType === "all"
-                ? "bg-white dark:bg-nord-surface text-neutral-900 dark:text-neutral-100 shadow-sm"
-                : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-300"
+                ? "bg-[var(--theme-accent)]/20 text-[var(--theme-text)] shadow-sm font-semibold"
+                : "text-[var(--theme-muted)] hover:text-[var(--theme-text)]"
             }`}
           >
             All ({totalCount})
@@ -59,27 +59,27 @@ export const DrawerFilterBar: React.FC<DrawerFilterBarProps> = ({
             onClick={() => onFilterChange("highlight")}
             className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
               filterType === "highlight"
-                ? "bg-white dark:bg-nord-surface text-neutral-900 dark:text-neutral-100 shadow-sm"
-                : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-300"
+                ? "bg-[var(--theme-accent)]/20 text-[var(--theme-text)] shadow-sm font-semibold"
+                : "text-[var(--theme-muted)] hover:text-[var(--theme-text)]"
             }`}
           >
-            <Highlighter className="w-3 h-3 text-amber-600 dark:text-nord-accent" />
+            <Highlighter className="w-3 h-3 text-[var(--theme-accent)]" />
             <span>Highlights ({highlightCount})</span>
           </button>
           <button
             onClick={() => onFilterChange("note")}
             className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
               filterType === "note"
-                ? "bg-white dark:bg-nord-surface text-neutral-900 dark:text-neutral-100 shadow-sm"
-                : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-300"
+                ? "bg-[var(--theme-accent)]/20 text-[var(--theme-text)] shadow-sm font-semibold"
+                : "text-[var(--theme-muted)] hover:text-[var(--theme-text)]"
             }`}
           >
-            <FileText className="w-3 h-3 text-amber-600 dark:text-nord-accent" />
+            <FileText className="w-3 h-3 text-[var(--theme-accent)]" />
             <span>Notes ({noteCount})</span>
           </button>
         </div>
 
-        <span className="text-[11px] text-neutral-400 dark:text-neutral-500">
+        <span className="text-[11px] text-[var(--theme-muted)]">
           Showing {filteredCount} entries
         </span>
       </div>

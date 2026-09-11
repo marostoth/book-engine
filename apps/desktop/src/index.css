@@ -44,6 +44,24 @@ body.theme-nord {
   color: #ECEFF4;
 }
 
+body, header, aside, main {
+  transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+
+/* Theme-Tailored Highlighting & Selection Glow */
+body.theme-paper ::selection {
+  background-color: rgba(251, 191, 36, 0.35);
+  color: #2A2826;
+}
+body.theme-sepia ::selection {
+  background-color: rgba(217, 119, 6, 0.35);
+  color: #3D3226;
+}
+body.theme-nord ::selection {
+  background-color: rgba(136, 192, 208, 0.35);
+  color: #ECEFF4;
+}
+
 /* Custom scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
@@ -60,11 +78,49 @@ body.theme-nord {
   background: var(--theme-muted);
 }
 
-/* TipTap Editor Prose Styling */
+/* TipTap Editor Prose Styling bound to Design System Tokens */
 .reader-prose {
   font-family: 'Newsreader', Georgia, Cambria, 'Times New Roman', serif;
   font-size: 1.1875rem; /* 19px */
   line-height: 1.85;
+  color: var(--theme-text);
+  --tw-prose-body: var(--theme-text);
+  --tw-prose-headings: var(--theme-text);
+  --tw-prose-lead: var(--theme-text);
+  --tw-prose-links: var(--theme-accent);
+  --tw-prose-bold: var(--theme-text);
+  --tw-prose-counters: var(--theme-muted);
+  --tw-prose-bullets: var(--theme-muted);
+  --tw-prose-hr: var(--theme-border);
+  --tw-prose-quotes: var(--theme-text);
+  --tw-prose-quote-borders: var(--theme-accent);
+  --tw-prose-captions: var(--theme-muted);
+  --tw-prose-code: var(--theme-text);
+  --tw-prose-pre-code: var(--theme-text);
+  --tw-prose-pre-bg: var(--theme-surface);
+  --tw-prose-th-borders: var(--theme-border);
+  --tw-prose-td-borders: var(--theme-border);
+}
+
+.reader-prose h1,
+.reader-prose h2,
+.reader-prose h3,
+.reader-prose h4 {
+  color: var(--theme-text);
+}
+
+.reader-prose p {
+  color: var(--theme-text);
+  position: relative;
+  margin-bottom: 1.5rem;
+  text-align: justify;
+  text-justify: inter-word;
+  hyphens: auto;
+}
+
+.reader-prose strong {
+  color: var(--theme-text);
+  font-weight: 700;
 }
 
 .reader-prose h1 {
@@ -85,21 +141,14 @@ body.theme-nord {
   font-size: 1.5rem;
 }
 
-.reader-prose p {
-  position: relative;
-  margin-bottom: 1.5rem;
-  text-align: justify;
-  text-justify: inter-word;
-  hyphens: auto;
-}
-
 .reader-prose blockquote {
   border-left: 3px solid var(--theme-accent);
   padding-left: 1.25rem;
   font-style: italic;
   margin-top: 1.5rem;
   margin-bottom: 1.5rem;
-  opacity: 0.9;
+  color: var(--theme-text);
+  opacity: 0.92;
 }
 
 .reader-prose img {
@@ -108,7 +157,7 @@ body.theme-nord {
   height: auto;
   margin: 2rem auto;
   border-radius: 0.5rem;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
   border: 1px solid var(--theme-border);
 }
 

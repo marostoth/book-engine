@@ -127,33 +127,33 @@ export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
       />
 
       <div
-        className="relative z-10 w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-3xl border border-black/10 dark:border-white/10 shadow-2xl p-6 sm:p-7 flex flex-col space-y-6 animate-in zoom-in-95 duration-150"
+        className="relative z-10 w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-3xl border border-[var(--theme-border)] shadow-2xl p-6 sm:p-7 flex flex-col space-y-6 animate-in zoom-in-95 duration-150"
         style={{ backgroundColor: "var(--theme-surface)", color: "var(--theme-text)" }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-black/10 dark:border-white/10 flex-shrink-0">
+        <div className="flex items-center justify-between pb-4 border-b border-[var(--theme-border)] flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-amber-500/10 dark:bg-nord-accent/15 text-amber-700 dark:text-nord-accent">
+            <div className="p-2.5 rounded-2xl bg-[var(--theme-accent)]/15 text-[var(--theme-accent)]">
               <BarChart3 className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
+              <h1 className="text-lg font-bold text-[var(--theme-text)] flex items-center gap-2">
                 Study & Reading Analytics
               </h1>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">
+              <p className="text-xs text-[var(--theme-muted)]">
                 FSRS spaced repetition memory retention, activity grid, and reading velocity
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2.5">
-            <div className="flex items-center p-0.5 rounded-lg bg-black/[0.04] dark:bg-white/[0.06] border border-black/5 dark:border-white/5 text-xs">
+            <div className="flex items-center p-0.5 rounded-lg bg-[var(--theme-bg)] border border-[var(--theme-border)] text-xs">
               <button
                 onClick={() => setScope("active")}
                 className={`px-2.5 py-1 rounded-md font-medium transition-all ${
                   scope === "active"
-                    ? "bg-white dark:bg-nord-surface text-neutral-900 dark:text-neutral-100 shadow-sm"
-                    : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-300"
+                    ? "bg-[var(--theme-accent)]/20 text-[var(--theme-text)] font-semibold shadow-sm"
+                    : "text-[var(--theme-muted)] hover:text-[var(--theme-text)]"
                 }`}
               >
                 Active Book
@@ -162,8 +162,8 @@ export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
                 onClick={() => setScope("all")}
                 className={`px-2.5 py-1 rounded-md font-medium transition-all ${
                   scope === "all"
-                    ? "bg-white dark:bg-nord-surface text-neutral-900 dark:text-neutral-100 shadow-sm"
-                    : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-300"
+                    ? "bg-[var(--theme-accent)]/20 text-[var(--theme-text)] font-semibold shadow-sm"
+                    : "text-[var(--theme-muted)] hover:text-[var(--theme-text)]"
                 }`}
               >
                 All Books
@@ -172,7 +172,7 @@ export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
 
             <button
               onClick={loadAnalytics}
-              className="p-2 rounded-xl text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+              className="p-2 rounded-xl text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-accent)]/10 transition-colors"
               title="Refresh Analytics"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
@@ -180,7 +180,7 @@ export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
 
             <button
               onClick={onClose}
-              className="p-2 rounded-xl text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+              className="p-2 rounded-xl text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-accent)]/10 transition-colors"
               title="Close (Esc)"
             >
               <X className="w-4 h-4" />
@@ -191,8 +191,8 @@ export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
         {/* Section 1: Study Analytics Summary Cards */}
         <div className="space-y-3">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-            <div className="p-4 rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] flex flex-col justify-between">
-              <div className="flex items-center justify-between text-neutral-500 text-xs font-medium mb-2">
+            <div className="p-4 rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg)]/40 flex flex-col justify-between">
+              <div className="flex items-center justify-between text-[var(--theme-muted)] text-xs font-medium mb-2">
                 <span>Retention Rate</span>
                 <Brain className="w-4 h-4 text-purple-500" />
               </div>
@@ -200,61 +200,61 @@ export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
                 <div className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
                   {studyAnalytics?.retention_rate ? `${studyAnalytics.retention_rate}%` : "90.0%"}
                 </div>
-                <p className="text-[11px] text-neutral-400 mt-0.5">
+                <p className="text-[11px] text-[var(--theme-muted)] mt-0.5">
                   Extractive memory recall
                 </p>
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] flex flex-col justify-between">
-              <div className="flex items-center justify-between text-neutral-500 text-xs font-medium mb-2">
+            <div className="p-4 rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg)]/40 flex flex-col justify-between">
+              <div className="flex items-center justify-between text-[var(--theme-muted)] text-xs font-medium mb-2">
                 <span>Total Cards Mastered</span>
                 <Trophy className="w-4 h-4 text-amber-500" />
               </div>
               <div>
-                <div className="text-2xl font-bold font-mono text-neutral-900 dark:text-neutral-100">
+                <div className="text-2xl font-bold font-mono text-[var(--theme-text)]">
                   {studyAnalytics?.mastered_cards ?? 0}
                 </div>
-                <p className="text-[11px] text-neutral-400 mt-0.5">
+                <p className="text-[11px] text-[var(--theme-muted)] mt-0.5">
                   Stability &ge; 21 days ({studyAnalytics?.state_counts.total_cards ?? 0} total)
                 </p>
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] flex flex-col justify-between">
-              <div className="flex items-center justify-between text-neutral-500 text-xs font-medium mb-2">
+            <div className="p-4 rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg)]/40 flex flex-col justify-between">
+              <div className="flex items-center justify-between text-[var(--theme-muted)] text-xs font-medium mb-2">
                 <span>Due Today</span>
-                <Target className="w-4 h-4 text-amber-600 dark:text-nord-accent" />
+                <Target className="w-4 h-4 text-[var(--theme-accent)]" />
               </div>
               <div>
-                <div className="text-2xl font-bold font-mono text-neutral-900 dark:text-neutral-100">
+                <div className="text-2xl font-bold font-mono text-[var(--theme-text)]">
                   {studyAnalytics?.cards_due_today ?? 0}
                 </div>
-                <p className="text-[11px] text-neutral-400 mt-0.5">
+                <p className="text-[11px] text-[var(--theme-muted)] mt-0.5">
                   Target: {preferences.dailyTarget} cards/day
                 </p>
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] flex flex-col justify-between">
-              <div className="flex items-center justify-between text-neutral-500 text-xs font-medium mb-2">
+            <div className="p-4 rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg)]/40 flex flex-col justify-between">
+              <div className="flex items-center justify-between text-[var(--theme-muted)] text-xs font-medium mb-2">
                 <span>Vault Words Indexed</span>
                 <BookOpen className="w-4 h-4 text-blue-500" />
               </div>
               <div>
-                <div className="text-2xl font-bold font-mono text-neutral-900 dark:text-neutral-100">
+                <div className="text-2xl font-bold font-mono text-[var(--theme-text)]">
                   {(studyAnalytics?.total_vault_words ?? 0).toLocaleString()}
                 </div>
-                <p className="text-[11px] text-neutral-400 mt-0.5">
+                <p className="text-[11px] text-[var(--theme-muted)] mt-0.5">
                   ~{studyAnalytics?.estimated_reading_time_mins ?? 0} mins reading time
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="p-3.5 rounded-2xl border border-black/5 dark:border-white/5 bg-black/[0.015] dark:bg-white/[0.015] flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-2 text-neutral-500">
-              <Layers className="w-3.5 h-3.5 text-neutral-400" />
+          <div className="p-3.5 rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg)]/30 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 text-[var(--theme-muted)]">
+              <Layers className="w-3.5 h-3.5 text-[var(--theme-muted)]" />
               <span className="font-semibold uppercase tracking-wider text-[10px]">Card States:</span>
             </div>
             <div className="flex items-center gap-4 text-xs font-mono">
@@ -275,13 +275,13 @@ export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
                 Relearning: <strong>{studyAnalytics?.state_counts.relearning_count ?? 0}</strong>
               </span>
             </div>
-            <div className="flex items-center gap-1.5 text-xs text-neutral-500 font-mono">
+            <div className="flex items-center gap-1.5 text-xs text-[var(--theme-muted)] font-mono">
               <Flame className="w-3.5 h-3.5 text-orange-500" />
               Streak:{" "}
-              <strong className="text-neutral-900 dark:text-neutral-100">
+              <strong className="text-[var(--theme-text)]">
                 {currentStreak} {currentStreak === 1 ? "day" : "days"}
               </strong>
-              <span className="text-[10px] text-neutral-400 font-sans">(Best: {longestStreak}d)</span>
+              <span className="text-[10px] text-[var(--theme-muted)] font-sans">(Best: {longestStreak}d)</span>
             </div>
           </div>
         </div>

@@ -68,7 +68,7 @@ export const Reader: React.FC<ReaderProps> = ({
     editorProps: {
       attributes: {
         class:
-          "prose prose-neutral dark:prose-invert max-w-none focus:outline-none font-serif text-lg leading-relaxed antialiased",
+          "reader-prose prose max-w-none focus:outline-none font-serif text-lg leading-relaxed antialiased",
       },
       handleClick: (_view, _pos, event) => {
         const target = event.target as HTMLElement;

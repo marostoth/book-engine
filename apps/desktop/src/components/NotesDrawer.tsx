@@ -129,20 +129,20 @@ export const NotesDrawer: React.FC<NotesDrawerProps> = ({
       />
 
       <div
-        className="relative z-10 w-full max-w-lg md:max-w-xl bg-[var(--theme-bg)] border-l border-black/10 dark:border-white/10 shadow-2xl flex flex-col h-full overflow-hidden animate-in slide-in-from-right duration-200"
+        className="relative z-10 w-full max-w-lg md:max-w-xl bg-[var(--theme-bg)] border-l border-[var(--theme-border)] shadow-2xl flex flex-col h-full overflow-hidden animate-in slide-in-from-right duration-200"
         style={{ backgroundColor: "var(--theme-bg)", color: "var(--theme-text)" }}
       >
         {/* Drawer Header */}
-        <div className="p-4 border-b border-black/10 dark:border-white/10 flex items-center justify-between bg-black/[0.02] dark:bg-white/[0.02] flex-shrink-0">
+        <div className="p-4 border-b border-[var(--theme-border)] flex items-center justify-between bg-[var(--theme-surface)]/50 flex-shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="p-2 rounded-xl bg-amber-500/10 dark:bg-nord-accent/15 text-amber-700 dark:text-nord-accent flex-shrink-0">
+            <div className="p-2 rounded-xl bg-[var(--theme-accent)]/15 text-[var(--theme-accent)] flex-shrink-0">
               <BookMarked className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-sm font-bold truncate text-neutral-900 dark:text-neutral-100">
+              <h2 className="text-sm font-bold truncate text-[var(--theme-text)]">
                 Notes & Highlights Drawer
               </h2>
-              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 truncate">
+              <p className="text-[11px] text-[var(--theme-muted)] truncate">
                 {bookMeta?.title || "Active Book"} • {allEntries.length} aggregated entries
               </p>
             </div>
@@ -152,7 +152,7 @@ export const NotesDrawer: React.FC<NotesDrawerProps> = ({
             <button
               onClick={handleExportSummary}
               disabled={isExporting || allEntries.length === 0}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 dark:bg-nord-accent dark:text-nord-bg dark:hover:bg-nord-accent/90 disabled:opacity-50 transition-all shadow-sm active:scale-95 cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[var(--theme-accent)] hover:brightness-110 disabled:opacity-50 transition-all shadow-sm active:scale-95 cursor-pointer"
               title="Compile and export all highlights and reflections to summary-export.md"
             >
               <Download className={`w-3.5 h-3.5 ${isExporting ? "animate-bounce" : ""}`} />
@@ -161,7 +161,7 @@ export const NotesDrawer: React.FC<NotesDrawerProps> = ({
 
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+              className="p-1.5 rounded-lg text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-accent)]/10 transition-colors"
               title="Close Drawer (Esc)"
             >
               <X className="w-4 h-4" />
@@ -200,17 +200,17 @@ export const NotesDrawer: React.FC<NotesDrawerProps> = ({
         {/* Aggregated List Content */}
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
           {loading ? (
-            <div className="flex flex-col items-center justify-center h-48 text-neutral-400 gap-2">
-              <Sparkles className="w-5 h-5 animate-spin text-amber-600" />
+            <div className="flex flex-col items-center justify-center h-48 text-[var(--theme-muted)] gap-2">
+              <Sparkles className="w-5 h-5 animate-spin text-[var(--theme-accent)]" />
               <span className="text-xs">Scanning vault notes...</span>
             </div>
           ) : filteredEntries.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-56 text-center text-neutral-400 p-6 border-2 border-dashed border-black/10 dark:border-white/10 rounded-2xl">
-              <BookOpen className="w-8 h-8 mb-2 opacity-40 text-amber-600" />
-              <h3 className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+            <div className="flex flex-col items-center justify-center h-56 text-center text-[var(--theme-muted)] p-6 border-2 border-dashed border-[var(--theme-border)] rounded-2xl">
+              <BookOpen className="w-8 h-8 mb-2 opacity-40 text-[var(--theme-accent)]" />
+              <h3 className="text-xs font-semibold text-[var(--theme-text)] mb-1">
                 No entries found
               </h3>
-              <p className="text-[11px] max-w-xs text-neutral-400">
+              <p className="text-[11px] max-w-xs text-[var(--theme-muted)]">
                 {searchQuery
                   ? "No highlights or reflection notes matched your filter criteria."
                   : "Highlight passages in the text or jot notes in the editor to populate this drawer."}
@@ -219,13 +219,13 @@ export const NotesDrawer: React.FC<NotesDrawerProps> = ({
           ) : (
             groupedByChapter.map(([chapterFile, { title, entries }]) => (
               <div key={chapterFile} className="space-y-2.5">
-                <div className="sticky top-0 z-10 flex items-center justify-between pb-1 pt-0.5 border-b border-black/10 dark:border-white/10 bg-[var(--theme-bg)]/95 backdrop-blur-sm">
+                <div className="sticky top-0 z-10 flex items-center justify-between pb-1 pt-0.5 border-b border-[var(--theme-border)] bg-[var(--theme-bg)]/95 backdrop-blur-sm">
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-nord-accent truncate">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[var(--theme-accent)] truncate">
                       {title}
                     </span>
                   </div>
-                  <span className="text-[10px] font-mono text-neutral-400 dark:text-neutral-500 px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/5 flex-shrink-0">
+                  <span className="text-[10px] font-mono text-[var(--theme-muted)] px-1.5 py-0.5 rounded bg-[var(--theme-surface)] border border-[var(--theme-border)] flex-shrink-0">
                     {entries.length} items
                   </span>
                 </div>
@@ -245,7 +245,7 @@ export const NotesDrawer: React.FC<NotesDrawerProps> = ({
         </div>
 
         {/* Drawer Footer Status */}
-        <div className="p-3 border-t border-black/10 dark:border-white/10 text-[11px] text-neutral-400 dark:text-neutral-500 flex items-center justify-between bg-black/[0.02] dark:bg-white/[0.02] flex-shrink-0">
+        <div className="p-3 border-t border-[var(--theme-border)] text-[11px] text-[var(--theme-muted)] flex items-center justify-between bg-[var(--theme-surface)]/50 flex-shrink-0">
           <span>Clicking any entry jumps directly to the paragraph in reader</span>
           <span className="font-mono text-[10px]">ESC to close</span>
         </div>

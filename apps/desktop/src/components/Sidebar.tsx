@@ -106,12 +106,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside
-      className={`relative z-30 h-full flex-shrink-0 transition-all duration-300 ease-in-out border-r border-black/10 dark:border-white/10 bg-white/60 dark:bg-nord-surface/60 backdrop-blur-md flex flex-col ${
+      className={`relative z-30 h-full flex-shrink-0 transition-all duration-300 ease-in-out border-r border-[var(--theme-border)] bg-[var(--theme-surface)]/85 backdrop-blur-md flex flex-col ${
         isOpen ? "w-80" : "w-0 overflow-hidden border-none"
       }`}
     >
       {/* Header with Book Selector */}
-      <div className="p-3 border-b border-black/5 dark:border-white/5 flex items-center justify-between gap-1">
+      <div className="p-3 border-b border-[var(--theme-border)] flex items-center justify-between gap-1">
         <div className="min-w-0 flex-1">
           <BookSelector
             currentBookId={bookMeta?.book_id || ""}
@@ -123,7 +123,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
         <button
           onClick={onToggle}
-          className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors flex-shrink-0"
+          className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-[var(--theme-muted)] hover:text-[var(--theme-text)] transition-colors flex-shrink-0"
           title="Collapse Sidebar"
         >
           <ChevronLeft className="w-4 h-4" />
@@ -132,14 +132,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Navigation View Switcher (TOC vs Chapters) */}
       <div className="px-3 pt-2.5 pb-1 flex items-center gap-1">
-        <div className="flex-1 flex p-0.5 rounded-lg bg-black/[0.04] dark:bg-white/[0.05] border border-black/5 dark:border-white/5 text-xs">
+        <div className="flex-1 flex p-0.5 rounded-lg bg-[var(--theme-bg)]/80 border border-[var(--theme-border)] text-xs">
           <button
             type="button"
             onClick={() => setActiveTab("toc")}
             className={`flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded-md font-medium transition-all ${
               activeTab === "toc"
-                ? "bg-white dark:bg-nord-surface text-neutral-900 dark:text-neutral-100 shadow-sm"
-                : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-300"
+                ? "bg-[var(--theme-surface)] text-[var(--theme-text)] shadow-sm"
+                : "text-[var(--theme-muted)] hover:text-[var(--theme-text)]"
             }`}
           >
             <ListTree className="w-3.5 h-3.5" />
@@ -150,8 +150,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onClick={() => setActiveTab("chapters")}
             className={`flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded-md font-medium transition-all ${
               activeTab === "chapters"
-                ? "bg-white dark:bg-nord-surface text-neutral-900 dark:text-neutral-100 shadow-sm"
-                : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-300"
+                ? "bg-[var(--theme-surface)] text-[var(--theme-text)] shadow-sm"
+                : "text-[var(--theme-muted)] hover:text-[var(--theme-text)]"
             }`}
           >
             <ListOrdered className="w-3.5 h-3.5" />
@@ -163,13 +163,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Search Filter */}
       <div className="px-3 py-1.5">
         <div className="relative">
-          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--theme-muted)]" />
           <input
             type="text"
             placeholder={activeTab === "toc" ? "Filter contents..." : "Filter chapters..."}
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
-            className="w-full pl-8 pr-2.5 py-1 text-xs rounded-lg border border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.03] text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+            className="w-full pl-8 pr-2.5 py-1 text-xs rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg)]/80 text-[var(--theme-text)] placeholder:text-[var(--theme-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-accent)]/50 transition-colors"
           />
         </div>
       </div>
@@ -202,19 +202,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onClick={() => onSelectChapter(chapter)}
                   className={`w-full text-left p-2.5 rounded-xl transition-all duration-150 flex flex-col gap-1 border ${
                     isActive
-                      ? "bg-amber-500/10 dark:bg-nord-accent/15 text-amber-900 dark:text-nord-accent border-amber-500/20 dark:border-nord-accent/30 font-medium shadow-sm"
-                      : "border-transparent hover:bg-black/5 dark:hover:bg-white/5 text-neutral-700 dark:text-neutral-300"
+                      ? "bg-[var(--theme-accent)]/15 text-[var(--theme-text)] border-[var(--theme-accent)]/30 font-medium shadow-sm"
+                      : "border-transparent hover:bg-black/5 dark:hover:bg-white/5 text-[var(--theme-text)]/80 hover:text-[var(--theme-text)]"
                   }`}
                 >
                   <div className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="font-mono text-[10px] text-neutral-400 flex-shrink-0 w-4 text-right">
+                      <span className="font-mono text-[10px] text-[var(--theme-muted)] flex-shrink-0 w-4 text-right">
                         {idx + 1}.
                       </span>
                       <span className="truncate font-medium">{chapter.title}</span>
                     </div>
                     {isActive && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-600 dark:bg-nord-accent animate-pulse flex-shrink-0 ml-1" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--theme-accent)] animate-pulse flex-shrink-0 ml-1" />
                     )}
                   </div>
 
