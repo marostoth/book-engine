@@ -1,0 +1,14 @@
+{
+  "name": "book-engine",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "predev": "kill-port 5173",
+    "dev": "npm --prefix apps/desktop run dev",
+    "build": "npm --prefix apps/desktop run build",
+    "tauri": "npm --prefix apps/desktop run tauri"
+  },
+  "devDependencies": {
+    "kill-port": "^2.0.1"
+  }
+}

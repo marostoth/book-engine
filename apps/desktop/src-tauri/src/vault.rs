@@ -2,6 +2,27 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use anyhow::{Context, Result};
 
+#[derive(Debug, thiserror::Error, serde::Serialize)]
+pub enum AppError {
+    #[error("Vault not found: {0}")]
+    VaultNotFound(String),
+    #[error("I/O error: {0}")]
+    Io(String),
+    #[error("Serialization error: {0}")]
+    Serialization(String),
+    #[error("Internal error: {0}")]
+    Internal(String),
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct BookMetadata {
+    pub id: String,
+    pub title: String,
+    pub author: String,
+    pub chapter_count: usize,
+    pub total_words: usize,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BookSummary {
     pub book_id: String,
@@ -89,6 +110,97 @@ pub fn write_notes_file(book_id: &str, file_name: &str, content: &str) -> Result
     std::fs::write(&path, content)
         .with_context(|| format!("Failed to write notes file: {}", path.display()))?;
     Ok(())
+}
+
+/// Scans vault/books/ for all subdirectories containing a _meta.json and returns BookMetadata list.
+pub fn scan_library_books() -> std::result::Result<Vec<BookMetadata>, AppError> {
+    let vault = find_vault_root().map_err(|e| AppError::VaultNotFound(e.to_string()))?;
+    let books_dir = vault.join("books");
+    let mut results = Vec::new();
+
+    if !books_dir.exists() {
+        return Ok(results);
+    }
+
+    let dir_entries = std::fs::read_dir(&books_dir)
+        .map_err(|e| AppError::Io(format!("Failed to read books directory: {}", e)))?;
+
+    for entry in dir_entries {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(e) => {
+                eprintln!("Warning: Skipping unreadable entry in books dir: {}", e);
+                continue;
+            }
+        };
+        let path = entry.path();
+        if path.is_dir() {
+            let meta_path = path.join("_meta.json");
+            if meta_path.exists() {
+                let content = match std::fs::read_to_string(&meta_path) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        eprintln!("Warning: Could not read {}: {}", meta_path.display(), e);
+                        continue;
+                    }
+                };
+
+                let val = match serde_json::from_str::<serde_json::Value>(&content) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        eprintln!("Warning: Failed to parse {}: {}", meta_path.display(), e);
+                        continue;
+                    }
+                };
+
+                let dir_name = path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("unknown")
+                    .to_string();
+
+                let id = val["book_id"]
+                    .as_str()
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.to_string())
+                    .unwrap_or(dir_name);
+
+                let title = val["title"]
+                    .as_str()
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or("Untitled")
+                    .to_string();
+
+                let author = val["author"]
+                    .as_str()
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or("Unknown Author")
+                    .to_string();
+
+                let chapter_count = val["total_chapters"]
+                    .as_u64()
+                    .map(|n| n as usize)
+                    .or_else(|| val["spine"].as_array().map(|arr| arr.len()))
+                    .unwrap_or(0);
+
+                let total_words = val["total_words"]
+                    .as_u64()
+                    .map(|n| n as usize)
+                    .unwrap_or(0);
+
+                results.push(BookMetadata {
+                    id,
+                    title,
+                    author,
+                    chapter_count,
+                    total_words,
+                });
+            }
+        }
+    }
+
+    results.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
+    Ok(results)
 }
 
 /// Scans vault/books/ for available ingested books

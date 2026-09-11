@@ -10,9 +10,15 @@ import {
   Coffee,
   Moon,
 } from "lucide-react";
-import { Theme, ViewMode } from "../lib/types";
+import { Theme, ViewMode, BookMetadata } from "../lib/types";
+import { BookSelector } from "./BookSelector";
 
 interface TopNavProps {
+  currentBookId?: string;
+  bookTitle?: string;
+  bookAuthor?: string;
+  availableBooks?: BookMetadata[];
+  onSelectBook?: (bookId: string) => void;
   chapterTitle: string;
   progressPercent: number;
   sidebarOpen: boolean;
@@ -27,6 +33,11 @@ interface TopNavProps {
 }
 
 export const TopNav: React.FC<TopNavProps> = ({
+  currentBookId,
+  bookTitle,
+  bookAuthor,
+  availableBooks,
+  onSelectBook,
   chapterTitle,
   progressPercent,
   sidebarOpen,
@@ -65,6 +76,20 @@ export const TopNav: React.FC<TopNavProps> = ({
           >
             <SidebarIcon className="w-4 h-4" />
           </button>
+        )}
+
+        {/* Compact Book Selector shown when sidebar is collapsed */}
+        {!sidebarOpen && availableBooks && onSelectBook && (
+          <div className="w-52 max-w-[32vw]">
+            <BookSelector
+              currentBookId={currentBookId || ""}
+              currentTitle={bookTitle || "Select Book"}
+              currentAuthor={bookAuthor || ""}
+              books={availableBooks}
+              onSelectBook={onSelectBook}
+              compact
+            />
+          </div>
         )}
 
         <div className="flex items-center gap-2 min-w-0">

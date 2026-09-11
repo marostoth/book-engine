@@ -49,3 +49,9 @@ Before declaring any task or phase complete:
 1. Run the anchor integrity check: `python .agent/skills/audit-anchors.py vault/books/<book-id>`
 2. Run pipeline tests: `pytest packages/ingestion/tests/`
 3. Verify that search benchmarks pass under 15ms: `python .agent/skills/benchmark-fts.py`
+
+---
+
+## 4. Excecution Rules
+
+- **Process Hygiene**: Never leave dev servers, Vite watchers, or background test instances running after completing a task. Always terminate background processes or run builds headlessly.

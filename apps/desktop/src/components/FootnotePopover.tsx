@@ -20,7 +20,10 @@ export const FootnotePopover: React.FC<FootnotePopoverProps> = ({
       className="fixed z-50 transform -translate-x-1/2 -translate-y-full mb-3 pointer-events-auto transition-all animate-in fade-in zoom-in-95"
       style={{ left: `${position.x}px`, top: `${position.y}px` }}
     >
-      <div className="w-80 max-w-sm rounded-xl p-3.5 shadow-2xl border bg-white/95 dark:bg-nord-surface/95 backdrop-blur-lg border-black/10 dark:border-white/10 text-xs">
+      <div
+        className="w-80 max-w-sm rounded-xl p-3.5 shadow-2xl border border-stone-200 dark:border-stone-800 text-xs bg-white dark:bg-stone-900"
+        style={{ backgroundColor: "var(--theme-surface)" }}
+      >
         <div className="flex items-center justify-between pb-2 mb-2 border-b border-black/5 dark:border-white/5">
           <div className="flex items-center gap-1.5 font-semibold text-amber-700 dark:text-amber-400">
             <Bookmark className="w-3.5 h-3.5" />
@@ -40,7 +43,10 @@ export const FootnotePopover: React.FC<FootnotePopoverProps> = ({
       </div>
 
       {/* Downward triangle pointer */}
-      <div className="w-3 h-3 bg-white/95 dark:bg-nord-surface/95 border-r border-b border-black/10 dark:border-white/10 transform rotate-45 mx-auto -mt-1.5" />
+      <div
+        className="w-3 h-3 border-r border-b border-stone-200 dark:border-stone-800 transform rotate-45 mx-auto -mt-1.5"
+        style={{ backgroundColor: "var(--theme-surface)" }}
+      />
     </div>
   );
 };

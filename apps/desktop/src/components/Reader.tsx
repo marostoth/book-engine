@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
+import { Node as TiptapNode, mergeAttributes } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
+import Paragraph from "@tiptap/extension-paragraph";
 import Highlight from "@tiptap/extension-highlight";
 import { parseChapterMarkdown } from "../lib/markdown";
 import { applyBionicReading } from "../lib/bionic";
@@ -8,6 +10,93 @@ import { applyHighlightsToHtml, createW3CHighlight } from "../lib/highlights";
 import { FootnoteItem, HighlightItem } from "../lib/types";
 import { FootnotePopover } from "./FootnotePopover";
 import { SelectionMenu } from "./SelectionMenu";
+
+// Custom TipTap Paragraph node preserving paragraph anchors as HTML node attributes
+const AnchorParagraph = Paragraph.extend({
+  name: "paragraph",
+  addAttributes() {
+    return {
+      anchor: {
+        default: null,
+        parseHTML: (element) => {
+          const raw = element.getAttribute("data-anchor");
+          return raw ? raw.replace(/^\^/, "") : null;
+        },
+        renderHTML: (attributes) => {
+          if (!attributes.anchor) {
+            return {};
+          }
+          return {
+            "data-anchor": attributes.anchor,
+          };
+        },
+      },
+    };
+  },
+});
+
+// Custom TipTap Footnote Reference node preserving elevated superscript citation tags
+const FootnoteRef = TiptapNode.create({
+  name: "footnoteRef",
+  group: "inline",
+  inline: true,
+  atom: true,
+  selectable: false,
+
+  addAttributes() {
+    return {
+      fnId: {
+        default: "",
+        parseHTML: (element) => element.getAttribute("data-fn") || "",
+        renderHTML: (attributes) => ({
+          "data-fn": attributes.fnId,
+        }),
+      },
+      number: {
+        default: "",
+        parseHTML: (element) =>
+          element.getAttribute("data-fn") ||
+          element.textContent?.replace(/[\[\]]/g, "") ||
+          "",
+        renderHTML: () => ({}),
+      },
+    };
+  },
+
+  parseHTML() {
+    return [
+      {
+        tag: "sup.footnote-callout",
+      },
+      {
+        tag: "sup[data-fn]",
+      },
+      {
+        tag: "span.footnote-callout",
+      },
+      {
+        tag: "span[data-fn]",
+      },
+    ];
+  },
+
+  renderHTML({ node, HTMLAttributes }) {
+    const fnId = node.attrs.fnId || "1";
+    const num = node.attrs.number || fnId;
+    return [
+      "sup",
+      mergeAttributes(
+        {
+          class:
+            "footnote-callout text-xs align-super text-amber-700 dark:text-amber-400 font-sans font-semibold cursor-pointer hover:underline ml-0.5 select-none inline-block",
+          "data-fn": fnId,
+        },
+        HTMLAttributes
+      ),
+      `[${num}]`,
+    ];
+  },
+});
 
 interface ReaderProps {
   markdown: string;
@@ -44,7 +133,10 @@ export const Reader: React.FC<ReaderProps> = ({
         heading: {
           levels: [1, 2, 3],
         },
+        paragraph: false,
       }),
+      AnchorParagraph,
+      FootnoteRef,
       Highlight.configure({
         multicolor: true,
       }),
@@ -53,7 +145,7 @@ export const Reader: React.FC<ReaderProps> = ({
     editable: false, // Reading mode
     editorProps: {
       attributes: {
-        class: "reader-prose max-w-prose mx-auto px-6 py-12 focus:outline-none select-text",
+        class: "reader-prose max-w-prose mx-auto px-8 py-12 focus:outline-none select-text",
       },
     },
   });
@@ -88,7 +180,10 @@ export const Reader: React.FC<ReaderProps> = ({
 
     const timer = setTimeout(() => {
       if (!containerRef.current) return;
-      const targetEl = containerRef.current.querySelector(`[data-anchor="${targetAnchor}"]`);
+      const cleanAnchor = targetAnchor.replace(/^\^/, "");
+      const targetEl = containerRef.current.querySelector(
+        `[data-anchor="${targetAnchor}"], [data-anchor="${cleanAnchor}"], [data-anchor="^${cleanAnchor}"]`
+      );
       if (targetEl) {
         const parentP = targetEl.closest("p") || targetEl;
         parentP.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -181,7 +276,8 @@ export const Reader: React.FC<ReaderProps> = ({
       if (anchorNode.nodeType === Node.TEXT_NODE) {
         anchorNode = anchorNode.parentElement;
       }
-      const anchorEl = anchorNode?.closest("p")?.querySelector(".anchor-tag");
+      const parentWithAnchor = anchorNode?.closest("[data-anchor]") as HTMLElement | null;
+      const anchorEl = parentWithAnchor || anchorNode?.closest("p")?.querySelector(".anchor-tag");
       const anchorId = anchorEl?.getAttribute("data-anchor") || undefined;
 
       setSelectionPos({

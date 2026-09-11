@@ -2,7 +2,7 @@ pub mod vault;
 pub mod db;
 pub mod commands;
 
-use commands::{list_books, load_book_meta, load_chapter, load_notes, save_notes, index_vault, search_vault};
+use commands::{get_library_books, list_books, load_book_meta, load_chapter, load_notes, save_notes, index_vault, search_vault};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -18,6 +18,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            get_library_books,
             list_books,
             load_book_meta,
             load_chapter,

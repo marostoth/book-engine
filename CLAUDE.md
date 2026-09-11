@@ -11,3 +11,7 @@ You are acting as a Principal Systems & Frontend Engineer. You adhere to clean a
 ## Verification Protocols
 - Run `.agent/skills/audit-anchors.py` after ingestion runs.
 - Run `.agent/skills/benchmark-fts.py` to confirm search latency is under 15ms.
+
+## 4. Excecution Rules
+
+- **Process Hygiene**: Never leave dev servers, Vite watchers, or background test instances running after completing a task. Always terminate background processes or run builds headlessly.

@@ -38,6 +38,14 @@ export interface BookSummary {
   total_words: number;
 }
 
+export interface BookMetadata {
+  id: string;
+  title: string;
+  author: string;
+  chapter_count: number;
+  total_words: number;
+}
+
 export type Theme = "paper" | "sepia" | "nord";
 
 export type ViewMode = "reading" | "dual" | "focus";

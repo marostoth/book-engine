@@ -61,48 +61,59 @@ export function parseChapterMarkdown(markdown: string): ParsedChapter {
     const trimmed = block.trim();
     if (!trimmed) continue;
 
+    // Check for block-level paragraph anchor: ^p-001 or §p-001
+    const anchorMatch = trimmed.match(/\s*(?:\^|§)p-([a-zA-Z0-9_-]+)$/);
+    const anchor = anchorMatch ? `p-${anchorMatch[1]}` : null;
+    const content = anchorMatch ? trimmed.slice(0, anchorMatch.index).trim() : trimmed;
+
     // Heading 1
-    if (trimmed.startsWith("# ")) {
-      const text = renderInlines(trimmed.slice(2));
-      htmlParts.push(`<h1>${text}</h1>`);
+    if (content.startsWith("# ")) {
+      const text = renderInlines(content.slice(2));
+      const anchorAttr = anchor ? ` data-anchor="${anchor}"` : "";
+      htmlParts.push(`<h1${anchorAttr}>${text}</h1>`);
       continue;
     }
     // Heading 2
-    if (trimmed.startsWith("## ")) {
-      const text = renderInlines(trimmed.slice(3));
-      htmlParts.push(`<h2>${text}</h2>`);
+    if (content.startsWith("## ")) {
+      const text = renderInlines(content.slice(3));
+      const anchorAttr = anchor ? ` data-anchor="${anchor}"` : "";
+      htmlParts.push(`<h2${anchorAttr}>${text}</h2>`);
       continue;
     }
     // Heading 3
-    if (trimmed.startsWith("### ")) {
-      const text = renderInlines(trimmed.slice(4));
-      htmlParts.push(`<h3>${text}</h3>`);
+    if (content.startsWith("### ")) {
+      const text = renderInlines(content.slice(4));
+      const anchorAttr = anchor ? ` data-anchor="${anchor}"` : "";
+      htmlParts.push(`<h3${anchorAttr}>${text}</h3>`);
       continue;
     }
 
     // Standalone Image: ![alt](src)
-    const imgMatch = trimmed.match(/^!\[(.*?)\]\((.*?)\)(?:\s*\^p-[a-zA-Z0-9_-]+)?$/);
+    const imgMatch = content.match(/^!\[(.*?)\]\((.*?)\)$/);
     if (imgMatch) {
       const alt = imgMatch[1];
       const src = imgMatch[2];
-      htmlParts.push(`<p><img src="${src}" alt="${alt}" /></p>`);
+      const anchorAttr = anchor ? ` data-anchor="${anchor}"` : "";
+      htmlParts.push(`<p${anchorAttr}><img src="${src}" alt="${alt}" /></p>`);
       continue;
     }
 
     // Blockquote
-    if (trimmed.startsWith(">")) {
-      const cleanQuote = trimmed
+    if (content.startsWith(">")) {
+      const cleanQuote = content
         .split("\n")
         .map((l) => l.replace(/^>\s?/, ""))
         .join(" ");
       const text = renderInlines(cleanQuote);
-      htmlParts.push(`<blockquote><p>${text}</p></blockquote>`);
+      const anchorAttr = anchor ? ` data-anchor="${anchor}"` : "";
+      htmlParts.push(`<blockquote${anchorAttr}><p>${text}</p></blockquote>`);
       continue;
     }
 
     // Standard Paragraph
-    const text = renderInlines(trimmed);
-    htmlParts.push(`<p>${text}</p>`);
+    const text = renderInlines(content);
+    const anchorAttr = anchor ? ` data-anchor="${anchor}"` : "";
+    htmlParts.push(`<p${anchorAttr}>${text}</p>`);
   }
 
   return {
@@ -112,19 +123,20 @@ export function parseChapterMarkdown(markdown: string): ParsedChapter {
 }
 
 /**
- * Renders inline Markdown constructs: bold, italic, code, footnote callouts, and anchor tags.
+ * Renders inline Markdown constructs: bold, italic, code, and footnote callouts.
+ * Anchors are parsed into node attributes and never left in the inline text body.
  */
 function renderInlines(raw: string): string {
   let text = raw;
 
-  // Paragraph anchors: ^p-042 -> <span class="anchor-tag" data-anchor="^p-042">§p-042</span>
-  text = text.replace(
-    /\s*\^p-([a-zA-Z0-9_-]+)$/g,
-    ' <span class="anchor-tag" data-anchor="^p-$1">§p-$1</span>'
-  );
+  // Clean any remaining anchor tokens from inline text body
+  text = text.replace(/\s*(?:\^|§)p-[a-zA-Z0-9_-]+$/g, "");
 
-  // Footnote callouts: [^1] -> <button class="footnote-callout" data-fn="1">1</button>
-  text = text.replace(/\[\^([a-zA-Z0-9_-]+)\]/g, '<span class="footnote-callout" data-fn="$1">$1</span>');
+  // Footnote callouts: [^1] -> <sup class="footnote-callout" data-fn="1">[1]</sup>
+  text = text.replace(
+    /\[\^([a-zA-Z0-9_-]+)\]/g,
+    '<sup class="footnote-callout" data-fn="$1">[$1]</sup>'
+  );
 
   // Inline images: ![alt](src)
   text = text.replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" />');

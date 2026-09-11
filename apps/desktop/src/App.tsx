@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { BookMeta, ChapterMeta, HighlightItem, Theme, ViewMode } from "./lib/types";
-import { fetchBookMeta, fetchChapter, fetchNotes, persistNotes } from "./lib/api";
+import { BookMeta, BookMetadata, ChapterMeta, HighlightItem, Theme, ViewMode } from "./lib/types";
+import { fetchBookMeta, fetchChapter, fetchLibraryBooks, fetchNotes, persistNotes } from "./lib/api";
 import { parseHighlightsFromNotes, serializeHighlightsToNotes } from "./lib/highlights";
 import { Sidebar } from "./components/Sidebar";
 import { TopNav } from "./components/TopNav";
@@ -13,6 +13,12 @@ export const App: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>("reading");
   const [isBionic, setIsBionic] = useState<boolean>(false);
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
+
+  // Vault Library & Active Book
+  const [availableBooks, setAvailableBooks] = useState<BookMetadata[]>([]);
+  const [activeBookId, setActiveBookId] = useState<string>(() => {
+    return localStorage.getItem("book_engine_active_book_id") || "sample";
+  });
 
   const [bookMeta, setBookMeta] = useState<BookMeta | null>(null);
   const [activeChapter, setActiveChapter] = useState<ChapterMeta | null>(null);
@@ -46,16 +52,40 @@ export const App: React.FC = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Load initial book metadata
+  // Discover available library books and hydrate active book from localStorage
   useEffect(() => {
-    fetchBookMeta("sample").then((meta) => {
-      setBookMeta(meta);
-      if (meta.spine.length > 0) {
-        const firstCh = meta.spine[0];
-        setActiveChapter(firstCh);
-      }
+    fetchLibraryBooks().then((books) => {
+      setAvailableBooks(books);
+      const savedId = localStorage.getItem("book_engine_active_book_id");
+      const targetId =
+        savedId && books.some((b) => b.id === savedId)
+          ? savedId
+          : books[0]?.id || "sample";
+
+      setActiveBookId(targetId);
+      loadBook(targetId);
     });
   }, []);
+
+  const loadBook = async (bookId: string) => {
+    try {
+      const meta = await fetchBookMeta(bookId);
+      setBookMeta(meta);
+      if (meta.spine && meta.spine.length > 0) {
+        const firstCh = meta.spine[0];
+        setActiveChapter(firstCh);
+        setTargetAnchor(undefined);
+      }
+    } catch (err) {
+      console.error("Failed to load book metadata:", bookId, err);
+    }
+  };
+
+  const handleSelectBook = (bookId: string) => {
+    setActiveBookId(bookId);
+    localStorage.setItem("book_engine_active_book_id", bookId);
+    loadBook(bookId);
+  };
 
   // Load chapter text and hydrate highlights when activeChapter changes (Single-Chapter Virtualization)
   useEffect(() => {
@@ -118,6 +148,8 @@ export const App: React.FC = () => {
           isOpen={sidebarOpen}
           onToggle={() => setSidebarOpen(!sidebarOpen)}
           bookMeta={bookMeta}
+          availableBooks={availableBooks}
+          onSelectBook={handleSelectBook}
           activeChapterId={activeChapter?.id || ""}
           onSelectChapter={handleSelectChapter}
         />
@@ -127,6 +159,11 @@ export const App: React.FC = () => {
       <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
         {/* Editorial Top Navigation Header */}
         <TopNav
+          currentBookId={activeBookId}
+          bookTitle={bookMeta?.title}
+          bookAuthor={bookMeta?.author}
+          availableBooks={availableBooks}
+          onSelectBook={handleSelectBook}
           chapterTitle={activeChapter?.title || "Reading"}
           progressPercent={progressPercent}
           sidebarOpen={sidebarOpen}

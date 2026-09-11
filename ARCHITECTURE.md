@@ -76,6 +76,7 @@ All disk I/O operations are offloaded from the Tauri main thread using `tokio::t
 
 | Command | Signature | Description |
 | :--- | :--- | :--- |
+| `get_library_books` | `() -> Result<Vec<BookMetadata>, AppError>` | Scans `vault/books/*/` for `_meta.json`, returning dynamic library manifest with `id`, `title`, `author`, `chapter_count`, and `total_words`. |
 | `list_books` | `() -> Result<Vec<BookSummary>, String>` | Scans `vault/books/` and parses available `_meta.json` records. |
 | `load_book_meta` | `(book_id: String) -> Result<String, String>` | Reads `vault/books/<book_id>/_meta.json` as JSON string. |
 | `load_chapter` | `(book_id: String, chapter_file: String) -> Result<String, String>` | Reads chapter Markdown text (`ch-XX.md`) from the vault. |
@@ -229,5 +230,27 @@ When a chapter HTML payload is prepared for mounting into TipTap:
   - Average Query Latency: **0.075 ms** (Strict requirement: < 15.0 ms).
   - p95 Latency: **0.105 ms**.
   - p99 Latency: **0.254 ms**.
+
+---
+
+## 7. Dynamic Vault Library & Anchor Rendering Standards (Phase 4)
+
+### Dynamic Vault Scanner (`scan_library_books`)
+The backend scans `vault/books/` dynamically on startup and command invocation, discovering all book directories containing valid `_meta.json` manifests.
+- Safe deserialization using non-panicking constructs (strict zero `.unwrap()` standard).
+- Returns typed `BookMetadata` (`id`, `title`, `author`, `chapter_count`, `total_words`).
+- Reversible error representation via `AppError` enum using `thiserror`.
+
+### Book Selector Dropdown & State Persistence
+- Interactive `BookSelector.tsx` popover in the Sidebar header with library icon, book title, author, and animated chevron.
+- Also available in compact mode in `TopNav.tsx` when the sidebar is collapsed.
+- Persists active book ID in `localStorage` (`book_engine_active_book_id`).
+- Switching books cleanly dismounts the current chapter, loads the new manifest, reloads the hierarchical Table of Contents, and mounts Chapter 1.
+
+### Polished TipTap Paragraph Anchors
+- Raw paragraph anchors (`^p-001`, `§p-001`) are stripped from inline text bodies during markdown ingestion into HTML.
+- Parsed into headless custom node attributes (`<p data-anchor="p-001">`) via TipTap's `AnchorParagraph` extension.
+- Displayed via CSS pseudo-element (`.reader-prose p[data-anchor]::before`) as a subtle, muted `§` glyph in the left margin (`left: -1.75rem`) that smoothly reveals on paragraph hover without polluting text selection or clipboard payloads.
+
 
 

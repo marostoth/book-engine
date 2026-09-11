@@ -1,8 +1,15 @@
 use tauri::command;
 use crate::vault::{
-    scan_available_books, read_book_meta_json, read_chapter_file,
-    read_notes_file, write_notes_file, BookSummary
+    scan_library_books, scan_available_books, read_book_meta_json, read_chapter_file,
+    read_notes_file, write_notes_file, BookMetadata, BookSummary, AppError
 };
+
+#[command]
+pub async fn get_library_books() -> Result<Vec<BookMetadata>, AppError> {
+    tokio::task::spawn_blocking(scan_library_books)
+        .await
+        .map_err(|e| AppError::Internal(format!("Task join error: {}", e)))?
+}
 
 #[command]
 pub async fn list_books() -> Result<Vec<BookSummary>, String> {

@@ -1,4 +1,4 @@
-import { BookMeta, BookSummary } from "./types";
+import { BookMeta, BookMetadata, BookSummary } from "./types";
 
 // Detect if running inside a Tauri v2 Webview
 const isTauri = typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || "__TAURI__" in window);
@@ -109,24 +109,54 @@ Furthermore, deterministic execution across all state machines guarantees identi
 [^2]: Lamport, L. (1998). The Part-Time Parliament. ACM Transactions on Computer Systems. ^p-009`,
 };
 
-export async function fetchAvailableBooks(): Promise<BookSummary[]> {
+export async function fetchLibraryBooks(): Promise<BookMetadata[]> {
   if (isTauri) {
     try {
-      return await tauriInvoke<BookSummary[]>("list_books");
+      return await tauriInvoke<BookMetadata[]>("get_library_books");
     } catch (e) {
-      console.warn("Tauri list_books failed, falling back:", e);
+      console.warn("Tauri get_library_books failed, trying list_books fallback:", e);
+      try {
+        const summaries = await tauriInvoke<BookSummary[]>("list_books");
+        return summaries.map((s) => ({
+          id: s.book_id,
+          title: s.title,
+          author: s.author,
+          chapter_count: s.total_chapters,
+          total_words: s.total_words,
+        }));
+      } catch (e2) {
+        console.warn("Tauri list_books failed, falling back to mock:", e2);
+      }
     }
   }
 
   return [
     {
-      book_id: "sample",
+      id: "sample",
       title: "Principles of Distributed Systems",
       author: "Leslie Lamport & Friends",
-      total_chapters: 2,
+      chapter_count: 2,
       total_words: 458,
     },
+    {
+      id: "wealth-of-nations",
+      title: "An Inquiry into the Nature and Causes of the Wealth of Nations",
+      author: "Adam Smith",
+      chapter_count: 37,
+      total_words: 387438,
+    },
   ];
+}
+
+export async function fetchAvailableBooks(): Promise<BookSummary[]> {
+  const lib = await fetchLibraryBooks();
+  return lib.map((b) => ({
+    book_id: b.id,
+    title: b.title,
+    author: b.author,
+    total_chapters: b.chapter_count,
+    total_words: b.total_words,
+  }));
 }
 
 export async function fetchBookMeta(bookId: string): Promise<BookMeta> {

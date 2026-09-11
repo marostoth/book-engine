@@ -57,6 +57,7 @@ export function applyBionicReading(html: string): string {
       if (
         el.tagName === "CODE" ||
         el.tagName === "PRE" ||
+        el.tagName === "SUP" ||
         el.classList.contains("footnote-callout") ||
         el.classList.contains("anchor-tag")
       ) {
