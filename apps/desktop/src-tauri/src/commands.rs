@@ -179,5 +179,15 @@ pub async fn get_study_analytics(book_id: Option<String>) -> Result<crate::db::S
         .map_err(|e| format!("Failed to get study analytics: {}", e))
 }
 
+#[command]
+pub async fn get_vault_path() -> Result<String, String> {
+    tokio::task::spawn_blocking(|| {
+        let p = crate::vault::find_vault_root().map_err(|e| e.to_string())?;
+        Ok(p.to_string_lossy().to_string())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))?
+}
+
 
 

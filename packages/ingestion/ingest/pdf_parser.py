@@ -224,9 +224,6 @@ class PDFParser:
                 flush=True,
             )
 
-            # Snapshot existing assets to track newly generated images
-            existing_assets = set(os.listdir(assets_dir)) if assets_dir.exists() else set()
-
             # Convert chapter page range to Markdown using pymupdf4llm
             page_numbers = list(range(start_page, end_page))
             raw_chapter_md = pymupdf4llm.to_markdown(
@@ -236,40 +233,40 @@ class PDFParser:
                 image_path=str(assets_dir),
             )
 
-            # 3. Asset Filtering (<150x150 px or <8 KB are discarded)
-            current_assets = set(os.listdir(assets_dir)) if assets_dir.exists() else set()
-            new_assets = current_assets - existing_assets
+            # 3. Asset Filtering & Normalization (>= 60x60 px retained as diagrams, < 60x60 px discarded)
+            def process_markdown_image(match: re.Match[str]) -> str:
+                alt = match.group(1)
+                src = match.group(2).strip()
+                filename = Path(src).name
+                asset_path = assets_dir / filename
 
-            for asset_name in new_assets:
-                asset_path = assets_dir / asset_name
+                if not asset_path.exists():
+                    return ""
+
                 try:
-                    file_size = asset_path.stat().st_size
                     pix = pymupdf.Pixmap(str(asset_path))
                     width, height = pix.width, pix.height
                     del pix
 
-                    if width < 150 or height < 150 or file_size < 8192:
-                        # Low-resolution icon, bullet, or decorative element: delete
+                    if width < 60 or height < 60:
+                        # Decorative glyph, icon, or tracking element: delete from disk
                         asset_path.unlink(missing_ok=True)
-                        # Remove markdown image reference
-                        raw_chapter_md = re.sub(
-                            rf"!\[.*?\]\([^\)]*?{re.escape(asset_name)}[^\)]*?\)",
-                            "",
-                            raw_chapter_md,
-                        )
+                        return ""
                     else:
-                        # Normalize markdown reference to vault assets/<filename>
-                        def make_rel(m: re.Match[str]) -> str:
-                            alt = m.group(1)
-                            return f"![{alt}](assets/{asset_name})"
-
-                        raw_chapter_md = re.sub(
-                            rf"!\[(.*?)\]\([^\)]*?{re.escape(asset_name)}[^\)]*?\)",
-                            make_rel,
-                            raw_chapter_md,
-                        )
+                        # Valid diagram, workflow chart, or figure: normalize to assets/<filename>
+                        return f"![{alt}](assets/{filename})"
                 except Exception:
-                    pass
+                    # If pixmap cannot be parsed, check file size (> 2KB)
+                    if asset_path.stat().st_size < 2048:
+                        asset_path.unlink(missing_ok=True)
+                        return ""
+                    return f"![{alt}](assets/{filename})"
+
+            raw_chapter_md = re.sub(
+                r"!\[(.*?)\]\((.*?)\)",
+                process_markdown_image,
+                raw_chapter_md,
+            )
 
             # 4. Sanitization: Strip margins, solitary numbers, running headers
             sanitized_md = sanitize_pdf_markdown(raw_chapter_md)
@@ -323,6 +320,17 @@ class PDFParser:
             all_practice_cards.extend(chapter_cards)
 
         doc.close()
+
+        # Clean up any orphaned asset files not referenced in any chapter markdown
+        referenced_assets = set()
+        for ch in spine_metas:
+            ch_md = (book_dir / ch.file_path).read_text(encoding="utf-8")
+            for m in re.finditer(r"!\[.*?\]\(assets/([^\)]+)\)", ch_md):
+                referenced_assets.add(m.group(1))
+        if assets_dir.exists():
+            for existing in assets_dir.iterdir():
+                if existing.is_file() and existing.name not in referenced_assets:
+                    existing.unlink(missing_ok=True)
 
         # 7. Construct & Save BookMeta (_meta.json)
         book_meta = BookMeta(

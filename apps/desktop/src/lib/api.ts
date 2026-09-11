@@ -175,6 +175,9 @@ export async function fetchBookMeta(bookId: string): Promise<BookMeta> {
 export async function fetchChapter(bookId: string, chapterFile: string): Promise<string> {
   if (isTauri) {
     try {
+      if (!cachedVaultPath) {
+        getVaultPath().catch(() => {});
+      }
       return await tauriInvoke<string>("load_chapter", { bookId, chapterFile });
     } catch (e) {
       console.warn("Tauri load_chapter failed, falling back:", e);
@@ -770,5 +773,50 @@ export async function recordReadingProgress(
     console.warn("Failed to update localStorage reading session:", err);
   }
 }
+
+let cachedVaultPath: string | null = null;
+
+/**
+ * Retrieves and caches the canonical absolute filesystem path to the Markdown vault.
+ */
+export async function getVaultPath(): Promise<string> {
+  if (cachedVaultPath) return cachedVaultPath;
+  if (isTauri) {
+    try {
+      cachedVaultPath = await tauriInvoke<string>("get_vault_path");
+      return cachedVaultPath;
+    } catch (e) {
+      console.warn("Failed to retrieve vault path from backend:", e);
+    }
+  }
+  return "";
+}
+
+/**
+ * Converts a relative vault asset reference (e.g. 'assets/diagram.png')
+ * into a valid Tauri asset protocol URL (e.g. 'http://asset.localhost/...')
+ * for visual rendering in TipTap.
+ */
+export function resolveAssetUrl(bookId: string, src: string, vaultPath?: string): string {
+  if (!src || /^(?:https?|asset|data|blob):/i.test(src)) {
+    return src;
+  }
+
+  const vPath = vaultPath || cachedVaultPath;
+  if (!isTauri || !vPath) {
+    return src;
+  }
+
+  const filename = src.split("/").pop()?.split("\\").pop() || src;
+  const cleanVault = vPath.replace(/\\/g, "/").replace(/\/+$/, "");
+  const fullPath = `${cleanVault}/books/${bookId}/assets/${filename}`;
+
+  if (typeof window !== "undefined" && (window as any).__TAURI_INTERNALS__?.convertFileSrc) {
+    return (window as any).__TAURI_INTERNALS__.convertFileSrc(fullPath, "asset");
+  }
+
+  return src;
+}
+
 
 

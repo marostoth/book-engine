@@ -13,6 +13,7 @@
     "@floating-ui/react": "^0.27.4",
     "@tauri-apps/api": "^2.2.0",
     "@tiptap/extension-highlight": "^2.11.5",
+    "@tiptap/extension-image": "^2.27.3",
     "@tiptap/extension-typography": "^2.11.5",
     "@tiptap/pm": "^2.11.5",
     "@tiptap/react": "^2.11.5",

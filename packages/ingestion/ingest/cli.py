@@ -13,6 +13,7 @@ def main() -> None:
     parser.add_argument("file_path", type=Path, help="Path to source document (e.g. book.epub, book.pdf)")
     parser.add_argument("--vault", type=Path, default=Path("vault"), help="Path to local Markdown vault root")
     parser.add_argument("--book-id", type=str, default=None, help="Custom identifier for the book directory")
+    parser.add_argument("--force", action="store_true", help="Force overwrite if book already exists in vault")
 
     args = parser.parse_args()
 

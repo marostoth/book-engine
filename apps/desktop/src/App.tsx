@@ -19,6 +19,7 @@ import {
   syncPracticeDeck,
   getDueCards,
   recordReadingProgress,
+  getVaultPath,
 } from "./lib/api";
 import { parseHighlightsFromNotes, serializeHighlightsToNotes } from "./lib/highlights";
 import { Sidebar } from "./components/Sidebar";
@@ -62,6 +63,7 @@ export const App: React.FC = () => {
   const [analyticsModalOpen, setAnalyticsModalOpen] = useState<boolean>(false);
 
   // Vault Library & Active Book
+  const [vaultPath, setVaultPath] = useState<string>("");
   const [availableBooks, setAvailableBooks] = useState<BookMetadata[]>([]);
   const [activeBookId, setActiveBookId] = useState<string>(() => {
     return localStorage.getItem("book_engine_active_book_id") || "sample";
@@ -81,6 +83,11 @@ export const App: React.FC = () => {
 
   // Quote passed from SelectionMenu to NotesPane
   const [insertedQuote, setInsertedQuote] = useState<{ quote: string; anchorId?: string } | null>(null);
+
+  // Load canonical vault path on mount
+  useEffect(() => {
+    getVaultPath().then(setVaultPath).catch(() => {});
+  }, []);
 
   // Sync theme to body class
   useEffect(() => {
@@ -322,6 +329,8 @@ export const App: React.FC = () => {
         <div className="flex-1 flex h-[calc(100vh-3.5rem)] overflow-hidden">
           {/* TipTap Virtualized Chapter Reader */}
           <Reader
+            bookId={bookMeta?.book_id || activeBookId}
+            vaultPath={vaultPath}
             markdown={chapterMarkdown}
             isBionic={isBionic}
             highlights={highlights}

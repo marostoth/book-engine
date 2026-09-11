@@ -4,6 +4,7 @@ import { Node as TiptapNode, mergeAttributes } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Paragraph from "@tiptap/extension-paragraph";
 import Highlight from "@tiptap/extension-highlight";
+import Image from "@tiptap/extension-image";
 import { parseChapterMarkdown } from "../lib/markdown";
 import { applyBionicReading } from "../lib/bionic";
 import { applyHighlightsToHtml, createW3CHighlight } from "../lib/highlights";
@@ -99,6 +100,8 @@ const FootnoteRef = TiptapNode.create({
 });
 
 interface ReaderProps {
+  bookId: string;
+  vaultPath?: string;
   markdown: string;
   isBionic: boolean;
   highlights: HighlightItem[];
@@ -109,6 +112,8 @@ interface ReaderProps {
 }
 
 export const Reader: React.FC<ReaderProps> = ({
+  bookId,
+  vaultPath,
   markdown,
   isBionic,
   highlights,
@@ -137,6 +142,13 @@ export const Reader: React.FC<ReaderProps> = ({
       }),
       AnchorParagraph,
       FootnoteRef,
+      Image.configure({
+        inline: true,
+        allowBase64: true,
+        HTMLAttributes: {
+          class: "reader-image mx-auto my-6 rounded-lg shadow-md max-w-full border border-stone-200 dark:border-stone-800",
+        },
+      }),
       Highlight.configure({
         multicolor: true,
       }),
@@ -154,7 +166,7 @@ export const Reader: React.FC<ReaderProps> = ({
   useEffect(() => {
     if (!editor) return;
 
-    const parsed = parseChapterMarkdown(markdown);
+    const parsed = parseChapterMarkdown(markdown, bookId, vaultPath);
     setFootnotes(parsed.footnotes);
 
     // Apply persistent W3C highlights to HTML
@@ -172,7 +184,7 @@ export const Reader: React.FC<ReaderProps> = ({
       containerRef.current.scrollTop = 0;
       onProgressChange(0);
     }
-  }, [editor, markdown, isBionic, highlights, onProgressChange, targetAnchor]);
+  }, [editor, markdown, bookId, vaultPath, isBionic, highlights, onProgressChange, targetAnchor]);
 
   // Scroll to target anchor when jumping from search
   useEffect(() => {

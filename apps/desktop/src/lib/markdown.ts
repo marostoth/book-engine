@@ -1,4 +1,5 @@
 import { FootnoteItem } from "./types";
+import { resolveAssetUrl } from "./api";
 
 export interface ParsedChapter {
   html: string;
@@ -8,8 +9,13 @@ export interface ParsedChapter {
 /**
  * Parses chapter Markdown into HTML formatted for TipTap, separating
  * footnote definitions and injecting interactive footnote and anchor tags.
+ * Converts relative asset references to Tauri asset protocol URLs.
  */
-export function parseChapterMarkdown(markdown: string): ParsedChapter {
+export function parseChapterMarkdown(
+  markdown: string,
+  bookId?: string,
+  vaultPath?: string
+): ParsedChapter {
   const lines = markdown.split("\n");
   const bodyBlocks: string[] = [];
   const footnotes: Record<string, FootnoteItem> = {};
@@ -68,21 +74,21 @@ export function parseChapterMarkdown(markdown: string): ParsedChapter {
 
     // Heading 1
     if (content.startsWith("# ")) {
-      const text = renderInlines(content.slice(2));
+      const text = renderInlines(content.slice(2), bookId, vaultPath);
       const anchorAttr = anchor ? ` data-anchor="${anchor}"` : "";
       htmlParts.push(`<h1${anchorAttr}>${text}</h1>`);
       continue;
     }
     // Heading 2
     if (content.startsWith("## ")) {
-      const text = renderInlines(content.slice(3));
+      const text = renderInlines(content.slice(3), bookId, vaultPath);
       const anchorAttr = anchor ? ` data-anchor="${anchor}"` : "";
       htmlParts.push(`<h2${anchorAttr}>${text}</h2>`);
       continue;
     }
     // Heading 3
     if (content.startsWith("### ")) {
-      const text = renderInlines(content.slice(4));
+      const text = renderInlines(content.slice(4), bookId, vaultPath);
       const anchorAttr = anchor ? ` data-anchor="${anchor}"` : "";
       htmlParts.push(`<h3${anchorAttr}>${text}</h3>`);
       continue;
@@ -93,8 +99,9 @@ export function parseChapterMarkdown(markdown: string): ParsedChapter {
     if (imgMatch) {
       const alt = imgMatch[1];
       const src = imgMatch[2];
+      const resolvedSrc = bookId ? resolveAssetUrl(bookId, src, vaultPath) : src;
       const anchorAttr = anchor ? ` data-anchor="${anchor}"` : "";
-      htmlParts.push(`<p${anchorAttr}><img src="${src}" alt="${alt}" /></p>`);
+      htmlParts.push(`<p${anchorAttr}><img src="${resolvedSrc}" alt="${alt}" /></p>`);
       continue;
     }
 
@@ -104,14 +111,14 @@ export function parseChapterMarkdown(markdown: string): ParsedChapter {
         .split("\n")
         .map((l) => l.replace(/^>\s?/, ""))
         .join(" ");
-      const text = renderInlines(cleanQuote);
+      const text = renderInlines(cleanQuote, bookId, vaultPath);
       const anchorAttr = anchor ? ` data-anchor="${anchor}"` : "";
       htmlParts.push(`<blockquote${anchorAttr}><p>${text}</p></blockquote>`);
       continue;
     }
 
     // Standard Paragraph
-    const text = renderInlines(content);
+    const text = renderInlines(content, bookId, vaultPath);
     const anchorAttr = anchor ? ` data-anchor="${anchor}"` : "";
     htmlParts.push(`<p${anchorAttr}>${text}</p>`);
   }
@@ -126,7 +133,7 @@ export function parseChapterMarkdown(markdown: string): ParsedChapter {
  * Renders inline Markdown constructs: bold, italic, code, and footnote callouts.
  * Anchors are parsed into node attributes and never left in the inline text body.
  */
-function renderInlines(raw: string): string {
+function renderInlines(raw: string, bookId?: string, vaultPath?: string): string {
   let text = raw;
 
   // Clean any remaining anchor tokens from inline text body
@@ -138,8 +145,11 @@ function renderInlines(raw: string): string {
     '<sup class="footnote-callout" data-fn="$1">[$1]</sup>'
   );
 
-  // Inline images: ![alt](src)
-  text = text.replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" />');
+  // Inline images: ![alt](src) -> <img src="resolved" alt="alt" />
+  text = text.replace(/!\[(.*?)\]\((.*?)\)/g, (_, alt, src) => {
+    const resolved = bookId ? resolveAssetUrl(bookId, src, vaultPath) : src;
+    return `<img src="${resolved}" alt="${alt}" />`;
+  });
 
   // Bold: **text**
   text = text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");

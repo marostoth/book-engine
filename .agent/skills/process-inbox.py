@@ -116,17 +116,37 @@ def run_anchor_audit(book_id: str) -> str:
 
 
 def main() -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Automated book intake and ledger manager.")
+    parser.add_argument("--force", action="store_true", help="Force re-processing even if book is already in ledger.")
+    parser.add_argument("--book", type=str, default=None, help="Process or re-process a specific file from inbox/ or inbox/processed/.")
+    args = parser.parse_args()
+
     INBOX_DIR.mkdir(parents=True, exist_ok=True)
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
     VAULT_DIR.mkdir(parents=True, exist_ok=True)
 
-    # 1. Inspection: scan inbox/ (excluding subdirectories) for .epub and .pdf files
-    candidate_files = [
-        f for f in INBOX_DIR.iterdir()
-        if f.is_file() and f.suffix.lower() in SUPPORTED_EXTENSIONS and not f.name.startswith(".")
-    ]
+    candidate_files: List[Path] = []
 
-    candidate_files.sort(key=lambda p: p.name.lower())
+    if args.book:
+        target = Path(args.book)
+        if target.exists() and target.is_file():
+            candidate_files.append(target.resolve())
+        elif (INBOX_DIR / args.book).exists():
+            candidate_files.append((INBOX_DIR / args.book).resolve())
+        elif (PROCESSED_DIR / args.book).exists():
+            candidate_files.append((PROCESSED_DIR / args.book).resolve())
+        else:
+            print(f"[-] Target book not found: {args.book}", file=sys.stderr)
+            return 1
+    else:
+        # 1. Inspection: scan inbox/ (excluding subdirectories) for .epub and .pdf files
+        candidate_files = [
+            f for f in INBOX_DIR.iterdir()
+            if f.is_file() and f.suffix.lower() in SUPPORTED_EXTENSIONS and not f.name.startswith(".")
+        ]
+        candidate_files.sort(key=lambda p: p.name.lower())
 
     # 2. Early Exit: If inbox has no new files, exit cleanly
     if not candidate_files:
@@ -140,7 +160,7 @@ def main() -> int:
 
     report_rows: List[Dict[str, str]] = []
 
-    print(f"[*] Found {len(candidate_files)} file(s) in inbox. Inspecting against ledger...", flush=True)
+    print(f"[*] Processing {len(candidate_files)} candidate book(s) (Force mode: {args.force})...", flush=True)
 
     # 3. Isolated Batch Processing
     for file_path in candidate_files:
@@ -149,14 +169,15 @@ def main() -> int:
             file_hash = compute_sha256(file_path)
 
             # Check deduplication ledger
-            if file_hash in processed_hashes:
+            if file_hash in processed_hashes and not args.force:
                 existing = processed_hashes[file_hash]
                 print(f"[SKIP] '{filename}' is already recorded in ledger (Book ID: {existing.get('book_id', 'unknown')}).", flush=True)
-                # Move to processed to keep inbox clean
-                dest_path = PROCESSED_DIR / filename
-                if dest_path.exists():
-                    dest_path.unlink()
-                shutil.move(str(file_path), str(dest_path))
+                # Move to processed if in inbox to keep inbox clean
+                if file_path.parent == INBOX_DIR:
+                    dest_path = PROCESSED_DIR / filename
+                    if dest_path.exists():
+                        dest_path.unlink()
+                    shutil.move(str(file_path), str(dest_path))
 
                 report_rows.append({
                     "book_id": existing.get("book_id", "-"),
@@ -175,7 +196,7 @@ def main() -> int:
             # Run anchor integrity check
             anchors_verified = run_anchor_audit(meta.book_id)
 
-            # Append record to ledger
+            # Update or append record to ledger
             ledger_record: Dict[str, Any] = {
                 "sha256": file_hash,
                 "book_id": meta.book_id,
@@ -187,15 +208,17 @@ def main() -> int:
                 "total_words": meta.total_words,
                 "anchors_verified": anchors_verified,
             }
+            ledger_entries = [e for e in ledger_entries if e.get("sha256") != file_hash]
             ledger_entries.append(ledger_record)
             processed_hashes[file_hash] = ledger_record
             save_ledger(LEDGER_FILE, ledger_entries)
 
-            # Move binary to inbox/processed/
-            dest_path = PROCESSED_DIR / filename
-            if dest_path.exists():
-                dest_path.unlink()
-            shutil.move(str(file_path), str(dest_path))
+            # Move binary to inbox/processed/ if in inbox
+            if file_path.parent == INBOX_DIR:
+                dest_path = PROCESSED_DIR / filename
+                if dest_path.exists():
+                    dest_path.unlink()
+                shutil.move(str(file_path), str(dest_path))
 
             print(f"[+] Successfully ingested '{meta.title}' -> vault/books/{meta.book_id}", flush=True)
 

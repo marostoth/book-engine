@@ -8,7 +8,7 @@ use commands::{
     index_vault, search_vault, sync_practice_deck, get_due_cards, submit_review, get_deck_stats,
     load_all_book_notes, export_summary, get_review_heatmap, get_retention_metrics,
     get_reading_velocity, record_reading_progress,
-    get_all_book_notes, export_book_summary, get_study_analytics,
+    get_all_book_notes, export_book_summary, get_study_analytics, get_vault_path,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -45,7 +45,8 @@ pub fn run() {
             record_reading_progress,
             get_all_book_notes,
             export_book_summary,
-            get_study_analytics
+            get_study_analytics,
+            get_vault_path
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
