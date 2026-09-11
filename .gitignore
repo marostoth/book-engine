@@ -1,0 +1,29 @@
+# Environments & Dependencies
+.venv/
+__pycache__/
+*.pyc
+node_modules/
+dist/
+
+# Rust / Tauri builds
+target/
+src-tauri/target/
+
+# Local cache & databases
+*.db
+*.db-wal
+*.db-shm
+.app_cache/
+
+# User vault & raw media (Keep repo lightweight & private)
+*.epub
+*.pdf
+vault/books/*
+!vault/books/.gitkeep
+vault/notes/*
+!vault/notes/.gitkeep
+
+# IDE & OS files
+.DS_Store
+Thumbs.db
+.vscode/
