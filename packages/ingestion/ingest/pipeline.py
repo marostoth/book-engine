@@ -9,11 +9,12 @@ from bs4 import BeautifulSoup
 import ebooklib
 from ebooklib import epub
 
-from ingest.models import BookMeta, ChapterMeta, PracticeCard, TOCItem
+from ingest.models import BookMeta, ChapterMeta, PracticeCard, TOCItem, InspectionalBlueprint, ScenarioCard
 from ingest.assets import extract_epub_assets, normalize_image_markdown
 from ingest.endnotes import EndnoteRegistry, relocate_chapter_footnotes
-from ingest.anchors import inject_paragraph_anchors, extract_anchors
-from ingest.salience import generate_chapter_practice_cards, format_practice_deck_markdown
+from ingest.anchors import inject_paragraph_anchors, extract_anchors, extract_inspectional_sampling, clean_preview_text
+from ingest.elementary import compute_elementary_metrics
+from ingest.salience import generate_chapter_practice_cards, generate_chapter_scenario_cards, format_practice_deck_markdown
 from ingest.epub_parser import extract_metadata, parse_toc, html_to_markdown_blocks
 from ingest.pdf_parser import PDFParser
 
@@ -57,6 +58,8 @@ def ingest_epub(epub_path: Path, vault_dir: Path, custom_book_id: Optional[str] 
     # 4. Process Chapter Documents
     spine_metas: List[ChapterMeta] = []
     all_practice_cards: List[PracticeCard] = []
+    all_scenarios: List[ScenarioCard] = []
+    all_clean_text: List[str] = []
     total_words = 0
     chapter_index = 1
 
@@ -125,6 +128,14 @@ def ingest_epub(epub_path: Path, vault_dir: Path, custom_book_id: Optional[str] 
         first_anchor = anchors_list[0][0] if anchors_list else None
         last_anchor = anchors_list[-1][0] if anchors_list else None
 
+        # Extract inspectional sampling (head/tail anchors and clean previews)
+        sampling = extract_inspectional_sampling(anchored_md)
+
+        # Collect clean text for aggregate readability metrics
+        clean_ch_text = clean_preview_text(anchored_md)
+        if clean_ch_text:
+            all_clean_text.append(clean_ch_text)
+
         ch_meta = ChapterMeta(
             id=ch_id,
             title=ch_title,
@@ -134,15 +145,38 @@ def ingest_epub(epub_path: Path, vault_dir: Path, custom_book_id: Optional[str] 
             anchor_count=anchor_count,
             first_anchor=first_anchor,
             last_anchor=last_anchor,
-            footnotes_count=len(footnotes)
+            footnotes_count=len(footnotes),
+            inspectional_sampling=sampling,
         )
         spine_metas.append(ch_meta)
 
         # 5. Salience Scoring & Deterministic Cloze Deck
         chapter_cards = generate_chapter_practice_cards(ch_id, anchored_md, min_items=5, max_items=8)
         all_practice_cards.extend(chapter_cards)
+        all_scenarios.extend(generate_chapter_scenario_cards(anchored_md, ch_id, max_items=3))
 
         chapter_index += 1
+
+    # Aggregate elementary metrics
+    elementary_metrics = compute_elementary_metrics(" ".join(all_clean_text))
+
+    # Construct default inspectional blueprint
+    pivotal_chapters: List[str] = []
+    if spine_metas:
+        pivotal_chapters.append(spine_metas[0].id)
+        if len(spine_metas) > 1:
+            pivotal_chapters.append(spine_metas[-1].id)
+
+    inspectional_blueprint = InspectionalBlueprint(
+        front_matter={
+            "has_preface": False,
+            "preface_path": None,
+            "publisher_blurb": f"{title} by {author}",
+        },
+        pivotal_chapters=pivotal_chapters,
+        synthetic_index_clusters=[],
+        exit_assessment=None,
+    )
 
     # 6. Save _meta.json
     book_meta = BookMeta(
@@ -153,13 +187,15 @@ def ingest_epub(epub_path: Path, vault_dir: Path, custom_book_id: Optional[str] 
         total_words=total_words,
         total_chapters=len(spine_metas),
         toc=toc_items,
-        spine=spine_metas
+        spine=spine_metas,
+        elementary_metrics=elementary_metrics,
+        inspectional_blueprint=inspectional_blueprint,
     )
     meta_path = book_dir / "_meta.json"
     meta_path.write_text(book_meta.model_dump_json(indent=2), encoding="utf-8")
 
     # 7. Save vault/notes/<book-id>/practice-deck.md
-    practice_deck_md = format_practice_deck_markdown(title, all_practice_cards)
+    practice_deck_md = format_practice_deck_markdown(title, all_practice_cards, all_scenarios)
     practice_deck_path = notes_dir / "practice-deck.md"
     practice_deck_path.write_text(practice_deck_md, encoding="utf-8")
 
@@ -177,18 +213,29 @@ def ingest_epub(epub_path: Path, vault_dir: Path, custom_book_id: Optional[str] 
     return book_meta
 
 
-def ingest_pdf(pdf_path: Path, vault_dir: Path, custom_book_id: Optional[str] = None) -> BookMeta:
+def ingest_pdf(
+    pdf_path: Path,
+    vault_dir: Path,
+    custom_book_id: Optional[str] = None,
+    target_chapters: Optional[List[int]] = None,
+) -> BookMeta:
     """Ingest a PDF file into vault/books/<book-id>/ and vault/notes/<book-id>/."""
     parser = PDFParser(pdf_path, vault_dir, custom_book_id)
-    return parser.parse()
+    return parser.parse(target_chapters=target_chapters)
 
 
-def ingest_book(file_path: Path, vault_dir: Path, book_id: Optional[str] = None) -> BookMeta:
+def ingest_book(
+    file_path: Path,
+    vault_dir: Path,
+    book_id: Optional[str] = None,
+    target_chapters: Optional[List[int]] = None,
+) -> BookMeta:
     """Entry point dispatching to appropriate ingestion handler based on file suffix."""
     suffix = file_path.suffix.lower()
     if suffix == ".epub":
         return ingest_epub(file_path, vault_dir, book_id)
     elif suffix == ".pdf":
-        return ingest_pdf(file_path, vault_dir, book_id)
+        return ingest_pdf(file_path, vault_dir, book_id, target_chapters=target_chapters)
     else:
         raise NotImplementedError(f"Unsupported file format '{suffix}'. Only .epub and .pdf are currently implemented.")
+

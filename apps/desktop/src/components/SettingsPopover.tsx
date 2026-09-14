@@ -1,6 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Settings, ShieldCheck, Target, RefreshCw, X, Sliders, BarChart3 } from "lucide-react";
-import { ReaderPreferences } from "../lib/types";
+import { Settings, X, Sliders, BookOpen, Clock, Brain } from "lucide-react";
+import { ReaderPreferences, Theme } from "../lib/types";
+import { GeneralTab } from "./settings/GeneralTab";
+import { ElementaryTab } from "./settings/ElementaryTab";
+import { InspectionalTab } from "./settings/InspectionalTab";
+import { PracticeTab } from "./settings/PracticeTab";
 
 interface SettingsPopoverProps {
   preferences: ReaderPreferences;
@@ -8,7 +12,15 @@ interface SettingsPopoverProps {
   onResyncDeck?: () => void;
   onOpenAnalytics?: () => void;
   dueCardsCount?: number;
+  theme?: Theme;
+  onThemeChange?: (theme: Theme) => void;
+  isBionic?: boolean;
+  onToggleBionic?: () => void;
+  isPacingRunning?: boolean;
+  onTogglePacer?: () => void;
 }
+
+type TabKey = "general" | "elementary" | "inspectional" | "practice";
 
 export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
   preferences,
@@ -16,11 +28,17 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
   onResyncDeck,
   onOpenAnalytics,
   dueCardsCount = 0,
+  theme,
+  onThemeChange,
+  isBionic,
+  onToggleBionic,
+  isPacingRunning,
+  onTogglePacer,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabKey>("general");
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Close popover on click outside or Escape key
   useEffect(() => {
     if (!isOpen) return;
 
@@ -44,22 +62,12 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
     };
   }, [isOpen]);
 
-  const handleToggleGatekeeper = () => {
-    const updated = {
-      ...preferences,
-      gatekeeperMode: !preferences.gatekeeperMode,
-    };
-    onPreferencesChange(updated);
-  };
-
-  const handleTargetChange = (delta: number) => {
-    const newTarget = Math.max(5, Math.min(100, preferences.dailyTarget + delta));
-    const updated = {
-      ...preferences,
-      dailyTarget: newTarget,
-    };
-    onPreferencesChange(updated);
-  };
+  const tabs = [
+    { id: "general" as const, label: "General", icon: Sliders },
+    { id: "elementary" as const, label: "Elementary", icon: BookOpen },
+    { id: "inspectional" as const, label: "Inspectional", icon: Clock },
+    { id: "practice" as const, label: "Practice", icon: Brain },
+  ];
 
   return (
     <div ref={containerRef} className="relative inline-block text-left">
@@ -72,17 +80,17 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
             ? "bg-[var(--theme-accent)]/15 text-[var(--theme-accent)]"
             : "text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-accent)]/10"
         }`}
-        title="Reader Preferences & Gatekeeper Settings"
+        title="Reader Preferences & Learning Levels"
         aria-label="Settings"
         aria-expanded={isOpen}
       >
         <Settings className={`w-4 h-4 transition-transform duration-200 ${isOpen ? "rotate-45" : ""}`} />
       </button>
 
-      {/* Popover Card with 100% Solid Opaque Theme Background */}
+      {/* Popover Card */}
       {isOpen && (
         <div
-          className="absolute right-0 top-full mt-2 w-80 min-w-[320px] max-w-[90vw] z-50 rounded-2xl border border-[var(--theme-border)] shadow-2xl p-5 bg-[var(--theme-surface)] text-[var(--theme-text)] overflow-hidden select-none animate-in fade-in zoom-in-95 duration-100"
+          className="absolute right-0 top-full mt-2 w-[380px] min-w-[340px] max-w-[95vw] z-50 rounded-2xl border border-[var(--theme-border)] shadow-2xl p-5 bg-[var(--theme-surface)] text-[var(--theme-text)] overflow-hidden select-none animate-in fade-in zoom-in-95 duration-100"
           style={{ backgroundColor: "var(--theme-surface)" }}
         >
           {/* Header */}
@@ -99,113 +107,72 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
             </button>
           </div>
 
-          <div className="space-y-4 pt-3.5">
-            {/* Chapter Gatekeeper Mode Toggle */}
-            <div className="flex items-center justify-between gap-4">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-[var(--theme-accent)] flex-shrink-0" />
-                  <span className="text-xs font-semibold text-[var(--theme-text)]">
-                    Chapter Gatekeeper
-                  </span>
-                </div>
-                <p className="text-[11px] text-[var(--theme-muted)] mt-1 leading-relaxed">
-                  Require solving 3 recall cards before unlocking subsequent chapters.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                role="switch"
-                aria-checked={preferences.gatekeeperMode}
-                onClick={handleToggleGatekeeper}
-                className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 ease-in-out flex-shrink-0 cursor-pointer ${
-                  preferences.gatekeeperMode
-                    ? "bg-[var(--theme-accent)]"
-                    : "bg-black/20 dark:bg-white/20"
-                }`}
-              >
-                <div
-                  className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ease-in-out ${
-                    preferences.gatekeeperMode ? "translate-x-5" : "translate-x-0"
+          {/* Tab Navigation */}
+          <div className="flex items-center gap-1 border-b border-[var(--theme-border)] pt-2 pb-2 -mx-1 px-1 overflow-x-auto">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all flex-shrink-0 ${
+                    isActive
+                      ? "bg-[var(--theme-accent)] text-white font-semibold shadow-sm"
+                      : "text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-bg)]"
                   }`}
-                />
-              </button>
-            </div>
-
-            <div className="h-[1px] bg-[var(--theme-border)]" />
-
-            {/* Daily Review Target Stepper */}
-            <div className="flex items-center justify-between gap-4">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <Target className="w-4 h-4 text-[var(--theme-accent)] flex-shrink-0" />
-                  <span className="text-xs font-semibold text-[var(--theme-text)]">
-                    Daily Review Target
-                  </span>
-                </div>
-                <p className="text-[11px] text-[var(--theme-muted)] mt-1 leading-relaxed">
-                  Target cards scheduled per study session.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-1.5 bg-[var(--theme-bg)] p-1 rounded-lg border border-[var(--theme-border)] flex-shrink-0">
-                <button
-                  type="button"
-                  onClick={() => handleTargetChange(-5)}
-                  className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-surface)] active:scale-95 transition-all"
-                  disabled={preferences.dailyTarget <= 5}
                 >
-                  -
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{tab.label}</span>
                 </button>
-                <span className="w-7 text-center text-xs font-bold text-[var(--theme-text)] font-mono">
-                  {preferences.dailyTarget}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleTargetChange(5)}
-                  className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-surface)] active:scale-95 transition-all"
-                  disabled={preferences.dailyTarget >= 100}
-                >
-                  +
-                </button>
-              </div>
-            </div>
+              );
+            })}
+          </div>
 
-            {/* Re-sync Deck & Analytics Actions */}
-            <div className="h-[1px] bg-[var(--theme-border)]" />
-            <div className="pt-1 flex items-center justify-between gap-2 text-xs">
-              {onOpenAnalytics && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onOpenAnalytics();
-                    setIsOpen(false);
-                  }}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium text-[var(--theme-text)] bg-[var(--theme-bg)] hover:bg-[var(--theme-border)]/30 border border-[var(--theme-border)] transition-colors"
-                >
-                  <BarChart3 className="w-3 h-3 text-[var(--theme-accent)]" />
-                  <span>Analytics</span>
-                </button>
-              )}
+          {/* Tab Content Panes */}
+          <div className="pt-3.5 max-h-[460px] overflow-y-auto pr-0.5">
+            {activeTab === "general" && (
+              <GeneralTab
+                preferences={preferences}
+                onPreferencesChange={onPreferencesChange}
+                theme={theme}
+                onThemeChange={onThemeChange}
+              />
+            )}
 
-              {onResyncDeck && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onResyncDeck();
-                    setIsOpen(false);
-                  }}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium text-[var(--theme-accent)] bg-[var(--theme-accent)]/10 hover:bg-[var(--theme-accent)]/20 border border-[var(--theme-accent)]/30 transition-colors ml-auto"
-                >
-                  <RefreshCw className="w-3 h-3" />
-                  <span>Sync Deck ({dueCardsCount})</span>
-                </button>
-              )}
-            </div>
+            {activeTab === "elementary" && (
+              <ElementaryTab
+                preferences={preferences}
+                onPreferencesChange={onPreferencesChange}
+                isBionic={isBionic}
+                onToggleBionic={onToggleBionic}
+                isPacingRunning={isPacingRunning}
+                onTogglePacer={onTogglePacer}
+              />
+            )}
+
+            {activeTab === "inspectional" && (
+              <InspectionalTab
+                preferences={preferences}
+                onPreferencesChange={onPreferencesChange}
+              />
+            )}
+
+            {activeTab === "practice" && (
+              <PracticeTab
+                preferences={preferences}
+                onPreferencesChange={onPreferencesChange}
+                onResyncDeck={onResyncDeck}
+                onOpenAnalytics={onOpenAnalytics}
+                dueCardsCount={dueCardsCount}
+                onClosePopover={() => setIsOpen(false)}
+              />
+            )}
           </div>
         </div>
       )}
     </div>
   );
 };
+

@@ -64,7 +64,9 @@ pub fn open_or_create_db() -> Result<Connection> {
              difficulty REAL NOT NULL DEFAULT 0.0,
              due INTEGER NOT NULL DEFAULT 0,
              last_review INTEGER NOT NULL DEFAULT 0,
-             reps INTEGER NOT NULL DEFAULT 0
+             reps INTEGER NOT NULL DEFAULT 0,
+             card_type TEXT DEFAULT 'cloze',
+             payload TEXT DEFAULT NULL
          );
          CREATE INDEX IF NOT EXISTS idx_fsrs_due ON fsrs_cards (due, book_id);
 
@@ -85,8 +87,71 @@ pub fn open_or_create_db() -> Result<Connection> {
              completed INTEGER NOT NULL DEFAULT 0,
              last_read_at INTEGER NOT NULL,
              PRIMARY KEY (book_id, chapter_file)
+         );
+
+         CREATE TABLE IF NOT EXISTS dictionary_entries (
+             word TEXT PRIMARY KEY,
+             part_of_speech TEXT,
+             pronunciation TEXT,
+             definition TEXT,
+             etymology TEXT
          );"
     ).context("Failed to initialize database tables")?;
 
+    // Safe idempotent migration for fsrs_cards columns (card_type, payload)
+    let columns: Vec<String> = {
+        let mut stmt = conn.prepare("PRAGMA table_info(fsrs_cards);")?;
+        let cols = stmt
+            .query_map([], |row| row.get::<_, String>(1))?
+            .filter_map(Result::ok)
+            .collect();
+        cols
+    };
+
+    if !columns.iter().any(|c| c == "card_type") {
+        conn.execute("ALTER TABLE fsrs_cards ADD COLUMN card_type TEXT DEFAULT 'cloze';", [])?;
+    }
+    if !columns.iter().any(|c| c == "payload") {
+        conn.execute("ALTER TABLE fsrs_cards ADD COLUMN payload TEXT DEFAULT NULL;", [])?;
+    }
+
+    // Seed dictionary table if empty
+    if let Err(e) = super::seed_lexicon::seed_dictionary_if_empty(&conn) {
+        eprintln!("Warning: Failed to seed offline dictionary: {}", e);
+    }
+
     Ok(conn)
+}
+
+/// Looks up an English term in the offline SQLite dictionary cache.
+/// Applies word sanitization and punctuation stripping before querying.
+pub fn lookup_dictionary(conn: &Connection, word: &str) -> Result<Option<super::models::DictionaryEntry>> {
+    let clean_word = word
+        .trim()
+        .trim_matches(|c: char| !c.is_alphabetic())
+        .to_lowercase();
+
+    if clean_word.is_empty() {
+        return Ok(None);
+    }
+
+    let mut stmt = conn.prepare(
+        "SELECT word, part_of_speech, pronunciation, definition, etymology
+         FROM dictionary_entries
+         WHERE word = ?1
+         LIMIT 1"
+    )?;
+
+    let mut rows = stmt.query([&clean_word])?;
+    if let Some(row) = rows.next()? {
+        Ok(Some(super::models::DictionaryEntry {
+            word: row.get(0)?,
+            part_of_speech: row.get(1)?,
+            pronunciation: row.get(2)?,
+            definition: row.get(3)?,
+            etymology: row.get(4)?,
+        }))
+    } else {
+        Ok(None)
+    }
 }

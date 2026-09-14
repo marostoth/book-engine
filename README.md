@@ -33,6 +33,7 @@ Designed for deep reading of academic, technical, and dense literature with pers
 book-engine/
 ├── .agent/
 │   └── skills/                  # Autonomous verification scripts (audit-anchors, benchmark-fts)
+├── AGENTS.md                    # Canonical agent directives, guardrails & standards
 ├── apps/
 │   └── desktop/                 # Tauri v2 desktop application
 │       ├── src/                 # React 18+ frontend (TipTap, Floating UI, Tailwind CSS)

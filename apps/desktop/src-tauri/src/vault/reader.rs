@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use anyhow::{Context, Result};
-use super::models::{AppError, BookMetadata, BookSummary};
+use super::models::{AppError, BookMetadata, BookSummary, ExitAssessmentPayload};
 
 /// Discovers the absolute path to the Markdown vault directory.
 pub fn find_vault_root() -> Result<PathBuf> {
@@ -55,6 +55,73 @@ pub fn read_book_meta_json(book_id: &str) -> Result<String> {
     let path = vault.join("books").join(book_id).join("_meta.json");
     std::fs::read_to_string(&path)
         .with_context(|| format!("Failed to read _meta.json: {}", path.display()))
+}
+
+/// Retrieves the inspectional blueprint for a given book_id, synthesizing a resilient fallback if absent.
+pub fn get_inspectional_blueprint(book_id: &str) -> Result<crate::vault::InspectionalBlueprint> {
+    let meta_json_str = read_book_meta_json(book_id)?;
+    let val: serde_json::Value = serde_json::from_str(&meta_json_str)
+        .with_context(|| format!("Failed to parse _meta.json for {}", book_id))?;
+
+    if let Some(bp_val) = val.get("inspectional_blueprint") {
+        if !bp_val.is_null() {
+            if let Ok(bp) = serde_json::from_value::<crate::vault::InspectionalBlueprint>(bp_val.clone()) {
+                return Ok(bp);
+            }
+        }
+    }
+
+    let title = val["title"].as_str().unwrap_or("Untitled").to_string();
+    let author = val["author"].as_str().unwrap_or("Unknown Author").to_string();
+    let spine = val["spine"].as_array();
+    let pivotal_chapters: Vec<String> = spine
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|ch| ch["id"].as_str().map(|s| s.to_string()))
+                .take(2)
+                .collect()
+        })
+        .unwrap_or_default();
+
+    Ok(crate::vault::InspectionalBlueprint {
+        front_matter: serde_json::json!({
+            "has_preface": false,
+            "preface_path": None::<String>,
+            "publisher_blurb": format!("{} by {}", title, author)
+        }),
+        pivotal_chapters,
+        synthetic_index_clusters: vec![],
+        exit_assessment: None,
+    })
+}
+
+/// Saves an inspectional exit assessment to vault/books/<book-id>/_meta.json
+pub fn save_inspectional_exit_assessment(book_id: &str, assessment: ExitAssessmentPayload) -> Result<()> {
+    let vault = find_vault_root()?;
+    let meta_path = vault.join("books").join(book_id).join("_meta.json");
+    let content = std::fs::read_to_string(&meta_path)
+        .with_context(|| format!("Failed to read _meta.json: {}", meta_path.display()))?;
+    let mut val: serde_json::Value = serde_json::from_str(&content)
+        .with_context(|| format!("Failed to parse _meta.json for {}", book_id))?;
+
+    let assessment_json = serde_json::to_value(&assessment)
+        .with_context(|| "Failed to serialize exit assessment")?;
+
+    if let Some(obj) = val.as_object_mut() {
+        let bp = obj.entry("inspectional_blueprint").or_insert_with(|| serde_json::json!({
+            "front_matter": {},
+            "pivotal_chapters": [],
+            "synthetic_index_clusters": [],
+            "exit_assessment": null
+        }));
+        bp["exit_assessment"] = assessment_json;
+    }
+
+    let updated_json = serde_json::to_string_pretty(&val)
+        .with_context(|| "Failed to serialize updated _meta.json")?;
+    std::fs::write(&meta_path, updated_json)
+        .with_context(|| format!("Failed to write _meta.json: {}", meta_path.display()))?;
+    Ok(())
 }
 
 /// Reads notes markdown file from vault/notes/<book-id>/<file-name>
@@ -158,12 +225,22 @@ pub fn scan_library_books() -> std::result::Result<Vec<BookMetadata>, AppError> 
                     .map(|n| n as usize)
                     .unwrap_or(0);
 
+                let elementary_metrics = val
+                    .get("elementary_metrics")
+                    .and_then(|v| serde_json::from_value(v.clone()).ok());
+
+                let inspectional_blueprint = val
+                    .get("inspectional_blueprint")
+                    .and_then(|v| serde_json::from_value(v.clone()).ok());
+
                 results.push(BookMetadata {
                     id,
                     title,
                     author,
                     chapter_count,
                     total_words,
+                    elementary_metrics,
+                    inspectional_blueprint,
                 });
             }
         }

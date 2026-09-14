@@ -5,11 +5,17 @@ import Highlight from "@tiptap/extension-highlight";
 import Image from "@tiptap/extension-image";
 import { parseChapterMarkdown } from "../lib/markdown";
 import { applyBionicReading } from "../lib/bionic";
-import { applyHighlightsToHtml, createW3CHighlight } from "../lib/highlights";
-import { FootnoteItem, HighlightItem } from "../lib/types";
+import { applyHighlightsToHtml } from "../lib/highlights";
+import { FootnoteItem, HighlightItem, ReaderPreferences } from "../lib/types";
 import { FootnotePopover } from "./FootnotePopover";
 import { SelectionMenu } from "./SelectionMenu";
 import { AnchorParagraph, FootnoteRef } from "./reader/TipTapExtensions";
+import { ElementaryCanvas } from "./elementary/ElementaryCanvas";
+import { LexiconPopover } from "./elementary/LexiconPopover";
+import { useReaderSelection } from "./reader/useReaderSelection";
+import { ArgumentGutterBadge } from "./analytical/ArgumentGutterBadge";
+import { AnalyticalStore } from "../lib/types/analytical";
+import { FigureLightboxModal } from "./FigureLightboxModal";
 
 interface ReaderProps {
   bookId: string;
@@ -21,34 +27,72 @@ interface ReaderProps {
   onProgressChange: (progressPercent: number) => void;
   onAddHighlight: (highlight: HighlightItem) => void;
   onAddNoteFromSelection: (quote: string, anchorId?: string) => void;
+  onAddTerm?: (quote: string, anchorId?: string) => void;
+  onAddArgument?: (quote: string, anchorId?: string) => void;
+  onAddCritique?: (quote: string, anchorId?: string) => void;
+  onAddInquiry?: (quote: string, anchorId?: string) => void;
+  onAddSyntopic?: (quote: string, anchorId?: string) => void;
+  analyticalStore?: AnalyticalStore;
+  currentChapterFile?: string;
+  preferences?: ReaderPreferences;
+  onPreferencesChange?: (prefs: ReaderPreferences) => void;
+  activeLevel?: string;
+  onOpenInSplit?: () => void;
+  isPacingRunning?: boolean;
+  onTogglePacer?: () => void;
 }
 
 export const Reader: React.FC<ReaderProps> = ({
-  bookId,
-  vaultPath,
-  markdown,
-  isBionic,
-  highlights,
-  targetAnchor,
-  onProgressChange,
-  onAddHighlight,
-  onAddNoteFromSelection,
+  bookId, vaultPath, markdown, isBionic, highlights, targetAnchor,
+  onProgressChange, onAddHighlight, onAddNoteFromSelection,
+  onAddTerm, onAddArgument, onAddCritique, onAddInquiry, onAddSyntopic,
+  analyticalStore, currentChapterFile, preferences, onPreferencesChange,
+  activeLevel = "elementary", onOpenInSplit, isPacingRunning, onTogglePacer,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [footnotes, setFootnotes] = useState<Record<string, FootnoteItem>>({});
   const [activeFootnote, setActiveFootnote] = useState<FootnoteItem | null>(null);
   const [footnotePos, setFootnotePos] = useState<{ x: number; y: number } | null>(null);
+  const [activeLightboxImage, setActiveLightboxImage] = useState<{ src: string; alt: string } | null>(null);
 
-  const [selectionPos, setSelectionPos] = useState<{ x: number; y: number } | null>(null);
-  const [selectedText, setSelectedText] = useState<string>("");
-  const [selectedAnchor, setSelectedAnchor] = useState<string | undefined>();
+  // Selection, highlight, and lexicon popover coordination hook
+  const {
+    selectionPos,
+    selectedText,
+    isSingleWord,
+    lexiconWord,
+    lexiconPos,
+    lexiconAnchor,
+    setLexiconWord,
+    handleMouseUp,
+    handleHighlight,
+    handleAddNote,
+    handleCopyLink,
+    handleAddTerm,
+    handleAddArgument,
+    handleAddCritique,
+    handleAddInquiry,
+    handleAddSyntopic,
+    handleDefine,
+    handleDoubleClick,
+  } = useReaderSelection({
+    containerRef,
+    onAddHighlight,
+    onAddNoteFromSelection,
+    onAddTerm,
+    onAddArgument,
+    onAddCritique,
+    onAddInquiry,
+    onAddSyntopic,
+    instantDictionaryEnabled: preferences?.elementary?.instantDictionaryEnabled,
+  });
 
   // Single-Chapter Virtualization: Mounts TipTap for only the current chapter
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
         heading: {
-          levels: [1, 2, 3],
+          levels: [1, 2, 3, 4, 5, 6],
         },
         paragraph: false,
       }),
@@ -86,6 +130,16 @@ export const Reader: React.FC<ReaderProps> = ({
           }
           return true;
         }
+
+        const img = target.closest("img") as HTMLImageElement | null;
+        if (img && img.src) {
+          event.preventDefault();
+          setActiveLightboxImage({
+            src: img.src,
+            alt: img.alt || "Figure Diagram",
+          });
+          return true;
+        }
         return false;
       },
     },
@@ -108,6 +162,9 @@ export const Reader: React.FC<ReaderProps> = ({
     }
 
     editor.commands.setContent(html);
+    if (containerRef.current) {
+      setTimeout(handleScroll, 50);
+    }
   }, [editor, markdown, isBionic, highlights, bookId, vaultPath]);
 
   // Jump to target paragraph anchor when requested
@@ -143,81 +200,31 @@ export const Reader: React.FC<ReaderProps> = ({
     }
   };
 
-  // Floating selection menu handling
-  const handleMouseUp = () => {
-    const selection = window.getSelection();
-    if (!selection || selection.isCollapsed || !selection.toString().trim()) {
-      setSelectionPos(null);
-      return;
-    }
-
-    const text = selection.toString().trim();
-    if (text.length < 2) {
-      setSelectionPos(null);
-      return;
-    }
-
-    // Locate nearest anchor attribute
-    let anchor: string | undefined;
-    let node: Node | null = selection.anchorNode;
-    while (node && node !== containerRef.current) {
-      if (node instanceof HTMLElement && node.hasAttribute("data-anchor")) {
-        anchor = `^${node.getAttribute("data-anchor")}`;
-        break;
-      }
-      node = node.parentNode;
-    }
-
-    const range = selection.getRangeAt(0);
-    const rect = range.getBoundingClientRect();
-    setSelectionPos({
-      x: rect.left + rect.width / 2,
-      y: rect.top,
-    });
-    setSelectedText(text);
-    setSelectedAnchor(anchor);
-  };
-
-  // Add highlight using W3C Text Quote Selector standard
-  const handleHighlight = () => {
-    const selection = window.getSelection();
-    if (!selection) return;
-
-    const w3cHl = createW3CHighlight(selection, selectedAnchor);
-    if (w3cHl) {
-      onAddHighlight(w3cHl);
-    }
-
-    setSelectionPos(null);
-    selection.removeAllRanges();
-  };
-
-  // Add quote to notes pane
-  const handleAddNote = () => {
-    if (!selectedText) return;
-    onAddNoteFromSelection(selectedText, selectedAnchor);
-    setSelectionPos(null);
-    window.getSelection()?.removeAllRanges();
-  };
-
-  // Copy markdown quote anchor link
-  const handleCopyLink = () => {
-    const anchor = selectedAnchor ? ` (#${selectedAnchor})` : "";
-    const quote = `> "${selectedText}"${anchor}`;
-    navigator.clipboard.writeText(quote);
-    setSelectionPos(null);
-    window.getSelection()?.removeAllRanges();
-  };
-
   return (
     <div
       ref={containerRef}
       onScroll={handleScroll}
       onMouseUp={handleMouseUp}
+      onDoubleClick={handleDoubleClick}
       className="relative flex-1 h-full overflow-y-auto overflow-x-hidden bg-[var(--theme-bg)] scroll-smooth px-8 py-12 md:px-16 lg:px-24"
     >
-      <div className="max-w-3xl mx-auto min-h-full pb-32">
-        <EditorContent editor={editor} />
+      <div className="w-full min-h-full pb-32">
+        {preferences ? (
+          <ElementaryCanvas
+            containerRef={containerRef}
+            preferences={preferences}
+            onPreferencesChange={onPreferencesChange}
+            activeLevel={activeLevel}
+            isPacingRunning={isPacingRunning}
+            onTogglePacer={onTogglePacer}
+          >
+            <EditorContent editor={editor} />
+          </ElementaryCanvas>
+        ) : (
+          <div className="max-w-3xl mx-auto">
+            <EditorContent editor={editor} />
+          </div>
+        )}
       </div>
 
       {/* Popover citation footnote resolver */}
@@ -229,13 +236,50 @@ export const Reader: React.FC<ReaderProps> = ({
         />
       )}
 
-      {/* Floating selection toolbar for highlights & reflection notes */}
-      {selectionPos && selectedText && (
+      {/* Floating selection toolbar with de-conflicted Define, Term, and Arg buttons */}
+      {selectionPos && selectedText && !lexiconWord && (
         <SelectionMenu
-          position={selectionPos}
-          onHighlight={handleHighlight}
-          onAddNote={handleAddNote}
-          onCopyLink={handleCopyLink}
+          position={selectionPos} isSingleWord={isSingleWord} activeLevel={activeLevel}
+          onHighlight={handleHighlight} onAddNote={handleAddNote} onCopyLink={handleCopyLink}
+          onDefine={handleDefine} onAddTerm={handleAddTerm} onAddArgument={handleAddArgument}
+          onAddCritique={handleAddCritique} onAddInquiry={handleAddInquiry} onAddSyntopic={handleAddSyntopic}
+        />
+      )}
+
+      {/* Offline Lexicon Definition Popover */}
+      {lexiconWord && lexiconPos && (
+        <LexiconPopover
+          word={lexiconWord} anchor={lexiconAnchor} bookId={bookId}
+          position={lexiconPos} onClose={() => setLexiconWord(null)}
+        />
+      )}
+
+      {/* Right Gutter Markers for Analytical Reading */}
+      {analyticalStore && currentChapterFile && (
+        <ArgumentGutterBadge
+          containerRef={containerRef} currentChapterFile={currentChapterFile}
+          store={analyticalStore} activeLevel={activeLevel}
+          onBadgeClick={(anchor) => {
+            const clean = anchor.replace(/^(\^|§)/, "");
+            const el = containerRef.current?.querySelector(`[data-anchor="${clean}"]`);
+            if (el) {
+              el.scrollIntoView({ behavior: "smooth", block: "center" });
+              el.classList.add("bg-amber-100/40", "dark:bg-amber-900/30", "transition-colors", "duration-500");
+              setTimeout(() => {
+                el.classList.remove("bg-amber-100/40", "dark:bg-amber-900/30");
+              }, 1500);
+            }
+          }}
+        />
+      )}
+      {/* Figure Diagram Full-Resolution Lightbox */}
+      {activeLightboxImage && (
+        <FigureLightboxModal
+          isOpen={true}
+          imageSrc={activeLightboxImage.src}
+          imageAlt={activeLightboxImage.alt}
+          onClose={() => setActiveLightboxImage(null)}
+          onOpenInSplit={onOpenInSplit}
         />
       )}
     </div>

@@ -41,10 +41,13 @@ book-engine/
 │   └── skills/                  # Autonomous verification harnesses
 │       ├── audit-anchors.py         # Verifies paragraph anchor & footnote definition integrity
 │       ├── audit-practice.py        # Audits zero-hallucination verbatim extractive study cards
-│       ├── audit-system.py          # Universal dynamic health orchestrator (Ledger, Anchors, Cards, Rust, TS, FTS5, GUI smoke test)
+│       ├── audit-system.py          # Universal dynamic health orchestrator (12 vectors: Ledger, Anchors, Cards, Rust, TS, FTS5, GUI smoke test, Inspectional, Analytical, Syntopical, Elementary, Modularity & Isolation)
 │       ├── benchmark-fts.py         # Benchmarks SQLite FTS5 query latency (<15ms target)
 │       ├── process-inbox.py         # Automated fail-safe batch book intake pipeline & ledger manager
 │       └── test-index-rebuild.py    # Verifies self-healing FTS5 index reconstruction from vault
+├── AGENTS.md                    # Canonical agent directives, operational guardrails & technology standards
+├── CLAUDE.md                    # Claude agent pointer referencing canonical AGENTS.md
+├── GEMINI.md                    # Gemini agent pointer referencing canonical AGENTS.md
 ├── apps/
 │   └── desktop/                 # Tauri v2 native desktop application & React frontend
 │       ├── src/                 # React 18+ client application
@@ -52,46 +55,111 @@ book-engine/
 │       │   │   ├── analytics/       # Modular analytics subcomponents
 │       │   │   │   ├── HeatmapGrid.tsx      # GitHub-style annual FSRS study activity heatmap
 │       │   │   │   └── VelocityTable.tsx    # Chapter reading velocity, completion & WPM table
-│       │   │   ├── notes/           # Modular notes drawer subcomponents
+│       │   │   ├── analytical/      # Level 3 Analytical reading & interpretive workbench (Rules 4–12)
+│       │   │   │   ├── AnalyticalWorkbenchPane.tsx # Mortimer Adler companion pane (Terms, Args, Inquiries, Critique)
+│       │   │   │   ├── ArgumentBuilderModal.tsx    # Premise-to-conclusion argument graph assembler (Rules 6–7)
+│       │   │   │   ├── ArgumentGutterBadge.tsx     # Right-gutter cited paragraph markers (T, C, P, ?)
+│       │   │   │   ├── ArgumentsTab.tsx            # Rules 6 & 7 argument graph listing & premise viewer tab
+│       │   │   │   ├── CritiqueModal.tsx           # Stage III critical evaluation modal (Rules 9–12)
+│       │   │   │   ├── CritiqueTab.tsx             # Evaluative critique review & defect breakdown tab
+│       │   │   │   ├── InquiriesTab.tsx            # Rules 4 & 8 author inquiry ledger & solution audit tab
+│       │   │   │   ├── InquiryModal.tsx            # Rules 4 & 8 author inquiry cataloging & solution modal
+│       │   │   │   ├── TermsTab.tsx                # Rule 5 specialized author terminology listing tab
+│       │   │   │   └── TermModal.tsx               # Rule 5 author terminology definition modal
+│       │   │   ├── notes/           # Modular notes slide-over subcomponents
 │       │   │   │   ├── DrawerFilterBar.tsx  # Chapter, color & search filter controls
 │       │   │   │   └── NoteEntryCard.tsx    # Highlight / reflection quote card
+│       │   │   ├── elementary/      # Modular Level 1 Elementary Reading components & mechanics
+│       │   │   │   ├── ElementaryCanvas.tsx         # Reading canvas wrapper with dynamic typographical measure
+│       │   │   │   ├── ElementaryPacingControls.tsx # TopNav pacer Play/Pause toggle, WPM stepper & focus ruler controls
+│       │   │   │   ├── FocusRuler.tsx               # Active reading block tracker & sibling paragraph dimmer
+│       │   │   │   ├── LexiconPopover.tsx           # Floating offline lexicon definition & vocabulary saver popover
+│       │   │   │   ├── PacingOverlay.tsx            # Visual laser/underline beam pacer sweep indicator
+│       │   │   │   ├── useElementaryMechanics.ts    # Pacer state, RAF loop, duration calculation & scroll guard
+│       │   │   │   ├── useLinePacer.ts              # Discrete line clock, saccadic pause & RAF line glide hook
+│       │   │   │   └── usePacerDrag.ts              # Tactile pointer drag scrubbing, seek resolver & keyboard stepping hook
+│       │   │   ├── inspectional/    # Modular Level 2 Inspectional Reading components
+│       │   │   │   ├── BlueprintView.tsx        # Structural Book Blueprint (dossier, analytical TOC, clusters)
+│       │   │   │   ├── DipStream.tsx            # Virtualized feed of chapter dip sampling cards
+│       │   │   │   ├── InspectionalExitModal.tsx # Four-question Adlerian exit assessment modal
+│       │   │   │   └── SkimTimerWidget.tsx      # Ambient skimming countdown timer & exit trigger
+│       │   │   ├── navigation/      # Modular navigation rails
+│       │   │   │   └── LevelRail.tsx        # Fixed 36px vertical rail for Adler reading level modes (I–IV)
 │       │   │   ├── practice/        # Modular practice drill subcomponents
 │       │   │   │   ├── ClozeDrill.tsx       # Extractive Cloze completion drill
-│       │   │   │   ├── RatingBar.tsx        # FSRS-4.5 Again/Hard/Good/Easy rating bar
+│       │   │   │   ├── GatekeeperCardDrill.tsx # Dual-modality Cloze & Scenario MCQ challenge drill for Chapter Gatekeeper
+│       │   │   │   ├── RatingBar.tsx        # FSRS-4.5 Again/Hard/Good/Easy rating bar with suggested rating badge
+│       │   │   │   ├── ScenarioCardView.tsx # Deductive multiple-choice scenario drill with anti-bias option shuffling
 │       │   │   │   └── ScrambleDrill.tsx    # Drag/click scrambled clause reconstruction drill
-│       │   │   ├── reader/          # Modular TipTap custom extensions
-│       │   │   │   └── TipTapExtensions.ts  # AnchorParagraph & FootnoteRef custom Prosemirror nodes
+│       │   │   ├── reader/          # Modular TipTap custom extensions & reader hooks
+│       │   │   │   ├── TipTapExtensions.ts  # AnchorParagraph & FootnoteRef custom Prosemirror nodes
+│       │   │   │   └── useReaderSelection.ts # Text selection, highlights, anchor detection & lexicon de-confliction
+│       │   │   ├── settings/        # Modular reader settings tabs
+│       │   │   │   ├── ElementaryTab.tsx       # Level 1 Elementary Reading shell & settings tab
+│       │   │   │   ├── FocusRulerControls.tsx  # Focus ruler contrast presets, fine stepper & spotlight toggle
+│       │   │   │   ├── GeneralTab.tsx          # Reading palette, font family, font size & line height
+│       │   │   │   ├── InspectionalTab.tsx     # Skim timer, exit card, sampling depth & single-key paging
+│       │   │   │   ├── PacerControls.tsx       # Pacer velocity, line sweep vs chunk underline, focus lock & direct launch button
+│       │   │   │   └── PracticeTab.tsx         # Chapter Gatekeeper, recall quota, daily target & deck sync
 │       │   │   ├── sidebar/         # Modular sidebar subcomponents
 │       │   │   │   └── TOCItemRow.tsx       # Hierarchical TOC tree item row
+│       │   │   ├── syntopicon/      # Modular Level 4 Syntopical Reading & Syntopicon components
+│       │   │   │   ├── ControversyModal.tsx # Rule 4 multi-author controversy and issue definition modal
+│       │   │   │   ├── IssueMatrixTab.tsx   # Rules 3 & 4 framed question feed & controversy matrix tab
+│       │   │   │   ├── NeutralTermModal.tsx # Rule 2 neutral semantic bridge & author term mapping modal
+│       │   │   │   ├── SynthesisTab.tsx     # Rule 5 dialectical synthesis editor & Markdown dossier compiler tab
+│       │   │   │   ├── SyntopiconPane.tsx   # Level IV Syntopicon registry, topic manager & tab shell
+│       │   │   │   └── SyntopicTermsTab.tsx # Rule 2 neutral terminology directory & citation mapper tab
 │       │   │   ├── AnalyticsModal.tsx   # FSRS retention heatmap & reading velocity dashboard modal
+│       │   │   ├── AppModals.tsx        # Modular modal dialog coordinator & container
 │       │   │   ├── BookSelector.tsx     # Dynamic vault library switcher popover
+│       │   │   ├── FigureLightboxModal.tsx # High-resolution diagram pan/zoom lightbox with split page link
 │       │   │   ├── FootnotePopover.tsx  # Floating UI citation preview popover
-│       │   │   ├── GatekeeperModal.tsx  # Chapter Gatekeeper 3-card recall challenge modal
+│       │   │   ├── GatekeeperModal.tsx  # Chapter Gatekeeper dynamic-quota recall challenge modal
+│       │   │   ├── LevelCompanionPane.tsx # Modular Level III & IV companion pane coordinator
+│       │   │   ├── LevelGuideModal.tsx  # Contextual HUD, level cheatsheets & keyboard shortcuts modal
 │       │   │   ├── NotesDrawer.tsx      # Unified slide-over notes & W3C highlights drawer with summary export
 │       │   │   ├── NotesPane.tsx        # Dual-pane Markdown reflection notes editor
 │       │   │   ├── OmniSearchModal.tsx  # Ctrl+K global full-text search palette
-│       │   │   ├── PracticeModal.tsx    # Extractive practice suite (Cloze & Scramble drills)
+│       │   │   ├── PracticeModal.tsx    # Extractive practice suite (Cloze, Scenario MCQ & Scramble drills)
 │       │   │   ├── Reader.tsx           # Virtualized TipTap chapter canvas with margin anchors
 │       │   │   ├── SelectionMenu.tsx    # Floating UI selection toolbar (Highlight, Note, Link)
 │       │   │   ├── SettingsPopover.tsx  # Reader preferences & Gatekeeper settings popover
 │       │   │   ├── Sidebar.tsx          # Hierarchical TOC & linear chapter navigation drawer
 │       │   │   └── TopNav.tsx           # Top navigation chrome, progress bar, view modes & themes
 │       │   ├── hooks/           # Modular application custom hooks
-│       │   │   └── useBookSession.ts    # Book loading, reading progress, session timing & chapter jumping
+│       │   │   ├── useAnalyticalModals.ts    # Level 3 modal open/close & staged target coordinator
+│       │   │   ├── useAnalyticalSession.ts   # Analytical reading store, cascading integrity & persistence hook
+│       │   │   ├── useBookSession.ts         # Book loading, reading progress, session timing & chapter jumping
+│       │   │   ├── useInspectionalSession.ts # Inspectional countdown timer, sub-view & exit prompt manager
+│       │   │   ├── usePracticeDeck.ts        # Practice deck state, mode/ratio filtering, daily target limits & Gatekeeper orchestration
+│       │   │   └── useSyntopiconSession.ts   # Level 4 Syntopicon registry, cascade-pruning & topic session hook
 │       │   ├── lib/             # Core TypeScript utilities, transformers, and contracts
 │       │   │   ├── api/             # Modular Tauri IPC & dev mock client modules
+│       │   │   │   ├── analyticalApi.ts     # Analytical reading store load/save IPC & localStorage fallback
 │       │   │   │   ├── analyticsApi.ts      # Study analytics, reading session & velocity IPC client
 │       │   │   │   ├── clientBase.ts        # Tauri detection & safe invoke wrapper
 │       │   │   │   ├── fallbackAnalytics.ts # In-memory analytics mock generators
+│       │   │   │   ├── fallbackLexicon.ts   # In-memory dictionary and deduplicated vocabulary persistence fallback
 │       │   │   │   ├── fallbackNotes.ts     # In-memory note persistence fallback
+│       │   │   │   ├── lexiconApi.ts        # Sanitized offline dictionary lookup & vocabulary vault persistence IPC
 │       │   │   │   ├── mockData.ts          # Default mock book catalogs & sample chapters
 │       │   │   │   ├── notesApi.ts          # Cross-chapter note aggregation & summary export IPC
-│       │   │   │   └── practiceApi.ts       # FSRS practice card synchronization & review IPC
+│       │   │   │   ├── practiceApi.ts       # FSRS practice card synchronization & review IPC
+│       │   │   │   └── syntopiconApi.ts     # Level 4 Syntopicon topic registry & persistence IPC client
+│       │   │   ├── types/           # Modular contract definitions
+│       │   │   │   ├── analytical.ts        # Level 3 analytical terms, citations & argument graph interfaces
+│       │   │   │   └── syntopicon.ts        # Level 4 syntopical neutral terms, questions & controversy models
 │       │   │   ├── api.ts               # Unified API client facade with browser dev fallbacks
 │       │   │   ├── bionic.ts            # Deterministic bionic fixation bolding transformer
+│       │   │   ├── elementaryPacer.ts      # Pure pacer timing, chunking, and contrast opacity functions
+│       │   │   ├── elementaryPacer.test.ts # Unit tests for pacer timing, chunking, and contrast math
 │       │   │   ├── highlights.ts        # W3C Text Quote Selector parser & serializer
+│       │   │   ├── levelGuideData.ts    # Mortimer Adler levels static cheatsheet & hotkeys registry
 │       │   │   ├── markdown.ts          # Chapter Markdown preprocessor & anchor normalizer
 │       │   │   ├── notesAggregator.ts   # Cross-chapter note aggregation, anchor sorting & summary compiler
+│       │   │   ├── practiceTypes.ts     # FSRS practice models (ScenarioOption, ScenarioPayload, PracticeCardItem)
+│       │   │   ├── preferences.ts       # Default v2 preferences & deep-merge migration helper
 │       │   │   └── types.ts             # Canonical TypeScript interfaces & data contracts
 │       │   ├── App.tsx          # Application shell, global state coordinator & router
 │       │   ├── index.css        # Editorial design tokens, typography, and margin glyphs
@@ -114,14 +182,20 @@ book-engine/
 │           │   │   ├── models.rs            # SQLite row models and analytics transfer structs
 │           │   │   ├── reading_velocity.rs  # Chapter reading session recording & velocity calculations
 │           │   │   ├── schema.rs            # SQLite database initialization & migrations
+│           │   │   ├── seed_lexicon.rs      # Curated seed dictionary entries & initial SQLite database seeding
 │           │   │   └── mod.rs               # Ephemeral SQLite database module root & test suite
 │           │   ├── fsrs.rs              # Local FSRS-4.5 spaced repetition scheduling engine
 │           │   ├── lib.rs               # Application builder, plugin setup, and invoke router
 │           │   ├── main.rs              # Tauri binary executable entrypoint
 │           │   ├── vault/               # Modular vault file I/O & notes aggregation
-│           │   │   ├── models.rs            # Vault metadata and note structures
+│           │   │   ├── analytical.rs        # Level 3 analytical store loader, saver & unit tests
+│           │   │   ├── models.rs            # Vault metadata, analytical and note structures
 │           │   │   ├── notes.rs             # Chapter reflection notes loader, saver & summary export
 │           │   │   ├── reader.rs            # Vault root resolution, book discovery & chapter I/O
+│           │   │   ├── syntopicon.rs        # Level 4 Syntopicon topic file I/O & report exporter
+│           │   │   ├── syntopicon_compiler.rs # Level 4 Dialectical dossier compiler producing Markdown reports
+│           │   │   ├── syntopicon_models.rs # Level 4 Syntopicon neutral terms & controversy structs
+│           │   │   ├── vocabulary.rs        # Vault vocabulary persistence with case-insensitive deduplication
 │           │   │   └── mod.rs               # Vault module facade
 │           ├── Cargo.toml       # Rust dependency manifest (rusqlite, tokio, tauri v2)
 │           └── tauri.conf.json  # Tauri v2 window, security, and bundle configuration
@@ -133,24 +207,42 @@ book-engine/
 │   └── ingestion/               # Python CLI & deterministic parsing pipeline
 │       ├── ingest/              # Ingestion library modules
 │       │   ├── anchors.py               # Deterministic paragraph anchor (^p-xxx) injector
-│       │   ├── assets.py                # EPUB embedded image & diagram extractor
+│       │   ├── assets.py                # Asset extraction, micro-asset filtering & page-level image suppression
 │       │   ├── batch.py                 # Batch document intake utility (.epub & .pdf)
 │       │   ├── cli.py                   # Command-line entrypoint (`book-ingest`)
+│       │   ├── elementary.py            # Deterministic Flesch-Kincaid & reading time metrics
 │       │   ├── endnotes.py              # Backmatter endnote relocation to inline footnotes
 │       │   ├── epub_parser.py           # XHTML chapter extractor & typography normalizer
+│       │   ├── layout_stitcher.py       # Narrative sentence healing, layout reconciliation & callout hoisting
 │       │   ├── models.py                # Pydantic schema validation for metadata and cards
-│       │   ├── pdf_parser.py            # Sequential chapter-by-chapter PDF parser & asset filter
-│       │   ├── pdf_sanitizer.py         # PDF slug normalization, markdown & author sanitization
+│       │   ├── pdf_parser.py            # Sequential chapter-by-chapter PDF parser & asset coordinator
+│       │   ├── pdf_sanitizer.py         # PDF slug normalization, drop-cap healing, heading & author sanitization
 │       │   ├── pipeline.py              # End-to-end ingestion pipeline coordinator
 │       │   ├── salience.py              # Deterministic salience scorer & Cloze deck generator
-│       │   └── sample_generator.py      # Starter sample generator for development
-│       ├── tests/               # Pytest verification suite for anchors, TOC, and pipeline
+│       │   ├── sample_generator.py      # Starter sample generator for development
+│       │   ├── scenarios.py             # Contextual deductive scenario & MCQ engine with thematic distractor matching
+│       │   └── vector_figures.py        # Vector diagram rasterization, boundary stops & full-width section bounds
+│       ├── tests/               # Pytest verification suite for anchors, schemas, TOC, and pipeline
+│       │   ├── test_analytical_audit.py # Vector 9 analytical logic & citation parity test suite
+│       │   ├── test_anchors.py          # Deterministic paragraph anchor injection test suite
+│       │   ├── test_endnotes.py         # Endnote relocation & inline footnote syntax test suite
+│       │   ├── test_figure_cards.py     # Figure extraction, full-width dimensions & table suppression tests
+│       │   ├── test_meta_schema.py      # Book metadata, hierarchical TOC & schema validation tests
+│       │   ├── test_pdf.py              # PDF parsing, chapter splitting & text preservation tests
+│       │   ├── test_pipeline.py         # End-to-end ingestion pipeline integration test suite
+│       │   ├── test_practice_deck.py    # Zero-hallucination verbatim practice card validation tests
+│       │   ├── test_salience.py         # Salience scoring & extractive cloze extraction tests
+│       │   ├── test_syntopicon_audit.py # Vector 10 syntopical cross-vault referential parity test suite
+│       │   └── test_toc.py              # Table of contents extraction & hierarchy tests
 │       └── pyproject.toml       # Python package configuration and CLI entrypoints
 ├── scripts/
 │   └── create_desktop_shortcut.ps1 # One-click Windows desktop shortcut generator
 ├── vault/                       # SOLE PERMANENT RECORD: User Markdown vault (Versioned / Syncable)
 │   ├── books/<book-id>/         # Chapter Markdown (`ch-XX.md`), `_meta.json`, and extracted assets
-│   └── notes/<book-id>/         # Chapter notes, serialized highlights, and study decks
+│   ├── notes/<book-id>/         # Chapter notes, serialized highlights, and study decks
+│   └── syntopicon/              # Level 4 Syntopicon topic registries & compiled reports
+│       ├── topics/              # Cross-book syntopical topics (`<topic-id>.json`)
+│       └── reports/             # Compiled dialectical dossiers (`<topic-id>-synthesis.md`)
 └── %APPDATA%\book-engine\       # EPHEMERAL CACHE: OS AppData (Never in vault; reconstructible)
     └── app_cache/index.db       # SQLite database (FTS5 search index + FSRS card review states)
 ```
@@ -169,6 +261,16 @@ Anchors follow the format `^p-[0-9]{3,}` and are preserved across re-indexes.
 
 ### Hierarchical Spine Contract (_meta.json)
 The manifest models multi-level books (Parts -> Chapters -> Sections) with word counts, paths, and anchors.
+
+### Vector Figure Extraction & Full-Width Section Bounding (`packages/ingestion/ingest/vector_figures.py`)
+Multi-column textbook pages frequently include full-width conceptual matrices, multi-step process models, and leader callout boxes. To guarantee unclipped, high-resolution rendering:
+- **Full-Width Section Bounding:** Vector diagram rasterization captures the full printable horizontal band: $[0, y_{\text{top}} - 8, \text{page.width}, y_{\text{bottom}} + 8]$ rendered at 200 DPI.
+- **Stop-Block Protection:** Diagram boundaries stop cleanly before subsequent chapter sections, headings, or tables using strict word-boundary token matching (`\bchapter\b`, `\bpart\b`, `\btable\b`).
+- **Aspect Ratio & Dimension Filtering:** Micro-decorations, standalone page header lines, and thin borders ($<50$ pt or aspect ratio $>6:1$) are pruned to prevent over-extraction.
+
+### Zero-Redaction Reading Architecture & Table Suppression (`packages/ingestion/ingest/pdf_parser.py`)
+- **Zero Redactions:** Destructive PDF text redactions are permanently abolished. Markdown text is generated directly from the pristine PyMuPDF document, guaranteeing 100% text completeness and preventing prefix or word amputations (`Importance`, `Underlying`, `They include`).
+- **Synthetic Table Suppression:** When PyMuPDF vector line heuristics detect diagram lines and synthesize ASCII markdown tables (`||Starting point|Focus|...`), the parser detects embedded figure markers across table rows and cleanly replaces the entire synthetic table with the high-resolution figure asset reference while leaving surrounding body narrative (e.g., Steve Jobs quote) as clean Markdown prose.
 
 ---
 
@@ -394,6 +496,11 @@ When a chapter HTML payload is prepared for mounting into TipTap:
 - **Snippet `<mark>` Rendering:** SQLite FTS5 snippets with `<mark>` highlight tags are sanitized and rendered directly in the result item preview.
 - **Cross-Chapter Anchor Navigation:** Selecting a search result switches the active chapter (maintaining single-chapter DOM virtualization), waits for DOM mounting, and smoothly scrolls directly to the target paragraph anchor (`^p-xxx`) with a brief visual flash highlight (`ring-2 ring-accent`).
 
+### High-Resolution Figure Lightbox & Split-View Jump (`apps/desktop/src/components/FigureLightboxModal.tsx`)
+- **Interactive Figure Cards:** ProseMirror editor intercepts diagram clicks on reader images and mounts an accessible full-screen Lightbox modal.
+- **Pan & Zoom Controls:** Provides smooth zoom-in, zoom-out, 1:1 reset, and keyboard navigation (`+`, `-`, `0`, `Escape`).
+- **Original Page Split-View Integration:** Readers can click **"View in Split View"** directly inside the Lightbox modal to switch the application to dual-pane mode, displaying the pristine publisher PDF page side-by-side with the Markdown text canvas.
+
 ### Verification & Performance Benchmark Standard
 - **Anchor Integrity:** Verified via `python .agent/skills/audit-anchors.py`.
 - **FTS Query Benchmark:** Verified via `python .agent/skills/benchmark-fts.py`.
@@ -533,8 +640,261 @@ Compiled via `npm run tauri build`:
   - Size: ~3.5 MB
   - Setup installer with desktop shortcut generation, start menu entry, and clean uninstaller.
 
+---
 
+## 10. Scenario-Based Analytical Drills & FSRS Integration (Phase 3 Track 3D)
 
+### Architectural Overview
+Extends the spaced repetition subsystem beyond lexical cloze recall to test Adlerian Level 3 deductive analytical comprehension (propositions, syllogisms, and validity of inferences).
+
+```
+vault/notes/<book-id>/practice-deck.md
+  │
+  ├── Cloze Cards (### card-xxx) ──────┐
+  └── Scenario Cards (### Scenario: sc-xxx)
+                                       │
+                         [fsrs_parser.rs]
+                                       │
+                  ┌────────────────────┴────────────────────┐
+                  ▼                                         ▼
+      Verbatim Cloze Substring                Verbatim Rationale Quote Match
+      Validation against Chapter              against Cited Paragraph Anchor
+                  │                                         │
+                  └────────────────────┬────────────────────┘
+                                       ▼
+                       SQLite UPSERT (fsrs_cards)
+                        card_type + JSON payload
+                                       │
+                        Unified FSRS-4.5 Scheduler
+                                       │
+                  ┌────────────────────┴────────────────────┐
+                  ▼                                         ▼
+            ClozeDrill.tsx                        ScenarioCardView.tsx
+          (Extractive Cloze)                  (Anti-bias Option Shuffling,
+                                               Evaluation & Rationale Reveal)
+```
+
+### Invariants & Technical Specifications
+1. **Markdown Format (`practice-deck.md`):**
+   ```markdown
+   ### Scenario: sc-sample-001
+   <!-- citation: ch-01.md#^p-003 -->
+   **Scenario:** Description of problem or synthetic premise.
+   - [ ] (A) Plausible distractor.
+   - [x] (B) Valid deductive conclusion.
+   - [ ] (C) Alternative distractor.
+   - [ ] (D) Plausible distractor.
+   > **Rationale:** Verbatim quote from cited anchor explaining deductive link. (ch-01.md#^p-003)
+   ```
+2. **SQLite Schema & Migration (`db/schema.rs`):**
+   - Idempotently adds `card_type TEXT DEFAULT 'cloze'` and `payload TEXT DEFAULT NULL` via `PRAGMA table_info(fsrs_cards)`.
+   - `sync_practice_deck_blocking` uses `INSERT ... ON CONFLICT(card_id) DO UPDATE SET ...` to preserve user review state, reps, and stability.
+3. **Anti-Bias Shuffling (`ScenarioCardView.tsx`):**
+   - Randomizes option presentation order on mount via Fisher-Yates shuffle while retaining immutable option keys (`A`, `B`, `C`, `D`) for deterministic evaluation.
+   - Gates FSRS rating bar until user submits an answer; pre-suggests `Again` (rating 1) on incorrect evaluations.
+4. **Audit Grounding (`audit-practice.py`):**
+   - Verifies citation anchor exists in chapter text.
+   - Verifies `> **Rationale:**` contains a verbatim quote matching the cited paragraph text.
+   - Format validation: exactly 1 `[x]` and at least 2 `[ ]`.
+5. **Autonomous Ingestion Generation (`ingest/scenarios.py`):**
+   - Autonomous extraction during EPUB and PDF intake via `generate_chapter_scenario_cards(chapter_markdown, chapter_id, max_items=3)`.
+   - Selects top-scoring proposition sentences from paragraphs as target correct conclusions.
+   - Harvests plausible in-domain distractor propositions from non-target paragraphs across the chapter.
+   - Zero-hallucination guarantee: every option (`A`, `B`, `C`, `D`) and the rationale quote are 100% extractive, exact character substrings from the source chapter.
+   - Integrated into `pipeline.py` and `pdf_parser.py`, and formatted side-by-side with Cloze cards in `vault/notes/<book-id>/practice-deck.md`.
+6. **Practice Modality Filtering & Dynamic Retrieval (`fsrs_store.rs`, `usePracticeDeck.ts`):**
+   - Reader settings allow toggling between `verbatim` (Cloze/Scramble recall), `mcq_scenario` (Analytical Scenario MCQs), and `hybrid` (Balanced dual-modality).
+   - In `mcq_scenario` mode, SQLite filters `AND card_type = 'scenario'`.
+   - In `verbatim` mode, SQLite filters `AND card_type != 'scenario'`.
+   - In `hybrid` mode, SQLite balances cloze and scenario cards using `hybrid_ratio` (default `0.5`, with selectable UI presets `50:50 Balanced`, `70:30 Recall`, `30:70 MCQ`) and interleaves the results.
+   - Respects user's configured `dailyTargetCards` setting (5–100) instead of hardcoding `LIMIT 50`.
+7. **Chapter Gatekeeper Dual-Modality Support (`GatekeeperCardDrill.tsx`):**
+   - Renders inline cloze input for verbatim items, and scenario stem with clickable A/B/C/D choices for scenario items.
+   - Evaluates scenario choices with instant correctness feedback and extractive grounding quote reveal before rating.
+   - Respects user's configured `gatekeeperQuota` setting (1–10) rather than hardcoded 3 cards.
+8. **TopNav & Settings Badge Synchrony:**
+   - Practice badge count in TopNav and the "Sync Deck" action in Practice settings dynamically reflect the due card count for the currently active study modality.
+
+---
+
+## 11. Level 4 Syntopical Reading: Syntopicon Registry & Cross-Book Issue Matrix (Phase 4 Track 4A)
+
+### Architectural Overview
+Mortimer Adler's Level 4 Syntopical Reading investigates an ultimate subject spanning multiple distinct books simultaneously. The Syntopicon provides:
+1. **Rule 2 ("Bringing the Authors to Terms"):** A neutral semantic bridge mapping idiosyncratic author phrasing and vocabulary back to common synthesized terms.
+2. **Rule 3 ("Framing the Questions"):** Universal, non-author-specific questions ordered logically.
+3. **Rule 4 ("Defining the Issues"):** Multi-author controversy matrix capturing opposing stances, nuances, and cross-book paragraph citations.
+
+```
+vault/syntopicon/topics/<topic-id>.json
+  │
+  ├── Neutral Terms (Rule 2) ──────────────────────────┐
+  │     ├── term: "Granular Specialization"             │
+  │     └── mappings:                                  │
+  │           ├── [wealth-of-nations] "Division of Labour"  ──> ch-04.md#^p-001
+  │           └── [sample] "Decoupled Invariants"           ──> ch-01.md#^p-001
+  │                                                     │
+  ├── Questions (Rule 3) ──────────────────────────────┤
+  │     └── "How does decomposition alter resilience?" │
+  │                                                     │
+  └── Controversies (Rule 4) ──────────────────────────┘
+        ├── questionId: "q-partition-coordination"
+        ├── title: "Productive Opulence vs Partition Trade-offs"
+        └── perspectives:
+              ├── [wealth-of-nations] Stance & Quote ──> ch-04.md#^p-001
+              └── [sample] Stance & Quote            ──> ch-01.md#^p-003
+```
+
+### Invariants & Technical Specifications
+1. **Cross-Vault Non-Destructive Storage:**
+   - All topics are persisted purely to `vault/syntopicon/topics/<topic-id>.json`.
+   - Never mutates book source Markdown or single-book analytical notes.
+   - Rust backend auto-scaffolds `vault/syntopicon/topics/` on startup.
+2. **Multi-Book Invariant:**
+   - Every topic must link citations spanning $\ge 2$ distinct valid books in `vault/books/`. Vector 10 asserts this.
+3. **Cascading Referential Integrity:**
+   - Every `questionId` in controversies strictly resolves to an existing framed question within the topic.
+   - Deleting a question cascade-prunes any controversies addressing that question.
+4. **Cross-Book Dynamic Navigation:**
+   - Clicking a cross-book citation (`bookId#chapterFile#anchor`) dynamically re-hydrates the active book, loads the target chapter, and smoothly scrolls to the target anchor.
+   - Gatekeeper challenge is automatically bypassed in Level 4 comparative mode.
+5. **Vector 10 Diagnostic Audit:**
+   - Cryptographically verifies all topic files, JSON schema validity, multi-book citations, chapter anchor presence, and question-controversy parity.
+
+---
+
+## 12. Level 4 Syntopical Reading: Dialectical Synthesis & Dossier Compiler (Phase 4 Track 4B)
+
+### Architectural Overview
+Syntopical reading culminates in Mortimer Adler's Syntopical Rule 5 ("Analyzing the Discussion"). While Rules 2–4 catalog the landscape of definitions, framed questions, and controversial stances, Rule 5 analyzes the debate with dialectical detachment:
+1. **Ordering the Discussion:** Clarifying the major cleavages of opinion and fundamental presuppositions that lead authors to opposing positions.
+2. **Dialectical Resolution:** Distilling the central truth of the inquiry objectively, acknowledging which aspects are settled and which remain unresolved.
+3. **Dossier Compilation:** Generating publication-grade Markdown reports with frontmatter metadata and formatted citation links ready for external review and archival.
+
+```
+SyntopiconPane (SynthesisTab.tsx)
+  │
+  ├── 800ms Debounced Auto-Save ("Saved" / "Saving...")
+  │     └── vault/syntopicon/topics/<topic-id>.json
+  │           (synthesisNotes & dialecticalResolution)
+  │
+  └── [Export Dialectical Dossier]
+        │
+        ├── Save-Before-Export Invariant: Flushes in-memory notes to disk
+        ▼
+  Tauri IPC: export_syntopic_report(topicId)
+        │
+        ▼
+  syntopicon_compiler::compile_dialectical_dossier
+        │
+        ▼
+  vault/syntopicon/reports/<topic-id>-synthesis.md
+        │
+        ├── Frontmatter (topic_id, title, generated_at, books_involved, metrics)
+        ├── Section 1: Neutral Terminology Translation Bridge (Rule 2)
+        ├── Section 2: Syntopical Issues & Dialectical Clash (Rules 3 & 4)
+        ├── Section 3: Dialectical Discussion: Ordering of the Debate (Rule 5)
+        └── Section 4: Dialectical Resolution: Distillation of Truth (Rule 5)
+```
+
+### Invariants & Technical Specifications
+1. **Adlerian Dialectical Detachment (Rule 5):**
+   - The synthesis editor requires readers to differentiate between the *ordering of the discussion* (competing assumptions) and the *dialectical resolution* (objective truth distillation).
+2. **Save-Before-Export Invariant:**
+   - `useSyntopiconSession::exportReport()` flushes current in-memory edits to `vault/syntopicon/topics/<topic-id>.json` before executing the backend compiler IPC, ensuring disk parity between JSON topic data and exported Markdown.
+3. **Publication-Grade Markdown Dossiers:**
+   - Generated under `vault/syntopicon/reports/<topic-id>-synthesis.md`.
+   - Includes standard frontmatter metadata, quotes with book and anchor citations (`— [book:ch.md#^p-xxx](...)`), and formatted dialectical commentary.
+4. **Vector 10 Parity Extension:**
+   - Diagnostic Vector 10 in `.agent/skills/audit-system.py` validates all exported reports under `vault/syntopicon/reports/`.
+   - Confirms that every dossier references an existing topic and that all Markdown anchor links (`^p-xxx`) resolve to verbatim chapter text in `vault/books/`.
+
+---
+
+## 13. Ingestion Engine Polish & TopNav Layout Remediation
+
+### Generic Diagram Text Masking & Vector Figure Extraction
+1. **In-Memory Text-Only Redaction:**
+   - Vector drawings, diagram bounds, and discrete image bounding boxes unioned with adjacent captions are masked using PyMuPDF redaction: `page.apply_redactions(images=pymupdf.PDF_REDACT_IMAGE_NONE)`.
+   - This ensures internal diagram labels and `<!-- Start of picture text -->` blocks never leak into body Markdown while preserving underlying raster artwork.
+2. **Vector Diagram Rasterization:**
+   - Composite vector diagrams (such as comparison matrices and concept quadrants) are bounded with 18pt padding clamped to `page.rect` and rendered to 200 DPI PNG assets (`assets/fig-XX-Y.png`).
+   - Leaked table fragments, standalone duplicate captions, or body paragraph references are cleanly replaced with Markdown image tags.
+3. **Universal Caption Deduplication:**
+   - Idempotent regex pass in `pdf_sanitizer.py` suppresses duplicate standalone caption paragraphs appearing immediately adjacent to figures whose artwork already includes the title.
+
+### TopNav Layout & Flex Hierarchy
+1. **Anti-Starvation Hierarchy:**
+   - The central chapter title container is assigned `min-w-[200px] flex-1 max-w-md lg:max-w-xl` with `truncate` applied to the inner title span.
+   - Neighboring utility buttons in the right cluster use `shrink-0`, preventing flexbox starvation from collapsing chapter titles to `Chapter 1. M...` on standard desktop resolutions.
+
+---
+
+## 14. Level 1 Elementary Reading: Pacer Velocity & Focus Ruler Mechanics
+
+### Focus Ruler Contrast & Active Spotlighting
+1. **Deeper Contrast Range & Presets:**
+   - Dimming percentage expands from $20\%$ up to $98\%$ with an opacity floor of $0.02$ ($\text{opacity} = \max(0.02, \frac{100 - \text{dimmingPercent}}{100})$).
+   - Four instant presets: `Soft (45%)`, `Balanced (70%)`, `High (88%)`, and `Deep Focus (96%)`, accompanied by a fine-tuning stepper ($\pm 2\%$).
+2. **Active Paragraph Spotlighting:**
+   - When enabled, the focused paragraph receives a $3\text{px}$ solid amber left margin rail (`border-left: 3px solid var(--theme-accent)`), subtle ambient background tint (`rgba(245, 158, 11, 0.035)`), and smooth $220\text{ms}$ transitions.
+3. **Pacer Priority Focus Lock:**
+   - When the Pacer is actively running, the Focus Ruler locks onto the pacer's active paragraph and ignores mouse hover jitter, ensuring uninterrupted reading flow.
+
+### Geometry-Aware Chunk Underline Pacer (`Range.getClientRects()`)
+1. **Line Deconstruction & Baseline Guide:**
+   - Using browser DOM `Range.getClientRects()`, the active paragraph is decomposed into rendered line boxes.
+   - A subtle baseline guide illuminates the active reading line.
+2. **Discrete Line-by-Line Clock & Saccadic Return-Sweep (`useLinePacer.ts`):**
+   - Each rendered line operates on an isolated, discrete line-clock ($t_{\text{line}} = 0$) rather than a rushed paragraph-wide timer.
+   - **Instantaneous Vertical Drop:** Moving from line $k$ to line $k+1$ drops coordinates in $0\text{ms}$ with zero lagging CSS position transitions, eliminating diagonal sliding across the screen.
+   - **Saccadic Pause ($60\text{ms}$):** Progress remains locked at $0.0$ at the start of every new line for $60\text{ms}$, allowing the reader's eye to complete the natural return sweep without skipping the first word.
+   - **Individual Line Velocity:** Line duration is determined strictly by its proportional word count and target WPM ($T_{\text{line}} = \max(350, \frac{\text{words}_{\text{line}}}{\text{wpm}} \times 60000 + 60\text{ms})$).
+3. **Fixation Chunk Underline:**
+   - Word tokens are grouped into fixation jumps ($1$, $2$, or $3$ words per chunk).
+   - High-visibility glowing amber underline bar and translucent word highlight glide across the line at the exact configured line WPM speed.
+   - Automatically wraps across lines and triggers paragraph advancement upon completing the final line.
+4. **Tactile Drag Scrubbing & Direct Seek (`usePacerDrag.ts`):**
+   - **Pointer Dragging:** Grab either the amber bar or the rounded tactile grip pill (`pacerShowGripHandle`, default true) with `cursor-grab`/`cursor-grabbing` and pointer capture.
+   - **Intra-Line Scrub:** Horizontal cursor movement maps directly to progress along the line.
+   - **Vertical Line Snapping:** Vertical cursor movement resolves to the nearest line box.
+   - **Click-to-Scrub Baseline:** Clicking along the active line baseline guide immediately relocates the highlight (`pacerClickToScrub`, default true).
+   - **Configurable Arrow Stepping:** Optional keyboard navigation with `ArrowUp`/`ArrowDown` for lines and `ArrowLeft`/`ArrowRight` for words (`pacerKeyboardScrubbing`, default false).
+   - **Smooth Resumption:** On pointer release, the line timer synchronizes with the drop progress and resumes gliding seamlessly.
+
+### Unified Pacer Launch & State Coordination
+1. **TopNav Persistent Launch Bar (`ElementaryPacingControls.tsx`):**
+   - Renders a high-visibility **Play Pacer** / **Pause** button directly within the header controls when in Level 1 Elementary mode or when pacing is actively running.
+   - Dynamic visual feedback: amber pulse indicator (`animate-pulse`), `Play` vs `Pause` Lucide icons, and tooltip with shortcut reminder.
+2. **Settings Card Action Button (`PacerControls.tsx`):**
+   - Dedicated full-width **Start Pacer (Alt + P)** / **Pause Pacer** button inside the Reader Settings Elementary tab.
+   - Allows immediate test-driving of WPM, mode, and chunk-size adjustments without leaving the configuration card.
+3. **Universal Keyboard Shortcut (`Alt + P`):**
+   - Registered globally on the window event bus; ignores keystrokes originating inside editable inputs and textareas.
+   - Instantly toggles pacing state from any viewport context.
+4. **Automatic Reading Level Promotion:**
+   - Triggering the pacer while viewing Inspectional, Analytical, or Syntopical modes automatically transitions `activeLevel` to `"elementary"` so the visual pacer and canvas mechanics engage instantly.
+5. **Lifted Single-Source State (`App.tsx`):**
+   - Root application controller maintains `isPacingRunning` and `handleTogglePacer`, synchronizing `TopNav`, `SettingsPopover`, and `Reader` -> `ElementaryCanvas` -> `useElementaryMechanics`.
+
+---
+
+## 15. Master Dynamic Health Audit Architecture (12 Verification Vectors)
+
+The system health orchestrator in `.agent/skills/audit-system.py` dynamically validates workspace health across 12 distinct vectors before any phase is declared complete:
+
+1. **Vector 1 (Dynamic Ledger & Vault Parity):** Verifies all books in `vault/books/` and binaries in `inbox/processed/` are cataloged in `vault/_ledger.json` with matching SHA-256 digests.
+2. **Vector 2 (Anchor & Asset Integrity):** Validates persistent paragraph anchors (`^p-NNN`), unreferenced asset cleanup, and image markdown reference existence.
+3. **Vector 3 (Zero-Hallucination & Dual-Modality Guardrail):** Confirms that every answer key, distractor, and rationale quote is an exact character substring in the cited chapter; enforces that library practice items feature both Cloze recall and deductive Scenario MCQ cards.
+4. **Vector 4 (Backend Safety):** `cargo check` in `apps/desktop/src-tauri` with zero errors.
+5. **Vector 5 (Frontend Safety):** TypeScript strict typecheck in `apps/desktop` with zero errors.
+6. **Vector 6 (FTS5 Search Latency Benchmark):** SQLite FTS5 query latency average strictly $< 15.0\text{ms}$.
+7. **Vector 7 (Desktop Runtime Launch Smoke Test):** Launches compiled native release binary headlessly and confirms window stability for 5.0 seconds.
+8. **Vector 8 (Inspectional Parity - Level 2):** Audits `_meta.json` structural blueprints, pivotal chapters, non-overlapping head/tail dip sampling pairs, preview snippet hygiene, and Adlerian exit assessments.
+9. **Vector 9 (Analytical Parity - Level 3):** Audits `vault/notes/*/analytical.json` for verified specialized terms, argument premise-to-conclusion graphs, Stage III evaluative critiques (Adler Rules 9–12), and author inquiry solutions.
+10. **Vector 10 (Syntopical Parity - Level 4):** Audits `vault/syntopicon/` neutral terminology translations, universal questions, cross-book author perspectives, and multi-book citation anchor grounding.
+11. **Vector 11 (Elementary Parity - Level 1):** Audits `_meta.json` readability metrics (`flesch_kincaid_grade`, `avg_sentence_length_words`, `estimated_reading_minutes`) within physiological bounds and confirms chapter-to-spine word count consistency.
+12. **Vector 12 (Modularity & Vault Ephemeral Isolation):** Enforces Directive 1.1 (confirms zero SQLite databases or ephemeral caches leaked inside `vault/`) and Directive 4 (verifies that all source files in `apps/desktop/src/` and `packages/ingestion/ingest/` adhere to the $\le 300$-line modular ceiling).
 
 
 

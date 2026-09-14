@@ -3,11 +3,14 @@ import { ShieldCheck, ArrowRight, Eye, CheckCircle2, Trophy, X } from "lucide-re
 import { PracticeCardItem, CardSchedule } from "../lib/types";
 import { submitReview } from "../lib/api";
 
+import { GatekeeperCardDrill } from "./practice/GatekeeperCardDrill";
+
 interface GatekeeperModalProps {
   isOpen: boolean;
   onClose: () => void;
   targetChapterTitle: string;
   cards: PracticeCardItem[];
+  quota?: number;
   onComplete: () => void;
   onReviewSubmitted: (cardId: string, schedule: CardSchedule) => void;
 }
@@ -17,11 +20,11 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
   onClose,
   targetChapterTitle,
   cards,
+  quota = 3,
   onComplete,
   onReviewSubmitted,
 }) => {
-  // Take up to 3 cards for the gatekeeper mini-challenge
-  const challengeCards = cards.slice(0, 3);
+  const challengeCards = cards.slice(0, quota);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [userAnswer, setUserAnswer] = useState("");
   const [revealed, setRevealed] = useState(false);
@@ -64,59 +67,6 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
   };
 
   if (!isOpen) return null;
-
-  // Render cloze inline
-  const renderCloze = () => {
-    if (!currentCard) return null;
-    let before = currentCard.prompt;
-    let target = currentCard.answer;
-    let after = "";
-
-    if (currentCard.prompt.includes("{{c1::")) {
-      const parts = currentCard.prompt.split(/\{\{c1::.*?\}\}/);
-      before = parts[0] || "";
-      after = parts[1] || "";
-    } else if (currentCard.prompt.includes("==")) {
-      const parts = currentCard.prompt.split(/==.*?==/);
-      before = parts[0] || "";
-      after = parts[1] || "";
-    }
-
-    const isMatch = userAnswer.trim().toLowerCase() === target.trim().toLowerCase();
-
-    return (
-      <div className="text-sm sm:text-base leading-relaxed text-[var(--theme-text)] font-serif">
-        <span>{before}</span>
-        <span className="inline-block mx-1.5 align-baseline">
-          {revealed ? (
-            <span className="px-2 py-0.5 rounded-md bg-[var(--theme-accent)]/20 text-[var(--theme-accent)] font-mono font-bold text-xs border border-[var(--theme-accent)]/40">
-              {target}
-            </span>
-          ) : (
-            <input
-              type="text"
-              value={userAnswer}
-              onChange={(e) => setUserAnswer(e.target.value)}
-              placeholder="type answer..."
-              autoFocus
-              className={`px-2 py-0.5 rounded-md border text-xs font-mono font-medium outline-none transition-all ${
-                isMatch
-                  ? "bg-emerald-500/15 border-emerald-500 text-emerald-900 dark:text-emerald-300"
-                  : "bg-[var(--theme-bg)] border-[var(--theme-border)] text-[var(--theme-text)] focus:border-[var(--theme-accent)]"
-              }`}
-              style={{ minWidth: `${Math.max(100, target.length * 9)}px` }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && userAnswer.trim()) {
-                  setRevealed(true);
-                }
-              }}
-            />
-          )}
-        </span>
-        <span>{after}</span>
-      </div>
-    );
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
@@ -204,9 +154,15 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
             </div>
 
             <div className="p-4 rounded-2xl bg-[var(--theme-bg)] border border-[var(--theme-border)] space-y-3">
-              {renderCloze()}
+              <GatekeeperCardDrill
+                card={currentCard}
+                userAnswer={userAnswer}
+                onUserAnswerChange={setUserAnswer}
+                revealed={revealed}
+                onReveal={() => setRevealed(true)}
+              />
 
-              {!revealed && (
+              {!revealed && currentCard.card_type !== "scenario" && (
                 <div className="flex justify-end pt-1">
                   <button
                     type="button"
@@ -222,10 +178,12 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
 
             {revealed && (
               <div className="space-y-2 animate-in fade-in duration-100">
-                <div className="p-2.5 rounded-lg bg-[var(--theme-accent)]/10 text-xs text-[var(--theme-accent)] font-semibold flex items-center gap-2 border border-[var(--theme-accent)]/20">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Answer: <code>{currentCard.answer}</code></span>
-                </div>
+                {currentCard.card_type !== "scenario" && (
+                  <div className="p-2.5 rounded-lg bg-[var(--theme-accent)]/10 text-xs text-[var(--theme-accent)] font-semibold flex items-center gap-2 border border-[var(--theme-accent)]/20">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Answer: <code>{currentCard.answer}</code></span>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-4 gap-1.5 pt-1">
                   <button

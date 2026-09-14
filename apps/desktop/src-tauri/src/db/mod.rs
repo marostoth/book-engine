@@ -1,5 +1,6 @@
 pub mod models;
 pub mod schema;
+pub mod seed_lexicon;
 pub mod indexer;
 pub mod fsrs_parser;
 pub mod fsrs_store;
@@ -13,9 +14,32 @@ pub use fsrs_store::*;
 pub use reading_velocity::*;
 pub use analytics::*;
 
+/// Blocking helper: opens the SQLite cache and queries the dictionary with sanitized input.
+pub fn lookup_dictionary_blocking(word: &str) -> anyhow::Result<Option<DictionaryEntry>> {
+    let conn = open_or_create_db()?;
+    lookup_dictionary(&conn, word)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_dictionary_lookup_and_sanitization() {
+        // Direct match
+        let entry = lookup_dictionary_blocking("inspectional")
+            .expect("Lookup failed")
+            .expect("Expected entry for 'inspectional'");
+        assert_eq!(entry.word, "inspectional");
+        assert!(entry.definition.contains("skimming"));
+
+        // Match with punctuation, quotes, or trailing footnote
+        let sanitized = lookup_dictionary_blocking("\"(elementary),\"")
+            .expect("Sanitized lookup failed")
+            .expect("Expected entry for 'elementary'");
+        assert_eq!(sanitized.word, "elementary");
+        assert_eq!(sanitized.part_of_speech.as_deref(), Some("adjective"));
+    }
 
     #[test]
     fn test_index_and_search() {
@@ -36,10 +60,10 @@ mod tests {
         println!("[+] Synced {} cards from sample", synced);
         assert!(synced > 0, "Expected at least 1 card synced from sample");
 
-        // Reset one card to due to guarantee test idempotency across repeated runs
+        // Reset cards to due to guarantee test idempotency across repeated runs
         if let Ok(conn) = open_or_create_db() {
             let _ = conn.execute(
-                "UPDATE fsrs_cards SET due = 0, reps = 0, state = 0 WHERE book_id = 'sample' AND rowid IN (SELECT rowid FROM fsrs_cards WHERE book_id = 'sample' LIMIT 1)",
+                "UPDATE fsrs_cards SET due = 0, reps = 0, state = 0 WHERE book_id = 'sample'",
                 [],
             );
         }
@@ -59,6 +83,12 @@ mod tests {
     #[test]
     fn test_phase5_analytics() {
         let _ = sync_practice_deck_blocking("sample");
+        if let Ok(conn) = open_or_create_db() {
+            let _ = conn.execute(
+                "UPDATE fsrs_cards SET due = 0, reps = 0, state = 0 WHERE book_id = 'sample'",
+                [],
+            );
+        }
         let due = get_due_cards_blocking(Some("sample")).expect("Failed to get due cards");
         if !due.is_empty() {
             let _ = submit_card_review_blocking(&due[0].card_id, 4);

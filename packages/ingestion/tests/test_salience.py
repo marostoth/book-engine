@@ -4,7 +4,8 @@ from ingest.salience import (
     score_sentence,
     extract_cloze_target,
     generate_chapter_practice_cards,
-    format_practice_deck_markdown
+    generate_chapter_scenario_cards,
+    format_practice_deck_markdown,
 )
 from ingest.anchors import inject_paragraph_anchors
 
@@ -68,3 +69,91 @@ def test_format_practice_deck_markdown():
     assert "## Chapter: ch-01" in deck_md
     assert "- **Cloze:**" in deck_md
     assert "- **Answer Key:**" in deck_md
+
+
+def test_zero_hallucination_scenario_standard():
+    chapter_md = (
+        "# Chapter 1: Consistency\n\n"
+        "In distributed computing, linearizability is defined as a strong consistency guarantee. ^p-001\n\n"
+        "The primary purpose of vector clocks is determining the partial ordering of events. ^p-002\n\n"
+        "Under network partitions, the CAP theorem establishes the trade-off between consistency and availability. ^p-003\n\n"
+        "The fundamental principle of eventual consistency requires that all replicas converge over time. ^p-004\n\n"
+        "A quorums system refers to a subset of nodes whose intersection guarantees safety. ^p-005\n\n"
+        "Byzantine fault tolerance represents the capability to defend against arbitrary node failures. ^p-006\n"
+    )
+
+    scenarios = generate_chapter_scenario_cards(chapter_md, "ch-01", max_items=3)
+
+    assert len(scenarios) >= 1
+    for sc in scenarios:
+        assert sc.card_id.startswith("sc-ch-01-")
+        assert sc.chapter_id == "ch-01"
+        assert sc.anchor_id.startswith("^p-")
+        assert len(sc.options) == 4
+
+        # Correct option must exist and be an exact substring of the source chapter text
+        correct_opts = [opt for opt in sc.options if opt.is_correct]
+        assert len(correct_opts) == 1
+        correct_text = correct_opts[0].text
+        assert correct_text in chapter_md, f"Correct option '{correct_text}' not in source text!"
+
+        # Distractor options must also be exact verbatim extracts
+        for opt in sc.options:
+            assert opt.text in chapter_md, f"Option '{opt.text}' is not an exact verbatim extract!"
+
+        # Rationale must match the audit-practice format
+        assert sc.rationale.startswith('In this section, the text states: "')
+        quote = sc.rationale[len('In this section, the text states: "'):-1]
+        assert quote == correct_text
+        assert quote in chapter_md
+
+
+def test_format_practice_deck_with_scenarios():
+    chapter_md = (
+        "In distributed computing, **linearizability** is defined as a strong consistency guarantee. ^p-001\n\n"
+        "The primary purpose of **vector clocks** is determining the partial ordering of events. ^p-002\n\n"
+        "Under network partitions, the **CAP theorem** establishes the trade-off between consistency and availability. ^p-003\n\n"
+        "The fundamental principle of eventual consistency requires that all replicas converge over time. ^p-004\n"
+    )
+    clozes = generate_chapter_practice_cards("ch-01", chapter_md, min_items=1, max_items=2)
+    scenarios = generate_chapter_scenario_cards(chapter_md, "ch-01", max_items=2)
+
+    deck_md = format_practice_deck_markdown("Test Book", clozes, scenarios)
+
+    assert "### card-ch-01-" in deck_md
+    assert "### Scenario: sc-ch-01-" in deck_md
+    assert "> **Rationale:**" in deck_md
+
+
+def test_contextual_scenario_premise_and_narrative_filtering():
+    chapter_md = (
+        "# Chapter 1: Introduction\n\n"
+        "One morning, Jim got up at 6:00, as he always did, and went to his study. "
+        "He sat and watched his quote terminal for a moment. ^p-001\n\n"
+        "To reach the fourth level and become proficient, the learner must master the foundational rules. "
+        "The written work becomes an intuitive part of the mind. "
+        "Therefore, if the student is proficient, they will express emotion naturally in performance. ^p-002\n\n"
+        "Linearizability guarantees real-time consistency across all distributed replicas. ^p-003\n\n"
+        "Eventual consistency requires that nodes converge over sufficient time intervals. ^p-004\n\n"
+        "Fault tolerance represents the capability to defend against arbitrary node crash failures. ^p-005\n"
+    )
+
+    scenarios = generate_chapter_scenario_cards(chapter_md, "ch-01", max_items=1)
+
+    assert len(scenarios) == 1
+    sc = scenarios[0]
+    assert sc.anchor_id == "^p-002"
+    assert "Consider the following excerpt from this section:" in sc.scenario
+    assert "To reach the fourth level and become proficient" in sc.scenario
+    assert "Jim got up at 6:00" not in sc.scenario
+
+    correct_opts = [opt for opt in sc.options if opt.is_correct]
+    assert len(correct_opts) == 1
+    assert "Therefore, if the student is proficient" in correct_opts[0].text
+
+    # Narrative sentence from p-001 must NOT be used as a distractor
+    for opt in sc.options:
+        assert "Jim got up" not in opt.text
+        assert opt.text in chapter_md
+
+

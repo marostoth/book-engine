@@ -3,6 +3,8 @@ import {
   PracticeCardItem,
   DayReviewActivity,
   SearchResult,
+  InspectionalBlueprint,
+  ExitAssessmentPayload,
 } from "../types";
 
 export const FALLBACK_META: BookMeta = {
@@ -19,18 +21,8 @@ export const FALLBACK_META: BookMeta = {
       href: "",
       level: 1,
       subitems: [
-        {
-          id: "ch01_xhtml",
-          title: "Chapter 1: Consistency Models",
-          href: "ch01.xhtml",
-          level: 2,
-        },
-        {
-          id: "ch02_xhtml",
-          title: "Chapter 2: State Machine Replication",
-          href: "ch02.xhtml",
-          level: 2,
-        },
+        { id: "ch01_xhtml", title: "Chapter 1: Consistency Models", href: "ch01.xhtml", level: 2 },
+        { id: "ch02_xhtml", title: "Chapter 2: State Machine Replication", href: "ch02.xhtml", level: 2 },
       ],
     },
   ],
@@ -45,6 +37,12 @@ export const FALLBACK_META: BookMeta = {
       first_anchor: "^p-001",
       last_anchor: "^p-011",
       footnotes_count: 2,
+      inspectional_sampling: {
+        head_anchors: ["^p-001", "^p-002"],
+        tail_anchors: ["^p-007", "^p-009"],
+        head_text_preview: "In distributed computing, linearizability is defined as a strong consistency guarantee where all operations appear to execute atomically at a specific point in time between their invocation and response.",
+        tail_text_preview: "In contrast to crash-stop failures, Byzantine nodes may communicate conflicting state transitions to distinct peers in the cluster.",
+      },
     },
     {
       id: "ch-02",
@@ -56,9 +54,30 @@ export const FALLBACK_META: BookMeta = {
       first_anchor: "^p-001",
       last_anchor: "^p-009",
       footnotes_count: 2,
+      inspectional_sampling: {
+        head_anchors: ["^p-001", "^p-002"],
+        tail_anchors: ["^p-006", "^p-007"],
+        head_text_preview: "State machine replication is defined as a general technique for implementing a fault-tolerant service by coordinating deterministic replicas across a network.",
+        tail_text_preview: "Consequently, maintaining an odd number of replicas maximizes failure tolerance without requiring additional quorum consensus votes.",
+      },
     },
   ],
   created_at: new Date().toISOString(),
+  elementary_metrics: {
+    flesch_kincaid_grade: 14.85,
+    avg_sentence_length_words: 22.4,
+    estimated_reading_minutes: 3,
+  },
+  inspectional_blueprint: {
+    front_matter: {
+      has_preface: false,
+      preface_path: null,
+      publisher_blurb: "Principles of Distributed Systems by Leslie Lamport & Friends",
+    },
+    pivotal_chapters: ["ch-01", "ch-02"],
+    synthetic_index_clusters: [],
+    exit_assessment: null,
+  },
 };
 
 export const FALLBACK_CHAPTERS: Record<string, string> = {
@@ -107,11 +126,43 @@ Furthermore, deterministic execution across all state machines guarantees identi
 
 export const fallbackCardsMemory: PracticeCardItem[] = [
   {
+    card_id: "sc-sample-001",
+    book_id: "sample",
+    chapter_file: "ch-01.md",
+    anchor: "^p-003",
+    item_type: "scenario",
+    card_type: "scenario",
+    prompt: "An asynchronous distributed cluster experiences an asymmetric network partition dividing nodes into isolated subnets.",
+    answer: "Under network partitions, a distributed data store can simultaneously provide at most two out of Consistency, Availability, and Partition tolerance.",
+    state: 0,
+    stability: 0.0,
+    difficulty: 0.0,
+    due: Math.floor(Date.now() / 1000) - 200,
+    last_review: 0,
+    reps: 0,
+    scenario_payload: {
+      scenario: "An asynchronous distributed cluster experiences an asymmetric network partition dividing nodes into isolated subnets.",
+      options: [
+        { key: "A", text: "The system can simultaneously provide strict consistency, unbounded availability, and partition tolerance.", is_correct: false },
+        { key: "B", text: "Replicas in the minority partition continue accepting conflicting writes without stalling.", is_correct: false },
+        { key: "C", text: "Under network partitions, a distributed data store can simultaneously provide at most two out of Consistency, Availability, and Partition tolerance.", is_correct: true },
+        { key: "D", text: "Quorum intersection is ignored so all partitions remain available for updates.", is_correct: false },
+      ],
+      citation: {
+        chapterFile: "ch-01.md",
+        anchor: "^p-003",
+        quote: "a distributed data store can simultaneously provide at most two out of Consistency, Availability, and Partition tolerance.",
+      },
+      rationale: 'Under network partitions, the CAP theorem states that "a distributed data store can simultaneously provide at most two out of Consistency, Availability, and Partition tolerance."',
+    },
+  },
+  {
     card_id: "card-ch-01-001",
     book_id: "sample",
     chapter_file: "ch-01.md",
     anchor: "^p-001",
     item_type: "cloze",
+    card_type: "cloze",
     prompt: "In distributed computing, {{c1::linearizability}} is defined as a strong consistency guarantee where all operations appear to execute atomically at a specific point in time between their invocation and response.",
     answer: "linearizability",
     state: 0,
@@ -127,6 +178,7 @@ export const fallbackCardsMemory: PracticeCardItem[] = [
     chapter_file: "ch-01.md",
     anchor: "^p-002",
     item_type: "cloze",
+    card_type: "cloze",
     prompt: "The primary purpose of {{c1::vector clocks}} is determining the partial ordering of events in an asynchronous distributed system without synchronized physical time.",
     answer: "vector clocks",
     state: 0,
@@ -142,27 +194,13 @@ export const fallbackCardsMemory: PracticeCardItem[] = [
     chapter_file: "ch-01.md",
     anchor: "^p-003",
     item_type: "scramble",
+    card_type: "cloze",
     prompt: "Under network partitions, | the CAP theorem is defined as the trade-off | stating that a distributed data store can simultaneously provide at most two out of | Consistency, Availability, and Partition tolerance.",
     answer: "Under network partitions, the CAP theorem is defined as the trade-off stating that a distributed data store can simultaneously provide at most two out of Consistency, Availability, and Partition tolerance.",
     state: 0,
     stability: 0.0,
     difficulty: 0.0,
     due: Math.floor(Date.now() / 1000) - 10,
-    last_review: 0,
-    reps: 0,
-  },
-  {
-    card_id: "card-ch-01-006",
-    book_id: "sample",
-    chapter_file: "ch-01.md",
-    anchor: "^p-006",
-    item_type: "cloze",
-    prompt: "{{c1::Byzantine fault tolerance}} represents the capability of a distributed cluster to defend against arbitrary or malicious node failures.",
-    answer: "Byzantine fault tolerance",
-    state: 0,
-    stability: 0.0,
-    difficulty: 0.0,
-    due: Math.floor(Date.now() / 1000) - 5,
     last_review: 0,
     reps: 0,
   },
@@ -229,3 +267,29 @@ export function generateFallbackHeatmap(): DayReviewActivity[] {
   }
   return activities;
 }
+
+export const FALLBACK_INSPECTIONAL_BLUEPRINT: InspectionalBlueprint = {
+  front_matter: {
+    has_preface: false,
+    preface_path: null,
+    publisher_blurb: "Foundational principles of distributed computing and consensus models.",
+  },
+  pivotal_chapters: ["ch-01", "ch-02"],
+  synthetic_index_clusters: [
+    { term: "Consensus", weight: 1.0, anchors: ["^p-001", "^p-008"] },
+    { term: "Replication", weight: 0.85, anchors: ["^p-001", "^p-004"] },
+  ],
+  exit_assessment: {
+    question: "What is the primary trade-off established by the CAP theorem?",
+    expected_concept: "Consistency vs Availability during network partitions",
+  },
+};
+
+export function getFallbackInspectionalBlueprint(_bookId: string): InspectionalBlueprint {
+  return FALLBACK_INSPECTIONAL_BLUEPRINT;
+}
+
+export function saveFallbackInspectionalExitAssessment(_bookId: string, assessment: ExitAssessmentPayload): void {
+  FALLBACK_INSPECTIONAL_BLUEPRINT.exit_assessment = assessment;
+}
+

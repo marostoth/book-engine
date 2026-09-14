@@ -37,8 +37,173 @@ def generate_pdf_slug(filename: str, title: Optional[str] = None) -> str:
     return slug or "unnamed-book"
 
 
+def heal_drop_caps(text: str) -> str:
+    """Repairs drop-caps and displaced leading capitals caused by PDF layout extraction:
+    1. Standalone single-letter line or block before lowercase word: 'J\\n\\nim was' -> 'Jim was'.
+    2. Spaced drop-cap at block start: 'J im was' -> 'Jim was'.
+    3. Displaced 2-line drop-cap: initial letter missing from paragraph start and attached to
+       a subsequent word on line 2 (e.g. 'im Kelvin ... an Jinterest' -> 'Jim Kelvin ... an interest').
+    """
+    # 1. Standalone single-letter block or line preceding lowercase text
+    text = re.sub(r"(?:(?<=\n\n)|(?<=\A))([A-Z])\s*\n+([a-z]{2,}\b)", r"\1\2", text)
+
+    # 2. Leading single capital letter followed by space and lowercase stem
+    text = re.sub(r"(?:(?<=\n\n)|(?<=\A))([A-Z])\s+([a-z]{2,}\b)", r"\1\2", text)
+
+    # 3. Displaced drop-cap where paragraph starts with lowercase stem
+    def _heal_paragraph(p: str) -> str:
+        m_start = re.match(r"^([a-z]{2,})\b", p)
+        if not m_start:
+            return p
+        lead_chunk = p[:350]
+        # Look for rogue capital letter inside first 350 chars after an article or preposition
+        m_rogue = re.search(r"\b(an)\s+([BCDFGHJKLMNPQRSTVWXYZ])([a-z]{2,})\b", lead_chunk)
+        if not m_rogue:
+            m_rogue = re.search(r"\b(a|an|the|in|on|at|to|for|with|of|by|from|into)\s+([A-Z])([a-z]{3,})\b", lead_chunk)
+            if m_rogue and m_rogue.group(3) in ("exas", "ondon", "ork", "merica", "ngland", "rance", "alifornia"):
+                m_rogue = None
+
+        if m_rogue:
+            cap = m_rogue.group(2)
+            rogue_full = m_rogue.group(0)
+            fixed_full = f"{m_rogue.group(1)} {m_rogue.group(3)}"
+            p_healed = cap + p
+            p_healed = p_healed.replace(rogue_full, fixed_full, 1)
+            return p_healed
+        return p
+
+    paragraphs = text.split("\n\n")
+    return "\n\n".join(_heal_paragraph(p) for p in paragraphs)
+
+
+def clean_chapter_markdown(markdown_text: str) -> str:
+    """Pre-processing cleanup for PDF extracted chapters:
+    - Normalizes spaced capital headers like 'C H A P T E R 1'.
+    - Strips isolated single-digit lines or chapter labels at chapter start.
+    - Normalizes run-in chapter subheadings like 'CHAPTER This first chapter introduces...'.
+    - Deduplicates identical title lines appearing within the first three paragraphs of a chapter.
+    - Repairs displaced drop-caps (e.g. 'im Kelvin ... an Jinterest' -> 'Jim Kelvin ... an interest').
+    """
+    # 0. Collapse spaced uppercase tokens: e.g. "C H A P T E R 1" -> "CHAPTER 1", "P A R T" -> "PART"
+    markdown_text = re.sub(r"\b[A-Z](?:\s+[A-Z]){2,}\b", lambda m: m.group(0).replace(" ", ""), markdown_text)
+
+    lines = markdown_text.splitlines()
+    pre_cleaned_lines: List[str] = []
+
+    # 1. Strip isolated single-digit lines & chapter labels at the start of chapters before content
+    seen_content = False
+    for line in lines:
+        stripped = line.strip()
+
+        # Check for isolated single-digit lines or chapter labels at chapter start before content
+        if not seen_content and (
+            re.match(r"^(?:#+\s*)?(?:\*\*)?\d+(?:\*\*)?\.?(?:\s*\^p-\d+)?$", stripped) or
+            re.match(r"^(?:#+\s*)?(?:\*\*)?(?:CHAPTER|PART)\s+\d+(?:\*\*)?\.?(?:\s*\^p-\d+)?$", stripped, flags=re.IGNORECASE)
+        ):
+            continue
+
+        if stripped and not stripped.startswith("#"):
+            seen_content = True
+
+        # Normalize run-in chapter subheadings like "CHAPTER This first chapter introduces..."
+        m = re.match(r"^(?:>\s*)?(?:\*\*)?CHAPTER(?:\s+\d+)?(?:\*\*)?\s+([A-Z][a-z].*)$", stripped)
+        if m:
+            line = m.group(1)
+
+        pre_cleaned_lines.append(line)
+
+    text = "\n".join(pre_cleaned_lines)
+
+    # 2. Deduplicate identical title lines appearing within the first three paragraphs
+    blocks = re.split(r"\n\s*\n", text)
+    if len(blocks) >= 2:
+        def _normalize_title_text(t: str) -> str:
+            s = re.sub(r"^#+\s*", "", t).strip()
+            s = re.sub(r"^[\*_`]+|[\*_`]+$", "", s).strip()
+            s = re.sub(r"^(?:Chapter|Part)\s+\d+\s*[:\-–—]\s*", "", s, flags=re.IGNORECASE).strip()
+            s = re.sub(r"\s*\^p-\d+$", "", s).strip()
+            return re.sub(r"[^a-zA-Z0-9]", "", s).lower()
+
+        seen_titles = set()
+        deduped_blocks: List[str] = []
+
+        for idx, block in enumerate(blocks):
+            b_stripped = block.strip()
+            if not b_stripped:
+                continue
+
+            if idx < 4:  # Inspect the opening paragraphs
+                norm = _normalize_title_text(b_stripped)
+                is_short_title = len(b_stripped.splitlines()) <= 2 and len(b_stripped) < 150
+                if is_short_title and norm and norm in seen_titles:
+                    # Skip duplicate title block
+                    continue
+                if norm and (is_short_title or b_stripped.startswith("#")):
+                    seen_titles.add(norm)
+
+            deduped_blocks.append(block)
+
+        text = "\n\n".join(deduped_blocks)
+
+    # 3. Heal drop caps
+    text = heal_drop_caps(text)
+
+    return text
+
+
+def deduplicate_figure_captions(markdown_text: str) -> str:
+    """Suppresses duplicate standalone caption paragraphs appearing immediately adjacent
+    to figures whose artwork or tags already include the caption.
+    """
+    # 1. Figure tag immediately followed by duplicate standalone caption paragraph
+    # e.g.: ![Figure 1.3...](...) \n\n FIGURE 1.3 Selling and Marketing...
+    pat_after = re.compile(
+        r"(!\[[^\]]*\]\([^\)]+\)(?:\s*\^p-\d+)?)\s*\n\s*\n"
+        r"((?:#+\s*)?(?:FIGURE|Figure)\s+\d+[\.\s]+\d+[^\n]*(?:\s*\^p-\d+)?)(?=\n\s*\n|\Z)",
+        re.IGNORECASE,
+    )
+
+    def _clean_after(m: re.Match[str]) -> str:
+        tag = m.group(1)
+        caption = m.group(2).strip()
+        if len(caption) < 150:
+            return tag
+        return m.group(0)
+
+    markdown_text = pat_after.sub(_clean_after, markdown_text)
+
+    # 2. Standalone caption paragraph immediately preceding figure tag
+    # e.g.: FIGURE 1.3 ... \n\n ![Figure 1.3...](...)
+    pat_before = re.compile(
+        r"(?:\A|\n\n)"
+        r"((?:#+\s*)?(?:FIGURE|Figure)\s+(\d+)[\.\s]+(\d+)[^\n]*(?:\s*\^p-\d+)?)\s*\n\s*\n"
+        r"(!\[(?:Figure\s+\2[\.\s]+\3[^\]]*|[^\]]*)\]\([^\)]+\)(?:\s*\^p-\d+)?)",
+        re.IGNORECASE,
+    )
+
+    def _clean_before(m: re.Match[str]) -> str:
+        caption = m.group(1).strip()
+        tag = m.group(4)
+        if len(caption) < 150:
+            return tag if m.start() == 0 else f"\n\n{tag}"
+        return m.group(0)
+
+    markdown_text = pat_before.sub(_clean_before, markdown_text)
+
+    return markdown_text
+
+
 def sanitize_pdf_markdown(markdown_text: str) -> str:
-    """Strips running headers, footers, solitary page numbers, and orphan footnote brackets from page margins."""
+    """Strips running headers, footers, solitary page numbers, picture text markers, and orphan footnotes."""
+    # Strip picture text boundary comments if any leaked
+    markdown_text = re.sub(
+        r"<!--\s*Start of picture text\s*-->.*?<!--\s*End of picture text\s*-->",
+        "",
+        markdown_text,
+        flags=re.DOTALL,
+    )
+    markdown_text = clean_chapter_markdown(markdown_text)
+    markdown_text = deduplicate_figure_captions(markdown_text)
     lines = markdown_text.splitlines()
     cleaned_lines: List[str] = []
 

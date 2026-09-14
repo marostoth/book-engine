@@ -3,17 +3,23 @@ import {
   BookMetadata,
   BookSummary,
   SearchResult,
+  InspectionalBlueprint,
+  ExitAssessmentPayload,
 } from "./types";
 import { isTauri, tauriInvoke } from "./api/clientBase";
 import {
   FALLBACK_META,
   FALLBACK_CHAPTERS,
   fallbackSearchVault,
+  getFallbackInspectionalBlueprint,
+  saveFallbackInspectionalExitAssessment,
 } from "./api/mockData";
 
 export * from "./api/practiceApi";
 export * from "./api/notesApi";
 export * from "./api/analyticsApi";
+export * from "./api/lexiconApi";
+export * from "./api/analyticalApi";
 export { isTauri, tauriInvoke } from "./api/clientBase";
 
 export async function fetchLibraryBooks(): Promise<BookMetadata[]> {
@@ -76,6 +82,32 @@ export async function fetchBookMeta(bookId: string): Promise<BookMeta> {
     }
   }
   return FALLBACK_META;
+}
+
+export async function getInspectionalBlueprint(bookId: string): Promise<InspectionalBlueprint> {
+  if (isTauri) {
+    try {
+      return await tauriInvoke<InspectionalBlueprint>("get_inspectional_blueprint", { bookId });
+    } catch (e) {
+      console.warn("Tauri get_inspectional_blueprint failed, falling back:", e);
+    }
+  }
+  return getFallbackInspectionalBlueprint(bookId);
+}
+
+export async function saveInspectionalExitAssessment(
+  bookId: string,
+  assessment: ExitAssessmentPayload
+): Promise<void> {
+  if (isTauri) {
+    try {
+      await tauriInvoke<void>("save_inspectional_exit_assessment", { bookId, assessment });
+      return;
+    } catch (e) {
+      console.warn("Tauri save_inspectional_exit_assessment failed, falling back to mock:", e);
+    }
+  }
+  saveFallbackInspectionalExitAssessment(bookId, assessment);
 }
 
 export async function fetchChapter(bookId: string, chapterFile: string): Promise<string> {

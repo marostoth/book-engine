@@ -6,6 +6,43 @@ export interface TOCItem {
   subitems?: TOCItem[];
 }
 
+export interface ElementaryMetrics {
+  flesch_kincaid_grade: number;
+  avg_sentence_length_words: number;
+  estimated_reading_minutes: number;
+}
+
+export interface InspectionalSampling {
+  head_anchors: string[];
+  tail_anchors: string[];
+  head_text_preview: string;
+  tail_text_preview: string;
+}
+
+export interface FrontMatterMetadata {
+  has_preface: boolean;
+  preface_path?: string | null;
+  publisher_blurb?: string | null;
+}
+
+export interface ExitAssessmentPayload {
+  classification: string;
+  unityStatement: string;
+  partsStructure: string[];
+  completedAt: string;
+}
+
+export type ReadingLevelMode = "elementary" | "inspectional" | "analytical" | "syntopical";
+
+export type InspectionalSubView = "blueprint" | "dips";
+
+export interface InspectionalBlueprint {
+  front_matter: FrontMatterMetadata | Record<string, any>;
+  pivotal_chapters: string[];
+  synthetic_index_clusters: Array<Record<string, any>>;
+  exit_assessment?: ExitAssessmentPayload | Record<string, any> | null;
+}
+
 export interface ChapterMeta {
   id: string;
   title: string;
@@ -16,6 +53,7 @@ export interface ChapterMeta {
   first_anchor?: string;
   last_anchor?: string;
   footnotes_count: number;
+  inspectional_sampling?: InspectionalSampling;
 }
 
 export interface BookMeta {
@@ -28,6 +66,8 @@ export interface BookMeta {
   toc: TOCItem[];
   spine: ChapterMeta[];
   created_at: string;
+  elementary_metrics?: ElementaryMetrics;
+  inspectional_blueprint?: InspectionalBlueprint;
 }
 
 export interface BookSummary {
@@ -44,6 +84,8 @@ export interface BookMetadata {
   author: string;
   chapter_count: number;
   total_words: number;
+  elementary_metrics?: ElementaryMetrics;
+  inspectional_blueprint?: InspectionalBlueprint;
 }
 
 export type Theme = "paper" | "sepia" | "nord";
@@ -76,21 +118,7 @@ export interface SearchResult {
   rank: number;
 }
 
-export interface PracticeCardItem {
-  card_id: string;
-  book_id: string;
-  chapter_file: string;
-  anchor: string;
-  item_type: "cloze" | "scramble";
-  prompt: string;
-  answer: string;
-  state: number;
-  stability: number;
-  difficulty: number;
-  due: number;
-  last_review: number;
-  reps: number;
-}
+export type { ScenarioOption, ScenarioPayload, PracticeCardItem } from "./practiceTypes";
 
 export interface CardSchedule {
   card_id: string;
@@ -111,7 +139,50 @@ export interface DeckStats {
   total_cards: number;
 }
 
+export interface ElementaryPreferences {
+  pacerWpm: number;
+  pacerMode: "line" | "underline";
+  pacerChunkSize?: number; // 1 to 3 words per fixation jump (default 2)
+  pacerLockFocus?: boolean; // lock focus ruler to active paragraph during pacing (default true)
+  pacerShowGripHandle?: boolean; // show tactile draggable grip handle under chunk underline (default true)
+  pacerClickToScrub?: boolean; // click anywhere along active line baseline to scrub (default true)
+  pacerKeyboardScrubbing?: boolean; // enable ArrowUp/Down/Left/Right line and word stepping (default false)
+  focusRulerEnabled: boolean;
+  focusDimmingPercent: number; // 20 to 98
+  focusActiveHighlight?: boolean; // subtle left border rail & ambient tint on active paragraph (default true)
+  measureCharsPerLine: number;
+  bionicFixationEnabled: boolean;
+  instantDictionaryEnabled: boolean;
+}
+
+export interface InspectionalPreferences {
+  defaultTimerMinutes: number;
+  autoPromptExitCard: boolean;
+  samplingDepthParagraphs: number;
+  autoHideDrawerOnSkim: boolean;
+  singleKeyPagingEnabled: boolean;
+}
+
+export interface StudyPreferences {
+  gatekeeperMode: boolean;
+  gatekeeperQuota: number;
+  dailyTargetCards: number;
+  practiceMode: "verbatim" | "mcq_scenario" | "hybrid";
+  hybridRatio?: number;
+}
+
+export interface GeneralPreferences {
+  theme?: Theme;
+  fontSize: number;
+  lineHeightRatio: number;
+  fontFamily: "serif" | "sans" | "mono";
+}
+
 export interface ReaderPreferences {
+  elementary: ElementaryPreferences;
+  inspectional: InspectionalPreferences;
+  study: StudyPreferences;
+  general?: GeneralPreferences;
   gatekeeperMode: boolean;
   dailyTarget: number;
 }
@@ -200,5 +271,20 @@ export interface StudyAnalytics {
   estimated_reading_time_mins: number;
 }
 
+export interface DictionaryEntry {
+  word: string;
+  partOfSpeech?: string;
+  pronunciation?: string;
+  definition: string;
+  etymology?: string;
+}
 
+export interface VocabularyEntry {
+  word: string;
+  definition: string;
+  anchor: string;
+  savedAt: string;
+}
 
+export * from "./types/analytical";
+export * from "./types/syntopicon";

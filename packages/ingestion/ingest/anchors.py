@@ -68,3 +68,81 @@ def extract_anchors(markdown_content: str) -> List[Tuple[str, str]]:
             results.append((anchor_id, clean_text))
 
     return results
+
+
+def clean_preview_text(text: str) -> str:
+    r"""Clean markdown formatting for inspectional preview extracts.
+
+    Strips:
+      - Header marks (#+ )
+      - Inline footnote citations (\[\^\w+\])
+      - Markdown emphasis/code marks (**, *, _, `)
+      - Block paragraph anchors (^p-xxx)
+      - Normalizes whitespace
+    """
+    cleaned = text
+    # Strip block paragraph anchors
+    cleaned = re.sub(r"\s*\^p-[a-zA-Z0-9_-]+\s*$", "", cleaned)
+    cleaned = re.sub(r"\^p-[a-zA-Z0-9_-]+", "", cleaned)
+    # Strip header marks
+    cleaned = re.sub(r"^\s*#{1,6}\s+", "", cleaned, flags=re.MULTILINE)
+    # Strip inline footnote citations
+    cleaned = re.sub(r"\[\^\w+\]", "", cleaned)
+    # Strip markdown emphasis and code marks
+    cleaned = re.sub(r"[*_`]+", "", cleaned)
+    # Strip image markdown syntax
+    cleaned = re.sub(r"!\[.*?\]\(.*?\)", "", cleaned)
+    # Normalize whitespace
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned
+
+
+def extract_inspectional_sampling(markdown_content: str, depth: int = 2) -> InspectionalSampling:
+    """Extract opening and trailing paragraph anchors and clean text previews for a chapter."""
+    from ingest.models import InspectionalSampling
+
+    blocks = [b.strip() for b in markdown_content.split("\n\n") if b.strip()]
+    candidate_blocks: List[str] = []
+
+    for b in blocks:
+        # Skip headings
+        if b.startswith("#"):
+            continue
+        # Skip footnote definitions
+        if re.match(r"^\[\^[^\]]+\]:", b):
+            continue
+        # Skip pure image blocks
+        if re.match(r"^!\[.*?\]\(.*?\)$", b):
+            continue
+        # Check if block has anchor
+        if ANCHOR_REGEX.search(b):
+            candidate_blocks.append(b)
+
+    if not candidate_blocks:
+        return InspectionalSampling()
+
+    head_candidates = candidate_blocks[:depth]
+    tail_candidates = candidate_blocks[-depth:] if len(candidate_blocks) >= depth else candidate_blocks
+
+    head_anchors: List[str] = []
+    for b in head_candidates:
+        m = ANCHOR_REGEX.search(b)
+        if m:
+            head_anchors.append(m.group(0).strip())
+
+    tail_anchors: List[str] = []
+    for b in tail_candidates:
+        m = ANCHOR_REGEX.search(b)
+        if m:
+            tail_anchors.append(m.group(0).strip())
+
+    head_preview = " ".join(clean_preview_text(b) for b in head_candidates)
+    tail_preview = " ".join(clean_preview_text(b) for b in tail_candidates)
+
+    return InspectionalSampling(
+        head_anchors=head_anchors,
+        tail_anchors=tail_anchors,
+        head_text_preview=head_preview,
+        tail_text_preview=tail_preview,
+    )
+

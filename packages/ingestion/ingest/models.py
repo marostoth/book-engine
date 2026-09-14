@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -13,6 +13,29 @@ class TOCItem(BaseModel):
     href: str
     level: int = 1
     subitems: List[TOCItem] = Field(default_factory=list)
+
+
+class ElementaryMetrics(BaseModel):
+    """Readability and reading time metrics for Level 1 Elementary Reading."""
+    flesch_kincaid_grade: float
+    avg_sentence_length_words: float
+    estimated_reading_minutes: int
+
+
+class InspectionalSampling(BaseModel):
+    """Head and tail anchor sampling and previews for Level 2 Inspectional Reading."""
+    head_anchors: List[str] = Field(default_factory=list)
+    tail_anchors: List[str] = Field(default_factory=list)
+    head_text_preview: str = ""
+    tail_text_preview: str = ""
+
+
+class InspectionalBlueprint(BaseModel):
+    """Structural blueprint and synthetic index for Level 2 Inspectional Reading."""
+    front_matter: Dict[str, Any] = Field(default_factory=dict)
+    pivotal_chapters: List[str] = Field(default_factory=list)
+    synthetic_index_clusters: List[Dict[str, Any]] = Field(default_factory=list)
+    exit_assessment: Optional[Dict[str, Any]] = None
 
 
 class ChapterMeta(BaseModel):
@@ -26,6 +49,7 @@ class ChapterMeta(BaseModel):
     first_anchor: Optional[str] = None
     last_anchor: Optional[str] = None
     footnotes_count: int = 0
+    inspectional_sampling: Optional[InspectionalSampling] = None
 
 
 class BookMeta(BaseModel):
@@ -39,6 +63,8 @@ class BookMeta(BaseModel):
     toc: List[TOCItem] = Field(default_factory=list)
     spine: List[ChapterMeta] = Field(default_factory=list)
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    elementary_metrics: Optional[ElementaryMetrics] = None
+    inspectional_blueprint: Optional[InspectionalBlueprint] = None
 
 
 class PracticeCard(BaseModel):
@@ -50,3 +76,21 @@ class PracticeCard(BaseModel):
     answer_key: str
     exact_source: str
     score: float = 0.0
+
+
+class ScenarioOptionModel(BaseModel):
+    """Multiple-choice scenario option item."""
+    key: str  # 'A', 'B', 'C', 'D'
+    text: str
+    is_correct: bool
+
+
+class ScenarioCard(BaseModel):
+    """Extractive, zero-hallucination deductive scenario card (MCQ)."""
+    card_id: str
+    chapter_id: str
+    anchor_id: str
+    scenario: str
+    options: List[ScenarioOptionModel]
+    rationale: str
+

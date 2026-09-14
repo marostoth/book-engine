@@ -72,25 +72,13 @@ export function parseChapterMarkdown(
     const anchor = anchorMatch ? `p-${anchorMatch[1]}` : null;
     const content = anchorMatch ? trimmed.slice(0, anchorMatch.index).trim() : trimmed;
 
-    // Heading 1
-    if (content.startsWith("# ")) {
-      const text = renderInlines(content.slice(2), bookId, vaultPath);
+    // Headings 1-6: # through ######
+    const headingMatch = content.match(/^(#{1,6})\s+(.+)$/);
+    if (headingMatch) {
+      const level = headingMatch[1].length;
+      const text = renderInlines(headingMatch[2], bookId, vaultPath);
       const anchorAttr = anchor ? ` data-anchor="${anchor}"` : "";
-      htmlParts.push(`<h1${anchorAttr}>${text}</h1>`);
-      continue;
-    }
-    // Heading 2
-    if (content.startsWith("## ")) {
-      const text = renderInlines(content.slice(3), bookId, vaultPath);
-      const anchorAttr = anchor ? ` data-anchor="${anchor}"` : "";
-      htmlParts.push(`<h2${anchorAttr}>${text}</h2>`);
-      continue;
-    }
-    // Heading 3
-    if (content.startsWith("### ")) {
-      const text = renderInlines(content.slice(4), bookId, vaultPath);
-      const anchorAttr = anchor ? ` data-anchor="${anchor}"` : "";
-      htmlParts.push(`<h3${anchorAttr}>${text}</h3>`);
+      htmlParts.push(`<h${level}${anchorAttr}>${text}</h${level}>`);
       continue;
     }
 
@@ -161,4 +149,21 @@ function renderInlines(raw: string, bookId?: string, vaultPath?: string): string
   text = text.replace(/`([^`]+)`/g, "<code>$1</code>");
 
   return text;
+}
+
+/**
+ * Sanitizes quote snippets by stripping inline markdown delimiters (bold, italic, code, anchors)
+ * so quotes display cleanly in UI chips and summary cards without raw asterisks or backticks.
+ */
+export function sanitizeQuoteText(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/_([^_]+)_/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\[\^.*?\]/g, "")
+    .replace(/\s*(?:\^|§)p-[a-zA-Z0-9_-]+/g, "")
+    .trim();
 }

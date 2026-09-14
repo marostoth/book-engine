@@ -28,13 +28,27 @@ pub fn sync_practice_deck_blocking(book_id: &str) -> Result<usize> {
 
     for section in deck_content.split("### ") {
         if let Some(card) = parse_card_section(section, &book_dir) {
+            let unique_card_id = if card.card_id.starts_with(&format!("{}-", book_id)) || card.card_id.starts_with(&format!("{}:", book_id)) {
+                card.card_id.clone()
+            } else {
+                format!("{}-{}", book_id, card.card_id)
+            };
+            let payload_json = card.scenario_payload.as_ref().and_then(|p| serde_json::to_string(p).ok());
             tx.execute(
-                "INSERT OR IGNORE INTO fsrs_cards (
+                "INSERT INTO fsrs_cards (
                     card_id, book_id, chapter_file, anchor, item_type, prompt, answer,
-                    state, stability, difficulty, due, last_review, reps
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0.0, 0.0, ?, 0, 0)",
+                    state, stability, difficulty, due, last_review, reps, card_type, payload
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, 0.0, 0.0, ?8, 0, 0, ?9, ?10)
+                ON CONFLICT(card_id) DO UPDATE SET
+                    chapter_file = excluded.chapter_file,
+                    anchor = excluded.anchor,
+                    item_type = excluded.item_type,
+                    prompt = excluded.prompt,
+                    answer = excluded.answer,
+                    card_type = excluded.card_type,
+                    payload = excluded.payload",
                 params![
-                    &card.card_id,
+                    &unique_card_id,
                     book_id,
                     &card.chapter_file,
                     &card.anchor,
@@ -42,6 +56,8 @@ pub fn sync_practice_deck_blocking(book_id: &str) -> Result<usize> {
                     &card.cloze,
                     &card.answer_key,
                     now,
+                    &card.card_type,
+                    payload_json,
                 ],
             )?;
             synced_count += 1;
@@ -52,15 +68,40 @@ pub fn sync_practice_deck_blocking(book_id: &str) -> Result<usize> {
     Ok(synced_count)
 }
 
-/// Retrieves cards due for review (due <= now OR reps = 0), optionally filtered by book_id.
-pub fn get_due_cards_blocking(book_id: Option<&str>) -> Result<Vec<PracticeCardItem>> {
-    let conn = open_or_create_db()?;
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64;
+fn map_card_row(row: &rusqlite::Row) -> rusqlite::Result<PracticeCardItem> {
+    let card_type: String = row.get(13).unwrap_or_else(|_| "cloze".to_string());
+    let payload_str: Option<String> = row.get(14).ok();
+    let scenario_payload = payload_str
+        .as_deref()
+        .and_then(|s| serde_json::from_str(s).ok());
 
-    let mut query = "SELECT card_id, book_id, chapter_file, anchor, item_type, prompt, answer, state, stability, difficulty, due, last_review, reps
+    Ok(PracticeCardItem {
+        card_id: row.get(0)?,
+        book_id: row.get(1)?,
+        chapter_file: row.get(2)?,
+        anchor: row.get(3)?,
+        item_type: row.get(4)?,
+        prompt: row.get(5)?,
+        answer: row.get(6)?,
+        state: row.get(7)?,
+        stability: row.get(8)?,
+        difficulty: row.get(9)?,
+        due: row.get(10)?,
+        last_review: row.get(11)?,
+        reps: row.get(12)?,
+        card_type,
+        scenario_payload,
+    })
+}
+
+fn fetch_due_cards_query(
+    conn: &rusqlite::Connection,
+    now: i64,
+    book_id: Option<&str>,
+    card_type_filter: Option<&str>,
+    limit: usize,
+) -> Result<Vec<PracticeCardItem>> {
+    let mut query = "SELECT card_id, book_id, chapter_file, anchor, item_type, prompt, answer, state, stability, difficulty, due, last_review, reps, card_type, payload
          FROM fsrs_cards
          WHERE (due <= ? OR reps = 0)".to_string();
 
@@ -71,33 +112,86 @@ pub fn get_due_cards_blocking(book_id: Option<&str>) -> Result<Vec<PracticeCardI
         params_vec.push(b_id.to_string().into());
     }
 
-    query.push_str(" ORDER BY due ASC, reps ASC LIMIT 50;");
+    if let Some(ct) = card_type_filter {
+        if ct == "scenario" {
+            query.push_str(" AND card_type = 'scenario'");
+        } else if ct == "cloze" {
+            query.push_str(" AND card_type != 'scenario'");
+        }
+    }
+
+    query.push_str(" ORDER BY due ASC, reps ASC LIMIT ?;");
+    params_vec.push((limit as i64).into());
 
     let mut stmt = conn.prepare(&query)?;
-    let rows = stmt.query_map(rusqlite::params_from_iter(params_vec), |row| {
-        Ok(PracticeCardItem {
-            card_id: row.get(0)?,
-            book_id: row.get(1)?,
-            chapter_file: row.get(2)?,
-            anchor: row.get(3)?,
-            item_type: row.get(4)?,
-            prompt: row.get(5)?,
-            answer: row.get(6)?,
-            state: row.get(7)?,
-            stability: row.get(8)?,
-            difficulty: row.get(9)?,
-            due: row.get(10)?,
-            last_review: row.get(11)?,
-            reps: row.get(12)?,
-        })
-    })?;
-
+    let rows = stmt.query_map(rusqlite::params_from_iter(params_vec), map_card_row)?;
     let mut cards = Vec::new();
     for row in rows {
         cards.push(row?);
     }
-
     Ok(cards)
+}
+
+/// Retrieves cards due for review (due <= now OR reps = 0), filtered by book_id, card_type, limit, and hybrid ratio.
+pub fn get_due_cards_blocking(
+    book_id: Option<&str>,
+    card_type: Option<&str>,
+    limit: Option<usize>,
+    hybrid_ratio: Option<f32>,
+) -> Result<Vec<PracticeCardItem>> {
+    let conn = open_or_create_db()?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+    let target_limit = limit.unwrap_or(50).max(1);
+
+    match card_type {
+        Some("scenario") => fetch_due_cards_query(&conn, now, book_id, Some("scenario"), target_limit),
+        Some("cloze") => fetch_due_cards_query(&conn, now, book_id, Some("cloze"), target_limit),
+        _ => {
+            let ratio = hybrid_ratio.unwrap_or(0.5).clamp(0.05, 0.95);
+            let cloze_target = ((target_limit as f32) * ratio).round() as usize;
+            let scenario_target = target_limit.saturating_sub(cloze_target);
+
+            let clozes = fetch_due_cards_query(&conn, now, book_id, Some("cloze"), cloze_target.max(1))?;
+            let scenarios = fetch_due_cards_query(&conn, now, book_id, Some("scenario"), scenario_target.max(1))?;
+
+            let mut combined = Vec::with_capacity(clozes.len() + scenarios.len());
+            let mut c_iter = clozes.into_iter();
+            let mut s_iter = scenarios.into_iter();
+
+            loop {
+                let mut added = false;
+                if let Some(c) = c_iter.next() {
+                    combined.push(c);
+                    added = true;
+                }
+                if let Some(s) = s_iter.next() {
+                    combined.push(s);
+                    added = true;
+                }
+                if !added {
+                    break;
+                }
+            }
+
+            if combined.len() < target_limit {
+                let existing_ids: std::collections::HashSet<_> = combined.iter().map(|c| c.card_id.clone()).collect();
+                let backfill = fetch_due_cards_query(&conn, now, book_id, None, target_limit)?;
+                for card in backfill {
+                    if !existing_ids.contains(&card.card_id) {
+                        combined.push(card);
+                        if combined.len() >= target_limit {
+                            break;
+                        }
+                    }
+                }
+            }
+
+            Ok(combined)
+        }
+    }
 }
 
 /// Calculates deck statistics (due, new, learning, review counts).

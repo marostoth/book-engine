@@ -34,3 +34,5 @@ vault/notes/*
 .DS_Store
 Thumbs.db
 .vscode/
+scratch/
+

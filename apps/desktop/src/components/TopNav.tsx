@@ -13,9 +13,12 @@ import {
   BarChart3,
   BookMarked,
 } from "lucide-react";
-import { Theme, ViewMode, BookMetadata, ReaderPreferences } from "../lib/types";
+import { Theme, ViewMode, BookMetadata, ReaderPreferences, ReadingLevelMode } from "../lib/types";
 import { BookSelector } from "./BookSelector";
 import { SettingsPopover } from "./SettingsPopover";
+import { InspectionalSessionState } from "../hooks/useInspectionalSession";
+import { SkimTimerWidget } from "./inspectional/SkimTimerWidget";
+import { ElementaryPacingControls } from "./elementary/ElementaryPacingControls";
 
 interface TopNavProps {
   currentBookId?: string;
@@ -38,35 +41,24 @@ interface TopNavProps {
   onOpenPractice?: () => void;
   onOpenNotesDrawer?: () => void;
   onOpenAnalytics?: () => void;
+  onOpenGuide?: () => void;
   preferences: ReaderPreferences;
   onPreferencesChange: (prefs: ReaderPreferences) => void;
   onResyncDeck?: () => void;
+  activeLevel?: ReadingLevelMode;
+  inspectionalSession?: InspectionalSessionState;
+  isPacingRunning?: boolean;
+  onTogglePacer?: () => void;
 }
 
 export const TopNav: React.FC<TopNavProps> = ({
-  currentBookId,
-  bookTitle,
-  bookAuthor,
-  availableBooks,
-  onSelectBook,
-  chapterTitle,
-  progressPercent,
-  sidebarOpen,
-  onToggleSidebar,
-  theme,
-  onThemeChange,
-  viewMode,
-  onViewModeChange,
-  isBionic,
-  onToggleBionic,
-  onOpenSearch,
-  dueCardsCount = 0,
-  onOpenPractice,
-  onOpenNotesDrawer,
-  onOpenAnalytics,
-  preferences,
-  onPreferencesChange,
-  onResyncDeck,
+  currentBookId, bookTitle, bookAuthor, availableBooks, onSelectBook,
+  chapterTitle, progressPercent, sidebarOpen, onToggleSidebar,
+  theme, onThemeChange, viewMode, onViewModeChange, isBionic, onToggleBionic,
+  onOpenSearch, dueCardsCount = 0, onOpenPractice, onOpenNotesDrawer,
+  onOpenAnalytics, onOpenGuide, preferences, onPreferencesChange,
+  onResyncDeck, activeLevel = "elementary", inspectionalSession,
+  isPacingRunning, onTogglePacer,
 }) => {
   const isFocus = viewMode === "focus";
 
@@ -110,18 +102,31 @@ export const TopNav: React.FC<TopNavProps> = ({
           </div>
         )}
 
-        <div className="flex items-center gap-2 min-w-0 overflow-hidden">
-          <h1 className="text-sm font-semibold truncate text-[var(--theme-text)]">
-            {chapterTitle}
+        <div className="flex items-center gap-2 min-w-[200px] flex-1 max-w-md lg:max-w-xl overflow-hidden">
+          <h1 className="text-sm font-semibold truncate text-[var(--theme-text)] flex-1 min-w-0" title={chapterTitle}>
+            <span className="truncate">{chapterTitle}</span>
           </h1>
-          <span className="text-[11px] font-medium text-[var(--theme-muted)] flex-shrink-0">
+          <span className="text-[11px] font-medium text-[var(--theme-muted)] shrink-0 px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/5 font-mono">
             {progressPercent}%
           </span>
         </div>
       </div>
 
-      {/* Right controls: Practice, Analytics, Notes Drawer, Search, Bionic, Split, Themes, Settings */}
-      <div className="flex items-center gap-1.5 flex-shrink-0 flex-nowrap">
+      {/* Right controls: Skim timer, Elementary pacing, Practice, Analytics, Notes Drawer, Search, Bionic, Split, Themes, Settings */}
+      <div className="flex items-center gap-1.5 shrink-0 flex-nowrap">
+        {activeLevel === "inspectional" && inspectionalSession && (
+          <SkimTimerWidget session={inspectionalSession} />
+        )}
+
+        {(activeLevel === "elementary" || isPacingRunning) && (
+          <ElementaryPacingControls
+            preferences={preferences}
+            onPreferencesChange={onPreferencesChange}
+            isPacingRunning={isPacingRunning}
+            onTogglePacer={onTogglePacer}
+          />
+        )}
+
         {/* Practice Suite Button with Due Badge */}
         {onOpenPractice && (
           <button
@@ -175,7 +180,6 @@ export const TopNav: React.FC<TopNavProps> = ({
             Ctrl K
           </kbd>
         </button>
-
         <div className="w-[1px] h-4 bg-black/10 dark:bg-white/10 mx-0.5 flex-shrink-0" />
 
         {/* Bionic Reading Toggle */}
@@ -225,44 +229,35 @@ export const TopNav: React.FC<TopNavProps> = ({
 
         {/* Theme Selectors */}
         <div className="flex items-center gap-0.5 p-1 rounded-lg bg-black/5 dark:bg-white/5 flex-shrink-0 h-8">
-          <button
-            onClick={() => onThemeChange("paper")}
-            className={`p-1 rounded-md text-xs transition-all ${
-              theme === "paper"
-                ? "bg-white text-neutral-900 shadow-sm font-semibold"
-                : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
-            }`}
-            title="Warm Paper Theme (#FBFBFA)"
-          >
-            <Sun className="w-3.5 h-3.5" />
-          </button>
-
-          <button
-            onClick={() => onThemeChange("sepia")}
-            className={`p-1 rounded-md text-xs transition-all ${
-              theme === "sepia"
-                ? "bg-[#EAE0C8] text-[#3D3226] shadow-sm font-semibold"
-                : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
-            }`}
-            title="Sepia Parchment Theme (#F4ECD8)"
-          >
-            <Coffee className="w-3.5 h-3.5" />
-          </button>
-
-          <button
-            onClick={() => onThemeChange("nord")}
-            className={`p-1 rounded-md text-xs transition-all ${
-              theme === "nord"
-                ? "bg-[#3B4252] text-[#88C0D0] shadow-sm font-semibold"
-                : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
-            }`}
-            title="Nord Dark Theme (#2E3440)"
-          >
-            <Moon className="w-3.5 h-3.5" />
-          </button>
+          {(["paper", "sepia", "nord"] as const).map((t) => {
+            const Icon = t === "paper" ? Sun : t === "sepia" ? Coffee : Moon;
+            const isAct = theme === t;
+            const activeClass = t === "paper" ? "bg-white text-neutral-900 shadow-sm font-semibold" : t === "sepia" ? "bg-[#EAE0C8] text-[#3D3226] shadow-sm font-semibold" : "bg-[#3B4252] text-[#88C0D0] shadow-sm font-semibold";
+            return (
+              <button
+                key={t}
+                onClick={() => onThemeChange(t)}
+                className={`p-1 rounded-md text-xs transition-all ${isAct ? activeClass : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"}`}
+                title={`${t.charAt(0).toUpperCase() + t.slice(1)} Theme`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+              </button>
+            );
+          })}
         </div>
 
         <div className="w-[1px] h-4 bg-black/10 dark:bg-white/10 mx-1 flex-shrink-0" />
+
+        {/* Field Guide Trigger (?) */}
+        {onOpenGuide && (
+          <button
+            onClick={onOpenGuide}
+            className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded border border-[var(--theme-border)] text-xs font-mono font-medium hover:text-[var(--theme-accent)] hover:border-[var(--theme-accent)]/60 bg-[var(--theme-surface)] transition-colors cursor-pointer"
+            title="Field Guide & Hotkeys (?)"
+          >
+            ?
+          </button>
+        )}
 
         {/* Settings Popover */}
         <SettingsPopover
@@ -270,9 +265,15 @@ export const TopNav: React.FC<TopNavProps> = ({
           onPreferencesChange={onPreferencesChange}
           onResyncDeck={onResyncDeck}
           dueCardsCount={dueCardsCount}
+          theme={theme}
+          onThemeChange={onThemeChange}
+          isBionic={isBionic}
+          onToggleBionic={onToggleBionic}
+          isPacingRunning={isPacingRunning}
+          onTogglePacer={onTogglePacer}
+          onOpenAnalytics={onOpenAnalytics}
         />
       </div>
     </header>
   );
 };
-

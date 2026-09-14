@@ -3,9 +3,10 @@ import React from "react";
 interface RatingBarProps {
   onRate: (rating: number) => void;
   submitting: boolean;
+  suggestedRating?: number;
 }
 
-export const RatingBar: React.FC<RatingBarProps> = ({ onRate, submitting }) => {
+export const RatingBar: React.FC<RatingBarProps> = ({ onRate, submitting, suggestedRating }) => {
   return (
     <div className="pt-2 space-y-2 animate-in fade-in duration-150">
       <p className="text-center text-[11px] text-neutral-400 font-medium">
@@ -18,9 +19,18 @@ export const RatingBar: React.FC<RatingBarProps> = ({ onRate, submitting }) => {
           type="button"
           onClick={() => onRate(1)}
           disabled={submitting}
-          className="p-3 rounded-xl border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-900 dark:text-red-300 flex flex-col items-center gap-1 transition-all active:scale-95"
+          className={`p-3 rounded-xl border flex flex-col items-center gap-1 transition-all active:scale-95 ${
+            suggestedRating === 1
+              ? "border-red-500 bg-red-500/25 ring-2 ring-red-500 text-red-900 dark:text-red-200"
+              : "border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-900 dark:text-red-300"
+          }`}
         >
-          <span className="text-xs font-bold">Again</span>
+          <span className="text-xs font-bold flex items-center gap-1">
+            <span>Again</span>
+            {suggestedRating === 1 && (
+              <span className="text-[9px] px-1 py-0.2 rounded bg-red-500/30 uppercase font-mono">Suggested</span>
+            )}
+          </span>
           <span className="text-[10px] text-red-700 dark:text-red-400 font-mono">&lt; 10m</span>
           <kbd className="text-[9px] px-1 rounded bg-red-500/20 font-mono">1</kbd>
         </button>

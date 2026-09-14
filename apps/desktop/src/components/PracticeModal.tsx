@@ -11,6 +11,7 @@ import { submitReview } from "../lib/api";
 import { ClozeDrill } from "./practice/ClozeDrill";
 import { ScrambleDrill } from "./practice/ScrambleDrill";
 import { RatingBar } from "./practice/RatingBar";
+import { ScenarioCardView } from "./practice/ScenarioCardView";
 
 interface PracticeModalProps {
   isOpen: boolean;
@@ -32,6 +33,7 @@ export const PracticeModal: React.FC<PracticeModalProps> = ({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [userAnswer, setUserAnswer] = useState("");
   const [revealed, setRevealed] = useState(false);
+  const [suggestedRating, setSuggestedRating] = useState<number | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
   const [completed, setCompleted] = useState(false);
   const [sessionReviews, setSessionReviews] = useState<{ rating: number; cardId: string }[]>([]);
@@ -41,6 +43,7 @@ export const PracticeModal: React.FC<PracticeModalProps> = ({
   useEffect(() => {
     setUserAnswer("");
     setRevealed(false);
+    setSuggestedRating(undefined);
   }, [currentIndex]);
 
   const handleRate = useCallback(
@@ -209,41 +212,61 @@ export const PracticeModal: React.FC<PracticeModalProps> = ({
                 )}
               </div>
 
-              {/* Cloze Drill */}
-              {currentCard.item_type === "cloze" && (
-                <ClozeDrill
+              {/* Scenario Drill vs Cloze/Scramble Drill */}
+              {currentCard.card_type === "scenario" || currentCard.item_type === "scenario" || currentCard.cardType === "scenario" ? (
+                <ScenarioCardView
                   card={currentCard}
-                  userAnswer={userAnswer}
-                  onUserAnswerChange={setUserAnswer}
-                  revealed={revealed}
-                  onReveal={() => setRevealed(true)}
+                  onAnswerSubmitted={(isCorrect) => {
+                    setRevealed(true);
+                    setSuggestedRating(isCorrect ? undefined : 1);
+                  }}
+                  onJumpToAnchor={onJumpToAnchor}
                 />
-              )}
+              ) : (
+                <>
+                  {/* Cloze Drill */}
+                  {currentCard.item_type === "cloze" && (
+                    <ClozeDrill
+                      card={currentCard}
+                      userAnswer={userAnswer}
+                      onUserAnswerChange={setUserAnswer}
+                      revealed={revealed}
+                      onReveal={() => setRevealed(true)}
+                    />
+                  )}
 
-              {/* Scrambled Drill */}
-              {currentCard.item_type === "scramble" && (
-                <ScrambleDrill
-                  card={currentCard}
-                  revealed={revealed}
-                  onReveal={() => setRevealed(true)}
-                />
-              )}
+                  {/* Scrambled Drill */}
+                  {currentCard.item_type === "scramble" && (
+                    <ScrambleDrill
+                      card={currentCard}
+                      revealed={revealed}
+                      onReveal={() => setRevealed(true)}
+                    />
+                  )}
 
-              {/* Revealed Exact Answer */}
-              {revealed && (
-                <div className="p-4 rounded-xl bg-[var(--theme-accent)]/10 border border-[var(--theme-accent)]/20 space-y-1.5 animate-in fade-in duration-150">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--theme-accent)]">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Exact Answer Key:</span>
-                    <code className="font-mono bg-[var(--theme-accent)]/20 px-1.5 py-0.5 rounded text-[11px]">
-                      {currentCard.answer}
-                    </code>
-                  </div>
-                </div>
+                  {/* Revealed Exact Answer */}
+                  {revealed && (
+                    <div className="p-4 rounded-xl bg-[var(--theme-accent)]/10 border border-[var(--theme-accent)]/20 space-y-1.5 animate-in fade-in duration-150">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--theme-accent)]">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Exact Answer Key:</span>
+                        <code className="font-mono bg-[var(--theme-accent)]/20 px-1.5 py-0.5 rounded text-[11px]">
+                          {currentCard.answer}
+                        </code>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
 
               {/* FSRS Rating Buttons */}
-              {revealed && <RatingBar onRate={handleRate} submitting={submitting} />}
+              {revealed && (
+                <RatingBar
+                  onRate={handleRate}
+                  submitting={submitting}
+                  suggestedRating={suggestedRating}
+                />
+              )}
             </div>
           )}
         </div>

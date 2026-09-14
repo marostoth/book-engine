@@ -8,9 +8,10 @@ import {
   Search,
   BookMarked,
 } from "lucide-react";
-import { BookMeta, ChapterMeta, BookMetadata, TOCItem } from "../lib/types";
+import { BookMeta, ChapterMeta, BookMetadata, TOCItem, ReadingLevelMode, InspectionalSubView } from "../lib/types";
 import { BookSelector } from "./BookSelector";
 import { TOCItemRow } from "./sidebar/TOCItemRow";
+import { Compass, BookCheck } from "lucide-react";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -21,6 +22,9 @@ interface SidebarProps {
   activeChapterId: string;
   onSelectChapter: (chapter: ChapterMeta) => void;
   onOpenNotesDrawer?: () => void;
+  activeLevel?: ReadingLevelMode;
+  activeSubView?: InspectionalSubView;
+  onSelectSubView?: (subView: InspectionalSubView) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -32,6 +36,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeChapterId,
   onSelectChapter,
   onOpenNotesDrawer,
+  activeLevel = "elementary",
+  activeSubView = "blueprint",
+  onSelectSubView,
 }) => {
   const [activeTab, setActiveTab] = useState<"toc" | "chapters">("toc");
   const [searchFilter, setSearchFilter] = useState("");
@@ -129,6 +136,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <ChevronLeft className="w-4 h-4" />
         </button>
       </div>
+
+      {/* Inspectional Sub-Mode Switcher */}
+      {activeLevel === "inspectional" && onSelectSubView && (
+        <div className="px-3 pt-2 pb-0.5 flex items-center gap-1">
+          <div className="flex-1 flex p-0.5 rounded-lg bg-[var(--theme-accent)]/10 border border-[var(--theme-accent)]/20 text-xs font-medium">
+            <button
+              type="button"
+              onClick={() => onSelectSubView("blueprint")}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded-md transition-all cursor-pointer ${
+                activeSubView === "blueprint"
+                  ? "bg-[var(--theme-accent)] text-white shadow-sm font-semibold"
+                  : "text-[var(--theme-muted)] hover:text-[var(--theme-text)]"
+              }`}
+            >
+              <Compass className="w-3.5 h-3.5" />
+              <span>Blueprint</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onSelectSubView("dips")}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded-md transition-all cursor-pointer ${
+                activeSubView === "dips"
+                  ? "bg-[var(--theme-accent)] text-white shadow-sm font-semibold"
+                  : "text-[var(--theme-muted)] hover:text-[var(--theme-text)]"
+              }`}
+            >
+              <BookCheck className="w-3.5 h-3.5" />
+              <span>Dip Sampler</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Navigation View Switcher (TOC vs Chapters) */}
       <div className="px-3 pt-2.5 pb-1 flex items-center gap-1">

@@ -13,16 +13,30 @@ export async function syncPracticeDeck(bookId: string): Promise<number> {
   return fallbackCardsMemory.length;
 }
 
-export async function getDueCards(bookId?: string): Promise<PracticeCardItem[]> {
+export async function getDueCards(
+  bookId?: string,
+  cardType?: string,
+  limit?: number,
+  hybridRatio?: number
+): Promise<PracticeCardItem[]> {
   if (isTauri) {
     try {
-      return await tauriInvoke("get_due_cards", { bookId });
+      return await tauriInvoke("get_due_cards", { bookId, cardType, limit, hybridRatio });
     } catch (e) {
       console.warn("Tauri get_due_cards failed:", e);
     }
   }
   const now = Math.floor(Date.now() / 1000);
-  return fallbackCardsMemory.filter((c) => c.due <= now || c.reps === 0);
+  let cards = fallbackCardsMemory.filter((c) => c.due <= now || c.reps === 0);
+  if (cardType === "scenario") {
+    cards = cards.filter((c) => c.card_type === "scenario" || c.item_type === "scenario");
+  } else if (cardType === "cloze") {
+    cards = cards.filter((c) => c.card_type !== "scenario" && c.item_type !== "scenario");
+  }
+  if (limit) {
+    cards = cards.slice(0, limit);
+  }
+  return cards;
 }
 
 export async function submitReview(cardId: string, rating: number): Promise<CardSchedule> {

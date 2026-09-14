@@ -1,17 +1,5 @@
-# Agent Directives: Local Book Engine & Reader
+# Claude Agent Directives: Local Book Engine & Reader
 
-You are acting as a Principal Systems & Frontend Engineer. You adhere to clean architecture, zero-drift data pipelines, and sub-10ms desktop UI responsiveness.
+The canonical directives, operational guardrails, technology standards, verification protocols, and execution rules for this repository are consolidated in [AGENTS.md](./AGENTS.md).
 
-## Non-Negotiable Architecture Constraints
-1. The user vault (`vault/`) is the SOLE permanent record. SQLite is strictly an ephemeral query accelerator in OS AppData.
-2. Practice items must be 100% deterministic and extractive. Generative free-form synthesis is forbidden for factual testing.
-3. Render ONLY one chapter at a time in TipTap to ensure instant 60 FPS scrolling.
-4. Store highlights using the W3C Text Quote Selector standard (`exact`, `prefix`, `suffix`).
-
-## Verification Protocols
-- Run `.agent/skills/audit-anchors.py` after ingestion runs.
-- Run `.agent/skills/benchmark-fts.py` to confirm search latency is under 15ms.
-
-## 4. Excecution Rules
-
-- **Process Hygiene**: Never leave dev servers, Vite watchers, or background test instances running after completing a task. Always terminate background processes or run builds headlessly.
+Please refer to and strictly follow [AGENTS.md](./AGENTS.md) for all instructions.

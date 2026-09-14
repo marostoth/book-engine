@@ -126,7 +126,24 @@ def create_sample_epub(output_path: Path) -> Path:
     return output_path
 
 
+def generate_sample_vault_book(vault_dir: Path, custom_book_id: str = "sample") -> None:
+    """Generate sample EPUB and ingest into vault with full metrics and sampling."""
+    import tempfile
+    from ingest.pipeline import ingest_epub
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_epub = Path(tmp_dir) / "sample.epub"
+        create_sample_epub(tmp_epub)
+        ingest_epub(tmp_epub, vault_dir, custom_book_id=custom_book_id)
+
+
 if __name__ == "__main__":
-    out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("sample.epub")
-    create_sample_epub(out)
-    print(f"[+] Created sample EPUB at: {out}")
+    if len(sys.argv) > 1 and sys.argv[1] == "--vault":
+        target_vault = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("vault")
+        generate_sample_vault_book(target_vault)
+        print(f"[+] Ingested sample book with metrics into vault at: {target_vault}")
+    else:
+        out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("sample.epub")
+        create_sample_epub(out)
+        print(f"[+] Created sample EPUB at: {out}")
+

@@ -27,9 +27,20 @@
     "title": "Principles of Marketing, Global Edition",
     "author": "Philip Kotler & Gary Armstrong",
     "filename": "[MKTG] Kotler P., Armstrong G. Principles of Marketing 19ed 2023.pdf",
-    "processed_at": "2026-09-11T19:18:29.832595+00:00",
+    "processed_at": "2026-09-13T15:14:48.641338+00:00",
     "total_chapters": 20,
-    "total_words": 473042,
+    "total_words": 455709,
+    "anchors_verified": "PASS"
+  },
+  {
+    "sha256": "abffd067b20a3ec931a91a71d040d03c2a40d5247918b65ce0e499bebd381081",
+    "book_id": "dalton-j-mind-over-markets-power-trading-with-market-generated-information-updated-edition",
+    "title": "[TRADE] Dalton J. Mind Over Markets Power Trading with Market Generated Information, Updated Edition",
+    "author": "Unknown Author",
+    "filename": "[TRADE] Dalton J. Mind Over Markets Power Trading with Market Generated Information, Updated Edition.pdf",
+    "processed_at": "2026-09-14T14:45:58.535741+00:00",
+    "total_chapters": 7,
+    "total_words": 78445,
     "anchors_verified": "PASS"
   }
 ]

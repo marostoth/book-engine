@@ -10,23 +10,28 @@ from typing import Any, Dict, List, Optional, Tuple
 import pymupdf
 import pymupdf4llm
 
-from ingest.anchors import extract_anchors, inject_paragraph_anchors
-from ingest.models import BookMeta, ChapterMeta, PracticeCard, TOCItem
-from ingest.salience import format_practice_deck_markdown, generate_chapter_practice_cards
-
-
-from ingest.pdf_sanitizer import (
-    clean_author_metadata,
-    generate_pdf_slug,
-    sanitize_pdf_markdown,
+from ingest.anchors import extract_anchors, inject_paragraph_anchors, extract_inspectional_sampling, clean_preview_text
+from ingest.models import BookMeta, ChapterMeta, PracticeCard, TOCItem, InspectionalBlueprint, ScenarioCard
+from ingest.elementary import compute_elementary_metrics
+from ingest.salience import (
+    format_practice_deck_markdown,
+    generate_chapter_practice_cards,
+    generate_chapter_scenario_cards,
 )
+from ingest.pdf_sanitizer import clean_author_metadata, generate_pdf_slug, sanitize_pdf_markdown
+from ingest.assets import (
+    filter_and_normalize_markdown_assets,
+    cleanup_orphaned_assets,
+    suppress_page_images,
+)
+from ingest.vector_figures import (
+    detect_and_rasterize_vector_figures,
+    replace_vector_diagram_streams,
+)
+from ingest.layout_stitcher import stitch_layout_blocks
 
-__all__ = [
-    "PDFParser",
-    "generate_pdf_slug",
-    "sanitize_pdf_markdown",
-    "clean_author_metadata",
-]
+
+__all__ = ["PDFParser", "generate_pdf_slug", "sanitize_pdf_markdown", "clean_author_metadata"]
 
 
 class PDFParser:
@@ -45,7 +50,7 @@ class PDFParser:
         if not self.pdf_path.exists():
             raise FileNotFoundError(f"Source PDF not found: {self.pdf_path}")
 
-    def parse(self) -> BookMeta:
+    def parse(self, target_chapters: Optional[List[int]] = None) -> BookMeta:
         """Parses the PDF document into structured Markdown chapters, assets, and metadata."""
         doc = pymupdf.open(str(self.pdf_path))
         total_pages = len(doc)
@@ -119,6 +124,8 @@ class PDFParser:
         spine_metas: List[ChapterMeta] = []
         toc_items: List[TOCItem] = []
         all_practice_cards: List[PracticeCard] = []
+        all_scenarios: List[ScenarioCard] = []
+        all_clean_text: List[str] = []
         total_words = 0
 
         for chapter_idx, (ch_title, start_page, end_page) in enumerate(chapter_ranges, start=1):
@@ -126,13 +133,47 @@ class PDFParser:
             ch_filename = f"{ch_id}.md"
             ch_path = book_dir / ch_filename
 
+            if target_chapters and chapter_idx not in target_chapters and ch_path.exists():
+                anchored_md = ch_path.read_text(encoding="utf-8")
+                word_count = len(re.findall(r"\b\w+\b", anchored_md))
+                total_words += word_count
+                anchors_list = extract_anchors(anchored_md)
+                spine_metas.append(
+                    ChapterMeta(
+                        id=ch_id,
+                        title=ch_title,
+                        file_path=ch_filename,
+                        order=chapter_idx,
+                        word_count=word_count,
+                        anchor_count=len(anchors_list),
+                        first_anchor=anchors_list[0][0] if anchors_list else None,
+                        last_anchor=anchors_list[-1][0] if anchors_list else None,
+                        footnotes_count=0,
+                        inspectional_sampling=extract_inspectional_sampling(anchored_md),
+                    )
+                )
+                toc_items.append(TOCItem(id=ch_id, title=ch_title, href=ch_filename, level=1, subitems=[]))
+                clean_t = clean_preview_text(anchored_md)
+                if clean_t:
+                    all_clean_text.append(clean_t)
+                all_practice_cards.extend(generate_chapter_practice_cards(ch_id, anchored_md, min_items=5, max_items=8))
+                all_scenarios.extend(generate_chapter_scenario_cards(anchored_md, ch_id, max_items=3))
+                continue
+
             print(
                 f"    -> Chapter {chapter_idx}/{len(chapter_ranges)}: '{ch_title}' (pages {start_page + 1}..{end_page})...",
                 flush=True,
             )
 
-            # Convert chapter page range to Markdown using pymupdf4llm
+
             page_numbers = list(range(start_page, end_page))
+
+            # 3. Pristine Snapshot Pass: Vector diagram rasterization directly from unredacted doc
+            vec_figures = detect_and_rasterize_vector_figures(
+                doc, page_numbers, chapter_idx, assets_dir
+            )
+
+            # 4. Non-Destructive Markdown Conversion directly from source doc (Zero Redaction)
             raw_chapter_md = pymupdf4llm.to_markdown(
                 doc,
                 pages=page_numbers,
@@ -140,52 +181,30 @@ class PDFParser:
                 image_path=str(assets_dir),
             )
 
-            # 3. Asset Filtering & Normalization (>= 60x60 px retained as diagrams, < 60x60 px discarded)
-            def process_markdown_image(match: re.Match[str]) -> str:
-                alt = match.group(1)
-                src = match.group(2).strip()
-                filename = Path(src).name
-                asset_path = assets_dir / filename
+            # 6. Single-Tag Reconciliation: Suppress auto-extracted images on vector diagram pages
+            if vec_figures:
+                vec_pages = {val[2] for val in vec_figures.values() if len(val) > 2}
+                raw_chapter_md = suppress_page_images(raw_chapter_md, assets_dir, vec_pages)
 
-                if not asset_path.exists():
-                    return ""
+            # 7. Micro-Asset & Aspect Ratio Filter (< 50 pt or aspect ratio > 6:1 discarded)
+            raw_chapter_md = filter_and_normalize_markdown_assets(raw_chapter_md, assets_dir)
 
-                try:
-                    pix = pymupdf.Pixmap(str(asset_path))
-                    width, height = pix.width, pix.height
-                    del pix
+            # 8. Replace vector diagram streams and insert rasterized figure tags
+            if vec_figures:
+                raw_chapter_md = replace_vector_diagram_streams(raw_chapter_md, vec_figures)
 
-                    if width < 60 or height < 60:
-                        # Decorative glyph, icon, or tracking element: delete from disk
-                        asset_path.unlink(missing_ok=True)
-                        return ""
-                    else:
-                        # Valid diagram, workflow chart, or figure: normalize to assets/<filename>
-                        return f"![{alt}](assets/{filename})"
-                except Exception:
-                    # If pixmap cannot be parsed, check file size (> 2KB)
-                    if asset_path.stat().st_size < 2048:
-                        asset_path.unlink(missing_ok=True)
-                        return ""
-                    return f"![{alt}](assets/{filename})"
-
-            raw_chapter_md = re.sub(
-                r"!\[(.*?)\]\((.*?)\)",
-                process_markdown_image,
-                raw_chapter_md,
-            )
-
-            # 4. Sanitization: Strip margins, solitary numbers, running headers
+            # 8. Sanitization & layout stitching
             sanitized_md = sanitize_pdf_markdown(raw_chapter_md)
+            stitched_md = stitch_layout_blocks(sanitized_md)
 
             # Ensure the chapter begins with a proper H1 heading
-            if not re.match(r"^#{1,2}\s+", sanitized_md):
-                sanitized_md = f"# {ch_title}\n\n{sanitized_md}"
+            if not re.match(r"^#{1,2}\s+", stitched_md):
+                stitched_md = f"# {ch_title}\n\n{stitched_md}"
 
-            # 5. Anchor Tagging: Inject deterministic ^p-xxx
-            anchored_md, anchor_count = inject_paragraph_anchors(sanitized_md, start_index=1)
+            # Inject persistent paragraph anchors
+            anchored_md, anchor_count = inject_paragraph_anchors(stitched_md, start_index=1)
 
-            # Compute chapter word count
+            # Calculate word count
             word_count = len(re.findall(r"\b\w+\b", anchored_md))
             total_words += word_count
 
@@ -197,6 +216,14 @@ class PDFParser:
             first_anchor = anchors_list[0][0] if anchors_list else None
             last_anchor = anchors_list[-1][0] if anchors_list else None
 
+            # Extract inspectional sampling
+            sampling = extract_inspectional_sampling(anchored_md)
+
+            # Collect clean text for elementary metrics
+            clean_ch_text = clean_preview_text(anchored_md)
+            if clean_ch_text:
+                all_clean_text.append(clean_ch_text)
+
             ch_meta = ChapterMeta(
                 id=ch_id,
                 title=ch_title,
@@ -207,6 +234,7 @@ class PDFParser:
                 first_anchor=first_anchor,
                 last_anchor=last_anchor,
                 footnotes_count=0,
+                inspectional_sampling=sampling,
             )
             spine_metas.append(ch_meta)
 
@@ -225,21 +253,25 @@ class PDFParser:
                 ch_id, anchored_md, min_items=5, max_items=8
             )
             all_practice_cards.extend(chapter_cards)
+            all_scenarios.extend(generate_chapter_scenario_cards(anchored_md, ch_id, max_items=3))
 
         doc.close()
 
         # Clean up any orphaned asset files not referenced in any chapter markdown
-        referenced_assets = set()
-        for ch in spine_metas:
-            ch_md = (book_dir / ch.file_path).read_text(encoding="utf-8")
-            for m in re.finditer(r"!\[.*?\]\(assets/([^\)]+)\)", ch_md):
-                referenced_assets.add(m.group(1))
-        if assets_dir.exists():
-            for existing in assets_dir.iterdir():
-                if existing.is_file() and existing.name not in referenced_assets:
-                    existing.unlink(missing_ok=True)
+        cleanup_orphaned_assets(book_dir, assets_dir, [ch.file_path for ch in spine_metas])
 
-        # 7. Construct & Save BookMeta (_meta.json)
+        # Aggregate elementary metrics
+        pivotal_chapters = [spine_metas[0].id] if spine_metas else []
+        if len(spine_metas) > 1:
+            pivotal_chapters.append(spine_metas[-1].id)
+
+        inspectional_blueprint = InspectionalBlueprint(
+            front_matter={"has_preface": False, "preface_path": None, "publisher_blurb": f"{title} by {author}"},
+            pivotal_chapters=pivotal_chapters,
+            synthetic_index_clusters=[],
+            exit_assessment=None,
+        )
+
         book_meta = BookMeta(
             book_id=book_id,
             title=title,
@@ -249,24 +281,18 @@ class PDFParser:
             total_chapters=len(spine_metas),
             toc=toc_items,
             spine=spine_metas,
+            elementary_metrics=compute_elementary_metrics(" ".join(all_clean_text)),
+            inspectional_blueprint=inspectional_blueprint,
         )
-        meta_path = book_dir / "_meta.json"
-        meta_path.write_text(book_meta.model_dump_json(indent=2), encoding="utf-8")
+        (book_dir / "_meta.json").write_text(book_meta.model_dump_json(indent=2), encoding="utf-8")
 
-        # 8. Save Practice Deck
-        practice_deck_md = format_practice_deck_markdown(title, all_practice_cards)
-        practice_deck_path = notes_dir / "practice-deck.md"
-        practice_deck_path.write_text(practice_deck_md, encoding="utf-8")
+        practice_deck_md = format_practice_deck_markdown(title, all_practice_cards, all_scenarios)
+        (notes_dir / "practice-deck.md").write_text(practice_deck_md, encoding="utf-8")
 
-        # 9. Starter Note Template for Chapter 1
         first_ch_notes = notes_dir / "ch-01-notes.md"
         if not first_ch_notes.exists():
             first_title = spine_metas[0].title if spine_metas else "Chapter 1"
-            notes_template = (
-                f"# Reflections: {title} - {first_title}\n\n"
-                f"## Key Takeaways\n\n- \n\n"
-                f"## Open Inquiries\n\n- \n"
-            )
-            first_ch_notes.write_text(notes_template, encoding="utf-8")
+            first_ch_notes.write_text(f"# Reflections: {title} - {first_title}\n\n## Key Takeaways\n\n- \n\n## Open Inquiries\n\n- \n", encoding="utf-8")
 
         return book_meta
+

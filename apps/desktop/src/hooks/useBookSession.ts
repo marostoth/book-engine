@@ -154,6 +154,30 @@ export function useBookSession(onCardsRefreshNeeded?: (bookId: string) => void) 
     setTargetAnchor(anchor);
   };
 
+  const navigateToCrossBookCitation = useCallback(
+    async (citation: { bookId: string; chapterFile: string; anchor: string }) => {
+      if (citation.bookId !== activeBookId) {
+        setActiveBookId(citation.bookId);
+        localStorage.setItem("book_engine_active_book_id", citation.bookId);
+        try {
+          const meta = await fetchBookMeta(citation.bookId);
+          setBookMeta(meta);
+          const targetChapter =
+            meta.spine?.find((ch) => ch.file_path === citation.chapterFile) || meta.spine?.[0];
+          if (targetChapter) {
+            setActiveChapter(targetChapter);
+          }
+          setTargetAnchor(citation.anchor);
+        } catch (err) {
+          console.error("Failed to switch book for citation:", citation.bookId, err);
+        }
+      } else {
+        handleSelectSearchResult(citation.chapterFile, citation.anchor);
+      }
+    },
+    [activeBookId, handleSelectSearchResult]
+  );
+
   return {
     vaultPath,
     availableBooks,
@@ -170,6 +194,7 @@ export function useBookSession(onCardsRefreshNeeded?: (bookId: string) => void) 
     handleSelectBook,
     handleAddHighlight,
     handleSelectSearchResult,
+    navigateToCrossBookCitation,
     loadBook,
   };
 }

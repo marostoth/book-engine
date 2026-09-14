@@ -19,12 +19,33 @@ pub struct IndexSummary {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ScenarioOption {
+    pub key: String,
+    pub text: String,
+    pub is_correct: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ScenarioPayload {
+    pub scenario: String,
+    pub options: Vec<ScenarioOption>,
+    pub citation: crate::vault::AnchoredCitation,
+    pub rationale: String,
+}
+
+fn default_card_type() -> String {
+    "cloze".to_string()
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PracticeCardItem {
     pub card_id: String,
     pub book_id: String,
     pub chapter_file: String,
     pub anchor: String,
-    pub item_type: String, // "cloze" | "scramble"
+    pub item_type: String, // "cloze" | "scramble" | "scenario"
     pub prompt: String,
     pub answer: String,
     pub state: u8,
@@ -33,6 +54,10 @@ pub struct PracticeCardItem {
     pub due: i64,
     pub last_review: i64,
     pub reps: i64,
+    #[serde(default = "default_card_type", alias = "cardType")]
+    pub card_type: String,
+    #[serde(skip_serializing_if = "Option::is_none", alias = "scenarioPayload")]
+    pub scenario_payload: Option<ScenarioPayload>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -95,4 +120,14 @@ pub struct StudyAnalytics {
     pub mastered_cards: usize,
     pub total_vault_words: usize,
     pub estimated_reading_time_mins: usize,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DictionaryEntry {
+    pub word: String,
+    pub part_of_speech: Option<String>,
+    pub pronunciation: Option<String>,
+    pub definition: String,
+    pub etymology: Option<String>,
 }
