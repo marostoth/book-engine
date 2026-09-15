@@ -200,6 +200,9 @@ book-engine/
 │           ├── Cargo.toml       # Rust dependency manifest (rusqlite, tokio, tauri v2)
 │           └── tauri.conf.json  # Tauri v2 window, security, and bundle configuration
 │ 
+├── docs/
+│   └── review/                  # Code review registers: verified findings, evidence & fix order
+│       └── 2026-09-14-findings.md  # 76 verified findings from the review of commit 050fe3f, with fix checkboxes
 ├── inbox/                       # Ingestion quarantine & staging directory
 │   ├── .gitkeep                 # Tracked directory marker
 │   └── processed/               # Quarantined & processed binary source documents (.epub, .pdf)
