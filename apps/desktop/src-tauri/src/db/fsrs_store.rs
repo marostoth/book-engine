@@ -1,4 +1,4 @@
-use rusqlite::params;
+use rusqlite::{params, OptionalExtension, TransactionBehavior};
 use anyhow::{Context, Result};
 use super::models::DeckStats;
 use super::schema::open_or_create_db;
@@ -72,16 +72,29 @@ pub fn get_deck_stats_blocking(book_id: Option<&str>) -> Result<DeckStats> {
 }
 
 /// Applies an FSRS-5 rating (1=Again, 2=Hard, 3=Good, 4=Easy), updates SQLite, and returns new schedule.
+/// The card update and its review log row are saved in one transaction: both are saved or neither is,
+/// and every error is returned.
 pub fn submit_card_review_blocking(card_id: &str, rating_val: u8) -> Result<crate::fsrs::CardSchedule> {
-    let conn = open_or_create_db()?;
     let rating = crate::fsrs::Rating::try_from(rating_val)
         .map_err(|e| anyhow::anyhow!(e))?;
+    let mut conn = open_or_create_db()?;
 
-    let (state, stability, difficulty, reps, last_review): (i64, f64, f64, i64, i64) = conn.query_row(
-        "SELECT state, stability, difficulty, reps, last_review FROM fsrs_cards WHERE card_id = ?",
-        params![card_id],
-        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
-    ).with_context(|| format!("Card '{}' not found in fsrs_cards", card_id))?;
+    // IMMEDIATE takes the write lock before the card is read. A second review of the same card
+    // (a double click) waits for this one and then schedules from its saved result.
+    let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+
+    let (book_id, state, stability, difficulty, reps, last_review): (Option<String>, i64, f64, f64, i64, i64) = tx
+        .query_row(
+            "SELECT book_id, state, stability, difficulty, reps, last_review FROM fsrs_cards WHERE card_id = ?",
+            params![card_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
+        )
+        .optional()?
+        .with_context(|| format!("Card '{}' not found in fsrs_cards", card_id))?;
+    // The review log row names the book of the card. There is no fallback book id.
+    let book_id = book_id
+        .filter(|id| !id.trim().is_empty())
+        .with_context(|| format!("Card '{}' has no book id, so its review cannot be logged", card_id))?;
 
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -99,7 +112,7 @@ pub fn submit_card_review_blocking(card_id: &str, rating_val: u8) -> Result<crat
         rating,
     );
 
-    conn.execute(
+    tx.execute(
         "UPDATE fsrs_cards SET
             state = ?,
             stability = ?,
@@ -120,16 +133,12 @@ pub fn submit_card_review_blocking(card_id: &str, rating_val: u8) -> Result<crat
     )?;
 
     // Persist review record to review_logs table for analytics heatmap
-    let book_id: String = conn.query_row(
-        "SELECT book_id FROM fsrs_cards WHERE card_id = ?",
-        params![card_id],
-        |r| r.get(0),
-    ).unwrap_or_else(|_| "sample".to_string());
-
-    let _ = conn.execute(
+    tx.execute(
         "INSERT INTO review_logs (card_id, book_id, rating, reviewed_at) VALUES (?, ?, ?, ?)",
         params![card_id, book_id, rating_val as i64, now],
-    );
+    )
+    .context("Failed to save the review log row")?;
 
+    tx.commit()?;
     Ok(schedule)
 }
