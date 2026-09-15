@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Theme, ViewMode, ReaderPreferences, ReadingLevelMode } from "./lib/types";
 import { loadPreferences, savePreferences } from "./lib/preferences";
+import { appShortcut, shortcutKey } from "./lib/readerShortcuts";
 import { useBookSession } from "./hooks/useBookSession";
 import { usePracticeDeck } from "./hooks/usePracticeDeck";
 import { useChapterGate } from "./hooks/useChapterGate";
@@ -108,25 +109,18 @@ export const App: React.FC = () => {
     }
   }, [activeLevel, preferences.inspectional?.autoHideDrawerOnSkim]);
 
-  // Global keyboard shortcuts (Ctrl+K for search, Alt+P for Pacer, ? / F1 for Field Guide)
+  // Global keyboard shortcuts (Ctrl+K for search, Alt+P for Pacer, ? / F1 for Field Guide).
+  // This is the only Alt+P handler: lib/readerShortcuts.ts gives every shortcut one listener.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
+      const shortcut = appShortcut(shortcutKey(e));
+      if (!shortcut) return;
+      e.preventDefault();
+      if (shortcut === "search") {
         setSearchOpen((prev) => !prev);
-        return;
-      }
-      if (e.altKey && e.key.toLowerCase() === "p") {
-        e.preventDefault();
+      } else if (shortcut === "togglePacer") {
         handleTogglePacer();
-        return;
-      }
-      if (e.key === "?" || e.key === "F1") {
-        const target = e.target as HTMLElement | null;
-        if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
-          return;
-        }
-        e.preventDefault();
+      } else {
         setGuideOpen(true);
       }
     };

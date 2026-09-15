@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { ReaderPreferences } from "../../lib/types";
 import { calculateParagraphDuration } from "../../lib/elementaryPacer";
+import { elementaryCanvasShortcut, shortcutKey } from "../../lib/readerShortcuts";
 
 interface UseElementaryMechanicsOptions {
   preferences: ReaderPreferences;
@@ -103,26 +104,18 @@ export function useElementaryMechanics({
     paragraphStartTime.current = Date.now();
   }, [containerRef, setIsRunning]);
 
-  // Global Keyboard Shortcuts: Alt+P (toggle), '[' (-25 WPM), ']' (+25 WPM)
+  // Pacer speed keys: '[' (-25 WPM) and ']' (+25 WPM). Alt+P has one handler, in App.tsx (lib/readerShortcuts.ts).
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
-      if (e.altKey && e.key.toLowerCase() === "p") {
-        e.preventDefault();
-        togglePacer();
-      } else if (activeLevel === "elementary" && e.key === "[") {
-        e.preventDefault();
-        adjustWpm(-25);
-      } else if (activeLevel === "elementary" && e.key === "]") {
-        e.preventDefault();
-        adjustWpm(25);
-      }
+      const shortcut = elementaryCanvasShortcut(shortcutKey(e), activeLevel);
+      if (!shortcut) return;
+      e.preventDefault();
+      adjustWpm(shortcut === "slowerPacer" ? -25 : 25);
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeLevel, togglePacer, adjustWpm]);
+  }, [activeLevel, adjustWpm]);
 
   // Manual Scroll Interruption with 800ms debounce
   useEffect(() => {

@@ -75,7 +75,7 @@ book-engine/
 │       │   │   │   ├── FocusRuler.tsx               # Active reading block tracker & sibling paragraph dimmer
 │       │   │   │   ├── LexiconPopover.tsx           # Floating offline lexicon definition & vocabulary saver popover
 │       │   │   │   ├── PacingOverlay.tsx            # Visual laser/underline beam pacer sweep indicator
-│       │   │   │   ├── useElementaryMechanics.ts    # Pacer state, RAF loop, duration calculation & scroll guard
+│       │   │   │   ├── useElementaryMechanics.ts    # Pacer state, RAF loop, duration calculation, scroll guard & pacer speed keys ([ and ])
 │       │   │   │   ├── useLinePacer.ts              # Discrete line clock, saccadic pause & RAF line glide hook
 │       │   │   │   └── usePacerDrag.ts              # Tactile pointer drag scrubbing, seek resolver & keyboard stepping hook
 │       │   │   ├── inspectional/    # Modular Level 2 Inspectional Reading components
@@ -171,6 +171,8 @@ book-engine/
 │       │   │   ├── preferences.ts       # Default v2 preferences & deep-merge migration helper
 │       │   │   ├── readerLocation.ts    # Book + chapter file + anchor locations: search hits open their own book
 │       │   │   ├── readerLocation.test.ts # Location tests: a hit in another book's ch-01.md opens that book, not the open one
+│       │   │   ├── readerShortcuts.ts   # Keyboard shortcut owners: App listener (Ctrl+K, Alt+P, ? / F1) or elementary canvas ([ and ])
+│       │   │   ├── readerShortcuts.test.ts # Shortcut tests: one Alt+P press toggles the pacer once at every reading level
 │       │   │   └── types.ts             # Canonical TypeScript interfaces & data contracts
 │       │   ├── App.tsx          # Application shell, global state coordinator & router
 │       │   ├── index.css        # Editorial design tokens, typography, and margin glyphs
@@ -414,6 +416,7 @@ App.tsx (Global state: theme, viewMode, activeBook, activeChapter)
 - `src/lib/anchors.ts`: Converts paragraph anchors between the saved form (`^p-xxx`) and the HTML attribute form (`p-xxx`) with `toSavedAnchor` and `toAnchorAttribute`.
 - `src/lib/readerLocation.ts`: Resolves a location (book id, chapter file, anchor) to the book and chapter to show with `resolveLocation`, loading the location's own book when another book is open. Every book names its chapters `ch-01.md`, `ch-02.md`, ..., so a search hit keeps its `book_id` (`searchResultLocation`).
 - `src/lib/chapterGate.ts`: Chapter Gatekeeper rules. `gatedChapterFile` gives the chapter a move must pass (only a move to a later chapter, at every level except syntopical), and `gatePassed` passes a gate run only when every card was rated Good or Easy and no scenario answer was wrong.
+- `src/lib/readerShortcuts.ts`: Gives every reader keyboard shortcut one owner, so one key press runs its action once. `appShortcut` is the App window listener (Ctrl+K or Cmd+K search, Alt+P pacer, ? or F1 Field Guide), and `elementaryCanvasShortcut` is the elementary canvas listener (`[` and `]` pacer speed, elementary level only). Alt+P, ? and F1 do nothing in inputs, textareas, and editable elements.
 - `src/lib/bionic.ts`: Deterministic Bionic reading transformer bolding the initial 40–50% of word tokens for eye fixation.
 - `src/lib/types.ts`: TypeScript contracts matching `BookMeta`, `ChapterMeta`, `TOCItem`, and theme definitions.
 
@@ -915,7 +918,7 @@ SyntopiconPane (SynthesisTab.tsx)
    - Dedicated full-width **Start Pacer (Alt + P)** / **Pause Pacer** button inside the Reader Settings Elementary tab.
    - Allows immediate test-driving of WPM, mode, and chunk-size adjustments without leaving the configuration card.
 3. **Universal Keyboard Shortcut (`Alt + P`):**
-   - Registered globally on the window event bus; ignores keystrokes originating inside editable inputs and textareas.
+   - Registered once, by the App window listener (`App.tsx`); ignores keystrokes originating inside editable inputs and textareas. `src/lib/readerShortcuts.ts` gives every shortcut one listener, so one press toggles the pacer once. The elementary canvas listener (`useElementaryMechanics.ts`) handles only `[` and `]`.
    - Instantly toggles pacing state from any viewport context.
 4. **Automatic Reading Level Promotion:**
    - Triggering the pacer while viewing Inspectional, Analytical, or Syntopical modes automatically transitions `activeLevel` to `"elementary"` so the visual pacer and canvas mechanics engage instantly.
