@@ -3,6 +3,7 @@ import { BookOpen, Hash, Search, X } from "lucide-react";
 import { BookMetadata, SearchResult } from "../lib/types";
 import { searchVault } from "../lib/api";
 import { ReaderLocation, searchResultBookTitle, searchResultLocation } from "../lib/readerLocation";
+import { MIN_SEARCH_CHARACTERS, isSearchable } from "../lib/searchQuery";
 
 interface OmniSearchModalProps {
   isOpen: boolean;
@@ -35,9 +36,9 @@ export const OmniSearchModal: React.FC<OmniSearchModalProps> = ({
     }
   }, [isOpen]);
 
-  // Debounced search
+  // Debounced search: a search shorter than MIN_SEARCH_CHARACTERS does not run.
   useEffect(() => {
-    if (!query.trim()) {
+    if (!isSearchable(query)) {
       setResults([]);
       setIsSearching(false);
       return;
@@ -119,15 +120,19 @@ export const OmniSearchModal: React.FC<OmniSearchModalProps> = ({
             </div>
           )}
 
-          {!isSearching && results.length === 0 && query.trim() && (
+          {!isSearching && results.length === 0 && isSearchable(query) && (
             <div className="p-8 text-center text-xs text-[var(--theme-muted)]">
               No matching paragraphs found for &quot;{query}&quot;
             </div>
           )}
 
-          {!isSearching && !query.trim() && (
+          {!isSearching && !isSearchable(query) && (
             <div className="p-8 text-center text-xs text-[var(--theme-muted)]">
-              Type keywords to search across all book chapters with sub-15ms FTS5 retrieval.
+              {query.trim()
+                ? `Type at least ${MIN_SEARCH_CHARACTERS} characters to search.`
+                : "Type keywords to search across all book chapters with sub-15ms FTS5 retrieval."}
+              <br />
+              Use &quot;quotes&quot; for a phrase, and AND, OR, NOT in capitals.
             </div>
           )}
 
