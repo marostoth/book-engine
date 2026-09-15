@@ -58,8 +58,21 @@ impl Sandbox {
     pub(crate) fn write_sample_book(&self) {
         self.write("books/sample/_meta.json", SAMPLE_META);
         self.write("books/sample/ch-01.md", SAMPLE_CHAPTER);
-        self.write("notes/sample/practice-deck.md", SAMPLE_DECK);
+        self.write_sample_deck(1, 1);
         self.write("notes/sample/ch-01-notes.md", SAMPLE_NOTES);
+    }
+
+    /// Writes the `sample` practice deck with `clozes` cloze cards and `scenarios` scenario cards.
+    /// After sync, their ids are `sample-card-ch-01-001`, `sample-card-ch-01-002`, … and `sample-sc-ch-01-001`, ….
+    pub(crate) fn write_sample_deck(&self, clozes: usize, scenarios: usize) {
+        let mut deck = String::from(SAMPLE_DECK_TITLE);
+        for n in 1..=clozes {
+            deck.push_str(&SAMPLE_CLOZE_CARD.replace("{n}", &format!("{n:03}")));
+        }
+        for n in 1..=scenarios {
+            deck.push_str(&SAMPLE_SCENARIO_CARD.replace("{n}", &format!("{n:03}")));
+        }
+        self.write("notes/sample/practice-deck.md", &deck);
     }
 }
 
@@ -106,15 +119,20 @@ The division of labour raises the productive powers of work. ^p-001
 A pin maker working alone can make few pins in a day. ^p-002
 "#;
 
-const SAMPLE_DECK: &str = r#"# Practice Deck: Sandbox Economics
+const SAMPLE_DECK_TITLE: &str = "# Practice Deck: Sandbox Economics\n";
 
-### card-ch-01-001
+/// `{n}` is replaced with the card number, for example `001`.
+const SAMPLE_CLOZE_CARD: &str = r#"
+### card-ch-01-{n}
 - **Chapter:** ch-01
 - **Anchor:** ^p-001
 - **Cloze:** The {{c1::division of labour}} raises the productive powers of work.
 - **Answer Key:** ``division of labour``
+"#;
 
-### Scenario: sc-ch-01-001
+/// `{n}` is replaced with the card number, for example `001`.
+const SAMPLE_SCENARIO_CARD: &str = r#"
+### Scenario: sc-ch-01-{n}
 - **Chapter:** ch-01
 - **Anchor:** ^p-001
 **Scenario:** A workshop splits pin making into separate steps. What follows?

@@ -180,6 +180,7 @@ book-engine/
 │           │   ├── commands.rs          # Asynchronous Tauri IPC command handlers
 │           │   ├── db/                  # Modular SQLite storage, FTS5 indexer & analytics
 │           │   │   ├── analytics.rs         # Retention metrics, study analytics & review heatmap
+│           │   │   ├── due_cards.rs         # Practice session card picker: due reviews first, then new cards (cloze/scenario mix)
 │           │   │   ├── fsrs_parser.rs       # Practice card markdown extraction & verbatim validator
 │           │   │   ├── fsrs_store.rs        # FSRS practice card synchronization & review submission
 │           │   │   ├── indexer.rs           # Background vault indexing & FTS5 full-text search
@@ -333,7 +334,7 @@ All deck synchronization and review calculations are executed on background thre
 | Command | Signature | Description |
 | :--- | :--- | :--- |
 | `sync_practice_deck` | `(book_id: String) -> Result<usize, String>` | Scans `vault/notes/<book_id>/practice-deck.md`, performs verbatim substring verification against chapter Markdown, and populates `fsrs_cards`. |
-| `get_due_cards` | `(book_id: Option<String>) -> Result<Vec<PracticeCardItem>, String>` | Retrieves cards due for review (`due <= now` or `due == 0`), sorted by due timestamp. |
+| `get_due_cards` | `(book_id: Option<String>, card_type: Option<String>, limit: Option<usize>, hybrid_ratio: Option<f32>) -> Result<Vec<PracticeCardItem>, String>` | Returns up to `limit` cards (default 50): due reviews first (`reps > 0 AND due <= now`, most overdue first), then new cards (`reps = 0`, in sync order) in the places that are left. A card rated Again is due 10 minutes later and then comes before all new cards. |
 | `submit_review` | `(card_id: String, rating: u8) -> Result<CardSchedule, String>` | Evaluates FSRS-4.5 rating (1=Again, 2=Hard, 3=Good, 4=Easy), computes new stability, difficulty, state, and next interval, and commits to SQLite. |
 | `get_deck_stats` | `(book_id: Option<String>) -> Result<DeckStats, String>` | Aggregates deck volume, due count, learning vs. review ratios, and retention metrics. |
 
@@ -713,11 +714,11 @@ vault/notes/<book-id>/practice-deck.md
    - Harvests plausible in-domain distractor propositions from non-target paragraphs across the chapter.
    - Zero-hallucination guarantee: every option (`A`, `B`, `C`, `D`) and the rationale quote are 100% extractive, exact character substrings from the source chapter.
    - Integrated into `pipeline.py` and `pdf_parser.py`, and formatted side-by-side with Cloze cards in `vault/notes/<book-id>/practice-deck.md`.
-6. **Practice Modality Filtering & Dynamic Retrieval (`fsrs_store.rs`, `usePracticeDeck.ts`):**
+6. **Practice Modality Filtering & Dynamic Retrieval (`due_cards.rs`, `usePracticeDeck.ts`):**
    - Reader settings allow toggling between `verbatim` (Cloze/Scramble recall), `mcq_scenario` (Analytical Scenario MCQs), and `hybrid` (Balanced dual-modality).
    - In `mcq_scenario` mode, SQLite filters `AND card_type = 'scenario'`.
    - In `verbatim` mode, SQLite filters `AND card_type != 'scenario'`.
-   - In `hybrid` mode, SQLite balances cloze and scenario cards using `hybrid_ratio` (default `0.5`, with selectable UI presets `50:50 Balanced`, `70:30 Recall`, `30:70 MCQ`) and interleaves the results.
+   - In `hybrid` mode, `hybrid_ratio` (default `0.5`, with selectable UI presets `50:50 Balanced`, `70:30 Recall`, `30:70 MCQ`) sets the cloze/scenario mix inside each queue: due reviews first, then new cards. When one type runs short, the other type fills its places, the two types are interleaved, and the result never exceeds the limit.
    - Respects user's configured `dailyTargetCards` setting (5–100) instead of hardcoding `LIMIT 50`.
 7. **Chapter Gatekeeper Dual-Modality Support (`GatekeeperCardDrill.tsx`):**
    - Renders inline cloze input for verbatim items, and scenario stem with clickable A/B/C/D choices for scenario items.
