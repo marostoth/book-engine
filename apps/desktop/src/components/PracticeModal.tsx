@@ -152,7 +152,7 @@ export const PracticeModal: React.FC<PracticeModalProps> = ({
                   Practice Session Completed!
                 </h3>
                 <p className="text-sm text-[var(--theme-muted)] mt-1">
-                  You reviewed {session.reviews.length} extractive items with FSRS-4.5 scheduling.
+                  You reviewed {session.reviews.length} extractive items with FSRS-5 scheduling.
                 </p>
               </div>
 
