@@ -1,5 +1,6 @@
 import { Node as TiptapNode, mergeAttributes } from "@tiptap/core";
 import Paragraph from "@tiptap/extension-paragraph";
+import { toAnchorAttribute } from "../../lib/anchors";
 
 // Custom TipTap Paragraph node preserving paragraph anchors as HTML node attributes
 export const AnchorParagraph = Paragraph.extend({
@@ -8,10 +9,7 @@ export const AnchorParagraph = Paragraph.extend({
     return {
       anchor: {
         default: null,
-        parseHTML: (element) => {
-          const raw = element.getAttribute("data-anchor");
-          return raw ? raw.replace(/^\^/, "") : null;
-        },
+        parseHTML: (element) => toAnchorAttribute(element.getAttribute("data-anchor")) ?? null,
         renderHTML: (attributes) => {
           if (!attributes.anchor) {
             return {};

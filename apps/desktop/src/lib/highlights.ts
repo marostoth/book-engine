@@ -1,4 +1,6 @@
-import { HighlightItem } from "./types";
+import type { HighlightItem } from "./types";
+// The .ts extension lets the Node test runner load this module (highlights.test.ts).
+import { toAnchorAttribute } from "./anchors.ts";
 
 const PREFIX_SUFFIX_LEN = 32;
 
@@ -93,6 +95,38 @@ export function serializeHighlightsToNotes(
   return baseNotes + highlightsSection;
 }
 
+/** Text of one rendered paragraph and the `data-anchor` of the nearest element at or above it. */
+export interface ParagraphCandidate {
+  anchor: string | null;
+  text: string;
+}
+
+/**
+ * Picks the paragraph for a highlight: the paragraph with the highlight's anchor when it still
+ * contains the quote, otherwise the first paragraph that contains the quote. Returns -1 when no
+ * paragraph contains it. The saved anchor (`^p-001`) and the HTML attribute (`p-001`) are
+ * compared in one form.
+ */
+export function findHighlightParagraph(
+  paragraphs: ParagraphCandidate[],
+  highlight: Pick<HighlightItem, "exact" | "anchor">
+): number {
+  const normalizedExact = highlight.exact.replace(/\s+/g, " ");
+  // Exact match, or fuzzy recovery with relaxed whitespace
+  const containsQuote = (text: string) =>
+    text.includes(highlight.exact) || text.replace(/\s+/g, " ").includes(normalizedExact);
+
+  const anchor = toAnchorAttribute(highlight.anchor);
+  if (anchor) {
+    const anchored = paragraphs.findIndex((p) => toAnchorAttribute(p.anchor) === anchor);
+    if (anchored !== -1 && containsQuote(paragraphs[anchored].text)) {
+      return anchored;
+    }
+  }
+  // No anchor, or the anchored paragraph was edited: scan all paragraphs
+  return paragraphs.findIndex((p) => containsQuote(p.text));
+}
+
 /**
  * Hydrates and injects highlight marks into chapter HTML with fuzzy recovery.
  */
@@ -101,47 +135,19 @@ export function applyHighlightsToHtml(html: string, highlights: HighlightItem[])
 
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, "text/html");
+  const paragraphs = Array.from(doc.querySelectorAll("p"));
+  const candidates: ParagraphCandidate[] = paragraphs.map((p) => ({
+    anchor: p.closest("[data-anchor]")?.getAttribute("data-anchor") ?? null,
+    text: p.textContent || "",
+  }));
 
   for (const hl of highlights) {
-    let targetPara: Element | null = null;
-
-    // 1. Try finding paragraph by anchor
-    if (hl.anchor) {
-      const anchorSpan = doc.querySelector(`[data-anchor="${hl.anchor}"]`);
-      if (anchorSpan) {
-        targetPara = anchorSpan.closest("p");
-      }
-    }
-
-    const searchScope = targetPara ? [targetPara] : Array.from(doc.querySelectorAll("p"));
-
-    let applied = false;
-    for (const p of searchScope) {
-      const pText = p.textContent || "";
-
-      // Exact match
-      if (pText.includes(hl.exact)) {
-        highlightInElement(p, hl);
-        applied = true;
-        break;
-      }
-
-      // Fuzzy recovery: Match with relaxed whitespace / punctuation
-      const normalizedP = pText.replace(/\s+/g, " ");
-      const normalizedExact = hl.exact.replace(/\s+/g, " ");
-      if (normalizedP.includes(normalizedExact)) {
-        highlightInElement(p, hl);
-        applied = true;
-        break;
-      }
-    }
-
-    if (!applied && !targetPara) {
+    const index = findHighlightParagraph(candidates, hl);
+    if (index !== -1) {
+      highlightInElement(paragraphs[index], hl);
+    } else if ((doc.body.textContent || "").includes(hl.exact)) {
       // Global fallback search
-      const bodyText = doc.body.textContent || "";
-      if (bodyText.includes(hl.exact)) {
-        highlightInElement(doc.body, hl);
-      }
+      highlightInElement(doc.body, hl);
     }
   }
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { calculateDimOpacity } from "../../lib/elementaryPacer";
+import { toAnchorAttribute } from "../../lib/anchors";
 
 interface FocusRulerProps {
   containerRef: React.RefObject<HTMLElement | null>;
@@ -83,7 +84,7 @@ export const FocusRuler: React.FC<FocusRulerProps> = ({
       return;
     }
 
-    const cleanPacer = pacerActiveAnchor ? pacerActiveAnchor.replace(/^\^/, "") : null;
+    const cleanPacer = toAnchorAttribute(pacerActiveAnchor) ?? null;
     // Priority: Locked Pacer > Hovered Anchor > Pacer Anchor > First Paragraph
     const activeTarget =
       isPacerRunning && pacerLockFocus && cleanPacer

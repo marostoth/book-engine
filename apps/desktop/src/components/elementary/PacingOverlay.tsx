@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useLinePacer, LineBox } from "./useLinePacer";
 import { calculateSeekProgress } from "../../lib/elementaryPacer";
+import { toAnchorAttribute } from "../../lib/anchors";
 
 interface PacingOverlayProps {
   containerRef: React.RefObject<HTMLElement | null>;
@@ -92,8 +93,8 @@ export const PacingOverlay: React.FC<PacingOverlayProps> = ({
       return;
     }
 
-    const cleanAnchor = activeAnchor.replace(/^\^/, "");
-    const targetEl = container.querySelector<HTMLElement>(`[data-anchor="${cleanAnchor}"]`);
+    const cleanAnchor = toAnchorAttribute(activeAnchor);
+    const targetEl = cleanAnchor ? container.querySelector<HTMLElement>(`[data-anchor="${cleanAnchor}"]`) : null;
 
     if (!targetEl) {
       setMetrics(null);

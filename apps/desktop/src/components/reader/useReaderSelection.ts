@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toSavedAnchor } from "../../lib/anchors";
 import { createW3CHighlight } from "../../lib/highlights";
 import { HighlightItem } from "../../lib/types";
 
@@ -40,7 +41,7 @@ export function useReaderSelection({
     let node: Node | null = selection.anchorNode;
     while (node && node !== containerRef.current) {
       if (node instanceof HTMLElement && node.hasAttribute("data-anchor")) {
-        anchor = `^${node.getAttribute("data-anchor")}`;
+        anchor = toSavedAnchor(node.getAttribute("data-anchor"));
         break;
       }
       node = node.parentNode;
