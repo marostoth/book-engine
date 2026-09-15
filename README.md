@@ -140,7 +140,8 @@ Run the full verification suite before committing changes:
 cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
 cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
 
-# 2. Verify frontend TypeScript types and production build
+# 2. Verify frontend TypeScript types, unit tests, and production build
+npm --prefix apps/desktop test
 npm run build
 
 # 3. Verify paragraph anchor and footnote integrity in vault

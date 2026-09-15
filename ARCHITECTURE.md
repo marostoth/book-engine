@@ -158,6 +158,8 @@ book-engine/
 │       │   │   ├── levelGuideData.ts    # Mortimer Adler levels static cheatsheet & hotkeys registry
 │       │   │   ├── markdown.ts          # Chapter Markdown preprocessor & anchor normalizer
 │       │   │   ├── notesAggregator.ts   # Cross-chapter note aggregation, anchor sorting & summary compiler
+│       │   │   ├── practiceContract.json    # Exact get_due_cards scenario-card JSON shared by the Rust & TS contract tests
+│       │   │   ├── practiceContract.test.ts # Contract tests: backend field names vs. frontend grading & browser mocks
 │       │   │   ├── practiceTypes.ts     # FSRS practice models (ScenarioOption, ScenarioPayload, PracticeCardItem)
 │       │   │   ├── preferences.ts       # Default v2 preferences & deep-merge migration helper
 │       │   │   └── types.ts             # Canonical TypeScript interfaces & data contracts

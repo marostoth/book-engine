@@ -18,11 +18,13 @@ pub struct IndexSummary {
     pub duration_ms: u128,
 }
 
+/// Field names must match `ScenarioOption` in src/lib/practiceTypes.ts (see src/lib/practiceContract.json).
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
 pub struct ScenarioOption {
     pub key: String,
     pub text: String,
+    /// index.db rows written by older builds store `isCorrect`; the alias keeps them readable.
+    #[serde(alias = "isCorrect")]
     pub is_correct: bool,
 }
 

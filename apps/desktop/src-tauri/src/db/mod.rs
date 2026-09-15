@@ -78,6 +78,33 @@ mod tests {
     }
 
     #[test]
+    fn test_due_card_json_matches_frontend_contract() {
+        let sandbox = Sandbox::new();
+        sandbox.write_sample_book();
+        sync_practice_deck_blocking("sample").expect("Failed to sync sample practice deck");
+
+        let mut card = get_due_cards_blocking(Some("sample"), Some("scenario"), None, None)
+            .expect("Failed to get due cards")
+            .pop()
+            .expect("Expected the sample scenario card");
+        card.due = 0; // Sync time; every other field is fixed by the sandbox book.
+
+        let sent = serde_json::to_value(&card).expect("Failed to serialize card");
+        let contract: serde_json::Value =
+            serde_json::from_str(include_str!("../../../src/lib/practiceContract.json"))
+                .expect("Failed to parse practiceContract.json");
+        assert_eq!(sent, contract, "get_due_cards JSON must match src/lib/practiceContract.json (read by the frontend tests)");
+    }
+
+    #[test]
+    fn test_cached_scenario_options_with_camel_case_still_load() {
+        // index.db rows written by older builds store `isCorrect`; they must still load until the next sync.
+        let option: ScenarioOption = serde_json::from_str(r#"{"key":"A","text":"Output rises.","isCorrect":true}"#)
+            .expect("Old cached option must parse");
+        assert!(option.is_correct);
+    }
+
+    #[test]
     fn test_phase5_analytics() {
         let sandbox = Sandbox::new();
         sandbox.write_sample_book();
