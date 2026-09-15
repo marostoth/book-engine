@@ -25,7 +25,7 @@ export const ElementaryCanvas: React.FC<ElementaryCanvasProps> = ({
 }) => {
   const elementary = preferences.elementary;
 
-  // Elementary pacing state & keyboard handlers (Alt+P, [, ])
+  // Elementary pacing state & pacer speed keys ([, ]). Alt+P is handled in App.tsx.
   const {
     isRunning,
     activeAnchor,
