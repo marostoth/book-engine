@@ -77,6 +77,29 @@ pub fn open_or_create_db() -> Result<Connection> {
          );
          CREATE INDEX IF NOT EXISTS idx_fsrs_due ON fsrs_cards (due, book_id);
 
+         -- Cards whose question left the practice deck, and older duplicate rows, with their progress (deck_sync.rs).
+         CREATE TABLE IF NOT EXISTS fsrs_cards_archive (
+             archive_id INTEGER PRIMARY KEY AUTOINCREMENT,
+             archived_at INTEGER NOT NULL,
+             reason TEXT NOT NULL,
+             card_id TEXT NOT NULL,
+             book_id TEXT NOT NULL,
+             chapter_file TEXT NOT NULL,
+             anchor TEXT,
+             item_type TEXT NOT NULL,
+             prompt TEXT NOT NULL,
+             answer TEXT NOT NULL,
+             state INTEGER NOT NULL,
+             stability REAL NOT NULL,
+             difficulty REAL NOT NULL,
+             due INTEGER NOT NULL,
+             last_review INTEGER NOT NULL,
+             reps INTEGER NOT NULL,
+             card_type TEXT,
+             payload TEXT
+         );
+         CREATE INDEX IF NOT EXISTS idx_fsrs_cards_archive_card ON fsrs_cards_archive (card_id);
+
          CREATE TABLE IF NOT EXISTS review_logs (
              id INTEGER PRIMARY KEY AUTOINCREMENT,
              card_id TEXT NOT NULL,
