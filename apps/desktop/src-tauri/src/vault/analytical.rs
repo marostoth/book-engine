@@ -62,6 +62,7 @@ mod tests {
 
     #[test]
     fn test_analytical_load_and_save() {
+        let _sandbox = crate::test_support::Sandbox::new();
         let test_book = "sample";
         let mut store = load_analytical_store(test_book).expect("Failed to load analytical store");
         

@@ -2,7 +2,14 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use super::models::{AppError, BookMetadata, BookSummary, ExitAssessmentPayload};
 
+/// Test builds only resolve the vault inside the active `test_support::Sandbox`.
+#[cfg(test)]
+pub fn find_vault_root() -> Result<PathBuf> {
+    crate::test_support::vault_root()
+}
+
 /// Discovers the absolute path to the Markdown vault directory.
+#[cfg(not(test))]
 pub fn find_vault_root() -> Result<PathBuf> {
     // Check environment variable first if set
     if let Ok(env_path) = std::env::var("BOOK_ENGINE_VAULT") {

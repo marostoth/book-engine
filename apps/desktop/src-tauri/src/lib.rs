@@ -2,6 +2,8 @@ pub mod vault;
 pub mod db;
 pub mod commands;
 pub mod fsrs;
+#[cfg(test)]
+mod test_support;
 
 use commands::{
     get_library_books, list_books, load_book_meta, get_inspectional_blueprint, save_inspectional_exit_assessment,

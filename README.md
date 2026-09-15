@@ -135,10 +135,13 @@ The build produces:
 Run the full verification suite before committing changes:
 
 ```bash
-# 1. Verify Rust backend compilation and strict typing
+# 1. Verify Rust backend compilation, strict typing, and unit tests
+#    (unit tests run in a temporary vault and database, never your real data)
 cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
+cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
 
-# 2. Verify frontend TypeScript types and production build
+# 2. Verify frontend TypeScript types, unit tests, and production build
+npm --prefix apps/desktop test
 npm run build
 
 # 3. Verify paragraph anchor and footnote integrity in vault

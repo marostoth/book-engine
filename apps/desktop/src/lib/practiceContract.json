@@ -1,0 +1,30 @@
+{
+  "card_id": "sample-sc-ch-01-001",
+  "book_id": "sample",
+  "chapter_file": "ch-01.md",
+  "anchor": "^p-001",
+  "item_type": "scenario",
+  "prompt": "A workshop splits pin making into separate steps. What follows?",
+  "answer": "(A) Output per worker rises.",
+  "state": 0,
+  "stability": 0.0,
+  "difficulty": 0.0,
+  "due": 0,
+  "last_review": 0,
+  "reps": 0,
+  "card_type": "scenario",
+  "scenario_payload": {
+    "scenario": "A workshop splits pin making into separate steps. What follows?",
+    "options": [
+      { "key": "A", "text": "Output per worker rises.", "is_correct": true },
+      { "key": "B", "text": "Output per worker falls.", "is_correct": false },
+      { "key": "C", "text": "Output per worker stays the same.", "is_correct": false }
+    ],
+    "citation": {
+      "chapterFile": "ch-01.md",
+      "anchor": "^p-001",
+      "quote": "The division of labour raises the productive powers of work."
+    },
+    "rationale": "The text states: \"The division of labour raises the productive powers of work.\""
+  }
+}
