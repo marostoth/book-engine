@@ -2,7 +2,14 @@ use std::path::PathBuf;
 use rusqlite::Connection;
 use anyhow::{Context, Result};
 
+/// Test builds only place the database inside the active `test_support::Sandbox`.
+#[cfg(test)]
+pub fn get_db_path() -> Result<PathBuf> {
+    crate::test_support::db_path()
+}
+
 /// Returns the OS AppData path for the ephemeral database: %APPDATA%\book-engine\app_cache\index.db
+#[cfg(not(test))]
 pub fn get_db_path() -> Result<PathBuf> {
     let base = if let Ok(appdata) = std::env::var("APPDATA") {
         PathBuf::from(appdata).join("book-engine").join("app_cache")

@@ -5,7 +5,7 @@ Dynamically evaluates:
 1. Dynamic Ledger & Vault Parity (vault/books, inbox/processed, vault/_ledger.json)
 2. Anchor & Asset Integrity (^p-[0-9]{3,}, unique anchors, markdown images -> disk assets, footnote parity)
 3. Zero-Hallucination Guardrail (extractive Cloze & Scramble verbatim matches against source chapters)
-4. Backend Safety (Rust cargo check in apps/desktop/src-tauri)
+4. Backend Safety (Rust cargo check + cargo test in apps/desktop/src-tauri)
 5. Frontend Safety (TypeScript strict typecheck in apps/desktop)
 6. FTS5 Search Latency (SQLite FTS5 query latency < 15.0 ms)
 7. Desktop Runtime Launch Smoke Test (native executable stability)
@@ -342,7 +342,7 @@ def check_zero_hallucination_practice() -> DiagnosticResult:
 
 
 # ----------------------------------------------------------------------
-# 4. Backend Safety (Rust Cargo Check)
+# 4. Backend Safety (Rust Cargo Check + Unit Tests)
 # ----------------------------------------------------------------------
 def check_backend_safety() -> DiagnosticResult:
     start_time = time.perf_counter()
@@ -357,23 +357,34 @@ def check_backend_safety() -> DiagnosticResult:
             duration_s=time.perf_counter() - start_time,
         )
 
-    try:
-        proc = subprocess.run(
-            ["cargo", "check", "--manifest-path", str(CARGO_TOML)],
-            capture_output=True,
-            text=True,
-            timeout=90,
-        )
-        passed = (proc.returncode == 0)
-        errors = []
-        if not passed:
-            err_output = proc.stderr.strip() or proc.stdout.strip()
-            errors.append(f"cargo check failed (exit {proc.returncode}):\n{err_output}")
-        metric = "Cargo check clean (0 errors)" if passed else f"Cargo check failed (code {proc.returncode})"
-    except Exception as e:
-        passed = False
-        errors = [f"Failed to execute cargo check: {e}"]
-        metric = "Execution error"
+    # `cargo check` skips test code, so `cargo test` must run too. Unit tests use a
+    # temporary sandbox vault and database (src/test_support.rs), never the real ones.
+    steps = [
+        ("cargo check", ["cargo", "check", "--manifest-path", str(CARGO_TOML)], 90),
+        ("cargo test", ["cargo", "test", "--manifest-path", str(CARGO_TOML)], 600),
+    ]
+    errors: List[str] = []
+    metric = "Cargo check clean, cargo test passed"
+    for label, cmd, timeout_s in steps:
+        try:
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout_s,
+            )
+        except Exception as e:
+            errors.append(f"Failed to execute {label}: {e}")
+            metric = "Execution error"
+            break
+        if proc.returncode != 0:
+            output = "\n".join(part for part in (proc.stdout.strip(), proc.stderr.strip()) if part)
+            errors.append(f"{label} failed (exit {proc.returncode}):\n{output}")
+            metric = f"{label} failed (code {proc.returncode})"
+            break
+    passed = not errors
 
     duration = time.perf_counter() - start_time
     return DiagnosticResult(
@@ -1398,7 +1409,7 @@ def main() -> int:
     print("    -> Evaluating Zero-Hallucination Practice Guardrail...", flush=True)
     results.append(check_zero_hallucination_practice())
 
-    print("    -> Evaluating Backend Safety (Rust cargo check)...", flush=True)
+    print("    -> Evaluating Backend Safety (Rust cargo check + cargo test)...", flush=True)
     results.append(check_backend_safety())
 
     print("    -> Evaluating Frontend Safety (TypeScript strict check)...", flush=True)

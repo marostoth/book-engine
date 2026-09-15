@@ -23,9 +23,12 @@ pub fn lookup_dictionary_blocking(word: &str) -> anyhow::Result<Option<Dictionar
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::Sandbox;
 
     #[test]
     fn test_dictionary_lookup_and_sanitization() {
+        let _sandbox = Sandbox::new();
+
         // Direct match
         let entry = lookup_dictionary_blocking("inspectional")
             .expect("Lookup failed")
@@ -43,33 +46,27 @@ mod tests {
 
     #[test]
     fn test_index_and_search() {
+        let sandbox = Sandbox::new();
+        sandbox.write_sample_book();
+
         let summary = index_vault_blocking().expect("Indexing vault failed");
-        println!(
-            "[+] Indexed {} chapters, {} paragraphs in {} ms",
-            summary.chapters_indexed, summary.paragraphs_indexed, summary.duration_ms
-        );
+        assert_eq!(summary.chapters_indexed, 1);
 
         let results = search_vault_blocking("division of labour").expect("Search failed");
-        println!("[+] Search 'division of labour' returned {} results", results.len());
         assert!(!results.is_empty(), "Expected search results for 'division of labour'");
+        assert_eq!(results[0].anchor, "^p-001");
     }
 
     #[test]
     fn test_fsrs_sync_and_review() {
+        let sandbox = Sandbox::new();
+        sandbox.write_sample_book();
+
         let synced = sync_practice_deck_blocking("sample").expect("Failed to sync sample practice deck");
-        println!("[+] Synced {} cards from sample", synced);
-        assert!(synced > 0, "Expected at least 1 card synced from sample");
+        assert_eq!(synced, 2, "Expected the cloze card and the scenario card to sync");
 
-        // Reset cards to due to guarantee test idempotency across repeated runs
-        if let Ok(conn) = open_or_create_db() {
-            let _ = conn.execute(
-                "UPDATE fsrs_cards SET due = 0, reps = 0, state = 0 WHERE book_id = 'sample'",
-                [],
-            );
-        }
-
-        let due = get_due_cards_blocking(Some("sample")).expect("Failed to get due cards");
-        assert!(!due.is_empty(), "Expected due cards for sample");
+        let due = get_due_cards_blocking(Some("sample"), None, None, None).expect("Failed to get due cards");
+        assert_eq!(due.len(), 2, "New cards must be due right after sync");
 
         let first_card = &due[0];
         let sched = submit_card_review_blocking(&first_card.card_id, 3).expect("Submit review failed");
@@ -77,22 +74,17 @@ mod tests {
         assert!(sched.due > first_card.due || sched.stability > 0.0);
 
         let stats = get_deck_stats_blocking(Some("sample")).expect("Failed to get stats");
-        assert!(stats.total_cards > 0);
+        assert_eq!(stats.total_cards, 2);
     }
 
     #[test]
     fn test_phase5_analytics() {
-        let _ = sync_practice_deck_blocking("sample");
-        if let Ok(conn) = open_or_create_db() {
-            let _ = conn.execute(
-                "UPDATE fsrs_cards SET due = 0, reps = 0, state = 0 WHERE book_id = 'sample'",
-                [],
-            );
-        }
-        let due = get_due_cards_blocking(Some("sample")).expect("Failed to get due cards");
-        if !due.is_empty() {
-            let _ = submit_card_review_blocking(&due[0].card_id, 4);
-        }
+        let sandbox = Sandbox::new();
+        sandbox.write_sample_book();
+
+        sync_practice_deck_blocking("sample").expect("Failed to sync sample practice deck");
+        let due = get_due_cards_blocking(Some("sample"), None, None, None).expect("Failed to get due cards");
+        submit_card_review_blocking(&due[0].card_id, 4).expect("Submit review failed");
 
         let heatmap = get_review_heatmap_blocking(Some("sample")).expect("Failed to get heatmap");
         assert!(!heatmap.is_empty(), "Expected at least 1 day in review heatmap");
@@ -104,8 +96,8 @@ mod tests {
             .expect("Failed to record reading session");
 
         let velocity = get_reading_velocity_blocking(Some("sample")).expect("Failed to get reading velocity");
-        assert!(velocity.total_seconds >= 120);
-        assert!(velocity.completed_chapters >= 1);
+        assert_eq!(velocity.total_seconds, 120);
+        assert_eq!(velocity.completed_chapters, 1);
         assert!(velocity.average_wpm > 0.0);
 
         // Test Phase 5 IPC endpoints: get_study_analytics_blocking
@@ -122,9 +114,11 @@ mod tests {
 
         // Test Phase 5 IPC endpoints: parse_all_book_notes and compile_and_export_book_summary
         let notes = crate::vault::parse_all_book_notes("sample").expect("Failed to parse book notes");
-        println!("[+] Parsed {} aggregated notes from sample", notes.len());
+        assert_eq!(notes.len(), 1, "Expected the one reflection in ch-01-notes.md");
         let export_path =
             crate::vault::compile_and_export_book_summary("sample").expect("Failed to export summary");
-        assert!(std::path::Path::new(&export_path).exists(), "Exported summary file must exist");
+        let export_path = std::path::Path::new(&export_path);
+        assert!(export_path.exists(), "Exported summary file must exist");
+        assert!(export_path.starts_with(sandbox.vault()), "Export must stay inside the test sandbox");
     }
 }

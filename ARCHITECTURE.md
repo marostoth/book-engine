@@ -187,6 +187,7 @@ book-engine/
 │           │   ├── fsrs.rs              # Local FSRS-4.5 spaced repetition scheduling engine
 │           │   ├── lib.rs               # Application builder, plugin setup, and invoke router
 │           │   ├── main.rs              # Tauri binary executable entrypoint
+│           │   ├── test_support.rs      # Test-only sandbox: temporary vault & cache database per unit test
 │           │   ├── vault/               # Modular vault file I/O & notes aggregation
 │           │   │   ├── analytical.rs        # Level 3 analytical store loader, saver & unit tests
 │           │   │   ├── models.rs            # Vault metadata, analytical and note structures
@@ -403,6 +404,8 @@ The reader pairs an editorial serif with a clean sans-serif UI, constrained to `
 
 ### Ephemeral SQLite FTS5 Database (`index.db`)
 Strictly isolated within OS Application Data (`%APPDATA%\book-engine\app_cache\index.db` on Windows, `~/.config/book-engine/app_cache/index.db` on Linux, `~/Library/Application Support/book-engine/app_cache/index.db` on macOS). The database is ephemeral and completely decoupled from `vault/`. If deleted, it is recreated and re-indexed automatically from vault Markdown files on next launch.
+
+Unit tests never open this database or the real vault: in test builds, `get_db_path()` and `find_vault_root()` resolve only inside a per-test temporary sandbox (`apps/desktop/src-tauri/src/test_support.rs`) and return an error when no sandbox is active.
 
 **SQLite Schema & FTS5 Configuration (`apps/desktop/src-tauri/src/db.rs`):**
 ```sql
@@ -889,7 +892,7 @@ The system health orchestrator in `.agent/skills/audit-system.py` dynamically va
 1. **Vector 1 (Dynamic Ledger & Vault Parity):** Verifies all books in `vault/books/` and binaries in `inbox/processed/` are cataloged in `vault/_ledger.json` with matching SHA-256 digests.
 2. **Vector 2 (Anchor & Asset Integrity):** Validates persistent paragraph anchors (`^p-NNN`), unreferenced asset cleanup, and image markdown reference existence.
 3. **Vector 3 (Zero-Hallucination & Dual-Modality Guardrail):** Confirms that every answer key, distractor, and rationale quote is an exact character substring in the cited chapter; enforces that library practice items feature both Cloze recall and deductive Scenario MCQ cards.
-4. **Vector 4 (Backend Safety):** `cargo check` in `apps/desktop/src-tauri` with zero errors.
+4. **Vector 4 (Backend Safety):** `cargo check` and `cargo test` in `apps/desktop/src-tauri` with zero errors and zero failing unit tests. Unit tests run inside a temporary sandbox vault and database (`src/test_support.rs`), never the real ones.
 5. **Vector 5 (Frontend Safety):** TypeScript strict typecheck in `apps/desktop` with zero errors.
 6. **Vector 6 (FTS5 Search Latency Benchmark):** SQLite FTS5 query latency average strictly $< 15.0\text{ms}$.
 7. **Vector 7 (Desktop Runtime Launch Smoke Test):** Launches compiled native release binary headlessly and confirms window stability for 5.0 seconds.
