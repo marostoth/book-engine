@@ -2,6 +2,7 @@ pub mod models;
 pub mod schema;
 pub mod seed_lexicon;
 pub mod indexer;
+pub mod search_query;
 pub mod fsrs_parser;
 pub mod fsrs_store;
 pub mod due_cards;
@@ -13,6 +14,8 @@ pub mod deck_sync;
 mod deck_sync_tests;
 #[cfg(test)]
 mod fsrs_store_tests;
+#[cfg(test)]
+mod search_tests;
 
 pub use models::*;
 pub use schema::*;

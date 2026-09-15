@@ -173,6 +173,8 @@ book-engine/
 │       │   │   ├── readerLocation.test.ts # Location tests: a hit in another book's ch-01.md opens that book, not the open one
 │       │   │   ├── readerShortcuts.ts   # Keyboard shortcut owners: App listener (Ctrl+K, Alt+P, ? / F1) or elementary canvas ([ and ])
 │       │   │   ├── readerShortcuts.test.ts # Shortcut tests: one Alt+P press toggles the pacer once at every reading level
+│       │   │   ├── searchQuery.ts       # Search box minimum length (2 characters), the same as the backend
+│       │   │   ├── searchQuery.test.ts  # Search length tests: 1 character does not search, spaces at the ends do not count
 │       │   │   └── types.ts             # Canonical TypeScript interfaces & data contracts
 │       │   ├── App.tsx          # Application shell, global state coordinator & router
 │       │   ├── index.css        # Editorial design tokens, typography, and margin glyphs
@@ -200,6 +202,8 @@ book-engine/
 │           │   │   ├── models.rs            # SQLite row models and analytics transfer structs
 │           │   │   ├── reading_velocity.rs  # Chapter reading session recording & velocity calculations
 │           │   │   ├── schema.rs            # SQLite database initialization & migrations
+│           │   │   ├── search_query.rs      # Typed search to FTS5 expression: quoted words & phrases, hyphen spellings, AND/OR/NOT operators, 2-character minimum
+│           │   │   ├── search_tests.rs      # Search tests on a real FTS5 index: operators, inner punctuation, phrases, short searches
 │           │   │   ├── seed_lexicon.rs      # Curated seed dictionary entries & initial SQLite database seeding
 │           │   │   └── mod.rs               # Ephemeral SQLite database module root & test suite
 │           │   ├── fsrs/                # FSRS engine test module
@@ -417,6 +421,7 @@ App.tsx (Global state: theme, viewMode, activeBook, activeChapter)
 - `src/lib/readerLocation.ts`: Resolves a location (book id, chapter file, anchor) to the book and chapter to show with `resolveLocation`, loading the location's own book when another book is open. Every book names its chapters `ch-01.md`, `ch-02.md`, ..., so a search hit keeps its `book_id` (`searchResultLocation`).
 - `src/lib/chapterGate.ts`: Chapter Gatekeeper rules. `gatedChapterFile` gives the chapter a move must pass (only a move to a later chapter, at every level except syntopical), and `gatePassed` passes a gate run only when every card was rated Good or Easy and no scenario answer was wrong.
 - `src/lib/readerShortcuts.ts`: Gives every reader keyboard shortcut one owner, so one key press runs its action once. `appShortcut` is the App window listener (Ctrl+K or Cmd+K search, Alt+P pacer, ? or F1 Field Guide), and `elementaryCanvasShortcut` is the elementary canvas listener (`[` and `]` pacer speed, elementary level only). Alt+P, ? and F1 do nothing in inputs, textareas, and editable elements.
+- `src/lib/searchQuery.ts`: `isSearchable` tells the Omni-Search palette whether a typed search has at least `MIN_SEARCH_CHARACTERS` (2) characters. The backend (`src-tauri/src/db/search_query.rs`) uses the same minimum and finds nothing for a shorter search.
 - `src/lib/bionic.ts`: Deterministic Bionic reading transformer bolding the initial 40–50% of word tokens for eye fixation.
 - `src/lib/types.ts`: TypeScript contracts matching `BookMeta`, `ChapterMeta`, `TOCItem`, and theme definitions.
 
@@ -474,7 +479,7 @@ All SQLite queries, FTS5 matches, and disk indexing execute exclusively inside `
 | Command | Signature | Description |
 | :--- | :--- | :--- |
 | `index_vault` | `() -> Result<usize, String>` | Scans `vault/books/*/*.md`, detects modified chapters via `mtime`, splits text into paragraphs, and indexes into SQLite FTS5. Returns indexed paragraph count. Runs automatically on startup in a detached background thread. |
-| `search_vault` | `(query: String) -> Result<Vec<SearchResult>, String>` | Queries `search_index` using BM25 ranking and SQLite `snippet()` syntax with `<mark>` tags. Returns up to 40 matches. |
+| `search_vault` | `(query: String) -> Result<Vec<SearchResult>, String>` | Queries `search_index` using BM25 ranking and SQLite `snippet()` syntax with `<mark>` tags. `db/search_query.rs` turns the typed search into a valid FTS5 expression, and a search shorter than 2 characters returns no results. Returns up to 40 matches. |
 
 **Search Result Contract (`SearchResult`):**
 ```rust
@@ -540,6 +545,7 @@ When a chapter HTML payload is prepared for mounting into TipTap:
 ### Omni-Search Command Palette (`apps/desktop/src/components/OmniSearchModal.tsx`)
 - **Keyboard-Driven Interaction:** Global listener toggles modal via `Ctrl + K` (Windows/Linux) or `Cmd + K` (macOS), with Arrow keys for selection, `Enter` to navigate, and `Escape` to dismiss.
 - **Debounced Sub-Millisecond Search:** Queries are debounced by 150ms and dispatched asynchronously via `search_vault`.
+- **Search Syntax (`src-tauri/src/db/search_query.rs`):** A search needs at least 2 characters: for a shorter search the palette shows a hint and sends nothing (`isSearchable` in `src/lib/searchQuery.ts`). Every word and every quoted phrase goes to FTS5 as a string, so words with inner punctuation (`don't`, `well-known`, `U.S.`) match the book text, and a word with hyphens (`e-mail`) also finds its spelling without them (`email`). A word also matches longer words (`labo` finds `labour`) when its last part has at least 2 letters or digits, or when it ends in `*`; a word that ends in other punctuation (`C++`) or in a 1-letter part (the `t` of `don't`) matches only itself. `"quotes"` search an exact phrase. `AND`, `OR`, and `NOT` in capitals are operators (`war NOT peace`); lowercase `and`, `or`, and `not` are words. Words with no operator between them must all match, and a `NOT` with no word before it finds nothing.
 - **Snippet `<mark>` Rendering:** SQLite FTS5 snippets with `<mark>` highlight tags are sanitized and rendered directly in the result item preview.
 - **Cross-Book Anchor Navigation:** Search covers all books, and every book names its chapters `ch-01.md`, `ch-02.md`, ..., so each result shows its book title and keeps its `book_id`. Selecting a result calls `navigateToCrossBookCitation` with `searchResultLocation(result)`; `resolveLocation` (`src/lib/readerLocation.ts`) loads the result's own book when another book is open. The reader then switches the active chapter (maintaining single-chapter DOM virtualization), waits for DOM mounting, and smoothly scrolls to the target paragraph anchor (`^p-xxx`) with a brief amber flash (`bg-amber-100/50`).
 

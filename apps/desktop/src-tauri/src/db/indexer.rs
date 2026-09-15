@@ -3,6 +3,7 @@ use anyhow::Result;
 use crate::vault::find_vault_root;
 use super::models::{IndexSummary, SearchResult};
 use super::schema::open_or_create_db;
+use super::search_query::fts5_match_expression;
 
 /// Background indexing pass: scans vault/books/, parses paragraphs, and updates FTS5 table.
 pub fn index_vault_blocking() -> Result<IndexSummary> {
@@ -147,11 +148,11 @@ pub fn index_vault_blocking() -> Result<IndexSummary> {
 }
 
 /// Executes an FTS5 search query returning snippets with <mark> tags.
+/// `search_query::fts5_match_expression` turns the typed search into the MATCH expression.
 pub fn search_vault_blocking(raw_query: &str) -> Result<Vec<SearchResult>> {
-    let clean_query = sanitize_fts5_query(raw_query);
-    if clean_query.is_empty() {
+    let Some(match_expression) = fts5_match_expression(raw_query) else {
         return Ok(Vec::new());
-    }
+    };
 
     let conn = open_or_create_db()?;
 
@@ -170,7 +171,7 @@ pub fn search_vault_blocking(raw_query: &str) -> Result<Vec<SearchResult>> {
          LIMIT 30;"
     )?;
 
-    let rows = stmt.query_map(params![clean_query], |row| {
+    let rows = stmt.query_map(params![match_expression], |row| {
         Ok(SearchResult {
             book_id: row.get(0)?,
             chapter_id: row.get(1)?,
@@ -188,21 +189,6 @@ pub fn search_vault_blocking(raw_query: &str) -> Result<Vec<SearchResult>> {
     }
 
     Ok(results)
-}
-
-/// Formats raw search input into valid FTS5 prefix syntax
-pub fn sanitize_fts5_query(query: &str) -> String {
-    let tokens: Vec<String> = query
-        .split_whitespace()
-        .map(|w| {
-            let cleaned: String = w.chars().filter(|c| c.is_alphanumeric()).collect();
-            cleaned
-        })
-        .filter(|w| !w.is_empty())
-        .map(|w| format!("{}*", w))
-        .collect();
-
-    tokens.join(" ")
 }
 
 pub fn md5_hash(text: &str) -> u64 {
