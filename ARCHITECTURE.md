@@ -166,6 +166,8 @@ book-engine/
 │       │   │   ├── practiceSession.test.ts  # Session tests: all due cards shown while the due list shrinks, gatekeeper quota
 │       │   │   ├── practiceTypes.ts     # FSRS practice models (ScenarioOption, ScenarioPayload, PracticeCardItem)
 │       │   │   ├── preferences.ts       # Default v2 preferences & deep-merge migration helper
+│       │   │   ├── readerLocation.ts    # Book + chapter file + anchor locations: search hits open their own book
+│       │   │   ├── readerLocation.test.ts # Location tests: a hit in another book's ch-01.md opens that book, not the open one
 │       │   │   └── types.ts             # Canonical TypeScript interfaces & data contracts
 │       │   ├── App.tsx          # Application shell, global state coordinator & router
 │       │   ├── index.css        # Editorial design tokens, typography, and margin glyphs
@@ -388,6 +390,7 @@ App.tsx (Global state: theme, viewMode, activeBook, activeChapter)
 - `src/lib/api.ts`: Tauri IPC invoke wrappers with browser development fallback.
 - `src/lib/markdown.ts`: Pre-processes chapter Markdown into TipTap HTML, separating footnote definitions and injecting interactive anchors (`data-anchor="p-xxx"`, the attribute form of `^p-xxx`) and footnote markers (`data-fn="n"`).
 - `src/lib/anchors.ts`: Converts paragraph anchors between the saved form (`^p-xxx`) and the HTML attribute form (`p-xxx`) with `toSavedAnchor` and `toAnchorAttribute`.
+- `src/lib/readerLocation.ts`: Resolves a location (book id, chapter file, anchor) to the book and chapter to show with `resolveLocation`, loading the location's own book when another book is open. Every book names its chapters `ch-01.md`, `ch-02.md`, ..., so a search hit keeps its `book_id` (`searchResultLocation`).
 - `src/lib/bionic.ts`: Deterministic Bionic reading transformer bolding the initial 40–50% of word tokens for eye fixation.
 - `src/lib/types.ts`: TypeScript contracts matching `BookMeta`, `ChapterMeta`, `TOCItem`, and theme definitions.
 
@@ -512,7 +515,7 @@ When a chapter HTML payload is prepared for mounting into TipTap:
 - **Keyboard-Driven Interaction:** Global listener toggles modal via `Ctrl + K` (Windows/Linux) or `Cmd + K` (macOS), with Arrow keys for selection, `Enter` to navigate, and `Escape` to dismiss.
 - **Debounced Sub-Millisecond Search:** Queries are debounced by 150ms and dispatched asynchronously via `search_vault`.
 - **Snippet `<mark>` Rendering:** SQLite FTS5 snippets with `<mark>` highlight tags are sanitized and rendered directly in the result item preview.
-- **Cross-Chapter Anchor Navigation:** Selecting a search result switches the active chapter (maintaining single-chapter DOM virtualization), waits for DOM mounting, and smoothly scrolls directly to the target paragraph anchor (`^p-xxx`) with a brief visual flash highlight (`ring-2 ring-accent`).
+- **Cross-Book Anchor Navigation:** Search covers all books, and every book names its chapters `ch-01.md`, `ch-02.md`, ..., so each result shows its book title and keeps its `book_id`. Selecting a result calls `navigateToCrossBookCitation` with `searchResultLocation(result)`; `resolveLocation` (`src/lib/readerLocation.ts`) loads the result's own book when another book is open. The reader then switches the active chapter (maintaining single-chapter DOM virtualization), waits for DOM mounting, and smoothly scrolls to the target paragraph anchor (`^p-xxx`) with a brief amber flash (`bg-amber-100/50`).
 
 ### High-Resolution Figure Lightbox & Split-View Jump (`apps/desktop/src/components/FigureLightboxModal.tsx`)
 - **Interactive Figure Cards:** ProseMirror editor intercepts diagram clicks on reader images and mounts an accessible full-screen Lightbox modal.

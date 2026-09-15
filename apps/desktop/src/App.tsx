@@ -67,7 +67,7 @@ export const App: React.FC = () => {
     setTargetAnchor,
     handleSelectBook,
     handleAddHighlight,
-    handleSelectSearchResult,
+    handleNavigateAnchor,
     navigateToCrossBookCitation,
   } = useBookSession();
 
@@ -238,7 +238,7 @@ export const App: React.FC = () => {
               <LevelCompanionPane
                 activeLevel={activeLevel} isFocus={isFocus}
                 analyticalSession={analyticalSession} syntopiconSession={syntopiconSession}
-                onNavigateCitation={handleSelectSearchResult}
+                onNavigateCitation={handleNavigateAnchor}
                 onNavigateCrossBookCitation={navigateToCrossBookCitation}
                 currentBookId={activeBookId}
               />
@@ -256,7 +256,8 @@ export const App: React.FC = () => {
         guideOpen={guideOpen} onCloseGuide={() => setGuideOpen(false)} activeLevel={activeLevel}
         dueCards={dueCards} pendingChapter={pendingChapter}
         onGatekeeperComplete={handleGatekeeperComplete} onReviewSubmitted={handleReviewSubmitted}
-        onNavigateAnchor={handleSelectSearchResult} activeBookId={activeBookId} bookMeta={bookMeta}
+        onNavigateAnchor={handleNavigateAnchor} onNavigateLocation={navigateToCrossBookCitation}
+        activeBookId={activeBookId} bookMeta={bookMeta} availableBooks={availableBooks}
         preferences={preferences} inspectionalSession={inspectionalSession}
         analyticalSession={analyticalSession} syntopiconSession={syntopiconSession} currentChapterFile={activeChapter?.file_path}
       />

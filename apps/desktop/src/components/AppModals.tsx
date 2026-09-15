@@ -1,6 +1,7 @@
 import React from "react";
 import {
   BookMeta,
+  BookMetadata,
   ChapterMeta,
   PracticeCardItem,
   CardSchedule,
@@ -8,6 +9,7 @@ import {
   ExitAssessmentPayload,
   ReadingLevelMode,
 } from "../lib/types";
+import { ReaderLocation } from "../lib/readerLocation";
 import { InspectionalSessionState } from "../hooks/useInspectionalSession";
 import { OmniSearchModal } from "./OmniSearchModal";
 import { PracticeModal } from "./PracticeModal";
@@ -51,8 +53,11 @@ interface AppModalsProps {
   onGatekeeperComplete: () => void;
   onReviewSubmitted: (cardId: string, schedule: CardSchedule) => void;
   onNavigateAnchor: (chapterFile: string, anchor?: string) => void;
+  /** Opens a location in its own book; search hits come from all books. */
+  onNavigateLocation: (location: ReaderLocation) => void;
   activeBookId: string;
   bookMeta: BookMeta | null;
+  availableBooks: BookMetadata[];
   preferences: ReaderPreferences;
   inspectionalSession: InspectionalSessionState;
   analyticalSession?: {
@@ -97,8 +102,10 @@ export const AppModals: React.FC<AppModalsProps> = ({
   onGatekeeperComplete,
   onReviewSubmitted,
   onNavigateAnchor,
+  onNavigateLocation,
   activeBookId,
   bookMeta,
+  availableBooks,
   preferences,
   inspectionalSession,
   analyticalSession,
@@ -110,7 +117,8 @@ export const AppModals: React.FC<AppModalsProps> = ({
       <OmniSearchModal
         isOpen={searchOpen}
         onClose={onCloseSearch}
-        onSelectResult={(chapterFile, anchor) => onNavigateAnchor(chapterFile, anchor)}
+        books={availableBooks}
+        onSelectResult={onNavigateLocation}
       />
 
       <PracticeModal
