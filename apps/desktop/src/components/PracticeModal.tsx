@@ -12,6 +12,7 @@ import { ClozeDrill } from "./practice/ClozeDrill";
 import { ScrambleDrill } from "./practice/ScrambleDrill";
 import { RatingBar } from "./practice/RatingBar";
 import { ScenarioCardView } from "./practice/ScenarioCardView";
+import { currentSessionCard, recordSessionReview, startSession, syncSession } from "../lib/practiceSession";
 
 interface PracticeModalProps {
   isOpen: boolean;
@@ -30,21 +31,26 @@ export const PracticeModal: React.FC<PracticeModalProps> = ({
   onJumpToAnchor,
   bookTitle = "Book Engine",
 }) => {
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [session, setSession] = useState(() => startSession([]));
   const [userAnswer, setUserAnswer] = useState("");
   const [revealed, setRevealed] = useState(false);
   const [suggestedRating, setSuggestedRating] = useState<number | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
-  const [completed, setCompleted] = useState(false);
-  const [sessionReviews, setSessionReviews] = useState<{ rating: number; cardId: string }[]>([]);
 
-  const currentCard = cards[currentIndex];
+  const currentCard = currentSessionCard(session);
+  const { completed } = session;
+
+  // Walk a session copy of the due cards, because rating a card removes it from `cards`.
+  // Closing the window resets the session, so the next opening starts fresh.
+  useEffect(() => {
+    setSession((prev) => (isOpen ? syncSession(prev, cards) : startSession([])));
+  }, [isOpen, cards]);
 
   useEffect(() => {
     setUserAnswer("");
     setRevealed(false);
     setSuggestedRating(undefined);
-  }, [currentIndex]);
+  }, [currentCard?.card_id]);
 
   const handleRate = useCallback(
     async (rating: number) => {
@@ -52,21 +58,16 @@ export const PracticeModal: React.FC<PracticeModalProps> = ({
       setSubmitting(true);
       try {
         const schedule = await submitReview(currentCard.card_id, rating);
+        // Update the session before the deck, so the shrinking due list cannot restart it.
+        setSession((prev) => recordSessionReview(prev, currentCard.card_id, rating));
         onReviewSubmitted(currentCard.card_id, schedule);
-        setSessionReviews((prev) => [...prev, { rating, cardId: currentCard.card_id }]);
-
-        if (currentIndex + 1 < cards.length) {
-          setCurrentIndex((prev) => prev + 1);
-        } else {
-          setCompleted(true);
-        }
       } catch (err) {
         console.error("Failed to submit review:", err);
       } finally {
         setSubmitting(false);
       }
     },
-    [currentCard, submitting, currentIndex, cards.length, onReviewSubmitted]
+    [currentCard, submitting, onReviewSubmitted]
   );
 
   useEffect(() => {
@@ -124,9 +125,9 @@ export const PracticeModal: React.FC<PracticeModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {!completed && cards.length > 0 && (
+            {!completed && session.cards.length > 0 && (
               <span className="text-xs font-mono font-semibold px-2.5 py-1 rounded-full bg-[var(--theme-bg)] border border-[var(--theme-border)] text-[var(--theme-muted)]">
-                {currentIndex + 1} / {cards.length}
+                {session.index + 1} / {session.cards.length}
               </span>
             )}
             <button
@@ -151,7 +152,7 @@ export const PracticeModal: React.FC<PracticeModalProps> = ({
                   Practice Session Completed!
                 </h3>
                 <p className="text-sm text-[var(--theme-muted)] mt-1">
-                  You reviewed {sessionReviews.length} extractive items with FSRS-4.5 scheduling.
+                  You reviewed {session.reviews.length} extractive items with FSRS-4.5 scheduling.
                 </p>
               </div>
 

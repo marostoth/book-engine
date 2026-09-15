@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { ShieldCheck, ArrowRight, Eye, CheckCircle2, Trophy, X } from "lucide-react";
 import { PracticeCardItem, CardSchedule } from "../lib/types";
 import { submitReview } from "../lib/api";
+import { currentSessionCard, recordSessionReview, startSession, syncSession } from "../lib/practiceSession";
 
 import { GatekeeperCardDrill } from "./practice/GatekeeperCardDrill";
 
@@ -24,41 +25,34 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
   onComplete,
   onReviewSubmitted,
 }) => {
-  const challengeCards = cards.slice(0, quota);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [session, setSession] = useState(() => startSession([]));
   const [userAnswer, setUserAnswer] = useState("");
   const [revealed, setRevealed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [completed, setCompleted] = useState(false);
 
-  const currentCard = challengeCards[currentIndex];
+  const challengeCards = session.cards;
+  const currentCard = currentSessionCard(session);
+  const { completed } = session;
+
+  // Walk a session copy of the first `quota` due cards, because rating a card removes it
+  // from `cards`. Closing the window resets the session.
+  useEffect(() => {
+    setSession((prev) => (isOpen ? syncSession(prev, cards, quota) : startSession([])));
+  }, [isOpen, cards, quota]);
 
   useEffect(() => {
     setUserAnswer("");
     setRevealed(false);
-  }, [currentIndex]);
-
-  useEffect(() => {
-    if (!isOpen) {
-      setCurrentIndex(0);
-      setUserAnswer("");
-      setRevealed(false);
-      setCompleted(false);
-    }
-  }, [isOpen]);
+  }, [currentCard?.card_id]);
 
   const handleRate = async (rating: number) => {
     if (!currentCard || submitting) return;
     setSubmitting(true);
     try {
       const schedule = await submitReview(currentCard.card_id, rating);
+      // Update the session before the deck, so the shrinking due list cannot restart it.
+      setSession((prev) => recordSessionReview(prev, currentCard.card_id, rating));
       onReviewSubmitted(currentCard.card_id, schedule);
-
-      if (currentIndex + 1 < challengeCards.length) {
-        setCurrentIndex((prev) => prev + 1);
-      } else {
-        setCompleted(true);
-      }
     } catch (e) {
       console.error("Failed to submit gatekeeper review:", e);
     } finally {
@@ -149,7 +143,7 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
         ) : (
           <div className="space-y-4">
             <div className="flex items-center justify-between text-[11px] text-[var(--theme-muted)] font-mono">
-              <span>Card {currentIndex + 1} of {challengeCards.length}</span>
+              <span>Card {session.index + 1} of {challengeCards.length}</span>
               <span>{currentCard.anchor}</span>
             </div>
 
