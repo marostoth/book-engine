@@ -136,7 +136,7 @@ pub fn get_deck_stats_blocking(book_id: Option<&str>) -> Result<DeckStats> {
     })
 }
 
-/// Applies FSRS-4.5 rating (1=Again, 2=Hard, 3=Good, 4=Easy), updates SQLite, and returns new schedule.
+/// Applies an FSRS-5 rating (1=Again, 2=Hard, 3=Good, 4=Easy), updates SQLite, and returns new schedule.
 pub fn submit_card_review_blocking(card_id: &str, rating_val: u8) -> Result<crate::fsrs::CardSchedule> {
     let conn = open_or_create_db()?;
     let rating = crate::fsrs::Rating::try_from(rating_val)

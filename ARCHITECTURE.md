@@ -88,7 +88,7 @@ book-engine/
 │       │   │   ├── practice/        # Modular practice drill subcomponents
 │       │   │   │   ├── ClozeDrill.tsx       # Extractive Cloze completion drill
 │       │   │   │   ├── GatekeeperCardDrill.tsx # Dual-modality Cloze & Scenario MCQ challenge drill for Chapter Gatekeeper
-│       │   │   │   ├── RatingBar.tsx        # FSRS-4.5 Again/Hard/Good/Easy rating bar with suggested rating badge
+│       │   │   │   ├── RatingBar.tsx        # FSRS-5 Again/Hard/Good/Easy rating bar with suggested rating badge
 │       │   │   │   ├── ScenarioCardView.tsx # Deductive multiple-choice scenario drill with anti-bias option shuffling
 │       │   │   │   └── ScrambleDrill.tsx    # Drag/click scrambled clause reconstruction drill
 │       │   │   ├── reader/          # Modular TipTap custom extensions & reader hooks
@@ -189,7 +189,9 @@ book-engine/
 │           │   │   ├── schema.rs            # SQLite database initialization & migrations
 │           │   │   ├── seed_lexicon.rs      # Curated seed dictionary entries & initial SQLite database seeding
 │           │   │   └── mod.rs               # Ephemeral SQLite database module root & test suite
-│           │   ├── fsrs.rs              # Local FSRS-4.5 spaced repetition scheduling engine
+│           │   ├── fsrs/                # FSRS engine test module
+│           │   │   └── tests.rs             # FSRS-5 reference tests with numbers from the official py-fsrs 5.1.3
+│           │   ├── fsrs.rs              # Local FSRS-5 spaced repetition scheduling engine
 │           │   ├── lib.rs               # Application builder, plugin setup, and invoke router
 │           │   ├── main.rs              # Tauri binary executable entrypoint
 │           │   ├── test_support.rs      # Test-only sandbox: temporary vault & cache database per unit test
@@ -295,11 +297,12 @@ Highlights store `exact`, `prefix`, and `suffix` context fields alongside paragr
 
 ## 4. Zero-Hallucination Practice Architecture: As-Built Implementation (Phase 4)
 
-### Local FSRS-4.5 Scheduling Engine (`apps/desktop/src-tauri/src/fsrs.rs`)
-Review intervals and memory retention calculations are computed locally via the Free Spaced Repetition Scheduler (FSRS-4.5) algorithm without network dependencies:
+### Local FSRS-5 Scheduling Engine (`apps/desktop/src-tauri/src/fsrs.rs`)
+Review intervals and memory retention calculations are computed locally via the Free Spaced Repetition Scheduler (FSRS-5) algorithm without network dependencies:
 - **Card States:** `New (0)`, `Learning (1)`, `Review (2)`, `Relearning (3)`.
 - **4-Tier Rating Scale:** `Again (1)`, `Hard (2)`, `Good (3)`, `Easy (4)`.
-- **Math Standard:** Initial stability $S_0(G)$, difficulty $D_0(G)$, power-law retrievability $R(t, S) = (1 + 19/9 \cdot t/S)^{-0.5}$, and stability updates for successful recall ($S'$) or forgetting ($S'_{forget}$). Target retention is configured to $90\%$ ($r = 0.90$).
+- **Math Standard:** FSRS-5 with its 19 default weights. Initial stability $S_0(G) = w_{G-1}$, initial difficulty $D_0(G) = w_4 - e^{w_5 (G-1)} + 1$, and power-law retrievability $R(t, S) = (1 + \frac{19}{81} \cdot t/S)^{-0.5}$, so $R(S, S) = 0.9$. Difficulty updates use linear damping and mean reversion toward $D_0(4)$. Stability updates cover recall, forgetting (capped at $S / e^{w_{17} w_{18}}$), and same-day reviews ($S \cdot e^{w_{17}(G - 3 + w_{18})}$), and they use the difficulty from before the review. Target retention is $90\%$, so the interval is the rounded stability in days, from 1 to 36,500 days.
+- **Scheduling Policy:** Elapsed time counts whole days since the last review. Again brings a card back after 10 minutes (Learning or Relearning); Hard, Good, and Easy schedule whole days (Review). The tests in `fsrs/tests.rs` pin reference numbers from the official py-fsrs 5.1.3 implementation.
 
 ### Ephemeral SQLite Schema (`%APPDATA%\book-engine\app_cache\index.db`)
 Card state, stability, difficulty, and scheduling timestamps are strictly decoupled from the Markdown vault:
@@ -335,7 +338,7 @@ All deck synchronization and review calculations are executed on background thre
 | :--- | :--- | :--- |
 | `sync_practice_deck` | `(book_id: String) -> Result<usize, String>` | Scans `vault/notes/<book_id>/practice-deck.md`, performs verbatim substring verification against chapter Markdown, and populates `fsrs_cards`. |
 | `get_due_cards` | `(book_id: Option<String>, card_type: Option<String>, limit: Option<usize>, hybrid_ratio: Option<f32>) -> Result<Vec<PracticeCardItem>, String>` | Returns up to `limit` cards (default 50): due reviews first (`reps > 0 AND due <= now`, most overdue first), then new cards (`reps = 0`, in sync order) in the places that are left. A card rated Again is due 10 minutes later and then comes before all new cards. |
-| `submit_review` | `(card_id: String, rating: u8) -> Result<CardSchedule, String>` | Evaluates FSRS-4.5 rating (1=Again, 2=Hard, 3=Good, 4=Easy), computes new stability, difficulty, state, and next interval, and commits to SQLite. |
+| `submit_review` | `(card_id: String, rating: u8) -> Result<CardSchedule, String>` | Evaluates an FSRS-5 rating (1=Again, 2=Hard, 3=Good, 4=Easy), computes new stability, difficulty, state, and next interval, and commits to SQLite. |
 | `get_deck_stats` | `(book_id: Option<String>) -> Result<DeckStats, String>` | Aggregates deck volume, due count, learning vs. review ratios, and retention metrics. |
 
 ### Practice Suite & Gatekeeper UI Components
@@ -558,7 +561,7 @@ A study analytics modal accessible from `TopNav.tsx` or `SettingsPopover.tsx`:
 - **Retention Statistics Cards:**
   - **Cards Due Today:** Number of reviews scheduled for the current day.
   - **Mastered Cards:** Cards that have graduated to mature stability ($\ge 21$ days).
-  - **FSRS Retention Rate Percentage:** Calculated using the canonical power-law retrievability formula $R(t, S) = (1 + 19/9 \cdot t/S)^{-0.5}$ over reviewed cards.
+  - **FSRS Retention Rate Percentage:** Calculated using the canonical power-law retrievability formula $R(t, S) = (1 + 19/81 \cdot t/S)^{-0.5}$ over reviewed cards.
 - **Reading Velocity & Time:**
   - Active reading timer tracks focused reading session seconds.
   - Calculates average words-per-minute (WPM) across completed chapters ($\ge 90\%$ read).
@@ -604,7 +607,7 @@ CREATE TABLE IF NOT EXISTS reading_sessions (
 ### Retention Rate Formula Standard
 Retention rate is computed as:
 $$\text{Retention Rate} = \frac{\text{Total Reviews} - \text{Again Count}}{\text{Total Reviews}} \times 100\%$$
-with fallback to the aggregate FSRS power-law retrievability $R(t, S) = (1 + 19/9 \cdot t/S)^{-0.5}$ when no reviews have been recorded yet in `review_logs`.
+with fallback to the aggregate FSRS power-law retrievability $R(t, S) = (1 + 19/81 \cdot t/S)^{-0.5}$ when no reviews have been recorded yet in `review_logs`.
 
 ---
 
@@ -677,7 +680,7 @@ vault/notes/<book-id>/practice-deck.md
                        SQLite UPSERT (fsrs_cards)
                         card_type + JSON payload
                                        │
-                        Unified FSRS-4.5 Scheduler
+                         Unified FSRS-5 Scheduler
                                        │
                   ┌────────────────────┴────────────────────┐
                   ▼                                         ▼
