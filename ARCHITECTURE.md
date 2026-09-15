@@ -150,11 +150,13 @@ book-engine/
 │       │   │   ├── types/           # Modular contract definitions
 │       │   │   │   ├── analytical.ts        # Level 3 analytical terms, citations & argument graph interfaces
 │       │   │   │   └── syntopicon.ts        # Level 4 syntopical neutral terms, questions & controversy models
+│       │   │   ├── anchors.ts           # Paragraph anchor forms: saved ^p-xxx vs. HTML data-anchor p-xxx
 │       │   │   ├── api.ts               # Unified API client facade with browser dev fallbacks
 │       │   │   ├── bionic.ts            # Deterministic bionic fixation bolding transformer
 │       │   │   ├── elementaryPacer.ts      # Pure pacer timing, chunking, and contrast opacity functions
 │       │   │   ├── elementaryPacer.test.ts # Unit tests for pacer timing, chunking, and contrast math
-│       │   │   ├── highlights.ts        # W3C Text Quote Selector parser & serializer
+│       │   │   ├── highlights.ts        # W3C Text Quote Selector parser, serializer & paragraph placement
+│       │   │   ├── highlights.test.ts   # Highlight tests: a saved anchor brings each highlight back to its own paragraph
 │       │   │   ├── levelGuideData.ts    # Mortimer Adler levels static cheatsheet & hotkeys registry
 │       │   │   ├── markdown.ts          # Chapter Markdown preprocessor & anchor normalizer
 │       │   │   ├── notesAggregator.ts   # Cross-chapter note aggregation, anchor sorting & summary compiler
@@ -384,7 +386,8 @@ App.tsx (Global state: theme, viewMode, activeBook, activeChapter)
 
 **Supporting Utilities:**
 - `src/lib/api.ts`: Tauri IPC invoke wrappers with browser development fallback.
-- `src/lib/markdown.ts`: Pre-processes chapter Markdown into TipTap HTML, separating footnote definitions and injecting interactive anchors (`data-anchor="^p-xxx"`) and footnote markers (`data-fn="n"`).
+- `src/lib/markdown.ts`: Pre-processes chapter Markdown into TipTap HTML, separating footnote definitions and injecting interactive anchors (`data-anchor="p-xxx"`, the attribute form of `^p-xxx`) and footnote markers (`data-fn="n"`).
+- `src/lib/anchors.ts`: Converts paragraph anchors between the saved form (`^p-xxx`) and the HTML attribute form (`p-xxx`) with `toSavedAnchor` and `toAnchorAttribute`.
 - `src/lib/bionic.ts`: Deterministic Bionic reading transformer bolding the initial 40–50% of word tokens for eye fixation.
 - `src/lib/types.ts`: TypeScript contracts matching `BookMeta`, `ChapterMeta`, `TOCItem`, and theme definitions.
 
@@ -496,7 +499,7 @@ Highlights are serialized into `vault/notes/<book-id>/<chapter-file>-notes.md` i
 **Fuzzy Hydration & TreeWalker Injection Algorithm (`applyHighlightsToHtml`):**
 When a chapter HTML payload is prepared for mounting into TipTap:
 1. `parseHighlightsFromNotes`: Scans `<!-- highlights-json ... -->` in the chapter's notes file and parses the `HighlightItem[]` payload.
-2. `Paragraph Resolution`: For each highlight, attempts to locate the parent paragraph by querying `[data-anchor="^p-xxx"]`. If anchor is absent or paragraph was reorganized, falls back to scanning candidate `<p>` elements.
+2. `Paragraph Resolution` (`findHighlightParagraph`): For each highlight, converts the saved anchor (`^p-xxx`) to the attribute form with `toAnchorAttribute` and uses the paragraph with `data-anchor="p-xxx"` when it still contains the quote. If the anchor is absent or its paragraph no longer contains the quote, falls back to the first candidate `<p>` element that contains it.
 3. `Fuzzy Recovery Pass`:
    - Checks verbatim match: `pText.includes(hl.exact)`.
    - If verbatim match fails (e.g. whitespace or punctuation slightly edited externally), executes relaxed normalization: `text.replace(/\s+/g, " ")`.
@@ -542,6 +545,7 @@ The backend scans `vault/books/` dynamically on startup and command invocation, 
 ### Polished TipTap Paragraph Anchors
 - Raw paragraph anchors (`^p-001`, `§p-001`) are stripped from inline text bodies during markdown ingestion into HTML.
 - Parsed into headless custom node attributes (`<p data-anchor="p-001">`) via TipTap's `AnchorParagraph` extension.
+- Saved data (chapter Markdown, notes, citations, practice cards) keeps the `^p-001` form. Code converts between the two forms only with `src/lib/anchors.ts`: text selection saves `toSavedAnchor(data-anchor)`, and highlight placement, anchor navigation, the pacer, the focus ruler, and gutter badges find paragraphs with `toAnchorAttribute`.
 - Displayed via CSS pseudo-element (`.reader-prose p[data-anchor]::before`) as a subtle, muted `§` glyph in the left margin (`left: -1.75rem`) that smoothly reveals on paragraph hover without polluting text selection or clipboard payloads.
 
 ---

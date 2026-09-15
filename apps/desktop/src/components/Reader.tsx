@@ -6,6 +6,7 @@ import Image from "@tiptap/extension-image";
 import { parseChapterMarkdown } from "../lib/markdown";
 import { applyBionicReading } from "../lib/bionic";
 import { applyHighlightsToHtml } from "../lib/highlights";
+import { toAnchorAttribute } from "../lib/anchors";
 import { FootnoteItem, HighlightItem, ReaderPreferences } from "../lib/types";
 import { FootnotePopover } from "./FootnotePopover";
 import { SelectionMenu } from "./SelectionMenu";
@@ -169,9 +170,9 @@ export const Reader: React.FC<ReaderProps> = ({
 
   // Jump to target paragraph anchor when requested
   useEffect(() => {
-    if (!targetAnchor || !containerRef.current) return;
+    const cleanAnchor = toAnchorAttribute(targetAnchor);
+    if (!cleanAnchor || !containerRef.current) return;
 
-    const cleanAnchor = targetAnchor.replace(/^\^/, "");
     const timer = setTimeout(() => {
       if (!containerRef.current) return;
       const el = containerRef.current.querySelector(`[data-anchor="${cleanAnchor}"]`);
@@ -260,8 +261,8 @@ export const Reader: React.FC<ReaderProps> = ({
           containerRef={containerRef} currentChapterFile={currentChapterFile}
           store={analyticalStore} activeLevel={activeLevel}
           onBadgeClick={(anchor) => {
-            const clean = anchor.replace(/^(\^|§)/, "");
-            const el = containerRef.current?.querySelector(`[data-anchor="${clean}"]`);
+            const clean = toAnchorAttribute(anchor);
+            const el = clean ? containerRef.current?.querySelector(`[data-anchor="${clean}"]`) : null;
             if (el) {
               el.scrollIntoView({ behavior: "smooth", block: "center" });
               el.classList.add("bg-amber-100/40", "dark:bg-amber-900/30", "transition-colors", "duration-500");

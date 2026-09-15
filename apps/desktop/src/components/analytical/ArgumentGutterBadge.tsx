@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { AnalyticalStore } from "../../lib/types/analytical";
+import { toAnchorAttribute } from "../../lib/anchors";
 
 export interface MarkerItem {
   type: "T" | "C" | "P" | "?";
@@ -31,7 +32,8 @@ export const ArgumentGutterBadge: React.FC<ArgumentGutterBadgeProps> = ({
 
     const map = new Map<string, MarkerItem[]>();
     const addMarker = (rawAnchor: string, marker: MarkerItem) => {
-      const clean = rawAnchor.replace(/^(\^|§)/, "");
+      const clean = toAnchorAttribute(rawAnchor);
+      if (!clean) return;
       const existing = map.get(clean) || [];
       // avoid exact duplicate marker types on same anchor
       if (!existing.some((m) => m.type === marker.type && m.tooltip === marker.tooltip)) {
