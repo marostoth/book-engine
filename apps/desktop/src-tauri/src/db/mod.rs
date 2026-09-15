@@ -11,6 +11,8 @@ pub mod card_identity;
 pub mod deck_sync;
 #[cfg(test)]
 mod deck_sync_tests;
+#[cfg(test)]
+mod fsrs_store_tests;
 
 pub use models::*;
 pub use schema::*;

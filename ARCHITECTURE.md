@@ -192,7 +192,8 @@ book-engine/
 │           │   │   ├── deck_sync_tests.rs   # Deck sync tests: removed, changed, reordered, returning & duplicate cards
 │           │   │   ├── due_cards.rs         # Practice session card picker: due reviews first, then new cards (cloze/scenario mix), for the whole book or one chapter (Chapter Gatekeeper)
 │           │   │   ├── fsrs_parser.rs       # Practice card markdown extraction & verbatim validator
-│           │   │   ├── fsrs_store.rs        # FSRS deck statistics & review submission
+│           │   │   ├── fsrs_store.rs        # FSRS deck statistics & review submission (card update and review log row in one transaction)
+│           │   │   ├── fsrs_store_tests.rs  # Review saving tests: failed log row, card without a book id, double click
 │           │   │   ├── indexer.rs           # Background vault indexing & FTS5 full-text search
 │           │   │   ├── models.rs            # SQLite row models and analytics transfer structs
 │           │   │   ├── reading_velocity.rs  # Chapter reading session recording & velocity calculations
@@ -204,7 +205,7 @@ book-engine/
 │           │   ├── fsrs.rs              # Local FSRS-5 spaced repetition scheduling engine
 │           │   ├── lib.rs               # Application builder, plugin setup, and invoke router
 │           │   ├── main.rs              # Tauri binary executable entrypoint
-│           │   ├── test_support.rs      # Test-only sandbox: temporary vault & cache database per unit test
+│           │   ├── test_support.rs      # Test-only sandbox: temporary vault & cache database per unit test, also for its test threads (Sandbox::spawn)
 │           │   ├── vault/               # Modular vault file I/O & notes aggregation
 │           │   │   ├── analytical.rs        # Level 3 analytical store loader, saver & unit tests
 │           │   │   ├── models.rs            # Vault metadata, analytical and note structures
@@ -363,7 +364,7 @@ All deck synchronization and review calculations are executed on background thre
 | `sync_practice_deck` | `(book_id: String) -> Result<usize, String>` | Scans `vault/notes/<book_id>/practice-deck.md`, verifies every card verbatim against its chapter Markdown, and syncs `fsrs_cards` with one card per question, archiving cards that left the deck. Returns the number of distinct questions. |
 | `get_due_cards` | `(book_id: Option<String>, card_type: Option<String>, limit: Option<usize>, hybrid_ratio: Option<f32>) -> Result<Vec<PracticeCardItem>, String>` | Returns up to `limit` cards (default 50): due reviews first (`reps > 0 AND due <= now`, most overdue first), then new cards (`reps = 0`, in sync order) in the places that are left. A card rated Again is due 10 minutes later and then comes before all new cards. |
 | `get_chapter_due_cards` | `(book_id: String, chapter_file: String, card_type: Option<String>, limit: Option<usize>, hybrid_ratio: Option<f32>) -> Result<Vec<PracticeCardItem>, String>` | Like `get_due_cards`, but only cards from one chapter file of one book. The Chapter Gatekeeper tests these cards before the reader leaves that chapter. The book id is required, because every book names its chapters `ch-01.md`, `ch-02.md`, ... |
-| `submit_review` | `(card_id: String, rating: u8) -> Result<CardSchedule, String>` | Evaluates an FSRS-5 rating (1=Again, 2=Hard, 3=Good, 4=Easy), computes new stability, difficulty, state, and next interval, and commits to SQLite. |
+| `submit_review` | `(card_id: String, rating: u8) -> Result<CardSchedule, String>` | Evaluates an FSRS-5 rating (1=Again, 2=Hard, 3=Good, 4=Easy), computes new stability, difficulty, state, and next interval, and commits to SQLite. One `IMMEDIATE` transaction reads the card, saves the new schedule, and adds a `review_logs` row with the book id of the card: both rows are saved or neither is, and the error is returned. A card without a book id is not reviewed. A second review of the same card (a double click) waits, then schedules from the first review. |
 | `get_deck_stats` | `(book_id: Option<String>) -> Result<DeckStats, String>` | Aggregates deck volume, due count, learning vs. review ratios, and retention metrics. |
 
 ### Practice Suite & Gatekeeper UI Components

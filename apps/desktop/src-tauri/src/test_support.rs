@@ -102,6 +102,19 @@ impl Sandbox {
         }
         self.write("notes/sample/practice-deck.md", &deck);
     }
+
+    /// Runs `work` on a new thread that uses this sandbox, for tests where two database users
+    /// work at the same time. Join the thread before the sandbox is dropped.
+    pub(crate) fn spawn<T: Send + 'static>(
+        &self,
+        work: impl FnOnce() -> T + Send + 'static,
+    ) -> std::thread::JoinHandle<T> {
+        let root = self.root.clone();
+        std::thread::spawn(move || {
+            ACTIVE_ROOT.with(|active| *active.borrow_mut() = Some(root));
+            work()
+        })
+    }
 }
 
 impl Drop for Sandbox {
