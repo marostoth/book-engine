@@ -1,17 +1,22 @@
 import React, { useEffect, useRef, useState } from "react";
 import { BookOpen, Hash, Search, X } from "lucide-react";
-import { SearchResult } from "../lib/types";
+import { BookMetadata, SearchResult } from "../lib/types";
 import { searchVault } from "../lib/api";
+import { ReaderLocation, searchResultBookTitle, searchResultLocation } from "../lib/readerLocation";
 
 interface OmniSearchModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelectResult: (chapterFile: string, anchor: string) => void;
+  /** Library books, to show which book each hit comes from. */
+  books: BookMetadata[];
+  /** Receives the hit's own book, chapter file, and anchor: search covers all books. */
+  onSelectResult: (location: ReaderLocation) => void;
 }
 
 export const OmniSearchModal: React.FC<OmniSearchModalProps> = ({
   isOpen,
   onClose,
+  books,
   onSelectResult,
 }) => {
   const [query, setQuery] = useState("");
@@ -64,8 +69,7 @@ export const OmniSearchModal: React.FC<OmniSearchModalProps> = ({
     } else if (e.key === "Enter") {
       e.preventDefault();
       if (results[selectedIndex]) {
-        const item = results[selectedIndex];
-        onSelectResult(item.chapter_file, item.anchor);
+        onSelectResult(searchResultLocation(results[selectedIndex]));
         onClose();
       }
     }
@@ -129,11 +133,12 @@ export const OmniSearchModal: React.FC<OmniSearchModalProps> = ({
 
           {results.map((res, index) => {
             const isSelected = index === selectedIndex;
+            const bookTitle = searchResultBookTitle(res, books);
             return (
               <div
-                key={`${res.chapter_id}-${res.anchor}-${index}`}
+                key={`${res.book_id}-${res.chapter_id}-${res.anchor}-${index}`}
                 onClick={() => {
-                  onSelectResult(res.chapter_file, res.anchor);
+                  onSelectResult(searchResultLocation(res));
                   onClose();
                 }}
                 onMouseEnter={() => setSelectedIndex(index)}
@@ -143,6 +148,9 @@ export const OmniSearchModal: React.FC<OmniSearchModalProps> = ({
                     : "hover:bg-[var(--theme-bg)] border border-transparent text-[var(--theme-text)]"
                 }`}
               >
+                <div className="truncate text-[11px] text-[var(--theme-muted)]" title={bookTitle}>
+                  {bookTitle}
+                </div>
                 <div className="flex items-center justify-between text-xs">
                   <span className="flex items-center gap-1.5 font-semibold text-[var(--theme-text)]">
                     <BookOpen className="w-3.5 h-3.5 text-[var(--theme-accent)]" />

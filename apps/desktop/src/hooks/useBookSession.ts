@@ -15,6 +15,7 @@ import {
   getVaultPath,
 } from "../lib/api";
 import { parseHighlightsFromNotes, serializeHighlightsToNotes } from "../lib/highlights";
+import { ReaderLocation, resolveLocation } from "../lib/readerLocation";
 
 export function useBookSession(onCardsRefreshNeeded?: (bookId: string) => void) {
   const [vaultPath, setVaultPath] = useState<string>("");
@@ -141,7 +142,8 @@ export function useBookSession(onCardsRefreshNeeded?: (bookId: string) => void) 
     });
   };
 
-  const handleSelectSearchResult = (chapterFile: string, anchor?: string) => {
+  /** Opens a chapter file of the open book. Only for links that stay in one book: practice cards, notes, analytical citations. */
+  const handleNavigateAnchor = (chapterFile: string, anchor?: string) => {
     if (!bookMeta) return;
 
     if (!activeChapter || activeChapter.file_path !== chapterFile) {
@@ -154,28 +156,26 @@ export function useBookSession(onCardsRefreshNeeded?: (bookId: string) => void) 
     setTargetAnchor(anchor);
   };
 
+  /** Opens a location in its own book, loading that book first when another book is open: search hits, syntopicon citations. */
   const navigateToCrossBookCitation = useCallback(
-    async (citation: { bookId: string; chapterFile: string; anchor: string }) => {
-      if (citation.bookId !== activeBookId) {
-        setActiveBookId(citation.bookId);
-        localStorage.setItem("book_engine_active_book_id", citation.bookId);
-        try {
-          const meta = await fetchBookMeta(citation.bookId);
-          setBookMeta(meta);
-          const targetChapter =
-            meta.spine?.find((ch) => ch.file_path === citation.chapterFile) || meta.spine?.[0];
-          if (targetChapter) {
-            setActiveChapter(targetChapter);
-          }
-          setTargetAnchor(citation.anchor);
-        } catch (err) {
-          console.error("Failed to switch book for citation:", citation.bookId, err);
+    async (location: ReaderLocation) => {
+      try {
+        const target = await resolveLocation(location, bookMeta, fetchBookMeta);
+        const switchedBook = target.book !== bookMeta;
+        if (switchedBook) {
+          setActiveBookId(location.bookId);
+          localStorage.setItem("book_engine_active_book_id", location.bookId);
+          setBookMeta(target.book);
         }
-      } else {
-        handleSelectSearchResult(citation.chapterFile, citation.anchor);
+        if (target.chapter && (switchedBook || target.chapter.file_path !== activeChapter?.file_path)) {
+          setActiveChapter(target.chapter);
+        }
+        setTargetAnchor(location.anchor);
+      } catch (err) {
+        console.error("Failed to open location in book:", location.bookId, err);
       }
     },
-    [activeBookId, handleSelectSearchResult]
+    [bookMeta, activeChapter]
   );
 
   return {
@@ -193,7 +193,7 @@ export function useBookSession(onCardsRefreshNeeded?: (bookId: string) => void) 
     setTargetAnchor,
     handleSelectBook,
     handleAddHighlight,
-    handleSelectSearchResult,
+    handleNavigateAnchor,
     navigateToCrossBookCitation,
     loadBook,
   };

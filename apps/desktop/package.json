@@ -10,7 +10,7 @@
     "tauri": "tauri",
     "tsc": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test src/lib/elementaryPacer.test.ts src/lib/highlights.test.ts src/lib/practiceContract.test.ts src/lib/practiceSession.test.ts"
+    "test": "node --experimental-strip-types --test src/lib/elementaryPacer.test.ts src/lib/highlights.test.ts src/lib/practiceContract.test.ts src/lib/practiceSession.test.ts src/lib/readerLocation.test.ts"
   },
   "dependencies": {
     "@floating-ui/react": "^0.27.4",
