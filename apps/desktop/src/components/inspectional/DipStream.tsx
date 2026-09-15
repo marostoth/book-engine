@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { BookMeta, ChapterMeta } from "../../lib/types";
 import { fetchChapter } from "../../lib/api";
+import { reportBackendError } from "../../lib/backendErrors";
 import { BookOpen, ArrowRight, Compass, Scissors, CornerDownRight } from "lucide-react";
 
 interface DipStreamProps {
@@ -62,7 +63,7 @@ export const DipStream: React.FC<DipStreamProps> = ({
           [ch.id]: { head, tail, firstAnchor },
         }));
       } catch (e) {
-        console.warn(`Failed to hydrate dip sample for chapter ${ch.id}:`, e);
+        reportBackendError("Could not load a chapter sample for the dip stream.", e);
       }
     });
 

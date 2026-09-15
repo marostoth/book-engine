@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import type { PracticeCardItem } from "./practiceTypes.ts";
-import { fallbackCardsMemory } from "./api/mockData.ts";
+import { fallbackCardsMemory } from "./api/dev/mockData.ts";
 
 // practiceContract.json is the exact JSON that `get_due_cards` returns for a scenario card.
 // The Rust test `test_due_card_json_matches_frontend_contract` (src-tauri/src/db/mod.rs)

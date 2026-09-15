@@ -112,6 +112,7 @@ book-engine/
 │       │   │   │   └── SyntopicTermsTab.tsx # Rule 2 neutral terminology directory & citation mapper tab
 │       │   │   ├── AnalyticsModal.tsx   # FSRS retention heatmap & reading velocity dashboard modal
 │       │   │   ├── AppModals.tsx        # Modular modal dialog coordinator & container
+│       │   │   ├── BackendErrorBar.tsx  # Error bar: every failed backend load or save, with a count and Dismiss
 │       │   │   ├── BookSelector.tsx     # Dynamic vault library switcher popover
 │       │   │   ├── FigureLightboxModal.tsx # High-resolution diagram pan/zoom lightbox with split page link
 │       │   │   ├── FootnotePopover.tsx  # Floating UI citation preview popover
@@ -119,7 +120,7 @@ book-engine/
 │       │   │   ├── LevelCompanionPane.tsx # Modular Level III & IV companion pane coordinator
 │       │   │   ├── LevelGuideModal.tsx  # Contextual HUD, level cheatsheets & keyboard shortcuts modal
 │       │   │   ├── NotesDrawer.tsx      # Unified slide-over notes & W3C highlights drawer with summary export
-│       │   │   ├── NotesPane.tsx        # Dual-pane Markdown reflection notes editor
+│       │   │   ├── NotesPane.tsx        # Dual-pane Markdown reflection notes editor (locked until the notes file loads)
 │       │   │   ├── OmniSearchModal.tsx  # Ctrl+K global full-text search palette
 │       │   │   ├── PracticeModal.tsx    # Extractive practice suite (Cloze, Scenario MCQ & Scramble drills)
 │       │   │   ├── Reader.tsx           # Virtualized TipTap chapter canvas with margin anchors
@@ -136,15 +137,21 @@ book-engine/
 │       │   │   ├── usePracticeDeck.ts        # Practice deck state, mode/ratio filtering & daily target limits
 │       │   │   └── useSyntopiconSession.ts   # Level 4 Syntopicon registry, cascade-pruning & topic session hook
 │       │   ├── lib/             # Core TypeScript utilities, transformers, and contracts
-│       │   │   ├── api/             # Modular Tauri IPC & dev mock client modules
-│       │   │   │   ├── analyticalApi.ts     # Analytical reading store load/save IPC & localStorage fallback
+│       │   │   ├── api/             # Modular Tauri IPC client modules (every call goes through callBackend)
+│       │   │   │   ├── dev/             # Browser stand-in for the backend: callBackend loads it only in a dev build outside Tauri
+│       │   │   │   │   ├── devBackend.ts        # Single entry point: the stand-in for every API function
+│       │   │   │   │   ├── fallbackAnalytical.ts # Sample analytical store & localStorage analytical data
+│       │   │   │   │   ├── fallbackAnalytics.ts # In-memory analytics mock generators
+│       │   │   │   │   ├── fallbackBooks.ts     # Sample library & chapters, localStorage notes, plain text search
+│       │   │   │   │   ├── fallbackLexicon.ts   # In-memory dictionary and deduplicated vocabulary storage
+│       │   │   │   │   ├── fallbackNotes.ts     # Sample chapter notes, in-browser notes aggregation & summary export
+│       │   │   │   │   ├── fallbackPractice.ts  # Sample practice cards, due-card filter & simple review schedule
+│       │   │   │   │   ├── fallbackSyntopicon.ts # Sample syntopicon topic & localStorage topic registry
+│       │   │   │   │   └── mockData.ts          # Default mock book catalogs & sample chapters
+│       │   │   │   ├── analyticalApi.ts     # Analytical reading store load/save IPC
 │       │   │   │   ├── analyticsApi.ts      # Study analytics, reading session & velocity IPC client
-│       │   │   │   ├── clientBase.ts        # Tauri detection & safe invoke wrapper
-│       │   │   │   ├── fallbackAnalytics.ts # In-memory analytics mock generators
-│       │   │   │   ├── fallbackLexicon.ts   # In-memory dictionary and deduplicated vocabulary persistence fallback
-│       │   │   │   ├── fallbackNotes.ts     # In-memory note persistence fallback
+│       │   │   │   ├── clientBase.ts        # Tauri detection & callBackend: inside the app a failed command rejects
 │       │   │   │   ├── lexiconApi.ts        # Sanitized offline dictionary lookup & vocabulary vault persistence IPC
-│       │   │   │   ├── mockData.ts          # Default mock book catalogs & sample chapters
 │       │   │   │   ├── notesApi.ts          # Cross-chapter note aggregation & summary export IPC
 │       │   │   │   ├── practiceApi.ts       # FSRS practice card synchronization & review IPC
 │       │   │   │   └── syntopiconApi.ts     # Level 4 Syntopicon topic registry & persistence IPC client
@@ -152,7 +159,10 @@ book-engine/
 │       │   │   │   ├── analytical.ts        # Level 3 analytical terms, citations & argument graph interfaces
 │       │   │   │   └── syntopicon.ts        # Level 4 syntopical neutral terms, questions & controversy models
 │       │   │   ├── anchors.ts           # Paragraph anchor forms: saved ^p-xxx vs. HTML data-anchor p-xxx
-│       │   │   ├── api.ts               # Unified API client facade with browser dev fallbacks
+│       │   │   ├── api.ts               # Unified API client facade: a failed backend call reaches the caller
+│       │   │   ├── apiFailures.test.ts  # API tests: inside the app, every failed backend call rejects; empty answers stay empty
+│       │   │   ├── backendErrors.ts     # Error bar store: failed loads and saves, repeats counted, newest 5 kept
+│       │   │   ├── backendErrors.test.ts # Error bar tests: a repeated failure raises its count; Tauri rejection values become text
 │       │   │   ├── bionic.ts            # Deterministic bionic fixation bolding transformer
 │       │   │   ├── chapterGate.ts       # Pure Chapter Gatekeeper rules: which chapter moves are gated, which gate runs pass
 │       │   │   ├── chapterGate.test.ts  # Gate tests: later chapters only, every level but syntopical, wrong answers never pass
@@ -178,7 +188,8 @@ book-engine/
 │       │   │   └── types.ts             # Canonical TypeScript interfaces & data contracts
 │       │   ├── App.tsx          # Application shell, global state coordinator & router
 │       │   ├── index.css        # Editorial design tokens, typography, and margin glyphs
-│       │   └── main.tsx         # React DOM mount entrypoint
+│       │   ├── main.tsx         # React DOM mount entrypoint
+│       │   └── vite-env.d.ts    # Vite client types (import.meta.env)
 │       └── src-tauri/           # Rust backend shell (Tauri v2 + SQLite)
 │           ├── icons/           # High-resolution native application branding icons
 │           │   ├── source-icon.svg      # Master vector editorial monogram
@@ -306,6 +317,7 @@ Multi-column textbook pages frequently include full-width conceptual matrices, m
 
 - **Vault (`vault/`):** Human-readable plain-text Markdown files and images. Can be edited externally (Obsidian, Neovim, VS Code).
 - **Ephemeral Cache (`index.db`):** Stored strictly in the OS application data folder (`%APPDATA%\book-engine\`). Never checked into version control.
+- **No Hidden Fallback:** Inside the app, every frontend call to the backend goes through `callBackend` (`apps/desktop/src/lib/api/clientBase.ts`). A failed load or save rejects with the backend error and shows in the error bar (`BackendErrorBar.tsx`). Nothing falls back to sample data, and no vault data goes to browser storage. Data that did not load is not saved over: the notes pane stays locked, a new highlight is not saved, and analytical changes for that book are not saved.
 
 ### Highlight Stability (W3C Text Quote Selector)
 Highlights store `exact`, `prefix`, and `suffix` context fields alongside paragraph anchors to survive external edits.
@@ -405,17 +417,19 @@ The desktop client is structured around a single-chapter virtualized TipTap canv
 
 ```
 App.tsx (Global state: theme, viewMode, activeBook, activeChapter)
+├── BackendErrorBar.tsx (Error bar at the bottom of the window: every failed load or save, with a count and Dismiss)
 ├── Sidebar.tsx (Translucent collapsible TOC, active chapter indicator, word & anchor counts)
 ├── TopNav.tsx (Progress bar, chapter title, theme toggles, viewing mode switches)
 └── [ Main Content Area ]
     ├── Reader.tsx (TipTap editor: mounts ONLY one chapter at a time)
     │   ├── SelectionMenu.tsx (Floating UI pill: [Highlight], [Note], [Copy Link])
     │   └── FootnotePopover.tsx (Floating UI citation popover on [^n] click/hover)
-    └── NotesPane.tsx (Dual-Pane side-by-side reflection notes editor with 800ms auto-save)
+    └── NotesPane.tsx (Dual-Pane side-by-side reflection notes editor with 800ms auto-save; locked until the notes file loads, "Not saved" when a save fails)
 ```
 
 **Supporting Utilities:**
-- `src/lib/api.ts`: Tauri IPC invoke wrappers with browser development fallback.
+- `src/lib/api.ts`: Tauri IPC wrappers. Every call goes through `callBackend` (`src/lib/api/clientBase.ts`): inside the app, a failed command rejects with the backend error, and an empty answer stays empty. Only a dev build in a browser (`npm run dev`) answers, from the stand-in in `src/lib/api/dev/`. The stand-in loads through a dynamic import behind `import.meta.env.DEV`, so a production build does not contain it.
+- `src/lib/backendErrors.ts`: The error bar store. `reportBackendError` adds a failed load or save (the same action with the same error again only raises its count, and the newest 5 stay), and `errorText` turns a Tauri rejection value (a string or an `AppError` object) into text for `BackendErrorBar.tsx`.
 - `src/lib/markdown.ts`: Pre-processes chapter Markdown into TipTap HTML, separating footnote definitions and injecting interactive anchors (`data-anchor="p-xxx"`, the attribute form of `^p-xxx`) and footnote markers (`data-fn="n"`).
 - `src/lib/anchors.ts`: Converts paragraph anchors between the saved form (`^p-xxx`) and the HTML attribute form (`p-xxx`) with `toSavedAnchor` and `toAnchorAttribute`.
 - `src/lib/readerLocation.ts`: Resolves a location (book id, chapter file, anchor) to the book and chapter to show with `resolveLocation`, loading the location's own book when another book is open. Every book names its chapters `ch-01.md`, `ch-02.md`, ..., so a search hit keeps its `book_id` (`searchResultLocation`).
@@ -828,7 +842,7 @@ Syntopical reading culminates in Mortimer Adler's Syntopical Rule 5 ("Analyzing 
 ```
 SyntopiconPane (SynthesisTab.tsx)
   │
-  ├── 800ms Debounced Auto-Save ("Saved" / "Saving...")
+  ├── 800ms Debounced Auto-Save ("Saved" / "Saving..." / "Not saved")
   │     └── vault/syntopicon/topics/<topic-id>.json
   │           (synthesisNotes & dialecticalResolution)
   │

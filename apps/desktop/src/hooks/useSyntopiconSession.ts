@@ -13,6 +13,7 @@ import {
   saveSyntopicTopic,
   exportSyntopicReport,
 } from "../lib/api/syntopiconApi";
+import { reportBackendError } from "../lib/backendErrors";
 
 export function useSyntopiconSession() {
   const [topics, setTopics] = useState<SyntopicTopicSummary[]>([]);
@@ -39,7 +40,7 @@ export function useSyntopiconSession() {
       setTopics(list);
       return list;
     } catch (err) {
-      console.error("Failed to fetch syntopic topics:", err);
+      reportBackendError("Could not load your syntopicon topics.", err);
       return [];
     }
   }, []);
@@ -69,12 +70,15 @@ export function useSyntopiconSession() {
     setLoading(true);
     getSyntopicTopic(activeTopicId)
       .then((t) => { if (isCurrent) setActiveTopic(t); })
-      .catch((err) => console.error("Failed to load syntopic topic:", err))
+      .catch((err) => {
+        if (isCurrent) setActiveTopic(null);
+        reportBackendError("Could not load the syntopicon topic.", err);
+      })
       .finally(() => { if (isCurrent) setLoading(false); });
     return () => { isCurrent = false; };
   }, [activeTopicId]);
 
-  // Create new syntopical topic
+  // Create new syntopical topic. Gives null when the topic was not saved.
   const createTopic = useCallback(
     async (title: string, description: string) => {
       const id = title
@@ -92,7 +96,12 @@ export function useSyntopiconSession() {
         createdAt: new Date().toISOString(),
       };
 
-      await saveSyntopicTopic(newTopic);
+      try {
+        await saveSyntopicTopic(newTopic);
+      } catch (err) {
+        reportBackendError(`The topic "${title}" was not created.`, err);
+        return null;
+      }
       await refreshTopics();
       setActiveTopicId(id);
       setActiveTopic(newTopic);
@@ -101,13 +110,18 @@ export function useSyntopiconSession() {
     [refreshTopics]
   );
 
-  // Persist helper for updated active topic
-  const persistTopic = useCallback(async (updated: SyntopicTopic) => {
+  // Persist helper for updated active topic. A failed save keeps the change on screen, shows the error, and gives false.
+  const persistTopic = useCallback(async (updated: SyntopicTopic): Promise<boolean> => {
     setActiveTopic(updated);
-    await saveSyntopicTopic(updated);
-    const list = await getSyntopicTopics();
-    setTopics(list);
-  }, []);
+    try {
+      await saveSyntopicTopic(updated);
+    } catch (err) {
+      reportBackendError("Your syntopicon changes were not saved. They stay on screen until you open another topic.", err);
+      return false;
+    }
+    await refreshTopics();
+    return true;
+  }, [refreshTopics]);
 
   // Neutral Term CRUD
   const saveNeutralTerm = useCallback(
@@ -196,14 +210,14 @@ export function useSyntopiconSession() {
 
   // Rule 5: Dialectical Synthesis persistence
   const saveSynthesis = useCallback(
-    async (synthesisNotes?: string, dialecticalResolution?: string) => {
-      if (!activeTopic) return;
+    async (synthesisNotes?: string, dialecticalResolution?: string): Promise<boolean> => {
+      if (!activeTopic) return false;
       const updated: SyntopicTopic = {
         ...activeTopic,
         synthesisNotes,
         dialecticalResolution,
       };
-      await persistTopic(updated);
+      return persistTopic(updated);
     },
     [activeTopic, persistTopic]
   );
@@ -218,7 +232,7 @@ export function useSyntopiconSession() {
       setLastExportPath(relPath);
       return relPath;
     } catch (err) {
-      console.error("Failed to export syntopic report:", err);
+      reportBackendError("The dialectical dossier was not exported.", err);
       throw err;
     } finally {
       setIsExporting(false);

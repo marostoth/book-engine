@@ -3,6 +3,7 @@ import { ChapterMeta, PracticeCardItem, ReaderPreferences, ReadingLevelMode } fr
 import { getChapterDueCards } from "../lib/api";
 import { gatedChapterFile } from "../lib/chapterGate";
 import { practiceCardType } from "../lib/practiceSession";
+import { reportBackendError } from "../lib/backendErrors";
 
 /** A request to open another chapter of the open book. `open` shows the chapter. */
 export interface ChapterMoveRequest {
@@ -53,7 +54,7 @@ export function useChapterGate(preferences: ReaderPreferences, level: ReadingLev
           setChapterGate({ from, to, cards, open: move.open });
         }
       } catch (err) {
-        console.warn("Failed to load Chapter Gatekeeper cards:", err);
+        reportBackendError("The Chapter Gatekeeper cards did not load, so the chapter opened without the gate.", err);
         move.open();
       }
     },

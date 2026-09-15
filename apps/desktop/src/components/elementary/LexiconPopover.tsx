@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Bookmark, Check, X, Sparkles } from "lucide-react";
 import { DictionaryEntry, VocabularyEntry } from "../../lib/types";
 import { lookupDictionaryTerm, saveBookVocabulary } from "../../lib/api";
+import { reportBackendError } from "../../lib/backendErrors";
 
 interface LexiconPopoverProps {
   word: string;
@@ -40,8 +41,11 @@ export const LexiconPopover: React.FC<LexiconPopoverProps> = ({
         }
       })
       .catch((err) => {
-        console.warn("Lexicon lookup error:", err);
-        if (mounted) setLoading(false);
+        reportBackendError(`Could not look up "${word.trim()}".`, err);
+        if (mounted) {
+          setEntry(null);
+          setLoading(false);
+        }
       });
 
     return () => {
@@ -71,7 +75,7 @@ export const LexiconPopover: React.FC<LexiconPopoverProps> = ({
         onSavedVocabulary(vocabEntry);
       }
     } catch (e) {
-      console.warn("Failed to save vocabulary term:", e);
+      reportBackendError(`"${vocabEntry.word}" was not saved to your vocabulary.`, e);
     } finally {
       setSaving(false);
     }

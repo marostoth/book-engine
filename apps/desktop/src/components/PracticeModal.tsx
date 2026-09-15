@@ -13,6 +13,7 @@ import { ScrambleDrill } from "./practice/ScrambleDrill";
 import { RatingBar } from "./practice/RatingBar";
 import { ScenarioCardView } from "./practice/ScenarioCardView";
 import { currentSessionCard, recordSessionReview, startSession, syncSession } from "../lib/practiceSession";
+import { reportBackendError } from "../lib/backendErrors";
 
 interface PracticeModalProps {
   isOpen: boolean;
@@ -62,7 +63,7 @@ export const PracticeModal: React.FC<PracticeModalProps> = ({
         setSession((prev) => recordSessionReview(prev, currentCard.card_id, rating));
         onReviewSubmitted(currentCard.card_id, schedule);
       } catch (err) {
-        console.error("Failed to submit review:", err);
+        reportBackendError("Your rating was not saved. Rate the card again.", err);
       } finally {
         setSubmitting(false);
       }

@@ -94,7 +94,7 @@ npm install
 ```
 
 #### Run in Browser (Vite Dev Server)
-For rapid frontend component and style development with browser mocks:
+For rapid frontend component and style development with browser mocks (sample books, sample notes, and browser storage). The mocks answer only in this browser dev server. Inside the desktop app, a failed backend call shows an error instead:
 
 ```bash
 npm run dev

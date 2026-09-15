@@ -88,8 +88,8 @@ export const InquiryModal: React.FC<InquiryModalProps> = ({
         createdAt: editingInquiry?.createdAt || new Date().toISOString(),
       };
 
+      // The session closes this window after a save. A change that it does not save keeps its text here.
       await onSave(item);
-      onClose();
     } finally {
       setSaving(false);
     }

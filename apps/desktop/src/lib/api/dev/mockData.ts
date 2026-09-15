@@ -5,7 +5,7 @@ import type {
   SearchResult,
   InspectionalBlueprint,
   ExitAssessmentPayload,
-} from "../types";
+} from "../../types";
 
 export const FALLBACK_META: BookMeta = {
   book_id: "sample",

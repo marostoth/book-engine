@@ -1,12 +1,41 @@
 import React, { useEffect, useState, useRef } from "react";
-import { Check, Edit3, Eye, FileText, Save } from "lucide-react";
+import { Check, Edit3, Eye, FileText, Lock, RotateCcw, Save, TriangleAlert } from "lucide-react";
 import { fetchNotes, persistNotes } from "../lib/api";
+import { reportBackendError } from "../lib/backendErrors";
 
 interface NotesPaneProps {
   bookId: string;
   chapterFile: string;
   insertedQuote: { quote: string; anchorId?: string } | null;
   onClearInsertedQuote: () => void;
+}
+
+/** The chapter notes: still loading, loaded, or failed to load. Only loaded notes can be edited and saved. */
+type LoadState = "loading" | "ready" | "failed";
+/** The newest text: saved, not saved yet, or failed to save. */
+type SaveState = "saved" | "pending" | "failed";
+
+const STATUS_TONES = {
+  quiet: "text-[var(--theme-muted)]",
+  active: "text-[var(--theme-accent)] bg-[var(--theme-accent)]/10 hover:bg-[var(--theme-accent)]/20",
+  failed: "text-red-600 dark:text-red-400 bg-red-500/10 hover:bg-red-500/20",
+};
+
+/** The save status button. "Saved" shows only after a save that worked. */
+function saveStatus(loadState: LoadState, saveState: SaveState) {
+  if (loadState === "failed") {
+    return { label: "Locked", title: "Your notes did not load, so editing is locked", tone: "failed", Icon: Lock, iconClass: "" } as const;
+  }
+  if (loadState === "loading") {
+    return { label: "Loading...", title: "Loading your notes", tone: "quiet", Icon: Save, iconClass: "" } as const;
+  }
+  if (saveState === "failed") {
+    return { label: "Not saved", title: "Not saved. Click to save again", tone: "failed", Icon: TriangleAlert, iconClass: "" } as const;
+  }
+  if (saveState === "pending") {
+    return { label: "Saving...", title: "Click to save", tone: "active", Icon: Save, iconClass: "" } as const;
+  }
+  return { label: "Saved", title: "Saved to vault", tone: "quiet", Icon: Check, iconClass: "text-emerald-500" } as const;
 }
 
 export const NotesPane: React.FC<NotesPaneProps> = ({
@@ -16,25 +45,39 @@ export const NotesPane: React.FC<NotesPaneProps> = ({
   onClearInsertedQuote,
 }) => {
   const [content, setContent] = useState<string>("");
-  const [isSaved, setIsSaved] = useState<boolean>(true);
+  const [loadState, setLoadState] = useState<LoadState>("loading");
+  const [saveState, setSaveState] = useState<SaveState>("saved");
+  const [loadAttempt, setLoadAttempt] = useState<number>(0);
   const [mode, setMode] = useState<"edit" | "preview">("edit");
   const saveTimeoutRef = useRef<number | null>(null);
 
   const notesFileName = chapterFile.replace(".md", "-notes.md");
+  const canEdit = loadState === "ready";
+  const status = saveStatus(loadState, saveState);
 
-  // Load notes when chapter changes
+  // Load notes when chapter changes. Editing stays locked until they load: a save before that would overwrite the
+  // notes file with text that is not in it.
   useEffect(() => {
     let isMounted = true;
-    fetchNotes(bookId, notesFileName).then((loaded) => {
-      if (isMounted) {
-        setContent(loaded);
-        setIsSaved(true);
-      }
-    });
+    setLoadState("loading");
+    fetchNotes(bookId, notesFileName)
+      .then((loaded) => {
+        if (isMounted) {
+          setContent(loaded);
+          setSaveState("saved");
+          setLoadState("ready");
+        }
+      })
+      .catch((err) => {
+        if (isMounted) {
+          setLoadState("failed");
+          reportBackendError("Your chapter notes did not load, so the notes pane is locked.", err);
+        }
+      });
     return () => {
       isMounted = false;
     };
-  }, [bookId, notesFileName]);
+  }, [bookId, notesFileName, loadAttempt]);
 
   // Insert quote if triggered from selection menu
   useEffect(() => {
@@ -42,32 +85,39 @@ export const NotesPane: React.FC<NotesPaneProps> = ({
       const anchorSuffix = insertedQuote.anchorId ? ` (#${insertedQuote.anchorId})` : "";
       const quoteBlock = `\n\n> "${insertedQuote.quote}"${anchorSuffix}\n\n- Reflection: \n`;
       setContent((prev) => prev + quoteBlock);
-      setIsSaved(false);
+      setSaveState("pending");
       onClearInsertedQuote();
     }
   }, [insertedQuote, onClearInsertedQuote]);
 
+  // A failed save keeps the text in the pane. The next edit, or a click on "Not saved", saves it again.
+  const saveNotes = (text: string) => {
+    persistNotes(bookId, notesFileName, text)
+      .then(() => setSaveState("saved"))
+      .catch((err) => {
+        setSaveState("failed");
+        reportBackendError("Your chapter notes were not saved. Your text is still in the notes pane.", err);
+      });
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (!canEdit) return;
     const newText = e.target.value;
     setContent(newText);
-    setIsSaved(false);
+    setSaveState("pending");
 
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
 
     // Auto-save after 800ms debounce
-    saveTimeoutRef.current = window.setTimeout(() => {
-      persistNotes(bookId, notesFileName, newText).then(() => {
-        setIsSaved(true);
-      });
-    }, 800);
+    saveTimeoutRef.current = window.setTimeout(() => saveNotes(newText), 800);
   };
 
   const handleManualSave = () => {
-    persistNotes(bookId, notesFileName, content).then(() => {
-      setIsSaved(true);
-    });
+    if (canEdit) {
+      saveNotes(content);
+    }
   };
 
   return (
@@ -92,25 +142,38 @@ export const NotesPane: React.FC<NotesPaneProps> = ({
           {/* Save status */}
           <button
             onClick={handleManualSave}
-            className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all ${
-              isSaved
-                ? "text-[var(--theme-muted)]"
-                : "text-[var(--theme-accent)] bg-[var(--theme-accent)]/10 hover:bg-[var(--theme-accent)]/20"
-            }`}
-            title={isSaved ? "Saved to vault" : "Click to save"}
+            disabled={!canEdit}
+            className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all ${STATUS_TONES[status.tone]}`}
+            title={status.title}
           >
-            {isSaved ? <Check className="w-3 h-3 text-emerald-500" /> : <Save className="w-3 h-3" />}
-            <span>{isSaved ? "Saved" : "Saving..."}</span>
+            <status.Icon className={`w-3 h-3 ${status.iconClass}`} />
+            <span>{status.label}</span>
           </button>
         </div>
       </div>
 
       {/* Editor or Preview Pane */}
       <div className="flex-1 p-4 overflow-y-auto">
-        {mode === "edit" ? (
+        {loadState === "failed" ? (
+          <div className="h-full flex flex-col items-center justify-center gap-3 text-center text-xs text-[var(--theme-muted)]">
+            <Lock className="w-5 h-5 text-red-600 dark:text-red-400" />
+            <p className="max-w-[16rem] leading-relaxed">
+              Your notes for this chapter did not load. Editing is locked, so a save cannot overwrite your notes file.
+            </p>
+            <button
+              type="button"
+              onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-[var(--theme-border)] font-semibold text-[var(--theme-text)] hover:bg-[var(--theme-accent)]/10 transition-colors"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Try again</span>
+            </button>
+          </div>
+        ) : mode === "edit" ? (
           <textarea
             value={content}
             onChange={handleChange}
+            readOnly={!canEdit}
             placeholder="Capture personal reflections, hypotheses, and chapter connections..."
             className="w-full h-full bg-transparent resize-none focus:outline-none font-mono text-xs leading-relaxed text-[var(--theme-text)] placeholder:text-[var(--theme-muted)]"
             spellCheck={false}
