@@ -26,8 +26,34 @@ export async function getDueCards(
       console.warn("Tauri get_due_cards failed:", e);
     }
   }
+  return fallbackDueCards(cardType, limit);
+}
+
+/** Due cards of one chapter file of a book, for the Chapter Gatekeeper. */
+export async function getChapterDueCards(
+  bookId: string,
+  chapterFile: string,
+  cardType?: string,
+  limit?: number,
+  hybridRatio?: number
+): Promise<PracticeCardItem[]> {
+  if (isTauri) {
+    try {
+      return await tauriInvoke("get_chapter_due_cards", { bookId, chapterFile, cardType, limit, hybridRatio });
+    } catch (e) {
+      console.warn("Tauri get_chapter_due_cards failed:", e);
+    }
+  }
+  return fallbackDueCards(cardType, limit, (c) => c.book_id === bookId && c.chapter_file === chapterFile);
+}
+
+function fallbackDueCards(
+  cardType?: string,
+  limit?: number,
+  keep: (card: PracticeCardItem) => boolean = () => true
+): PracticeCardItem[] {
   const now = Math.floor(Date.now() / 1000);
-  let cards = fallbackCardsMemory.filter((c) => c.due <= now || c.reps === 0);
+  let cards = fallbackCardsMemory.filter((c) => (c.due <= now || c.reps === 0) && keep(c));
   if (cardType === "scenario") {
     cards = cards.filter((c) => c.card_type === "scenario" || c.item_type === "scenario");
   } else if (cardType === "cloze") {

@@ -115,6 +115,22 @@ pub async fn get_due_cards(
 }
 
 #[command]
+pub async fn get_chapter_due_cards(
+    book_id: String,
+    chapter_file: String,
+    card_type: Option<String>,
+    limit: Option<usize>,
+    hybrid_ratio: Option<f32>,
+) -> Result<Vec<crate::db::PracticeCardItem>, String> {
+    tokio::task::spawn_blocking(move || {
+        crate::db::get_chapter_due_cards_blocking(&book_id, &chapter_file, card_type.as_deref(), limit, hybrid_ratio)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))?
+    .map_err(|e| format!("Failed to get chapter due cards: {}", e))
+}
+
+#[command]
 pub async fn submit_review(card_id: String, rating: u8) -> Result<crate::fsrs::CardSchedule, String> {
     tokio::task::spawn_blocking(move || crate::db::submit_card_review_blocking(&card_id, rating))
         .await

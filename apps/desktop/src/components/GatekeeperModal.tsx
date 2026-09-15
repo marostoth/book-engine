@@ -1,17 +1,22 @@
 import React, { useState, useEffect } from "react";
-import { ShieldCheck, ArrowRight, Eye, CheckCircle2, Trophy, X } from "lucide-react";
+import { ShieldCheck, ArrowRight, Eye, CheckCircle2, Trophy, RotateCcw, X } from "lucide-react";
 import { PracticeCardItem, CardSchedule } from "../lib/types";
 import { submitReview } from "../lib/api";
+import { gatePassed, gateRightAnswers } from "../lib/chapterGate";
 import { currentSessionCard, recordSessionReview, startSession, syncSession } from "../lib/practiceSession";
 
 import { GatekeeperCardDrill } from "./practice/GatekeeperCardDrill";
 
 interface GatekeeperModalProps {
   isOpen: boolean;
+  /** Closes the gate. The reader stays in the chapter. */
   onClose: () => void;
+  /** The chapter the reader leaves. The gate tests its due cards. */
+  leavingChapterTitle: string;
   targetChapterTitle: string;
   cards: PracticeCardItem[];
   quota?: number;
+  /** Opens the target chapter and closes the gate: after a pass, "Continue anyway", or a skip. */
   onComplete: () => void;
   onReviewSubmitted: (cardId: string, schedule: CardSchedule) => void;
 }
@@ -19,6 +24,7 @@ interface GatekeeperModalProps {
 export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
   isOpen,
   onClose,
+  leavingChapterTitle,
   targetChapterTitle,
   cards,
   quota = 3,
@@ -26,6 +32,8 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
   onReviewSubmitted,
 }) => {
   const [session, setSession] = useState(() => startSession([]));
+  // Scenario cards answered with a wrong option. They never count as right, whatever the rating.
+  const [wrongAnswers, setWrongAnswers] = useState<ReadonlySet<string>>(() => new Set<string>());
   const [userAnswer, setUserAnswer] = useState("");
   const [revealed, setRevealed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -33,11 +41,15 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
   const challengeCards = session.cards;
   const currentCard = currentSessionCard(session);
   const { completed } = session;
+  const passed = gatePassed(session, wrongAnswers);
 
-  // Walk a session copy of the first `quota` due cards, because rating a card removes it
-  // from `cards`. Closing the window resets the session.
+  // Walk a session copy of the first `quota` due cards of the chapter the reader leaves.
+  // Closing the window resets the session and the wrong answers.
   useEffect(() => {
     setSession((prev) => (isOpen ? syncSession(prev, cards, quota) : startSession([])));
+    if (!isOpen) {
+      setWrongAnswers((prev) => (prev.size === 0 ? prev : new Set<string>()));
+    }
   }, [isOpen, cards, quota]);
 
   useEffect(() => {
@@ -79,7 +91,9 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
                 Chapter Gatekeeper Challenge
               </h2>
               <p className="text-xs text-[var(--theme-muted)]">
-                Solve {challengeCards.length} recall items before unlocking{" "}
+                Recall {challengeCards.length} items from{" "}
+                <span className="font-semibold text-[var(--theme-text)]">{leavingChapterTitle}</span>{" "}
+                before you open{" "}
                 <span className="font-semibold text-[var(--theme-text)]">
                   {targetChapterTitle}
                 </span>
@@ -90,14 +104,15 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
           <button
             onClick={onClose}
             className="p-1 rounded-md text-[var(--theme-muted)] hover:text-[var(--theme-text)] transition-colors"
-            title="Skip for now"
+            title="Close and stay in this chapter"
+            aria-label="Close and stay in this chapter"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Content */}
-        {completed ? (
+        {completed && passed ? (
           <div className="py-6 text-center space-y-4 animate-in fade-in duration-150">
             <div className="w-12 h-12 rounded-2xl bg-[var(--theme-accent)]/15 text-[var(--theme-accent)] mx-auto flex items-center justify-center">
               <Trophy className="w-6 h-6" />
@@ -107,21 +122,50 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
                 Gatekeeper Passed!
               </h3>
               <p className="text-xs text-[var(--theme-muted)] mt-0.5">
-                Great job reinforcing your memory. The next chapter is now unlocked.
+                Great job reinforcing your memory. All {challengeCards.length} answers were right.
               </p>
             </div>
 
             <button
               type="button"
-              onClick={() => {
-                onClose();
-                onComplete();
-              }}
+              onClick={onComplete}
               className="w-full py-2.5 rounded-xl bg-[var(--theme-accent)] hover:brightness-110 text-white font-semibold text-xs transition-all shadow-sm flex items-center justify-center gap-2"
             >
               <span>Advance to {targetChapterTitle}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
+          </div>
+        ) : completed ? (
+          <div className="py-6 text-center space-y-4 animate-in fade-in duration-150">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/15 text-amber-700 dark:text-amber-300 mx-auto flex items-center justify-center">
+              <RotateCcw className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-[var(--theme-text)]">
+                Not Passed Yet
+              </h3>
+              <p className="text-xs text-[var(--theme-muted)] mt-0.5">
+                {gateRightAnswers(session, wrongAnswers)} of {challengeCards.length} answers were right. A card
+                counts as right when you answer it correctly and rate it Good or Easy.
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 py-2.5 rounded-xl bg-[var(--theme-accent)] hover:brightness-110 text-white font-semibold text-xs transition-all shadow-sm"
+              >
+                Stay in this chapter
+              </button>
+              <button
+                type="button"
+                onClick={onComplete}
+                className="flex-1 py-2.5 rounded-xl border border-[var(--theme-border)] text-[var(--theme-text)] hover:bg-[var(--theme-border)]/30 font-semibold text-xs transition-colors"
+              >
+                Continue anyway
+              </button>
+            </div>
           </div>
         ) : !currentCard ? (
           <div className="py-6 text-center space-y-3">
@@ -131,10 +175,7 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
             </p>
             <button
               type="button"
-              onClick={() => {
-                onClose();
-                onComplete();
-              }}
+              onClick={onComplete}
               className="px-4 py-2 rounded-xl bg-amber-600 text-white text-xs font-semibold"
             >
               Continue to {targetChapterTitle}
@@ -154,6 +195,11 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
                 onUserAnswerChange={setUserAnswer}
                 revealed={revealed}
                 onReveal={() => setRevealed(true)}
+                onScenarioEvaluated={(isCorrect) => {
+                  if (!isCorrect) {
+                    setWrongAnswers((prev) => new Set(prev).add(currentCard.card_id));
+                  }
+                }}
               />
 
               {!revealed && currentCard.card_type !== "scenario" && (
@@ -219,10 +265,7 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
             <div className="flex justify-between items-center pt-2 text-xs">
               <button
                 type="button"
-                onClick={() => {
-                  onClose();
-                  onComplete();
-                }}
+                onClick={onComplete}
                 className="text-[11px] text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
               >
                 Skip Gatekeeper for now

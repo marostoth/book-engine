@@ -1,4 +1,10 @@
 import type { PracticeCardItem } from "./practiceTypes";
+import type { StudyPreferences } from "./types";
+
+/** The card type that `get_due_cards` and `get_chapter_due_cards` take for a practice mode. */
+export function practiceCardType(mode: StudyPreferences["practiceMode"]): "scenario" | "cloze" | "hybrid" {
+  return mode === "mcq_scenario" ? "scenario" : mode === "verbatim" ? "cloze" : "hybrid";
+}
 
 /**
  * One run of the practice or gatekeeper window over a fixed copy of the due cards.

@@ -130,9 +130,10 @@ book-engine/
 │       │   ├── hooks/           # Modular application custom hooks
 │       │   │   ├── useAnalyticalModals.ts    # Level 3 modal open/close & staged target coordinator
 │       │   │   ├── useAnalyticalSession.ts   # Analytical reading store, cascading integrity & persistence hook
-│       │   │   ├── useBookSession.ts         # Book loading, reading progress, session timing & chapter jumping
+│       │   │   ├── useBookSession.ts         # Book loading, reading progress, session timing & chapter jumping (every in-book chapter change goes through openChapter)
+│       │   │   ├── useChapterGate.ts         # Chapter Gatekeeper (soft gate): tests the due cards of the chapter the reader leaves
 │       │   │   ├── useInspectionalSession.ts # Inspectional countdown timer, sub-view & exit prompt manager
-│       │   │   ├── usePracticeDeck.ts        # Practice deck state, mode/ratio filtering, daily target limits & Gatekeeper orchestration
+│       │   │   ├── usePracticeDeck.ts        # Practice deck state, mode/ratio filtering & daily target limits
 │       │   │   └── useSyntopiconSession.ts   # Level 4 Syntopicon registry, cascade-pruning & topic session hook
 │       │   ├── lib/             # Core TypeScript utilities, transformers, and contracts
 │       │   │   ├── api/             # Modular Tauri IPC & dev mock client modules
@@ -153,6 +154,8 @@ book-engine/
 │       │   │   ├── anchors.ts           # Paragraph anchor forms: saved ^p-xxx vs. HTML data-anchor p-xxx
 │       │   │   ├── api.ts               # Unified API client facade with browser dev fallbacks
 │       │   │   ├── bionic.ts            # Deterministic bionic fixation bolding transformer
+│       │   │   ├── chapterGate.ts       # Pure Chapter Gatekeeper rules: which chapter moves are gated, which gate runs pass
+│       │   │   ├── chapterGate.test.ts  # Gate tests: later chapters only, every level but syntopical, wrong answers never pass
 │       │   │   ├── elementaryPacer.ts      # Pure pacer timing, chunking, and contrast opacity functions
 │       │   │   ├── elementaryPacer.test.ts # Unit tests for pacer timing, chunking, and contrast math
 │       │   │   ├── highlights.ts        # W3C Text Quote Selector parser, serializer & paragraph placement
@@ -162,7 +165,7 @@ book-engine/
 │       │   │   ├── notesAggregator.ts   # Cross-chapter note aggregation, anchor sorting & summary compiler
 │       │   │   ├── practiceContract.json    # Exact get_due_cards scenario-card JSON shared by the Rust & TS contract tests
 │       │   │   ├── practiceContract.test.ts # Contract tests: backend field names vs. frontend grading & browser mocks
-│       │   │   ├── practiceSession.ts       # Pure practice/gatekeeper session: fixed card copy, position, ratings & completion
+│       │   │   ├── practiceSession.ts       # Pure practice/gatekeeper session: card type per practice mode, fixed card copy, position, ratings & completion
 │       │   │   ├── practiceSession.test.ts  # Session tests: all due cards shown while the due list shrinks, gatekeeper quota
 │       │   │   ├── practiceTypes.ts     # FSRS practice models (ScenarioOption, ScenarioPayload, PracticeCardItem)
 │       │   │   ├── preferences.ts       # Default v2 preferences & deep-merge migration helper
@@ -187,7 +190,7 @@ book-engine/
 │           │   │   ├── card_identity.rs     # Stable practice card ids from the question text (FNV-1a), not the deck position
 │           │   │   ├── deck_sync.rs         # Practice deck sync: one card per question, archive for cards that left the deck, old-id migration
 │           │   │   ├── deck_sync_tests.rs   # Deck sync tests: removed, changed, reordered, returning & duplicate cards
-│           │   │   ├── due_cards.rs         # Practice session card picker: due reviews first, then new cards (cloze/scenario mix)
+│           │   │   ├── due_cards.rs         # Practice session card picker: due reviews first, then new cards (cloze/scenario mix), for the whole book or one chapter (Chapter Gatekeeper)
 │           │   │   ├── fsrs_parser.rs       # Practice card markdown extraction & verbatim validator
 │           │   │   ├── fsrs_store.rs        # FSRS deck statistics & review submission
 │           │   │   ├── indexer.rs           # Background vault indexing & FTS5 full-text search
@@ -359,6 +362,7 @@ All deck synchronization and review calculations are executed on background thre
 | :--- | :--- | :--- |
 | `sync_practice_deck` | `(book_id: String) -> Result<usize, String>` | Scans `vault/notes/<book_id>/practice-deck.md`, verifies every card verbatim against its chapter Markdown, and syncs `fsrs_cards` with one card per question, archiving cards that left the deck. Returns the number of distinct questions. |
 | `get_due_cards` | `(book_id: Option<String>, card_type: Option<String>, limit: Option<usize>, hybrid_ratio: Option<f32>) -> Result<Vec<PracticeCardItem>, String>` | Returns up to `limit` cards (default 50): due reviews first (`reps > 0 AND due <= now`, most overdue first), then new cards (`reps = 0`, in sync order) in the places that are left. A card rated Again is due 10 minutes later and then comes before all new cards. |
+| `get_chapter_due_cards` | `(book_id: String, chapter_file: String, card_type: Option<String>, limit: Option<usize>, hybrid_ratio: Option<f32>) -> Result<Vec<PracticeCardItem>, String>` | Like `get_due_cards`, but only cards from one chapter file of one book. The Chapter Gatekeeper tests these cards before the reader leaves that chapter. The book id is required, because every book names its chapters `ch-01.md`, `ch-02.md`, ... |
 | `submit_review` | `(card_id: String, rating: u8) -> Result<CardSchedule, String>` | Evaluates an FSRS-5 rating (1=Again, 2=Hard, 3=Good, 4=Easy), computes new stability, difficulty, state, and next interval, and commits to SQLite. |
 | `get_deck_stats` | `(book_id: Option<String>) -> Result<DeckStats, String>` | Aggregates deck volume, due count, learning vs. review ratios, and retention metrics. |
 
@@ -367,11 +371,11 @@ All deck synchronization and review calculations are executed on background thre
 - **Deterministic Cloze Drill:** Real-time character/word input validation, "Show Answer" reveal, 4-tier FSRS rating buttons with estimated next intervals, and a `Jump to §p-xxx` anchor navigation button that scrolls the reader canvas directly to the source sentence.
 - **Scrambled Argument Drill:** Clickable badge pills allowing users to reassemble sentence clauses into proper sequence with deterministic verbatim order verification.
 - **Reader Settings Popover (`SettingsPopover.tsx`):** Provides toggles for `gatekeeperMode` and a stepper for `dailyTarget` (5–100 cards), persisting to `ReaderPreferences` in `localStorage`. Includes a manual "Sync Deck" action with live due counts.
-- **Chapter Gatekeeper Workflow (`GatekeeperModal.tsx`):**
-  - When Gatekeeper Mode is active, clicking any subsequent chapter in `Sidebar.tsx` or completing a chapter triggers a Gatekeeper interception modal.
-  - Presents a mandatory 3-card recall challenge sampled from the current chapter/book's practice deck.
-  - Once the user satisfies all 3 cards with ratings, the gatekeeper unlocks the chapter and routes navigation to the target chapter. Users can also defer or bypass with an explicit override.
-- **Session Walk (`lib/practiceSession.ts`):** `PracticeModal` and `GatekeeperModal` walk a session copy of the due cards (the gatekeeper takes the first `gatekeeperQuota` cards). The copy follows the live deck until the first rating, then stays fixed, because each rating removes the card from the `usePracticeDeck` due list. Closing either window resets its session.
+- **Chapter Gatekeeper Workflow (`GatekeeperModal.tsx`, `hooks/useChapterGate.ts`, `lib/chapterGate.ts`):** a soft gate.
+  - When Gatekeeper Mode is on, every move to a later chapter of the open book asks the gate first. The table of contents, the inspectional blueprint and dips, search hits, notes, analytical citations, and practice cards all open chapters through `openChapter` in `useBookSession.ts`. Moving back, staying in the chapter, opening another book, and moves at the syntopical level (which compares books) open the chapter at once (`gatedChapterFile`).
+  - The gate tests up to `gatekeeperQuota` due cards of the chapter the reader leaves (`get_chapter_due_cards`), with the card type of the practice mode. When that chapter has no due cards, the chapter opens at once.
+  - The gate is passed only when every card is right: rated Good or Easy, and for a scenario card, answered with the right option (`gatePassed`). Otherwise the window shows how many answers were right, and the reader stays in the chapter or continues anyway. "Skip Gatekeeper for now" is the explicit override, and the close button keeps the reader in the chapter.
+- **Session Walk (`lib/practiceSession.ts`):** `PracticeModal` walks a session copy of the due cards, and `GatekeeperModal` walks a copy of the first `gatekeeperQuota` due cards of the chapter it tests. The copy follows the loaded cards until the first rating, then stays fixed, because each rating removes the card from the `usePracticeDeck` due list. Closing either window resets its session.
 
 ---
 
@@ -408,6 +412,7 @@ App.tsx (Global state: theme, viewMode, activeBook, activeChapter)
 - `src/lib/markdown.ts`: Pre-processes chapter Markdown into TipTap HTML, separating footnote definitions and injecting interactive anchors (`data-anchor="p-xxx"`, the attribute form of `^p-xxx`) and footnote markers (`data-fn="n"`).
 - `src/lib/anchors.ts`: Converts paragraph anchors between the saved form (`^p-xxx`) and the HTML attribute form (`p-xxx`) with `toSavedAnchor` and `toAnchorAttribute`.
 - `src/lib/readerLocation.ts`: Resolves a location (book id, chapter file, anchor) to the book and chapter to show with `resolveLocation`, loading the location's own book when another book is open. Every book names its chapters `ch-01.md`, `ch-02.md`, ..., so a search hit keeps its `book_id` (`searchResultLocation`).
+- `src/lib/chapterGate.ts`: Chapter Gatekeeper rules. `gatedChapterFile` gives the chapter a move must pass (only a move to a later chapter, at every level except syntopical), and `gatePassed` passes a gate run only when every card was rated Good or Easy and no scenario answer was wrong.
 - `src/lib/bionic.ts`: Deterministic Bionic reading transformer bolding the initial 40–50% of word tokens for eye fixation.
 - `src/lib/types.ts`: TypeScript contracts matching `BookMeta`, `ChapterMeta`, `TOCItem`, and theme definitions.
 
@@ -749,7 +754,7 @@ vault/notes/<book-id>/practice-deck.md
    - Respects user's configured `dailyTargetCards` setting (5–100) instead of hardcoding `LIMIT 50`.
 7. **Chapter Gatekeeper Dual-Modality Support (`GatekeeperCardDrill.tsx`):**
    - Renders inline cloze input for verbatim items, and scenario stem with clickable A/B/C/D choices for scenario items.
-   - Evaluates scenario choices with instant correctness feedback and extractive grounding quote reveal before rating.
+   - Evaluates scenario choices with instant correctness feedback and extractive grounding quote reveal before rating. A wrong choice keeps the gate from passing, whatever the rating (`lib/chapterGate.ts`).
    - Respects user's configured `gatekeeperQuota` setting (1–10) rather than hardcoded 3 cards.
 8. **TopNav & Settings Badge Synchrony:**
    - Practice badge count in TopNav and the "Sync Deck" action in Practice settings dynamically reflect the due card count for the currently active study modality.

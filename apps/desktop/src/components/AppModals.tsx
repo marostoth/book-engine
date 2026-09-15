@@ -2,7 +2,6 @@ import React from "react";
 import {
   BookMeta,
   BookMetadata,
-  ChapterMeta,
   PracticeCardItem,
   CardSchedule,
   ReaderPreferences,
@@ -11,6 +10,7 @@ import {
 } from "../lib/types";
 import { ReaderLocation } from "../lib/readerLocation";
 import { InspectionalSessionState } from "../hooks/useInspectionalSession";
+import { ChapterGate } from "../hooks/useChapterGate";
 import { OmniSearchModal } from "./OmniSearchModal";
 import { PracticeModal } from "./PracticeModal";
 import { GatekeeperModal } from "./GatekeeperModal";
@@ -34,12 +34,16 @@ import { NeutralTermModal } from "./syntopicon/NeutralTermModal";
 import { ControversyModal } from "./syntopicon/ControversyModal";
 import { useSyntopiconSession } from "../hooks/useSyntopiconSession";
 
+/** The cards of a closed gate: one shared empty list, so the closed gatekeeper window does not reset on each render. */
+const NO_GATE_CARDS: PracticeCardItem[] = [];
+
 interface AppModalsProps {
   searchOpen: boolean;
   onCloseSearch: () => void;
   practiceModalOpen: boolean;
   onClosePractice: () => void;
-  gatekeeperModalOpen: boolean;
+  /** The open Chapter Gatekeeper, or null when no gate is open. */
+  chapterGate: ChapterGate | null;
   onCloseGatekeeper: () => void;
   notesDrawerOpen: boolean;
   onCloseNotesDrawer: () => void;
@@ -49,7 +53,6 @@ interface AppModalsProps {
   onCloseGuide?: () => void;
   activeLevel?: ReadingLevelMode;
   dueCards: PracticeCardItem[];
-  pendingChapter: ChapterMeta | null;
   onGatekeeperComplete: () => void;
   onReviewSubmitted: (cardId: string, schedule: CardSchedule) => void;
   onNavigateAnchor: (chapterFile: string, anchor?: string) => void;
@@ -88,7 +91,7 @@ export const AppModals: React.FC<AppModalsProps> = ({
   onCloseSearch,
   practiceModalOpen,
   onClosePractice,
-  gatekeeperModalOpen,
+  chapterGate,
   onCloseGatekeeper,
   notesDrawerOpen,
   onCloseNotesDrawer,
@@ -98,7 +101,6 @@ export const AppModals: React.FC<AppModalsProps> = ({
   onCloseGuide,
   activeLevel = "elementary",
   dueCards,
-  pendingChapter,
   onGatekeeperComplete,
   onReviewSubmitted,
   onNavigateAnchor,
@@ -131,10 +133,11 @@ export const AppModals: React.FC<AppModalsProps> = ({
       />
 
       <GatekeeperModal
-        isOpen={gatekeeperModalOpen}
+        isOpen={chapterGate !== null}
         onClose={onCloseGatekeeper}
-        targetChapterTitle={pendingChapter?.title || "Next Chapter"}
-        cards={dueCards}
+        leavingChapterTitle={chapterGate?.from.title ?? ""}
+        targetChapterTitle={chapterGate?.to.title ?? "Next Chapter"}
+        cards={chapterGate?.cards ?? NO_GATE_CARDS}
         quota={preferences.study?.gatekeeperQuota ?? 3}
         onComplete={onGatekeeperComplete}
         onReviewSubmitted={onReviewSubmitted}
