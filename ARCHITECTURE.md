@@ -160,6 +160,8 @@ book-engine/
 │       │   │   ├── notesAggregator.ts   # Cross-chapter note aggregation, anchor sorting & summary compiler
 │       │   │   ├── practiceContract.json    # Exact get_due_cards scenario-card JSON shared by the Rust & TS contract tests
 │       │   │   ├── practiceContract.test.ts # Contract tests: backend field names vs. frontend grading & browser mocks
+│       │   │   ├── practiceSession.ts       # Pure practice/gatekeeper session: fixed card copy, position, ratings & completion
+│       │   │   ├── practiceSession.test.ts  # Session tests: all due cards shown while the due list shrinks, gatekeeper quota
 │       │   │   ├── practiceTypes.ts     # FSRS practice models (ScenarioOption, ScenarioPayload, PracticeCardItem)
 │       │   │   ├── preferences.ts       # Default v2 preferences & deep-merge migration helper
 │       │   │   └── types.ts             # Canonical TypeScript interfaces & data contracts
@@ -344,6 +346,7 @@ All deck synchronization and review calculations are executed on background thre
   - When Gatekeeper Mode is active, clicking any subsequent chapter in `Sidebar.tsx` or completing a chapter triggers a Gatekeeper interception modal.
   - Presents a mandatory 3-card recall challenge sampled from the current chapter/book's practice deck.
   - Once the user satisfies all 3 cards with ratings, the gatekeeper unlocks the chapter and routes navigation to the target chapter. Users can also defer or bypass with an explicit override.
+- **Session Walk (`lib/practiceSession.ts`):** `PracticeModal` and `GatekeeperModal` walk a session copy of the due cards (the gatekeeper takes the first `gatekeeperQuota` cards). The copy follows the live deck until the first rating, then stays fixed, because each rating removes the card from the `usePracticeDeck` due list. Closing either window resets its session.
 
 ---
 
