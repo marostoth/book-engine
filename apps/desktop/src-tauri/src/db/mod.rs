@@ -4,6 +4,7 @@ pub mod seed_lexicon;
 pub mod indexer;
 pub mod fsrs_parser;
 pub mod fsrs_store;
+pub mod due_cards;
 pub mod reading_velocity;
 pub mod analytics;
 
@@ -11,6 +12,7 @@ pub use models::*;
 pub use schema::*;
 pub use indexer::*;
 pub use fsrs_store::*;
+pub use due_cards::*;
 pub use reading_velocity::*;
 pub use analytics::*;
 
