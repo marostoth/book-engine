@@ -1,72 +1,7 @@
 use rusqlite::params;
 use anyhow::{Context, Result};
-use crate::vault::find_vault_root;
 use super::models::DeckStats;
 use super::schema::open_or_create_db;
-
-use super::fsrs_parser::parse_card_section;
-
-/// Synchronizes cards from vault/notes/<book-id>/practice-deck.md into the ephemeral fsrs_cards table.
-/// Strictly enforces programmatic verbatim verification against the chapter markdown.
-pub fn sync_practice_deck_blocking(book_id: &str) -> Result<usize> {
-    let mut conn = open_or_create_db()?;
-    let vault_root = find_vault_root()?;
-    let deck_path = vault_root.join("notes").join(book_id).join("practice-deck.md");
-    if !deck_path.exists() {
-        return Ok(0);
-    }
-
-    let deck_content = std::fs::read_to_string(&deck_path)?;
-    let book_dir = vault_root.join("books").join(book_id);
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64;
-
-    let tx = conn.transaction()?;
-    let mut synced_count = 0;
-
-    for section in deck_content.split("### ") {
-        if let Some(card) = parse_card_section(section, &book_dir) {
-            let unique_card_id = if card.card_id.starts_with(&format!("{}-", book_id)) || card.card_id.starts_with(&format!("{}:", book_id)) {
-                card.card_id.clone()
-            } else {
-                format!("{}-{}", book_id, card.card_id)
-            };
-            let payload_json = card.scenario_payload.as_ref().and_then(|p| serde_json::to_string(p).ok());
-            tx.execute(
-                "INSERT INTO fsrs_cards (
-                    card_id, book_id, chapter_file, anchor, item_type, prompt, answer,
-                    state, stability, difficulty, due, last_review, reps, card_type, payload
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, 0.0, 0.0, ?8, 0, 0, ?9, ?10)
-                ON CONFLICT(card_id) DO UPDATE SET
-                    chapter_file = excluded.chapter_file,
-                    anchor = excluded.anchor,
-                    item_type = excluded.item_type,
-                    prompt = excluded.prompt,
-                    answer = excluded.answer,
-                    card_type = excluded.card_type,
-                    payload = excluded.payload",
-                params![
-                    &unique_card_id,
-                    book_id,
-                    &card.chapter_file,
-                    &card.anchor,
-                    &card.item_type,
-                    &card.cloze,
-                    &card.answer_key,
-                    now,
-                    &card.card_type,
-                    payload_json,
-                ],
-            )?;
-            synced_count += 1;
-        }
-    }
-
-    tx.commit()?;
-    Ok(synced_count)
-}
 
 /// Calculates deck statistics (due, new, learning, review counts).
 pub fn get_deck_stats_blocking(book_id: Option<&str>) -> Result<DeckStats> {

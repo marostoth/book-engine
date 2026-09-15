@@ -11,6 +11,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use anyhow::{anyhow, Result};
 
+use crate::db::card_identity::card_identity;
+
 thread_local! {
     static ACTIVE_ROOT: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
 }
@@ -63,14 +65,40 @@ impl Sandbox {
     }
 
     /// Writes the `sample` practice deck with `clozes` cloze cards and `scenarios` scenario cards.
-    /// After sync, their ids are `sample-card-ch-01-001`, `sample-card-ch-01-002`, … and `sample-sc-ch-01-001`, ….
+    /// Every card asks its own question; `cloze_card_id` and `scenario_card_id` give their stored ids.
     pub(crate) fn write_sample_deck(&self, clozes: usize, scenarios: usize) {
         let mut deck = String::from(SAMPLE_DECK_TITLE);
         for n in 1..=clozes {
-            deck.push_str(&SAMPLE_CLOZE_CARD.replace("{n}", &format!("{n:03}")));
+            deck.push_str(&sample_card(SAMPLE_CLOZE_CARD, SAMPLE_CLOZE_QUESTION, n));
         }
         for n in 1..=scenarios {
-            deck.push_str(&SAMPLE_SCENARIO_CARD.replace("{n}", &format!("{n:03}")));
+            deck.push_str(&sample_card(SAMPLE_SCENARIO_CARD, SAMPLE_SCENARIO_QUESTION, n));
+        }
+        self.write("notes/sample/practice-deck.md", &deck);
+    }
+
+    /// Stored id of cloze card `n` from `write_sample_deck`.
+    pub(crate) fn cloze_card_id(&self, n: usize) -> String {
+        card_identity("sample", "cloze", &sample_question(SAMPLE_CLOZE_QUESTION, n), "division of labour")
+    }
+
+    /// Stored id of scenario card `n` from `write_sample_deck`.
+    pub(crate) fn scenario_card_id(&self, n: usize) -> String {
+        card_identity(
+            "sample",
+            "scenario",
+            &sample_question(SAMPLE_SCENARIO_QUESTION, n),
+            "(A) Output per worker rises.",
+        )
+    }
+
+    /// Writes the `sample` practice deck with the given cloze cards: (deck id, (cloze text, answer key)).
+    pub(crate) fn write_cloze_deck(&self, cards: &[(&str, (&str, &str))]) {
+        let mut deck = String::from(SAMPLE_DECK_TITLE);
+        for (deck_id, (cloze, answer)) in cards {
+            deck.push_str(&format!(
+                "\n### {deck_id}\n- **Chapter:** ch-01\n- **Anchor:** ^p-001\n- **Cloze:** {cloze}\n- **Answer Key:** ``{answer}``\n"
+            ));
         }
         self.write("notes/sample/practice-deck.md", &deck);
     }
@@ -121,21 +149,37 @@ A pin maker working alone can make few pins in a day. ^p-002
 
 const SAMPLE_DECK_TITLE: &str = "# Practice Deck: Sandbox Economics\n";
 
-/// `{n}` is replaced with the card number, for example `001`.
+const SAMPLE_CLOZE_QUESTION: &str = "The {{c1::division of labour}} raises the productive powers of work.";
+const SAMPLE_SCENARIO_QUESTION: &str = "A workshop splits pin making into separate steps. What follows?";
+
+/// Card `n` asks its own question: cards after the first get a label.
+/// Card 1 keeps the text in src/lib/practiceContract.json.
+fn sample_question(question: &str, n: usize) -> String {
+    if n == 1 {
+        question.to_string()
+    } else {
+        format!("Card {n:03}: {question}")
+    }
+}
+
+/// Fills in a card template: `{n}` is the card number (`001`) and `{question}` is the card's question.
+fn sample_card(template: &str, question: &str, n: usize) -> String {
+    template.replace("{n}", &format!("{n:03}")).replace("{question}", &sample_question(question, n))
+}
+
 const SAMPLE_CLOZE_CARD: &str = r#"
 ### card-ch-01-{n}
 - **Chapter:** ch-01
 - **Anchor:** ^p-001
-- **Cloze:** The {{c1::division of labour}} raises the productive powers of work.
+- **Cloze:** {question}
 - **Answer Key:** ``division of labour``
 "#;
 
-/// `{n}` is replaced with the card number, for example `001`.
 const SAMPLE_SCENARIO_CARD: &str = r#"
 ### Scenario: sc-ch-01-{n}
 - **Chapter:** ch-01
 - **Anchor:** ^p-001
-**Scenario:** A workshop splits pin making into separate steps. What follows?
+**Scenario:** {question}
 - [x] (A) Output per worker rises.
 - [ ] (B) Output per worker falls.
 - [ ] (C) Output per worker stays the same.

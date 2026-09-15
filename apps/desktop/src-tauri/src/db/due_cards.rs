@@ -193,15 +193,16 @@ mod tests {
         sandbox.write_sample_book();
         sandbox.write_sample_deck(4, 0);
         assert_eq!(sync_practice_deck_blocking("sample").expect("Failed to sync deck"), 4);
+        let cloze = |n| sandbox.cloze_card_id(n);
 
-        submit_card_review_blocking("sample-card-ch-01-001", AGAIN).expect("Submit review failed");
+        submit_card_review_blocking(&cloze(1), AGAIN).expect("Submit review failed");
         let due = get_due_cards_blocking(Some("sample"), Some("cloze"), Some(10), None).expect("Failed to get due cards");
-        assert!(!ids(&due).contains(&"sample-card-ch-01-001"), "A failed card must wait 10 minutes");
+        assert!(!ids(&due).contains(&cloze(1).as_str()), "A failed card must wait 10 minutes");
 
         // An hour later the failed card is due again. It must come before the 3 new cards.
         pass_time(3600);
         let due = get_due_cards_blocking(Some("sample"), Some("cloze"), Some(2), None).expect("Failed to get due cards");
-        assert_eq!(ids(&due), ["sample-card-ch-01-001", "sample-card-ch-01-002"]);
+        assert_eq!(ids(&due), [cloze(1), cloze(2)]);
     }
 
     #[test]
@@ -210,24 +211,22 @@ mod tests {
         sandbox.write_sample_book();
         sandbox.write_sample_deck(3, 2);
         assert_eq!(sync_practice_deck_blocking("sample").expect("Failed to sync deck"), 5);
+        let cloze = |n| sandbox.cloze_card_id(n);
 
-        submit_card_review_blocking("sample-card-ch-01-001", AGAIN).expect("Submit review failed");
-        submit_card_review_blocking("sample-card-ch-01-002", AGAIN).expect("Submit review failed");
+        submit_card_review_blocking(&cloze(1), AGAIN).expect("Submit review failed");
+        submit_card_review_blocking(&cloze(2), AGAIN).expect("Submit review failed");
         pass_time(3600);
 
         // Both due cloze reviews come first, although a 50:50 mix of 2 cards has only 1 cloze place.
         let due = get_due_cards_blocking(Some("sample"), None, Some(2), Some(0.5)).expect("Failed to get due cards");
-        assert_eq!(ids(&due), ["sample-card-ch-01-001", "sample-card-ch-01-002"]);
+        assert_eq!(ids(&due), [cloze(1), cloze(2)]);
 
         // New cards fill the places that are left, mixed 50:50.
         let due = get_due_cards_blocking(Some("sample"), None, Some(4), Some(0.5)).expect("Failed to get due cards");
-        assert_eq!(
-            ids(&due),
-            ["sample-card-ch-01-001", "sample-card-ch-01-002", "sample-card-ch-01-003", "sample-sc-ch-01-001"]
-        );
+        assert_eq!(ids(&due), [cloze(1), cloze(2), cloze(3), sandbox.scenario_card_id(1)]);
 
         // The mix never gives more cards than the limit.
         let due = get_due_cards_blocking(Some("sample"), None, Some(1), Some(0.5)).expect("Failed to get due cards");
-        assert_eq!(ids(&due), ["sample-card-ch-01-001"]);
+        assert_eq!(ids(&due), [cloze(1)]);
     }
 }

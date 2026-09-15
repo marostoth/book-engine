@@ -7,11 +7,16 @@ pub mod fsrs_store;
 pub mod due_cards;
 pub mod reading_velocity;
 pub mod analytics;
+pub mod card_identity;
+pub mod deck_sync;
+#[cfg(test)]
+mod deck_sync_tests;
 
 pub use models::*;
 pub use schema::*;
 pub use indexer::*;
 pub use fsrs_store::*;
+pub use deck_sync::*;
 pub use due_cards::*;
 pub use reading_velocity::*;
 pub use analytics::*;

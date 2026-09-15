@@ -184,9 +184,12 @@ book-engine/
 │           │   ├── commands.rs          # Asynchronous Tauri IPC command handlers
 │           │   ├── db/                  # Modular SQLite storage, FTS5 indexer & analytics
 │           │   │   ├── analytics.rs         # Retention metrics, study analytics & review heatmap
+│           │   │   ├── card_identity.rs     # Stable practice card ids from the question text (FNV-1a), not the deck position
+│           │   │   ├── deck_sync.rs         # Practice deck sync: one card per question, archive for cards that left the deck, old-id migration
+│           │   │   ├── deck_sync_tests.rs   # Deck sync tests: removed, changed, reordered, returning & duplicate cards
 │           │   │   ├── due_cards.rs         # Practice session card picker: due reviews first, then new cards (cloze/scenario mix)
 │           │   │   ├── fsrs_parser.rs       # Practice card markdown extraction & verbatim validator
-│           │   │   ├── fsrs_store.rs        # FSRS practice card synchronization & review submission
+│           │   │   ├── fsrs_store.rs        # FSRS deck statistics & review submission
 │           │   │   ├── indexer.rs           # Background vault indexing & FTS5 full-text search
 │           │   │   ├── models.rs            # SQLite row models and analytics transfer structs
 │           │   │   ├── reading_velocity.rs  # Chapter reading session recording & velocity calculations
@@ -312,11 +315,11 @@ Review intervals and memory retention calculations are computed locally via the 
 Card state, stability, difficulty, and scheduling timestamps are strictly decoupled from the Markdown vault:
 ```sql
 CREATE TABLE IF NOT EXISTS fsrs_cards (
-    card_id TEXT PRIMARY KEY,
+    card_id TEXT PRIMARY KEY, -- question id: <book>-card-<hash> or <book>-sc-<hash> (db/card_identity.rs)
     book_id TEXT NOT NULL,
     chapter_file TEXT NOT NULL,
     anchor TEXT,
-    item_type TEXT NOT NULL, -- 'cloze' | 'scramble'
+    item_type TEXT NOT NULL, -- 'cloze' | 'scramble' | 'scenario'
     prompt TEXT NOT NULL,
     answer TEXT NOT NULL,
     state INTEGER NOT NULL DEFAULT 0,
@@ -324,23 +327,37 @@ CREATE TABLE IF NOT EXISTS fsrs_cards (
     difficulty REAL NOT NULL DEFAULT 0.0,
     due INTEGER NOT NULL DEFAULT 0,
     last_review INTEGER NOT NULL DEFAULT 0,
-    reps INTEGER NOT NULL DEFAULT 0
+    reps INTEGER NOT NULL DEFAULT 0,
+    card_type TEXT DEFAULT 'cloze',
+    payload TEXT DEFAULT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_fsrs_due ON fsrs_cards (due, book_id);
+
+-- Cards whose question left the deck (reason 'not_in_deck') and older duplicate rows (reason 'duplicate'), with their progress.
+CREATE TABLE IF NOT EXISTS fsrs_cards_archive (
+    archive_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    archived_at INTEGER NOT NULL,
+    reason TEXT NOT NULL
+    -- followed by every fsrs_cards column, card_id to payload
+);
+CREATE INDEX IF NOT EXISTS idx_fsrs_cards_archive_card ON fsrs_cards_archive (card_id);
 ```
 
-### Background Deck Synchronization & Verbatim Guardrail
+### Background Deck Synchronization & Verbatim Guardrail (`db/deck_sync.rs`)
 When a book mounts, `sync_practice_deck` reads `vault/notes/<book-id>/practice-deck.md`:
-- Parses Cloze items (`{{c1::target}}` and `==target==`) and scrambled clauses.
+- Parses Cloze items (`{{c1::target}}` and `==target==`), scrambled clauses, and scenario cards (`db/fsrs_parser.rs`).
 - **Programmatic Verbatim Validation:** Cross-checks that every `answer_key` exists as an exact character substring in the chapter text (`vault/books/<book-id>/<chapter_file>`). Non-verbatim or speculative cards are rejected.
-- Uses `INSERT OR IGNORE` so user review history and FSRS metrics are never overwritten on re-syncs.
+- **One Card per Question:** `card_identity` hashes (FNV-1a, 64 bit) the item type, the normalized question, and the normalized answer (a scenario answer without its option letter). The deck position, chapter file, and anchor are not part of the id, so a deck generated again keeps the progress of every unchanged question, and a changed question starts as a new card.
+- **Upsert:** a stored card takes the deck's text, chapter, anchor, and payload and keeps its schedule. A new question starts as a new card, due now.
+- **Archive, Never Delete:** a stored card whose question is no longer in the deck moves to `fsrs_cards_archive` with its progress, and it comes back with that progress when the question returns. A deck without any valid card changes nothing.
+- **Older Rows:** rows with position-based ids from older builds get their question id on the next sync. When two rows hold the same question, the row with more reviews (then the later review) stays, the other row is archived as `duplicate`, and `review_logs` rows follow the question id.
 
 ### Tauri v2 IPC Interface (`apps/desktop/src-tauri/`)
 All deck synchronization and review calculations are executed on background threads (`tokio::task::spawn_blocking`) without blocking the UI:
 
 | Command | Signature | Description |
 | :--- | :--- | :--- |
-| `sync_practice_deck` | `(book_id: String) -> Result<usize, String>` | Scans `vault/notes/<book_id>/practice-deck.md`, performs verbatim substring verification against chapter Markdown, and populates `fsrs_cards`. |
+| `sync_practice_deck` | `(book_id: String) -> Result<usize, String>` | Scans `vault/notes/<book_id>/practice-deck.md`, verifies every card verbatim against its chapter Markdown, and syncs `fsrs_cards` with one card per question, archiving cards that left the deck. Returns the number of distinct questions. |
 | `get_due_cards` | `(book_id: Option<String>, card_type: Option<String>, limit: Option<usize>, hybrid_ratio: Option<f32>) -> Result<Vec<PracticeCardItem>, String>` | Returns up to `limit` cards (default 50): due reviews first (`reps > 0 AND due <= now`, most overdue first), then new cards (`reps = 0`, in sync order) in the places that are left. A card rated Again is due 10 minutes later and then comes before all new cards. |
 | `submit_review` | `(card_id: String, rating: u8) -> Result<CardSchedule, String>` | Evaluates an FSRS-5 rating (1=Again, 2=Hard, 3=Good, 4=Easy), computes new stability, difficulty, state, and next interval, and commits to SQLite. |
 | `get_deck_stats` | `(book_id: Option<String>) -> Result<DeckStats, String>` | Aggregates deck volume, due count, learning vs. review ratios, and retention metrics. |
@@ -709,8 +726,8 @@ vault/notes/<book-id>/practice-deck.md
    > **Rationale:** Verbatim quote from cited anchor explaining deductive link. (ch-01.md#^p-003)
    ```
 2. **SQLite Schema & Migration (`db/schema.rs`):**
-   - Idempotently adds `card_type TEXT DEFAULT 'cloze'` and `payload TEXT DEFAULT NULL` via `PRAGMA table_info(fsrs_cards)`.
-   - `sync_practice_deck_blocking` uses `INSERT ... ON CONFLICT(card_id) DO UPDATE SET ...` to preserve user review state, reps, and stability.
+   - Idempotently adds `card_type TEXT DEFAULT 'cloze'` and `payload TEXT DEFAULT NULL` via `PRAGMA table_info(fsrs_cards)`, and creates `fsrs_cards_archive`.
+   - `sync_practice_deck_blocking` (`db/deck_sync.rs`) stores each card under its question id (`card_identity`) and uses `INSERT ... ON CONFLICT(card_id) DO UPDATE SET ...` to preserve the review state, reps, and stability of unchanged questions. Cards that left the deck move to `fsrs_cards_archive` with their progress.
 3. **Anti-Bias Shuffling (`ScenarioCardView.tsx`):**
    - Randomizes option presentation order on mount via Fisher-Yates shuffle while retaining immutable option keys (`A`, `B`, `C`, `D`) for deterministic evaluation.
    - Gates FSRS rating bar until user submits an answer; pre-suggests `Again` (rating 1) on incorrect evaluations.
