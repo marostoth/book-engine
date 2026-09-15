@@ -39,10 +39,17 @@ enum Queue {
     New,
 }
 
+/// The cards a query may return: one book or all books, and optionally one chapter file of that book.
+#[derive(Clone, Copy)]
+struct Scope<'a> {
+    book_id: Option<&'a str>,
+    chapter_file: Option<&'a str>,
+}
+
 fn fetch_due_cards_query(
     conn: &rusqlite::Connection,
     now: i64,
-    book_id: Option<&str>,
+    scope: Scope<'_>,
     card_type_filter: Option<&str>,
     queue: Queue,
     limit: usize,
@@ -60,9 +67,14 @@ fn fetch_due_cards_query(
         Queue::New => query.push_str(" WHERE reps = 0"),
     }
 
-    if let Some(b_id) = book_id {
+    if let Some(b_id) = scope.book_id {
         query.push_str(" AND book_id = ?");
         params_vec.push(b_id.to_string().into());
+    }
+
+    if let Some(chapter_file) = scope.chapter_file {
+        query.push_str(" AND chapter_file = ?");
+        params_vec.push(chapter_file.to_string().into());
     }
 
     if let Some(ct) = card_type_filter {
@@ -95,6 +107,29 @@ pub fn get_due_cards_blocking(
     limit: Option<usize>,
     hybrid_ratio: Option<f32>,
 ) -> Result<Vec<PracticeCardItem>> {
+    due_cards_in(Scope { book_id, chapter_file: None }, card_type, limit, hybrid_ratio)
+}
+
+/// Retrieves up to `limit` due cards from one chapter file of a book, in the same order as `get_due_cards_blocking`.
+/// The Chapter Gatekeeper tests these cards before the reader leaves that chapter. The book id is required,
+/// because every book names its chapters `ch-01.md`, `ch-02.md`, and so on.
+pub fn get_chapter_due_cards_blocking(
+    book_id: &str,
+    chapter_file: &str,
+    card_type: Option<&str>,
+    limit: Option<usize>,
+    hybrid_ratio: Option<f32>,
+) -> Result<Vec<PracticeCardItem>> {
+    let scope = Scope { book_id: Some(book_id), chapter_file: Some(chapter_file) };
+    due_cards_in(scope, card_type, limit, hybrid_ratio)
+}
+
+fn due_cards_in(
+    scope: Scope<'_>,
+    card_type: Option<&str>,
+    limit: Option<usize>,
+    hybrid_ratio: Option<f32>,
+) -> Result<Vec<PracticeCardItem>> {
     let conn = open_or_create_db()?;
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -102,10 +137,10 @@ pub fn get_due_cards_blocking(
         .as_secs() as i64;
     let target_limit = limit.unwrap_or(50).max(1);
 
-    let mut cards = fetch_queue(&conn, now, book_id, card_type, hybrid_ratio, Queue::Review, target_limit)?;
+    let mut cards = fetch_queue(&conn, now, scope, card_type, hybrid_ratio, Queue::Review, target_limit)?;
     let free_places = target_limit.saturating_sub(cards.len());
     if free_places > 0 {
-        cards.extend(fetch_queue(&conn, now, book_id, card_type, hybrid_ratio, Queue::New, free_places)?);
+        cards.extend(fetch_queue(&conn, now, scope, card_type, hybrid_ratio, Queue::New, free_places)?);
     }
     Ok(cards)
 }
@@ -114,20 +149,20 @@ pub fn get_due_cards_blocking(
 fn fetch_queue(
     conn: &rusqlite::Connection,
     now: i64,
-    book_id: Option<&str>,
+    scope: Scope<'_>,
     card_type: Option<&str>,
     hybrid_ratio: Option<f32>,
     queue: Queue,
     limit: usize,
 ) -> Result<Vec<PracticeCardItem>> {
     match card_type {
-        Some("scenario") => fetch_due_cards_query(conn, now, book_id, Some("scenario"), queue, limit),
-        Some("cloze") => fetch_due_cards_query(conn, now, book_id, Some("cloze"), queue, limit),
+        Some("scenario") => fetch_due_cards_query(conn, now, scope, Some("scenario"), queue, limit),
+        Some("cloze") => fetch_due_cards_query(conn, now, scope, Some("cloze"), queue, limit),
         _ => {
             let ratio = hybrid_ratio.unwrap_or(0.5).clamp(0.05, 0.95);
             // Fetch `limit` cards of each type, so that either type can fill places the other leaves empty.
-            let clozes = fetch_due_cards_query(conn, now, book_id, Some("cloze"), queue, limit)?;
-            let scenarios = fetch_due_cards_query(conn, now, book_id, Some("scenario"), queue, limit)?;
+            let clozes = fetch_due_cards_query(conn, now, scope, Some("cloze"), queue, limit)?;
+            let scenarios = fetch_due_cards_query(conn, now, scope, Some("scenario"), queue, limit)?;
             Ok(mix_by_ratio(clozes, scenarios, limit, ratio))
         }
     }
@@ -166,7 +201,7 @@ fn mix_by_ratio(
 
 #[cfg(test)]
 mod tests {
-    use super::get_due_cards_blocking;
+    use super::{get_chapter_due_cards_blocking, get_due_cards_blocking};
     use crate::db::{open_or_create_db, submit_card_review_blocking, sync_practice_deck_blocking, PracticeCardItem};
     use crate::test_support::Sandbox;
 
@@ -185,6 +220,10 @@ mod tests {
 
     fn ids(cards: &[PracticeCardItem]) -> Vec<&str> {
         cards.iter().map(|card| card.card_id.as_str()).collect()
+    }
+
+    fn chapters(cards: &[PracticeCardItem]) -> Vec<&str> {
+        cards.iter().map(|card| card.chapter_file.as_str()).collect()
     }
 
     #[test]
@@ -228,5 +267,45 @@ mod tests {
         // The mix never gives more cards than the limit.
         let due = get_due_cards_blocking(Some("sample"), None, Some(1), Some(0.5)).expect("Failed to get due cards");
         assert_eq!(ids(&due), [cloze(1)]);
+    }
+
+    /// A cloze card of the sandbox deck in `chapter` (for example `ch-01`), number `n`, with its own question.
+    fn cloze_card(chapter: &str, n: usize, cloze: &str, answer: &str) -> String {
+        format!(
+            "\n### card-{chapter}-{n:03}\n- **Chapter:** {chapter}\n- **Anchor:** ^p-001\n- **Cloze:** Card {n}: {cloze}\n- **Answer Key:** ``{answer}``\n"
+        )
+    }
+
+    #[test]
+    fn test_chapter_due_cards_come_only_from_that_chapter() {
+        let sandbox = Sandbox::new();
+        sandbox.write_sample_book();
+        sandbox.write(
+            "books/sample/ch-02.md",
+            "# Chapter 2: Markets\n\nThe extent of the market limits the division of labour. ^p-001\n",
+        );
+        let mut deck = String::from("# Practice Deck: Sandbox Economics\n");
+        for n in 1..=3 {
+            let cloze = "The {{c1::division of labour}} raises the productive powers of work.";
+            deck.push_str(&cloze_card("ch-01", n, cloze, "division of labour"));
+        }
+        for n in 1..=2 {
+            let cloze = "The {{c1::extent of the market}} limits the division of labour.";
+            deck.push_str(&cloze_card("ch-02", n, cloze, "extent of the market"));
+        }
+        sandbox.write("notes/sample/practice-deck.md", &deck);
+        assert_eq!(sync_practice_deck_blocking("sample").expect("Failed to sync deck"), 5);
+
+        // The first 3 due cards of the book all come from chapter 1.
+        let book = get_due_cards_blocking(Some("sample"), Some("cloze"), Some(3), None).expect("Failed to get due cards");
+        assert_eq!(chapters(&book), ["ch-01.md"; 3]);
+
+        // Leaving chapter 2, the gatekeeper gets only chapter 2 cards, up to its quota.
+        let gate = get_chapter_due_cards_blocking("sample", "ch-02.md", Some("cloze"), Some(3), None)
+            .expect("Failed to get chapter due cards");
+        assert_eq!(chapters(&gate), ["ch-02.md"; 2]);
+        let gate = get_chapter_due_cards_blocking("sample", "ch-02.md", None, Some(1), Some(0.5))
+            .expect("Failed to get chapter due cards");
+        assert_eq!(chapters(&gate), ["ch-02.md"]);
     }
 }

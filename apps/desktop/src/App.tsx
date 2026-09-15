@@ -3,6 +3,7 @@ import { Theme, ViewMode, ReaderPreferences, ReadingLevelMode } from "./lib/type
 import { loadPreferences, savePreferences } from "./lib/preferences";
 import { useBookSession } from "./hooks/useBookSession";
 import { usePracticeDeck } from "./hooks/usePracticeDeck";
+import { useChapterGate } from "./hooks/useChapterGate";
 import { useInspectionalSession } from "./hooks/useInspectionalSession";
 import { LevelRail } from "./components/navigation/LevelRail";
 import { Sidebar } from "./components/Sidebar";
@@ -51,6 +52,12 @@ export const App: React.FC = () => {
   // Quote passed from SelectionMenu to NotesPane
   const [insertedQuote, setInsertedQuote] = useState<{ quote: string; anchorId?: string } | null>(null);
 
+  // Chapter Gatekeeper: every chapter change inside the open book asks it first
+  const { chapterGate, requestChapterMove, completeChapterGate, closeChapterGate } = useChapterGate(
+    preferences,
+    activeLevel
+  );
+
   // Book session state hook
   const {
     vaultPath,
@@ -58,42 +65,27 @@ export const App: React.FC = () => {
     activeBookId,
     bookMeta,
     activeChapter,
-    setActiveChapter,
     chapterMarkdown,
     progressPercent,
     setProgressPercent,
     highlights,
     targetAnchor,
-    setTargetAnchor,
     handleSelectBook,
     handleAddHighlight,
+    openChapter,
     handleNavigateAnchor,
     navigateToCrossBookCitation,
-  } = useBookSession();
+  } = useBookSession({ requestChapterMove });
 
-  // Practice suite and Gatekeeper state hook
+  // Practice deck state hook
   const {
     dueCards,
     dueCardsCount,
     practiceModalOpen,
     setPracticeModalOpen,
-    gatekeeperModalOpen,
-    setGatekeeperModalOpen,
-    pendingChapter,
     refreshPracticeCards,
-    handleSelectChapter,
-    handleGatekeeperComplete,
     handleReviewSubmitted,
-  } = usePracticeDeck(
-    activeBookId,
-    preferences,
-    activeLevel,
-    activeChapter,
-    (ch) => {
-      setTargetAnchor(undefined);
-      setActiveChapter(ch);
-    }
-  );
+  } = usePracticeDeck(activeBookId, preferences);
 
   // Inspectional, Analytical, & Syntopical session states
   const inspectionalSession = useInspectionalSession(activeBookId, preferences);
@@ -155,7 +147,7 @@ export const App: React.FC = () => {
         <Sidebar
           isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)}
           bookMeta={bookMeta} availableBooks={availableBooks} onSelectBook={handleSelectBook}
-          activeChapterId={activeChapter?.id || ""} onSelectChapter={handleSelectChapter}
+          activeChapterId={activeChapter?.id || ""} onSelectChapter={openChapter}
           onOpenNotesDrawer={handleOpenNotesDrawer}
           activeLevel={activeLevel} activeSubView={inspectionalSession.activeSubView}
           onSelectSubView={inspectionalSession.setActiveSubView}
@@ -187,7 +179,7 @@ export const App: React.FC = () => {
             inspectionalSession.activeSubView === "blueprint" ? (
               <BlueprintView
                 bookMeta={bookMeta}
-                onSelectChapter={handleSelectChapter}
+                onSelectChapter={openChapter}
                 onSwitchToDips={() => inspectionalSession.setActiveSubView("dips")}
                 onOpenExitModal={inspectionalSession.openExitModal}
               />
@@ -195,11 +187,7 @@ export const App: React.FC = () => {
               <DipStream
                 bookMeta={bookMeta}
                 singleKeyPagingEnabled={preferences.inspectional?.singleKeyPagingEnabled}
-                onReadFullChapter={(chapter, anchor) => {
-                  setActiveLevel("elementary");
-                  setTargetAnchor(anchor);
-                  setActiveChapter(chapter);
-                }}
+                onReadFullChapter={(chapter, anchor) => openChapter(chapter, anchor, () => setActiveLevel("elementary"))}
               />
             )
           ) : (
@@ -250,12 +238,12 @@ export const App: React.FC = () => {
       <AppModals
         searchOpen={searchOpen} onCloseSearch={() => setSearchOpen(false)}
         practiceModalOpen={practiceModalOpen} onClosePractice={() => setPracticeModalOpen(false)}
-        gatekeeperModalOpen={gatekeeperModalOpen} onCloseGatekeeper={() => setGatekeeperModalOpen(false)}
+        chapterGate={chapterGate} onCloseGatekeeper={closeChapterGate}
         notesDrawerOpen={notesDrawerOpen} onCloseNotesDrawer={() => setNotesDrawerOpen(false)}
         analyticsModalOpen={analyticsModalOpen} onCloseAnalytics={() => setAnalyticsModalOpen(false)}
         guideOpen={guideOpen} onCloseGuide={() => setGuideOpen(false)} activeLevel={activeLevel}
-        dueCards={dueCards} pendingChapter={pendingChapter}
-        onGatekeeperComplete={handleGatekeeperComplete} onReviewSubmitted={handleReviewSubmitted}
+        dueCards={dueCards}
+        onGatekeeperComplete={completeChapterGate} onReviewSubmitted={handleReviewSubmitted}
         onNavigateAnchor={handleNavigateAnchor} onNavigateLocation={navigateToCrossBookCitation}
         activeBookId={activeBookId} bookMeta={bookMeta} availableBooks={availableBooks}
         preferences={preferences} inspectionalSession={inspectionalSession}

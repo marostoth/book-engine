@@ -16,8 +16,15 @@ import {
 } from "../lib/api";
 import { parseHighlightsFromNotes, serializeHighlightsToNotes } from "../lib/highlights";
 import { ReaderLocation, resolveLocation } from "../lib/readerLocation";
+import { ChapterMoveRequest } from "./useChapterGate";
 
-export function useBookSession(onCardsRefreshNeeded?: (bookId: string) => void) {
+interface BookSessionOptions {
+  onCardsRefreshNeeded?: (bookId: string) => void;
+  /** Checks a move to another chapter of the open book, and calls its `open` now or after the Chapter Gatekeeper. */
+  requestChapterMove?: (move: ChapterMoveRequest) => void;
+}
+
+export function useBookSession({ onCardsRefreshNeeded, requestChapterMove }: BookSessionOptions = {}) {
   const [vaultPath, setVaultPath] = useState<string>("");
   const [availableBooks, setAvailableBooks] = useState<BookMetadata[]>([]);
   const [activeBookId, setActiveBookId] = useState<string>(() => {
@@ -142,18 +149,40 @@ export function useBookSession(onCardsRefreshNeeded?: (bookId: string) => void) 
     });
   };
 
+  /**
+   * Opens a chapter of the open book, at `anchor` when given. Every chapter change inside the open book comes here
+   * (table of contents, blueprint, dips, search, notes, citations, practice cards), so the Chapter Gatekeeper sees
+   * each one. `onOpen` runs when the chapter opens, for example to leave the inspectional level.
+   */
+  const openChapter = useCallback(
+    (chapter: ChapterMeta, anchor?: string, onOpen?: () => void) => {
+      const sameChapter = chapter.file_path === activeChapter?.file_path;
+      const open = () => {
+        onOpen?.();
+        setTargetAnchor(anchor);
+        if (!sameChapter) {
+          setActiveChapter(chapter);
+        }
+      };
+      if (!bookMeta || !requestChapterMove || sameChapter) {
+        open();
+        return;
+      }
+      requestChapterMove({ bookId: bookMeta.book_id, spine: bookMeta.spine, from: activeChapter, to: chapter, open });
+    },
+    [bookMeta, activeChapter, requestChapterMove]
+  );
+
   /** Opens a chapter file of the open book. Only for links that stay in one book: practice cards, notes, analytical citations. */
   const handleNavigateAnchor = (chapterFile: string, anchor?: string) => {
     if (!bookMeta) return;
 
-    if (!activeChapter || activeChapter.file_path !== chapterFile) {
-      const targetChapter = bookMeta.spine.find((ch) => ch.file_path === chapterFile);
-      if (targetChapter) {
-        setActiveChapter(targetChapter);
-      }
+    const targetChapter = bookMeta.spine.find((ch) => ch.file_path === chapterFile);
+    if (targetChapter) {
+      openChapter(targetChapter, anchor);
+    } else {
+      setTargetAnchor(anchor);
     }
-
-    setTargetAnchor(anchor);
   };
 
   /** Opens a location in its own book, loading that book first when another book is open: search hits, syntopicon citations. */
@@ -161,13 +190,19 @@ export function useBookSession(onCardsRefreshNeeded?: (bookId: string) => void) 
     async (location: ReaderLocation) => {
       try {
         const target = await resolveLocation(location, bookMeta, fetchBookMeta);
-        const switchedBook = target.book !== bookMeta;
-        if (switchedBook) {
-          setActiveBookId(location.bookId);
-          localStorage.setItem("book_engine_active_book_id", location.bookId);
-          setBookMeta(target.book);
+        if (target.book === bookMeta) {
+          if (target.chapter) {
+            openChapter(target.chapter, location.anchor);
+          } else {
+            setTargetAnchor(location.anchor);
+          }
+          return;
         }
-        if (target.chapter && (switchedBook || target.chapter.file_path !== activeChapter?.file_path)) {
+        // Another book opens without the gate, which guards only the moves inside one book.
+        setActiveBookId(location.bookId);
+        localStorage.setItem("book_engine_active_book_id", location.bookId);
+        setBookMeta(target.book);
+        if (target.chapter) {
           setActiveChapter(target.chapter);
         }
         setTargetAnchor(location.anchor);
@@ -175,7 +210,7 @@ export function useBookSession(onCardsRefreshNeeded?: (bookId: string) => void) 
         console.error("Failed to open location in book:", location.bookId, err);
       }
     },
-    [bookMeta, activeChapter]
+    [bookMeta, openChapter]
   );
 
   return {
@@ -184,15 +219,14 @@ export function useBookSession(onCardsRefreshNeeded?: (bookId: string) => void) 
     activeBookId,
     bookMeta,
     activeChapter,
-    setActiveChapter,
     chapterMarkdown,
     progressPercent,
     setProgressPercent,
     highlights,
     targetAnchor,
-    setTargetAnchor,
     handleSelectBook,
     handleAddHighlight,
+    openChapter,
     handleNavigateAnchor,
     navigateToCrossBookCitation,
     loadBook,

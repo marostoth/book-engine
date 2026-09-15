@@ -8,7 +8,7 @@ mod test_support;
 use commands::{
     get_library_books, list_books, load_book_meta, get_inspectional_blueprint, save_inspectional_exit_assessment,
     load_chapter, load_notes, save_notes,
-    index_vault, search_vault, sync_practice_deck, get_due_cards, submit_review, get_deck_stats,
+    index_vault, search_vault, sync_practice_deck, get_due_cards, get_chapter_due_cards, submit_review, get_deck_stats,
     get_review_heatmap, get_retention_metrics, get_reading_velocity, record_reading_progress,
     get_all_book_notes, export_book_summary, get_study_analytics, get_vault_path,
     lookup_dictionary_term, save_book_vocabulary, get_analytical_data, save_analytical_data,
@@ -55,6 +55,7 @@ pub fn run() {
             search_vault,
             sync_practice_deck,
             get_due_cards,
+            get_chapter_due_cards,
             submit_review,
             get_deck_stats,
             get_review_heatmap,
