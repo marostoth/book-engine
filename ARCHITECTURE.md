@@ -228,7 +228,9 @@ book-engine/
 │           │   │   ├── json_store.rs        # Safe JSON read for vault files: byte order mark removed, a damaged file errors and is copied to <name>.corrupt-<time>
 │           │   │   ├── models.rs            # Vault metadata, analytical and note structures
 │           │   │   ├── notes.rs             # Chapter reflection notes loader, saver & summary export
-│           │   │   ├── reader.rs            # Vault root resolution, book discovery & chapter I/O
+│           │   │   ├── reader.rs            # Vault root resolution, book discovery & chapter I/O; a rewritten _meta.json keeps its key order and line endings
+│           │   │   ├── reader_tests.rs      # Vault write tests: no half-written file while a save runs, _meta.json key order and line endings kept
+│           │   │   ├── safe_write.rs        # The one vault write: temporary file in the same folder, flushed, then renamed over the target, so a save is never half done
 │           │   │   ├── syntopicon.rs        # Level 4 Syntopicon topic file I/O & report exporter
 │           │   │   ├── syntopicon_compiler.rs # Level 4 Dialectical dossier compiler producing Markdown reports
 │           │   │   ├── syntopicon_models.rs # Level 4 Syntopicon neutral terms & controversy structs
@@ -318,6 +320,7 @@ Multi-column textbook pages frequently include full-width conceptual matrices, m
 
 - **Vault (`vault/`):** Human-readable plain-text Markdown files and images. Can be edited externally (Obsidian, Neovim, VS Code).
 - **Ephemeral Cache (`index.db`):** Stored strictly in the OS application data folder (`%APPDATA%\book-engine\`). Never checked into version control.
+- **Safe Vault Write:** Every write into the vault goes through `write_file` (`apps/desktop/src-tauri/src/vault/safe_write.rs`): the bytes go to a temporary file in the same folder, are flushed to the disk, and are then renamed over the target. A rename is one step, so a crash or a power cut leaves the whole old file or the whole new file, never an empty or cut-off one. A rename that fails because another program holds the file, such as the OneDrive client, is tried a few times before the save reports an error, and the temporary file is removed. `serde_json` is built with `preserve_order`, so a rewritten `_meta.json` keeps the key order it had, and `save_inspectional_exit_assessment` writes back the line endings the file had.
 - **Damaged Vault File:** A vault JSON file that cannot be parsed is never read as empty data, because the next save would write that empty data back. `read_json_file` (`apps/desktop/src-tauri/src/vault/json_store.rs`) removes a leading byte order mark, and a file it still cannot parse gives an error that names the file and is copied to `<file name>.corrupt-<time>`. `vocabulary.rs` and `analytical.rs` read through it, so both the load and the save fail and the file on disk is left exactly as it is.
 - **No Hidden Fallback:** Inside the app, every frontend call to the backend goes through `callBackend` (`apps/desktop/src/lib/api/clientBase.ts`). A failed load or save rejects with the backend error and shows in the error bar (`BackendErrorBar.tsx`). Nothing falls back to sample data, and no vault data goes to browser storage. Data that did not load is not saved over: the notes pane stays locked, a new highlight is not saved, and analytical changes for that book are not saved.
 

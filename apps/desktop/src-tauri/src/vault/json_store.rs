@@ -76,7 +76,7 @@ fn keep_damaged_copy(path: &Path, bytes: &[u8]) -> Result<PathBuf> {
     }
 
     let copy = dir.join(format!("{prefix}{}", Utc::now().format("%Y%m%dT%H%M%SZ")));
-    fs::write(&copy, bytes).with_context(|| format!("Failed to write {}", copy.display()))?;
+    super::safe_write::write_file(&copy, bytes)?;
     Ok(copy)
 }
 
