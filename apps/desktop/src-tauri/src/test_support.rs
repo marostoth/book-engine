@@ -135,6 +135,11 @@ pub(crate) fn vault_root() -> Result<PathBuf> {
     Ok(active_root()?.join("vault"))
 }
 
+/// Settings file path in test builds.
+pub(crate) fn settings_path() -> Result<PathBuf> {
+    Ok(active_root()?.join("settings.json"))
+}
+
 /// Cache database path in test builds.
 pub(crate) fn db_path() -> Result<PathBuf> {
     let cache_dir = active_root()?.join("app_cache");

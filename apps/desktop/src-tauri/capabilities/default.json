@@ -3,6 +3,7 @@
   "description": "Default capabilities for the desktop reader window",
   "windows": ["main"],
   "permissions": [
-    "core:default"
+    "core:default",
+    "dialog:allow-open"
   ]
 }

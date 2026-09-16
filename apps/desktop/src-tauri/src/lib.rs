@@ -11,6 +11,7 @@ use commands::{
     index_vault, search_vault, sync_practice_deck, get_due_cards, get_chapter_due_cards, submit_review, get_deck_stats,
     get_review_heatmap, get_retention_metrics, get_reading_velocity, record_reading_progress,
     get_all_book_notes, export_book_summary, get_study_analytics, get_vault_path,
+    get_vault_status, choose_vault_folder,
     lookup_dictionary_term, save_book_vocabulary, get_analytical_data, save_analytical_data,
     get_chapter_highlights, save_chapter_highlights,
     get_syntopic_topics, get_syntopic_topic, save_syntopic_topic, export_syntopic_report,
@@ -19,6 +20,7 @@ use commands::{
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             use tauri::Manager;
@@ -98,6 +100,8 @@ pub fn run() {
             export_book_summary,
             get_study_analytics,
             get_vault_path,
+            get_vault_status,
+            choose_vault_folder,
             lookup_dictionary_term,
             save_book_vocabulary,
             get_chapter_highlights,

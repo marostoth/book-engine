@@ -8,44 +8,13 @@ pub fn find_vault_root() -> Result<PathBuf> {
     crate::test_support::vault_root()
 }
 
-/// Discovers the absolute path to the Markdown vault directory.
+/// The absolute path of the Markdown vault. `vault/locate.rs` says where it looks and in what order.
 #[cfg(not(test))]
 pub fn find_vault_root() -> Result<PathBuf> {
-    // Check environment variable first if set
-    if let Ok(env_path) = std::env::var("BOOK_ENGINE_VAULT") {
-        let p = PathBuf::from(env_path);
-        if p.exists() {
-            return Ok(p);
-        }
+    match super::locate::locate_vault() {
+        Some((folder, _)) => Ok(folder),
+        None => anyhow::bail!("{}", super::locate::not_found_message()),
     }
-
-    // Try relative paths from current working directory
-    let candidates = [
-        PathBuf::from("vault"),
-        PathBuf::from("../../vault"),
-        PathBuf::from("../vault"),
-    ];
-
-    for candidate in &candidates {
-        if candidate.exists() && candidate.join("books").exists() {
-            return std::fs::canonicalize(candidate).context("Failed to canonicalize vault path");
-        }
-    }
-
-    // Search parent directories
-    if let Ok(mut current) = std::env::current_dir() {
-        for _ in 0..6 {
-            let test_path = current.join("vault");
-            if test_path.exists() && test_path.join("books").exists() {
-                return std::fs::canonicalize(test_path).context("Failed to canonicalize vault path");
-            }
-            if !current.pop() {
-                break;
-            }
-        }
-    }
-
-    anyhow::bail!("Vault directory not found in workspace hierarchy")
 }
 
 /// Reads a chapter file from vault/books/<book-id>/<file-name>
