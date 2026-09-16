@@ -1,7 +1,9 @@
-use anyhow::{Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
+use chrono::{SecondsFormat, Utc};
 use std::collections::BTreeSet;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, PoisonError};
 
 use super::reader::find_vault_root;
 use super::syntopicon_models::{SyntopicTopic, SyntopicTopicSummary};
@@ -109,6 +111,89 @@ pub fn load_syntopic_topic(topic_id: &str) -> Result<SyntopicTopic> {
         .with_context(|| format!("Malformed topic JSON in: {}", file_path.display()))?;
 
     Ok(topic)
+}
+
+/// The id of a new topic, which is also its file name: the title in lowercase letters and digits, with one `-` for
+/// every run of other characters. "Division of Labor" gives `division-of-labor`. A title with no letter or digit
+/// gives an empty id.
+pub fn topic_id_from_title(title: &str) -> String {
+    let mut id = String::new();
+    for c in title.to_lowercase().chars() {
+        if c.is_ascii_lowercase() || c.is_ascii_digit() {
+            id.push(c);
+        } else if !id.is_empty() && !id.ends_with('-') {
+            id.push('-');
+        }
+    }
+    while id.ends_with('-') {
+        id.pop();
+    }
+    id
+}
+
+/// Only one topic is created at a time, so two creates of the same title cannot both find its file free.
+static CREATING: Mutex<()> = Mutex::new(());
+
+/// Creates an empty topic in `vault/syntopicon/topics/<topic-id>.json` and returns it.
+///
+/// A topic file that is already there is never replaced. Titles that differ only in capitals or punctuation need
+/// the same file, and creating a topic used to write an empty topic over the one saved there (DS-12). Such a
+/// create is refused, and the message names the file and the topic in it. A title with no letter or digit gets the
+/// first free `topic-<n>` file.
+pub fn create_syntopic_topic(title: &str, description: &str) -> Result<SyntopicTopic> {
+    let topics_dir = ensure_syntopicon_dirs()?;
+    let _creating = CREATING.lock().unwrap_or_else(PoisonError::into_inner);
+
+    let id = match topic_id_from_title(title) {
+        id if id.is_empty() => first_free_numbered_id(&topics_dir)?,
+        id => {
+            refuse_a_taken_file(&topics_dir, &id)?;
+            id
+        }
+    };
+    let topic = SyntopicTopic {
+        id,
+        title: title.to_string(),
+        description: description.to_string(),
+        created_at: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+        ..Default::default()
+    };
+    save_syntopic_topic(topic.clone())?;
+    Ok(topic)
+}
+
+/// True when the topic file for `id` is there, or when that cannot be told.
+fn is_taken(topics_dir: &Path, id: &str) -> bool {
+    topics_dir.join(format!("{id}.json")).try_exists().unwrap_or(true)
+}
+
+/// Refuses a new topic whose file is already there, whether that file can be read or not.
+fn refuse_a_taken_file(topics_dir: &Path, id: &str) -> Result<()> {
+    if !is_taken(topics_dir, id) {
+        return Ok(());
+    }
+    let existing = fs::read_to_string(topics_dir.join(format!("{id}.json")))
+        .ok()
+        .and_then(|text| serde_json::from_str::<SyntopicTopic>(&text).ok());
+    match existing {
+        Some(existing) => bail!(
+            "This title needs the file {id}.json, and the topic \"{}\" already uses it. Open that topic, or choose \
+             another title.",
+            existing.title
+        ),
+        None => bail!(
+            "This title needs the file {id}.json. That file is already there but cannot be read, so it is not \
+             replaced. Choose another title."
+        ),
+    }
+}
+
+/// The first `topic-<n>` id whose file is not there.
+fn first_free_numbered_id(topics_dir: &Path) -> Result<String> {
+    (1..=10_000)
+        .map(|n| format!("topic-{n}"))
+        .find(|id| !is_taken(topics_dir, id))
+        .ok_or_else(|| anyhow!("No free topic file name was found in {}.", topics_dir.display()))
 }
 
 /// Persists a syntopic topic to `vault/syntopicon/topics/<topic-id>.json`.

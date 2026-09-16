@@ -153,7 +153,7 @@ book-engine/
 │       │   │   │   │   ├── fallbackNotes.ts     # Sample chapter notes, in-browser notes aggregation & summary export
 │       │   │   │   │   ├── fallbackPractice.ts  # Sample practice cards, due-card filter & simple review schedule
 │       │   │   │   │   ├── fallbackReaderState.ts # Reader settings, bookmarks & exit assessments in browser storage
-│       │   │   │   │   ├── fallbackSyntopicon.ts # Sample syntopicon topic & localStorage topic registry
+│       │   │   │   │   ├── fallbackSyntopicon.ts # Sample syntopicon topic & localStorage topic registry; refuses a taken topic file, as the backend does
 │       │   │   │   │   └── mockData.ts          # Default mock book catalogs & sample chapters
 │       │   │   │   ├── analyticalApi.ts     # Analytical reading store load/save IPC
 │       │   │   │   ├── analyticsApi.ts      # Study analytics, reading session & velocity IPC client
@@ -268,9 +268,10 @@ book-engine/
 │           │   │   ├── reader_tests.rs      # Vault write tests: no half-written notes file while a save runs
 │           │   │   ├── safe_write.rs        # The one vault write: temporary file in the same folder, flushed, then renamed over the target, so a save is never half done
 │           │   │   ├── study_log.rs         # The permanent record of your study: reviews & reading time, one line each
-│           │   │   ├── syntopicon.rs        # Level 4 Syntopicon topic file I/O & report exporter
+│           │   │   ├── syntopicon.rs        # Level 4 Syntopicon topic file I/O & report exporter; a new topic never replaces a topic file that is there
 │           │   │   ├── syntopicon_compiler.rs # Level 4 Dialectical dossier compiler producing Markdown reports
 │           │   │   ├── syntopicon_models.rs # Level 4 Syntopicon neutral terms & controversy structs
+│           │   │   ├── syntopicon_tests.rs  # Topic tests: a title whose file is taken is refused and that topic stays byte for byte, two creates at once make one topic
 │           │   │   ├── vocabulary.rs        # Vault vocabulary persistence with case-insensitive deduplication; a damaged file stops the load and the save
 │           │   │   └── mod.rs               # Vault module facade
 │           ├── Cargo.toml       # Rust dependency manifest (rusqlite, tokio, tauri v2)
@@ -475,6 +476,8 @@ All disk I/O operations are offloaded from the Tauri main thread using `tokio::t
 | `get_preferences` | `() -> Result<Option<Map<String, Value>>, String>` | Reads the reader settings from `vault/preferences.json`. `None` when none are saved yet; a file that is damaged or holds no JSON object is an error and is copied. |
 | `save_preferences` | `(preferences: Map<String, Value>) -> Result<(), String>` | Writes the reader settings key for key, keeping settings this build does not know. A damaged settings file stops the save. |
 | `get_inspectional_exit_assessment` | `(book_id: String) -> Result<Option<ExitAssessmentPayload>, String>` | Reads the reader's exit assessment from `vault/notes/<book_id>/inspectional.json`. `None` when there is none; a damaged file is an error and is copied. An assessment that an older build saved in `_meta.json` is copied there once. |
+| `create_syntopic_topic` | `(title: String, description: String) -> Result<SyntopicTopic, String>` | Creates an empty topic in `vault/syntopicon/topics/<topic-id>.json`, with the id made from the title. A title whose file is already there, readable or not, is refused with a message that names the file and the topic in it, so a new topic never replaces one (DS-12). A title with no letter or digit gets the first free `topic-<n>` file. |
+| `save_syntopic_topic` | `(topic: SyntopicTopic) -> Result<(), String>` | Writes a topic into its own file, `vault/syntopicon/topics/<topic.id>.json`. The app uses it for the open topic; a new topic goes through `create_syntopic_topic`. |
 | `save_inspectional_exit_assessment` | `(book_id: String, assessment: ExitAssessmentPayload) -> Result<(), String>` | Writes the exit assessment into `vault/notes/<book_id>/inspectional.json`, keeping keys this build does not know. It never writes `_meta.json`, and a damaged file stops the save. |
 
 ### Frontend Component Hierarchy (`apps/desktop/src/`)
@@ -884,6 +887,7 @@ vault/syntopicon/topics/<topic-id>.json
 ### Invariants & Technical Specifications
 1. **Cross-Vault Non-Destructive Storage:**
    - All topics are persisted purely to `vault/syntopicon/topics/<topic-id>.json`.
+   - A new topic never replaces one. Its file name comes from its title (`topic_id_from_title`), so titles that differ only in capitals or punctuation need the same file. `create_syntopic_topic` refuses a title whose file is already there, readable or not, and names the topic in it. Before DS-12 the page saved an empty topic over that file.
    - Never mutates book source Markdown or single-book analytical notes.
    - Rust backend auto-scaffolds `vault/syntopicon/topics/` on startup.
 2. **Multi-Book Invariant:**

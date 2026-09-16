@@ -87,6 +87,7 @@ const backendCalls: [name: string, call: () => Promise<unknown>][] = [
   ["fetchLastBookmark", () => api.fetchLastBookmark()],
   ["getSyntopicTopics", () => syntopicon.getSyntopicTopics()],
   ["getSyntopicTopic", () => syntopicon.getSyntopicTopic("division-of-labor")],
+  ["createSyntopicTopic", () => syntopicon.createSyntopicTopic("Division of Labor", "")],
   ["saveSyntopicTopic", () => syntopicon.saveSyntopicTopic(topic)],
   ["exportSyntopicReport", () => syntopicon.exportSyntopicReport("division-of-labor")],
 ];

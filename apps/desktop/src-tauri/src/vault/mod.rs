@@ -26,6 +26,8 @@ mod bookmark_tests;
 mod preferences_tests;
 #[cfg(test)]
 mod inspectional_tests;
+#[cfg(test)]
+mod syntopicon_tests;
 
 pub use models::*;
 pub use reader::*;

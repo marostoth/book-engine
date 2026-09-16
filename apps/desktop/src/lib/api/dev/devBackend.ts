@@ -43,4 +43,10 @@ export {
   getFallbackReadingVelocity as fetchReadingVelocity,
   updateFallbackReadingProgress as recordReadingProgress,
 } from "./fallbackAnalytics.ts";
-export { getSyntopicTopics, getSyntopicTopic, saveSyntopicTopic, exportSyntopicReport } from "./fallbackSyntopicon.ts";
+export {
+  getSyntopicTopics,
+  getSyntopicTopic,
+  createSyntopicTopic,
+  saveSyntopicTopic,
+  exportSyntopicReport,
+} from "./fallbackSyntopicon.ts";
