@@ -121,7 +121,7 @@ book-engine/
 │       │   │   ├── LevelCompanionPane.tsx # Modular Level III & IV companion pane coordinator
 │       │   │   ├── LevelGuideModal.tsx  # Contextual HUD, level cheatsheets & keyboard shortcuts modal
 │       │   │   ├── NotesDrawer.tsx      # Unified slide-over notes & W3C highlights drawer with summary export
-│       │   │   ├── NotesPane.tsx        # Dual-pane Markdown reflection notes editor (locked until the notes file loads)
+│       │   │   ├── NotesPane.tsx        # Dual-pane Markdown reflection notes editor (locked until the notes file loads; one pane per chapter)
 │       │   │   ├── OmniSearchModal.tsx  # Ctrl+K global full-text search palette
 │       │   │   ├── PracticeModal.tsx    # Extractive practice suite (Cloze, Scenario MCQ & Scramble drills)
 │       │   │   ├── Reader.tsx           # Virtualized TipTap chapter canvas with margin anchors
@@ -132,7 +132,7 @@ book-engine/
 │       │   ├── hooks/           # Modular application custom hooks
 │       │   │   ├── useAnalyticalModals.ts    # Level 3 modal open/close & staged target coordinator
 │       │   │   ├── useAnalyticalSession.ts   # Analytical reading store, cascading integrity & persistence hook
-│       │   │   ├── useBookSession.ts         # Book loading, reading progress, session timing & chapter jumping (every in-book chapter change goes through openChapter)
+│       │   │   ├── useBookSession.ts         # Book loading, reading progress, session timing & chapter jumping (every in-book chapter change goes through openChapter; only the newest load lands)
 │       │   │   ├── useChapterGate.ts         # Chapter Gatekeeper (soft gate): tests the due cards of the chapter the reader leaves
 │       │   │   ├── useInspectionalSession.ts # Inspectional countdown timer, sub-view & exit prompt manager
 │       │   │   ├── usePracticeDeck.ts        # Practice deck state, mode/ratio filtering & daily target limits
@@ -176,6 +176,8 @@ book-engine/
 │       │   │   ├── levelGuideData.ts    # Mortimer Adler levels static cheatsheet & hotkeys registry
 │       │   │   ├── markdown.ts          # Chapter Markdown preprocessor & anchor normalizer
 │       │   │   ├── notesAggregator.ts   # Cross-chapter note aggregation, anchor sorting & summary compiler
+│       │   │   ├── notesAutosave.ts     # Chapter notes autosave: one save per typing pause, and one when the chapter closes
+│       │   │   ├── notesAutosave.test.ts # Autosave tests: the words go into the chapter they were typed in
 │       │   │   ├── notesWriters.test.ts # Writer tests: the chapter notes and the highlights use different backend commands
 │       │   │   ├── practiceContract.json    # Exact get_due_cards scenario-card JSON shared by the Rust & TS contract tests
 │       │   │   ├── practiceContract.test.ts # Contract tests: backend field names vs. frontend grading & browser mocks
@@ -183,6 +185,8 @@ book-engine/
 │       │   │   ├── practiceSession.test.ts  # Session tests: all due cards shown while the due list shrinks, gatekeeper quota
 │       │   │   ├── practiceTypes.ts     # FSRS practice models (ScenarioOption, ScenarioPayload, PracticeCardItem)
 │       │   │   ├── preferences.ts       # Default v2 preferences & deep-merge migration helper
+│       │   │   ├── readerLoads.ts       # Book & chapter loading: only the newest load may change the reader
+│       │   │   ├── readerLoads.test.ts  # Load tests: a slow chapter that answers late changes nothing
 │       │   │   ├── readerLocation.ts    # Book + chapter file + anchor locations: search hits open their own book
 │       │   │   ├── readerLocation.test.ts # Location tests: a hit in another book's ch-01.md opens that book, not the open one
 │       │   │   ├── readerShortcuts.ts   # Keyboard shortcut owners: App listener (Ctrl+K, Alt+P, ? / F1) or elementary canvas ([ and ])
@@ -326,6 +330,8 @@ Multi-column textbook pages frequently include full-width conceptual matrices, m
 
 - **Vault (`vault/`):** Human-readable plain-text Markdown files and images. Can be edited externally (Obsidian, Neovim, VS Code).
 - **Ephemeral Cache (`index.db`):** Stored strictly in the OS application data folder (`%APPDATA%\book-engine\`). Never checked into version control.
+- **Newest Load Wins:** A book or a chapter is read from the disk, so its answer comes back a moment later. The reader takes a ticket for every load (`createLoadGuard`, `src/lib/readerLoads.ts`), and an answer that is no longer the newest one changes nothing. Before this, a slow chapter one showed its text and its highlights under chapter two, and a slow book left the open book and the book on screen pointing at different books, so notes and highlights were saved under the wrong book (DS-07). Opening a chapter also empties the reader at once, so the words of the chapter you left are never shown under the chapter you opened.
+- **One Pane per Chapter:** `App.tsx` gives the notes pane a key of book and chapter, so every chapter gets its own pane with its own text. A pane that kept its text across a chapter change could save the notes of one chapter into the file of another (DS-07). What the reader typed is held together with the file it belongs to (`src/lib/notesAutosave.ts`) and is saved into that file when the chapter closes, so the last words are never left waiting in a timer.
 - **One Writer per File:** The chapter notes `ch-XX-notes.md` hold only what the reader writes, and the notes pane is their only writer. Nothing parses a highlight out of Markdown any more, so no character in a quote can break the saved list (DS-06). Highlights live in `ch-XX-highlights.json`, and `vault/highlights.rs` is their only writer. Before this, both parts saved the same Markdown file, so a keystroke in the notes pane erased a highlight that had just been added (DS-05). A chapter that still keeps its highlights in the old `<!-- highlights-json ... -->` comment is moved over the first time it is read: the highlights and the quote lines the app wrote leave the notes file, and the reader's own headings and text stay.
 - **Safe Vault Write:** Every write into the vault goes through `write_file` (`apps/desktop/src-tauri/src/vault/safe_write.rs`): the bytes go to a temporary file in the same folder, are flushed to the disk, and are then renamed over the target. A rename is one step, so a crash or a power cut leaves the whole old file or the whole new file, never an empty or cut-off one. A rename that fails because another program holds the file, such as the OneDrive client, is tried a few times before the save reports an error, and the temporary file is removed. `serde_json` is built with `preserve_order`, so a rewritten `_meta.json` keeps the key order it had, and `save_inspectional_exit_assessment` writes back the line endings the file had.
 - **Damaged Vault File:** A vault JSON file that cannot be parsed is never read as empty data, because the next save would write that empty data back. `read_json_file` (`apps/desktop/src-tauri/src/vault/json_store.rs`) removes a leading byte order mark, and a file it still cannot parse gives an error that names the file and is copied to `<file name>.corrupt-<time>`. `vocabulary.rs` and `analytical.rs` read through it, so both the load and the save fail and the file on disk is left exactly as it is.
@@ -438,7 +444,7 @@ App.tsx (Global state: theme, viewMode, activeBook, activeChapter)
     ├── Reader.tsx (TipTap editor: mounts ONLY one chapter at a time)
     │   ├── SelectionMenu.tsx (Floating UI pill: [Highlight], [Note], [Copy Link])
     │   └── FootnotePopover.tsx (Floating UI citation popover on [^n] click/hover)
-    └── NotesPane.tsx (Dual-Pane side-by-side reflection notes editor with 800ms auto-save; locked until the notes file loads, "Not saved" when a save fails)
+    └── NotesPane.tsx (Dual-Pane side-by-side reflection notes editor with 800ms auto-save; locked until the notes file loads, "Not saved" when a save fails, one pane per chapter, and a save on the way out)
 ```
 
 **Supporting Utilities:**
@@ -446,6 +452,8 @@ App.tsx (Global state: theme, viewMode, activeBook, activeChapter)
 - `src/lib/backendErrors.ts`: The error bar store. `reportBackendError` adds a failed load or save (the same action with the same error again only raises its count, and the newest 5 stay), and `errorText` turns a Tauri rejection value (a string or an `AppError` object) into text for `BackendErrorBar.tsx`.
 - `src/lib/markdown.ts`: Pre-processes chapter Markdown into TipTap HTML, separating footnote definitions and injecting interactive anchors (`data-anchor="p-xxx"`, the attribute form of `^p-xxx`) and footnote markers (`data-fn="n"`).
 - `src/lib/anchors.ts`: Converts paragraph anchors between the saved form (`^p-xxx`) and the HTML attribute form (`p-xxx`) with `toSavedAnchor` and `toAnchorAttribute`.
+- `src/lib/readerLoads.ts`: Loads a book (`loadBookOnto`) or a chapter (`loadChapterOnto`) onto the reader. Every load takes a ticket from `createLoadGuard`, and only the newest ticket may show its answer, report its failure, or name the chapter a new highlight belongs to. The reader is emptied the moment a chapter opens.
+- `src/lib/notesAutosave.ts`: The chapter notes autosave. `change` holds the text together with the notes file it was typed in and saves it when the typing stops; `flush` saves what is waiting right now, which the notes pane does when the chapter closes.
 - `src/lib/readerLocation.ts`: Resolves a location (book id, chapter file, anchor) to the book and chapter to show with `resolveLocation`, loading the location's own book when another book is open. Every book names its chapters `ch-01.md`, `ch-02.md`, ..., so a search hit keeps its `book_id` (`searchResultLocation`).
 - `src/lib/chapterGate.ts`: Chapter Gatekeeper rules. `gatedChapterFile` gives the chapter a move must pass (only a move to a later chapter, at every level except syntopical), and `gatePassed` passes a gate run only when every card was rated Good or Easy and no scenario answer was wrong.
 - `src/lib/readerShortcuts.ts`: Gives every reader keyboard shortcut one owner, so one key press runs its action once. `appShortcut` is the App window listener (Ctrl+K or Cmd+K search, Alt+P pacer, ? or F1 Field Guide), and `elementaryCanvasShortcut` is the elementary canvas listener (`[` and `]` pacer speed, elementary level only). Alt+P, ? and F1 do nothing in inputs, textareas, and editable elements.

@@ -211,6 +211,7 @@ export const App: React.FC = () => {
 
               {isDual && !isFocus && activeChapter && bookMeta && (
                 <NotesPane
+                  key={`${bookMeta.book_id}/${activeChapter.file_path}`}
                   bookId={bookMeta.book_id}
                   chapterFile={activeChapter.file_path}
                   insertedQuote={insertedQuote}

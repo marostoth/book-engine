@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   BookMeta,
   BookMetadata,
@@ -16,6 +16,7 @@ import {
 } from "../lib/api";
 import { reportBackendError } from "../lib/backendErrors";
 import { ReaderLocation, resolveLocation } from "../lib/readerLocation";
+import { createLoadGuard, loadBookOnto, loadChapterOnto } from "../lib/readerLoads";
 import { ChapterMoveRequest } from "./useChapterGate";
 
 interface BookSessionOptions {
@@ -46,6 +47,10 @@ export function useBookSession({ onCardsRefreshNeeded, requestChapterMove }: Boo
   // A new highlight is saved only for this chapter: a save with highlights that did not load would erase the saved ones.
   const [highlightsChapter, setHighlightsChapter] = useState<string | null>(null);
 
+  // One reader, one newest load. A book or a chapter that answers after the reader moved on changes
+  // nothing, so the words of the chapter you left are never shown under the chapter you opened (DS-07).
+  const loads = useRef(createLoadGuard()).current;
+
   // Load canonical vault path on mount
   useEffect(() => {
     getVaultPath()
@@ -55,22 +60,18 @@ export function useBookSession({ onCardsRefreshNeeded, requestChapterMove }: Boo
 
   const loadBook = useCallback(
     async (bookId: string) => {
-      try {
-        const meta = await fetchBookMeta(bookId);
-        setBookMeta(meta);
-        if (meta.spine && meta.spine.length > 0) {
-          const firstCh = meta.spine[0];
-          setActiveChapter(firstCh);
-          setTargetAnchor(undefined);
-        }
-        if (onCardsRefreshNeeded) {
-          onCardsRefreshNeeded(bookId);
-        }
-      } catch (err) {
-        reportBackendError(`Could not open the book "${bookId}".`, err);
-      }
+      await loadBookOnto(fetchBookMeta, loads, bookId, {
+        showBook: (meta, firstChapter) => {
+          setBookMeta(meta);
+          if (firstChapter) {
+            setActiveChapter(firstChapter);
+            setTargetAnchor(undefined);
+          }
+          onCardsRefreshNeeded?.(bookId);
+        },
+      }, reportBackendError);
     },
-    [onCardsRefreshNeeded]
+    [loads, onCardsRefreshNeeded]
   );
 
   // Discover available library books and hydrate active book from localStorage
@@ -100,29 +101,27 @@ export function useBookSession({ onCardsRefreshNeeded, requestChapterMove }: Boo
   useEffect(() => {
     if (!bookMeta || !activeChapter) return;
 
-    fetchChapter(bookMeta.book_id, activeChapter.file_path)
-      .then((md) => {
-        setChapterMarkdown(md);
-        setProgressPercent(0);
-      })
-      .catch((err) => {
-        setChapterMarkdown("");
-        reportBackendError(`Could not load the chapter "${activeChapter.title}".`, err);
-      });
-
-    const chapterFile = activeChapter.file_path;
-    const highlightsSource = `${bookMeta.book_id}/${chapterFile}`;
-    setHighlightsChapter(null);
-    getChapterHighlights(bookMeta.book_id, chapterFile)
-      .then((saved) => {
-        setHighlights(saved);
-        setHighlightsChapter(highlightsSource);
-      })
-      .catch((err) => {
-        setHighlights([]);
-        reportBackendError(`Could not load the highlights of "${activeChapter.title}".`, err);
-      });
-  }, [bookMeta, activeChapter]);
+    void loadChapterOnto(
+      { fetchChapter, getChapterHighlights },
+      loads,
+      bookMeta,
+      activeChapter,
+      {
+        clear: () => {
+          setChapterMarkdown("");
+          setProgressPercent(0);
+          setHighlights([]);
+          setHighlightsChapter(null);
+        },
+        showMarkdown: setChapterMarkdown,
+        showHighlights: (items, source) => {
+          setHighlights(items);
+          setHighlightsChapter(source);
+        },
+      },
+      reportBackendError
+    );
+  }, [bookMeta, activeChapter, loads]);
 
   // Track active reading time and record progress to SQLite backend
   useEffect(() => {
@@ -219,8 +218,12 @@ export function useBookSession({ onCardsRefreshNeeded, requestChapterMove }: Boo
   /** Opens a location in its own book, loading that book first when another book is open: search hits, syntopicon citations. */
   const navigateToCrossBookCitation = useCallback(
     async (location: ReaderLocation) => {
+      // A citation inside the open book needs no read from the disk, so it cannot come back late. Only
+      // another book is read, and the reader may move on while that happens, so that load takes a ticket (DS-07).
+      const isNewest = bookMeta?.book_id === location.bookId ? null : loads.start();
       try {
         const target = await resolveLocation(location, bookMeta, fetchBookMeta);
+        if (isNewest && !isNewest()) return;
         if (target.book === bookMeta) {
           if (target.chapter) {
             openChapter(target.chapter, location.anchor);
@@ -241,7 +244,7 @@ export function useBookSession({ onCardsRefreshNeeded, requestChapterMove }: Boo
         console.error("Failed to open location in book:", location.bookId, err);
       }
     },
-    [bookMeta, openChapter]
+    [bookMeta, openChapter, loads]
   );
 
   return {
