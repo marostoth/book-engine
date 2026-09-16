@@ -1,4 +1,4 @@
-import type { BookMetadata, SearchResult } from "../../types.ts";
+import type { BookMetadata, IndexSummary, SearchResult } from "../../types.ts";
 import { FALLBACK_CHAPTERS, FALLBACK_META, fallbackSearchVault } from "./mockData.ts";
 
 /** Browser stand-in for `get_library_books`. */
@@ -48,9 +48,9 @@ export function searchVault(query: string): SearchResult[] {
   return fallbackSearchVault(query);
 }
 
-/** Browser stand-in for `index_vault`. */
-export function indexVault(): { chapters_indexed: number; paragraphs_indexed: number } {
-  return { chapters_indexed: 2, paragraphs_indexed: 20 };
+/** Browser stand-in for `index_vault`: the sample books never change, and every file can be read. */
+export function indexVault(): IndexSummary {
+  return { chapters_indexed: 2, paragraphs_indexed: 20, problems: [], duration_ms: 0 };
 }
 
 /** Browser stand-in for `get_vault_path`: no vault folder, so book images keep their relative paths. */

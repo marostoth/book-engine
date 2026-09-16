@@ -119,6 +119,23 @@ export interface SearchResult {
   rank: number;
 }
 
+/** A vault file that the search index could not read (`IndexProblem` in src-tauri/src/db/models.rs). */
+export interface IndexProblem {
+  /** The file, from the vault folder: `books/<book-id>/_meta.json` or `books/<book-id>/<chapter file>`. */
+  file: string;
+  /** Why, in words that follow the file name, such as "is not UTF-8 text". */
+  reason: string;
+}
+
+/** What one run of the search index did (`index_vault`, `IndexSummary` in src-tauri/src/db/models.rs). */
+export interface IndexSummary {
+  chapters_indexed: number;
+  paragraphs_indexed: number;
+  /** The files that the run could not read. Every other book and chapter was still indexed (SI-02). */
+  problems: IndexProblem[];
+  duration_ms: number;
+}
+
 export type { ScenarioOption, ScenarioPayload, PracticeCardItem } from "./practiceTypes";
 
 export interface CardSchedule {

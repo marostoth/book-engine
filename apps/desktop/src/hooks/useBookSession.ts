@@ -22,6 +22,7 @@ import { reportBackendError } from "../lib/backendErrors";
 import { ReaderLocation, resolveLocation } from "../lib/readerLocation";
 import { createLoadGuard, loadBookOnto, loadChapterOnto } from "../lib/readerLoads";
 import { rescanLibrary, rescanSummary, type LibraryRescanControl } from "../lib/libraryRescan";
+import { updateSearch } from "../lib/searchIndex";
 import { createBookmarkKeeper, readBrowserBookId, startingBookId, type ChapterRef } from "../lib/readingPlace";
 import { ChapterMoveRequest } from "./useChapterGate";
 
@@ -105,6 +106,15 @@ export function useBookSession({ onCardsRefreshNeeded, requestChapterMove }: Boo
       })
       .catch((err) => reportBackendError("Could not load your library.", err));
   }, [loadBook]);
+
+  // Search is brought up to date when the app opens, and a file it could not read shows in the error bar (SI-02). The
+  // ref keeps it to one run when React runs this effect twice in a dev build.
+  const searchStarted = useRef(false);
+  useEffect(() => {
+    if (searchStarted.current) return;
+    searchStarted.current = true;
+    void updateSearch(indexVault, reportBackendError);
+  }, []);
 
   const handleSelectBook = (bookId: string) => {
     setActiveBookId(bookId);

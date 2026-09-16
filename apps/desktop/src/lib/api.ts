@@ -2,6 +2,7 @@ import type {
   BookMeta,
   BookMetadata,
   BookSummary,
+  IndexSummary,
   SearchResult,
   InspectionalBlueprint,
   ExitAssessmentPayload,
@@ -86,10 +87,9 @@ export async function searchVault(query: string): Promise<SearchResult[]> {
   return callBackend<SearchResult[]>("search_vault", { query }, (dev) => dev.searchVault(query));
 }
 
-export async function indexVault(): Promise<{ chapters_indexed: number; paragraphs_indexed: number }> {
-  return callBackend<{ chapters_indexed: number; paragraphs_indexed: number }>("index_vault", undefined, (dev) =>
-    dev.indexVault()
-  );
+/** Updates the search index. The files that it could not read are in `problems` (SI-02). */
+export async function indexVault(): Promise<IndexSummary> {
+  return callBackend<IndexSummary>("index_vault", undefined, (dev) => dev.indexVault());
 }
 
 let cachedVaultPath: string | null = null;
