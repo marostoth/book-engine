@@ -21,7 +21,9 @@ LOCAL FILE VAULT (Sole Permanent Record)
   notes/<book-id>/
     ├── ch-01-notes.md        <-- User notes & reflections (the notes pane is its only writer)
     ├── ch-01-highlights.json <-- Saved highlights (the reader is its only writer)
-    └── practice-deck.md      <-- Pre-generated study items
+    ├── practice-deck.md      <-- Pre-generated study items
+    └── bookmark.json         <-- Where you stopped reading: chapter & paragraph
+  preferences.json            <-- Reader settings: theme, pacer speed, Gatekeeper, daily target
           │
           ▲ (File System Watcher / Async Read-Write)
           ▼
@@ -124,7 +126,8 @@ book-engine/
 │       │   │   ├── NotesPane.tsx        # Dual-pane Markdown reflection notes editor (locked until the notes file loads; one pane per chapter)
 │       │   │   ├── OmniSearchModal.tsx  # Ctrl+K global full-text search palette
 │       │   │   ├── PracticeModal.tsx    # Extractive practice suite (Cloze, Scenario MCQ & Scramble drills)
-│       │   │   ├── Reader.tsx           # Virtualized TipTap chapter canvas with margin anchors
+│       │   │   ├── PreferencesGate.tsx  # Holds the app back until the reader settings are read from vault/preferences.json
+│       │   │   ├── Reader.tsx           # Virtualized TipTap chapter canvas with margin anchors; saves where you stopped once the scrolling stops
 │       │   │   ├── SelectionMenu.tsx    # Floating UI selection toolbar (Highlight, Note, Link)
 │       │   │   ├── SettingsPopover.tsx  # Reader preferences & Gatekeeper settings popover
 │       │   │   ├── Sidebar.tsx          # Hierarchical TOC & linear chapter navigation drawer
@@ -132,7 +135,7 @@ book-engine/
 │       │   ├── hooks/           # Modular application custom hooks
 │       │   │   ├── useAnalyticalModals.ts    # Level 3 modal open/close & staged target coordinator
 │       │   │   ├── useAnalyticalSession.ts   # Analytical reading store, cascading integrity & persistence hook
-│       │   │   ├── useBookSession.ts         # Book loading, reading progress, session timing & chapter jumping (every in-book chapter change goes through openChapter; only the newest load lands)
+│       │   │   ├── useBookSession.ts         # Book loading, reading progress, session timing & chapter jumping (every in-book chapter change goes through openChapter; only the newest load lands; a book opens where the reader stopped)
 │       │   │   ├── useChapterGate.ts         # Chapter Gatekeeper (soft gate): tests the due cards of the chapter the reader leaves
 │       │   │   ├── useInspectionalSession.ts # Inspectional countdown timer, sub-view & exit prompt manager
 │       │   │   ├── usePracticeDeck.ts        # Practice deck state, mode/ratio filtering & daily target limits
@@ -148,15 +151,18 @@ book-engine/
 │       │   │   │   │   ├── fallbackLexicon.ts   # In-memory dictionary and deduplicated vocabulary storage
 │       │   │   │   │   ├── fallbackNotes.ts     # Sample chapter notes, in-browser notes aggregation & summary export
 │       │   │   │   │   ├── fallbackPractice.ts  # Sample practice cards, due-card filter & simple review schedule
+│       │   │   │   │   ├── fallbackReaderState.ts # Reader settings & bookmarks in browser storage
 │       │   │   │   │   ├── fallbackSyntopicon.ts # Sample syntopicon topic & localStorage topic registry
 │       │   │   │   │   └── mockData.ts          # Default mock book catalogs & sample chapters
 │       │   │   │   ├── analyticalApi.ts     # Analytical reading store load/save IPC
 │       │   │   │   ├── analyticsApi.ts      # Study analytics, reading session & velocity IPC client
+│       │   │   │   ├── bookmarkApi.ts       # Where you stopped reading IPC: `bookmark.json` per book, and the newest bookmark of all books
 │       │   │   │   ├── clientBase.ts        # Tauri detection & callBackend: inside the app a failed command rejects
 │       │   │   │   ├── highlightsApi.ts     # Chapter highlights IPC: the only writer of `<chapter>-highlights.json`
 │       │   │   │   ├── lexiconApi.ts        # Sanitized offline dictionary lookup & vocabulary vault persistence IPC
 │       │   │   │   ├── notesApi.ts          # Cross-chapter note aggregation & summary export IPC
 │       │   │   │   ├── practiceApi.ts       # FSRS practice card synchronization & review IPC
+│       │   │   │   ├── preferencesApi.ts    # Reader settings IPC: `vault/preferences.json`
 │       │   │   │   └── syntopiconApi.ts     # Level 4 Syntopicon topic registry & persistence IPC client
 │       │   │   ├── types/           # Modular contract definitions
 │       │   │   │   ├── analytical.ts        # Level 3 analytical terms, citations & argument graph interfaces
@@ -186,13 +192,16 @@ book-engine/
 │       │   │   ├── practiceSession.ts       # Pure practice/gatekeeper session: card type per practice mode, fixed card copy, position, ratings & completion
 │       │   │   ├── practiceSession.test.ts  # Session tests: all due cards shown while the due list shrinks, gatekeeper quota
 │       │   │   ├── practiceTypes.ts     # FSRS practice models (ScenarioOption, ScenarioPayload, PracticeCardItem)
-│       │   │   ├── preferences.ts       # Default v2 preferences & deep-merge migration helper
+│       │   │   ├── preferences.ts       # Reader settings: defaults, migration, load from the vault (one copy from browser storage) & an ordered saver
+│       │   │   ├── preferences.test.ts  # Settings tests: the vault keeps them, the theme is one of them, a late save never undoes a newer one
 │       │   │   ├── readerLoads.ts       # Book & chapter loading: only the newest load may change the reader
 │       │   │   ├── readerLoads.test.ts  # Load tests: a slow chapter that answers late changes nothing
 │       │   │   ├── readerLocation.ts    # Book + chapter file + anchor locations: search hits open their own book
 │       │   │   ├── readerLocation.test.ts # Location tests: a hit in another book's ch-01.md opens that book, not the open one
 │       │   │   ├── readerShortcuts.ts   # Keyboard shortcut owners: App listener (Ctrl+K, Alt+P, ? / F1) or elementary canvas ([ and ])
 │       │   │   ├── readerShortcuts.test.ts # Shortcut tests: one Alt+P press toggles the pacer once at every reading level
+│       │   │   ├── readingPlace.ts      # Where you stopped: the chapter a book opens at, the book the app opens with, and when a place is saved
+│       │   │   ├── readingPlace.test.ts # Place tests: a book opens where you stopped, and closing and opening it never creeps up or down
 │       │   │   ├── searchQuery.ts       # Search box minimum length (2 characters), the same as the backend
 │       │   │   ├── searchQuery.test.ts  # Search length tests: 1 character does not search, spaces at the ends do not count
 │       │   │   └── types.ts             # Canonical TypeScript interfaces & data contracts
@@ -239,6 +248,8 @@ book-engine/
 │           │   ├── test_support.rs      # Test-only sandbox: temporary vault & cache database per unit test, also for its test threads (Sandbox::spawn)
 │           │   ├── vault/               # Modular vault file I/O & notes aggregation
 │           │   │   ├── analytical.rs        # Level 3 analytical store loader, saver & unit tests; a damaged file stops the load and the save
+│           │   │   ├── bookmark.rs          # Where you stopped reading: `vault/notes/<book-id>/bookmark.json`; the newest bookmark names the book to open
+│           │   │   ├── bookmark_tests.rs    # Bookmark tests: the newest moment wins, a damaged bookmark is never saved over
 │           │   │   ├── highlights.rs        # Chapter highlights file: load, save, and the one-time move out of the old notes comment (quotes may hold `-->`)
 │           │   │   ├── highlights_tests.rs  # Highlight tests: a notes save cannot erase a highlight, and the move keeps the reader's text
 │           │   │   ├── json_store.rs        # Safe JSON read for vault files: byte order mark removed, a damaged file errors and is copied to <name>.corrupt-<time>
@@ -246,6 +257,8 @@ book-engine/
 │           │   │   ├── locate_tests.rs      # Find tests: a folder with no books inside is refused, and nothing is remembered
 │           │   │   ├── models.rs            # Vault metadata, analytical and note structures
 │           │   │   ├── notes.rs             # Chapter reflection notes loader, saver & summary export
+│           │   │   ├── preferences.rs       # Reader settings in `vault/preferences.json`, kept key for key; a damaged file stops the load and the save
+│           │   │   ├── preferences_tests.rs # Settings tests: a setting this build does not know is kept, a damaged file is never saved over
 │           │   │   ├── reader.rs            # Book discovery & chapter I/O; a rewritten _meta.json keeps its key order and line endings (the vault folder comes from locate.rs)
 │           │   │   ├── reader_tests.rs      # Vault write tests: no half-written file while a save runs, _meta.json key order and line endings kept
 │           │   │   ├── safe_write.rs        # The one vault write: temporary file in the same folder, flushed, then renamed over the target, so a save is never half done
@@ -300,7 +313,8 @@ book-engine/
 │   └── create_desktop_shortcut.ps1 # One-click Windows desktop shortcut generator
 ├── vault/                       # SOLE PERMANENT RECORD: User Markdown vault (Versioned / Syncable)
 │   ├── books/<book-id>/         # Chapter Markdown (`ch-XX.md`), `_meta.json`, and extracted assets
-│   ├── notes/<book-id>/         # Chapter notes (`ch-XX-notes.md`), highlights (`ch-XX-highlights.json`), study decks, and the study log (`reviews.jsonl`, `reading.jsonl`)
+│   ├── notes/<book-id>/         # Chapter notes (`ch-XX-notes.md`), highlights (`ch-XX-highlights.json`), study decks, the study log (`reviews.jsonl`, `reading.jsonl`), and where you stopped reading (`bookmark.json`)
+│   ├── preferences.json         # Reader settings: theme, pacer speed, Gatekeeper, daily target
 │   └── syntopicon/              # Level 4 Syntopicon topic registries & compiled reports
 │       ├── topics/              # Cross-book syntopical topics (`<topic-id>.json`)
 │       └── reports/             # Compiled dialectical dossiers (`<topic-id>-synthesis.md`)
@@ -341,6 +355,7 @@ Multi-column textbook pages frequently include full-width conceptual matrices, m
 - **Ephemeral Cache (`index.db`):** Stored strictly in the OS application data folder (`%APPDATA%\book-engine\`). Never checked into version control. It holds only a copy: everything in it is rebuilt from the vault.
 - **The Reader Says Where the Vault Is:** The vault folder is looked for in this order (`apps/desktop/src-tauri/src/vault/locate.rs`): the folder the reader picked, saved in `%APPDATA%\book-engine\settings.json`; the `BOOK_ENGINE_VAULT` variable; a `vault` folder beside the program or beside its parent, for a copy carried on a stick; and a `vault` folder up to six levels above the working folder, which is the dev run from the repository. Only the last of these existed before, so an installed copy started in its install folder and found nothing, and every read and write failed with no way to put it right (LC-01). A folder counts as a vault only when it holds a `books` folder: `remember_vault` refuses anything else and says what a vault looks like, so the app never quietly points at an empty folder. `VaultGate.tsx` holds the app back until the folder is known and opens the picker (`choose_vault_folder`).
 - **Your Study Is in the Vault:** Every card review and every piece of reading time is written as one line to `vault/notes/<book-id>/reviews.jsonl` and `vault/notes/<book-id>/reading.jsonl` (`apps/desktop/src-tauri/src/vault/study_log.rs`), before the cache is touched. A review the vault refuses is not saved at all. Card schedules, review history and reading time used to live only in `index.db`, which is not in the vault and is not backed up, so losing that file lost every bit of study progress (DS-01). At startup `db/backfill.rs` copies whatever a cache from before the change still holds and the vault does not, once; `db/restore.rs` then puts back whatever the cache is missing. Both write only what is missing, so a normal start changes nothing, and a deleted, damaged or brand new cache fills itself again.
+- **Your Place and Your Settings Are in the Vault:** Each book keeps where the reader stopped, the chapter and the paragraph in the middle of the screen, in `vault/notes/<book-id>/bookmark.json` (`apps/desktop/src-tauri/src/vault/bookmark.rs`), and the reader settings, the theme included, live in `vault/preferences.json` (`vault/preferences.rs`). Both used to live only in the browser storage of the app window, so a release build, a new PC or a reinstall opened chapter 1 with the default settings, and the theme was never kept at all (DS-11). A book opens at its bookmark (`openingPlace`, `src/lib/readingPlace.ts`), the app opens the book of the newest bookmark, and the reader saves its place a second after the scrolling stops, only for the chapter whose words are on screen. The app starts once the settings are read (`PreferencesGate.tsx`). Settings that browser storage still holds from an older version are copied into the vault once, and settings or a bookmark that cannot be read are never saved over.
 - **Cache Shape:** `PRAGMA user_version` holds the shape of `index.db`, and `CACHE_SCHEMA_VERSION` (`db/schema.rs`) is the shape this build knows. A file stamped higher was made by a newer build and is not opened, because a newer shape can hold things this build would drop. The vault keeps the study progress either way.
 - **Newest Load Wins:** A book or a chapter is read from the disk, so its answer comes back a moment later. The reader takes a ticket for every load (`createLoadGuard`, `src/lib/readerLoads.ts`), and an answer that is no longer the newest one changes nothing. Before this, a slow chapter one showed its text and its highlights under chapter two, and a slow book left the open book and the book on screen pointing at different books, so notes and highlights were saved under the wrong book (DS-07). Opening a chapter also empties the reader at once, so the words of the chapter you left are never shown under the chapter you opened.
 - **One Pane per Chapter:** `App.tsx` gives the notes pane a key of book and chapter, so every chapter gets its own pane with its own text. A pane that kept its text across a chapter change could save the notes of one chapter into the file of another (DS-07). What the reader typed is held together with the file it belongs to (`src/lib/notesAutosave.ts`) and is saved into that file when the chapter closes, so the last words are never left waiting in a timer.
@@ -420,7 +435,7 @@ All deck synchronization and review calculations are executed on background thre
 - **TopNav Practice Button:** Displays live due badge count. Opens distraction-free `PracticeModal.tsx` with Cloze and Scramble tabs.
 - **Deterministic Cloze Drill:** Real-time character/word input validation, "Show Answer" reveal, 4-tier FSRS rating buttons with estimated next intervals, and a `Jump to §p-xxx` anchor navigation button that scrolls the reader canvas directly to the source sentence.
 - **Scrambled Argument Drill:** Clickable badge pills allowing users to reassemble sentence clauses into proper sequence with deterministic verbatim order verification.
-- **Reader Settings Popover (`SettingsPopover.tsx`):** Provides toggles for `gatekeeperMode` and a stepper for `dailyTarget` (5–100 cards), persisting to `ReaderPreferences` in `localStorage`. Includes a manual "Sync Deck" action with live due counts.
+- **Reader Settings Popover (`SettingsPopover.tsx`):** Provides toggles for `gatekeeperMode` and a stepper for `dailyTarget` (5–100 cards), persisting `ReaderPreferences` to `vault/preferences.json`. Includes a manual "Sync Deck" action with live due counts.
 - **Chapter Gatekeeper Workflow (`GatekeeperModal.tsx`, `hooks/useChapterGate.ts`, `lib/chapterGate.ts`):** a soft gate.
   - When Gatekeeper Mode is on, every move to a later chapter of the open book asks the gate first. The table of contents, the inspectional blueprint and dips, search hits, notes, analytical citations, and practice cards all open chapters through `openChapter` in `useBookSession.ts`. Moving back, staying in the chapter, opening another book, and moves at the syntopical level (which compares books) open the chapter at once (`gatedChapterFile`).
   - The gate tests up to `gatekeeperQuota` due cards of the chapter the reader leaves (`get_chapter_due_cards`), with the card type of the practice mode. When that chapter has no due cards, the chapter opens at once.
@@ -446,12 +461,17 @@ All disk I/O operations are offloaded from the Tauri main thread using `tokio::t
 | `save_notes` | `(book_id: String, notes_file: String, content: String) -> Result<(), String>` | Persists user reflection notes to `vault/notes/<book_id>/<notes_file>`. |
 | `get_chapter_highlights` | `(book_id: String, chapter_file: String) -> Result<Vec<HighlightItem>, String>` | Reads `vault/notes/<book_id>/<chapter>-highlights.json`. A chapter that still keeps its highlights in the old notes comment is moved over once, keeping the reader's own text. |
 | `save_chapter_highlights` | `(book_id: String, chapter_file: String, highlights: Vec<HighlightItem>) -> Result<(), String>` | Writes `vault/notes/<book_id>/<chapter>-highlights.json`. It never touches the chapter notes, and a damaged highlights file stops the save. |
+| `get_bookmark` | `(book_id: String) -> Result<Option<Bookmark>, String>` | Reads `vault/notes/<book_id>/bookmark.json`: the chapter file, the paragraph in the middle of the screen (`^p-xxx`), and when it was saved. `None` for a book the reader has not read; a damaged file is an error and is copied. |
+| `save_bookmark` | `(book_id: String, chapter_file: String, anchor: Option<String>) -> Result<(), String>` | Writes where the reader is in a book. A damaged bookmark file stops the save. |
+| `get_last_bookmark` | `() -> Result<Option<BookBookmark>, String>` | The newest bookmark of all books, with its `bookId`, which names the book the app opens with. A bookmark that cannot be read is passed over. |
+| `get_preferences` | `() -> Result<Option<Map<String, Value>>, String>` | Reads the reader settings from `vault/preferences.json`. `None` when none are saved yet; a file that is damaged or holds no JSON object is an error and is copied. |
+| `save_preferences` | `(preferences: Map<String, Value>) -> Result<(), String>` | Writes the reader settings key for key, keeping settings this build does not know. A damaged settings file stops the save. |
 
 ### Frontend Component Hierarchy (`apps/desktop/src/`)
 The desktop client is structured around a single-chapter virtualized TipTap canvas:
 
 ```
-App.tsx (Global state: theme, viewMode, activeBook, activeChapter)
+App.tsx (Global state: reader settings with the theme, viewMode, activeBook, activeChapter)
 ├── BackendErrorBar.tsx (Error bar at the bottom of the window: every failed load or save, with a count and Dismiss)
 ├── Sidebar.tsx (Translucent collapsible TOC, active chapter indicator, word & anchor counts)
 ├── TopNav.tsx (Progress bar, chapter title, theme toggles, viewing mode switches)
@@ -467,7 +487,9 @@ App.tsx (Global state: theme, viewMode, activeBook, activeChapter)
 - `src/lib/backendErrors.ts`: The error bar store. `reportBackendError` adds a failed load or save (the same action with the same error again only raises its count, and the newest 5 stay), and `errorText` turns a Tauri rejection value (a string or an `AppError` object) into text for `BackendErrorBar.tsx`.
 - `src/lib/markdown.ts`: Pre-processes chapter Markdown into TipTap HTML, separating footnote definitions and injecting interactive anchors (`data-anchor="p-xxx"`, the attribute form of `^p-xxx`) and footnote markers (`data-fn="n"`).
 - `src/lib/anchors.ts`: Converts paragraph anchors between the saved form (`^p-xxx`) and the HTML attribute form (`p-xxx`) with `toSavedAnchor` and `toAnchorAttribute`.
-- `src/lib/readerLoads.ts`: Loads a book (`loadBookOnto`) or a chapter (`loadChapterOnto`) onto the reader. Every load takes a ticket from `createLoadGuard`, and only the newest ticket may show its answer, report its failure, or name the chapter a new highlight belongs to. The reader is emptied the moment a chapter opens.
+- `src/lib/readerLoads.ts`: Loads a book at the place where the reader stopped (`loadBookOnto`) or a chapter (`loadChapterOnto`) onto the reader. Every load takes a ticket from `createLoadGuard`, and only the newest ticket may show its answer, report its failure, or name the chapter a new highlight belongs to. The reader is emptied the moment a chapter opens.
+- `src/lib/readingPlace.ts`: Where the reader stopped. `openingPlace` gives the chapter and paragraph a book opens at (its first chapter when the saved chapter is gone), `startingBookId` the book the app opens with (the newest bookmark, then the book an older version kept in browser storage, then the first book), `paragraphAtMiddle` the paragraph a place is saved at, `createPlaceWatcher` reports the place a second after the scrolling stops, for the chapter whose words are on screen, and `createBookmarkKeeper` never saves over a bookmark that could not be read. A jump into a chapter that has just opened lands at once; a jump inside the open chapter scrolls there.
+- `src/lib/preferences.ts`: The reader settings. `loadPreferences` reads them from the vault and copies the settings browser storage still holds into the vault once; `createPreferencesSaver` saves 400 ms after the last change, one save at a time with the newest settings last; `themeOf` and `withTheme` keep the reading theme among the saved settings.
 - `src/lib/notesAutosave.ts`: The chapter notes autosave. `change` holds the text together with the notes file it was typed in and saves it when the typing stops; `flush` saves what is waiting right now, which the notes pane does when the chapter closes and for a quote.
 - `src/lib/notesQuote.ts`: `addQuoteToNotes` puts a quote from the selection menu at the end of the chapter notes and saves them at once. `quoteBlock` is the text it adds: a blank line, the quote with its paragraph anchor, and an empty `- Reflection:` line.
 - `src/lib/readerLocation.ts`: Resolves a location (book id, chapter file, anchor) to the book and chapter to show with `resolveLocation`, loading the location's own book when another book is open. Every book names its chapters `ch-01.md`, `ch-02.md`, ..., so a search hit keeps its `book_id` (`searchResultLocation`).
@@ -624,8 +646,8 @@ The backend scans `vault/books/` dynamically on startup and command invocation, 
 ### Book Selector Dropdown & State Persistence
 - Interactive `BookSelector.tsx` popover in the Sidebar header with library icon, book title, author, and animated chevron.
 - Also available in compact mode in `TopNav.tsx` when the sidebar is collapsed.
-- Persists active book ID in `localStorage` (`book_engine_active_book_id`).
-- Switching books cleanly dismounts the current chapter, loads the new manifest, reloads the hierarchical Table of Contents, and mounts Chapter 1.
+- At startup the app opens the book of the newest `vault/notes/<book-id>/bookmark.json` (DS-11). The browser storage key `book_engine_active_book_id` is only read, for a reader who has no bookmark yet.
+- Switching books cleanly dismounts the current chapter, loads the new manifest, reloads the hierarchical Table of Contents, and opens the chapter and paragraph where the reader stopped in that book (chapter 1 for a book not read yet).
 
 ### Polished TipTap Paragraph Anchors
 - Raw paragraph anchors (`^p-001`, `§p-001`) are stripped from inline text bodies during markdown ingestion into HTML.

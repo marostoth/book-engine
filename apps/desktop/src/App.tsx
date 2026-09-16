@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Theme, ViewMode, ReaderPreferences, ReadingLevelMode } from "./lib/types";
-import { loadPreferences, savePreferences } from "./lib/preferences";
+import { createPreferencesSaver, themeOf, withTheme, type LoadedPreferences } from "./lib/preferences";
+import { persistPreferences } from "./lib/api";
+import { reportBackendError } from "./lib/backendErrors";
 import { appShortcut, shortcutKey } from "./lib/readerShortcuts";
 import { useBookSession } from "./hooks/useBookSession";
 import { usePracticeDeck } from "./hooks/usePracticeDeck";
@@ -19,21 +21,36 @@ import { useAnalyticalSession } from "./hooks/useAnalyticalSession";
 import { useSyntopiconSession } from "./hooks/useSyntopiconSession";
 import { LevelCompanionPane } from "./components/LevelCompanionPane";
 
-export const App: React.FC = () => {
-  const [theme, setTheme] = useState<Theme>("paper");
+/** A changed setting is saved this long after the last change, so holding a key down makes one save. */
+const PREFERENCES_SAVE_DELAY_MS = 400;
+
+interface AppProps {
+  /** The reader settings, read from the vault before the app starts (`components/PreferencesGate.tsx`). */
+  startingPreferences: LoadedPreferences;
+}
+
+export const App: React.FC<AppProps> = ({ startingPreferences }) => {
   const [viewMode, setViewMode] = useState<ViewMode>("reading");
   const [isBionic, setIsBionic] = useState<boolean>(false);
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
   const [activeLevel, setActiveLevel] = useState<ReadingLevelMode>("elementary");
   const [isPacingRunning, setIsPacingRunning] = useState<boolean>(false);
 
-  // Reader Preferences v2 (with automatic migration from v1)
-  const [preferences, setPreferences] = useState<ReaderPreferences>(loadPreferences);
+  // Reader Preferences v2, kept in the vault (`vault/preferences.json`), not in browser storage (DS-11)
+  const [preferences, setPreferences] = useState<ReaderPreferences>(startingPreferences.preferences);
+  const [preferencesSaver] = useState(() =>
+    createPreferencesSaver(PREFERENCES_SAVE_DELAY_MS, persistPreferences, reportBackendError, startingPreferences.canSave)
+  );
+  useEffect(() => () => preferencesSaver.flush(), [preferencesSaver]);
 
   const handlePreferencesChange = (newPrefs: ReaderPreferences) => {
     setPreferences(newPrefs);
-    savePreferences(newPrefs);
+    preferencesSaver.change(newPrefs);
   };
+
+  // The reading theme is one of the saved settings, so the app starts with the theme the reader chose (DS-11).
+  const theme = themeOf(preferences);
+  const handleThemeChange = (next: Theme) => handlePreferencesChange(withTheme(preferences, next));
 
   const handleTogglePacer = useCallback(() => {
     setIsPacingRunning((prev) => {
@@ -68,6 +85,8 @@ export const App: React.FC = () => {
     bookMeta,
     activeChapter,
     chapterMarkdown,
+    markdownSource,
+    handlePlaceSettled,
     progressPercent,
     setProgressPercent,
     highlights,
@@ -155,7 +174,7 @@ export const App: React.FC = () => {
           availableBooks={availableBooks} onSelectBook={handleSelectBook}
           chapterTitle={activeChapter?.title || "Reading"} progressPercent={progressPercent}
           sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-          theme={theme} onThemeChange={setTheme}
+          theme={theme} onThemeChange={handleThemeChange}
           viewMode={viewMode} onViewModeChange={setViewMode}
           isBionic={isBionic} onToggleBionic={() => setIsBionic(!isBionic)}
           onOpenSearch={() => setSearchOpen(true)} dueCardsCount={dueCardsCount}
@@ -190,6 +209,7 @@ export const App: React.FC = () => {
               <Reader
                 bookId={bookMeta?.book_id || activeBookId}
                 vaultPath={vaultPath} markdown={chapterMarkdown} isBionic={isBionic}
+                markdownSource={markdownSource} onPlaceSettled={handlePlaceSettled}
                 highlights={highlights} targetAnchor={targetAnchor}
                 onProgressChange={setProgressPercent} onAddHighlight={handleAddHighlight}
                 onAddNoteFromSelection={(quote, anchorId) => {

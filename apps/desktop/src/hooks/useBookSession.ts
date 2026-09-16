@@ -13,10 +13,14 @@ import {
   saveChapterHighlights,
   recordReadingProgress,
   getVaultPath,
+  fetchBookmark,
+  fetchLastBookmark,
+  persistBookmark,
 } from "../lib/api";
 import { reportBackendError } from "../lib/backendErrors";
 import { ReaderLocation, resolveLocation } from "../lib/readerLocation";
 import { createLoadGuard, loadBookOnto, loadChapterOnto } from "../lib/readerLoads";
+import { createBookmarkKeeper, readBrowserBookId, startingBookId, type ChapterRef } from "../lib/readingPlace";
 import { ChapterMoveRequest } from "./useChapterGate";
 
 interface BookSessionOptions {
@@ -33,13 +37,14 @@ function reportReadingTimeError(err: unknown): void {
 export function useBookSession({ onCardsRefreshNeeded, requestChapterMove }: BookSessionOptions = {}) {
   const [vaultPath, setVaultPath] = useState<string>("");
   const [availableBooks, setAvailableBooks] = useState<BookMetadata[]>([]);
-  const [activeBookId, setActiveBookId] = useState<string>(() => {
-    return localStorage.getItem("book_engine_active_book_id") || "sample";
-  });
+  // The open book. It is picked once the library loads: the book of the newest bookmark in the vault (DS-11).
+  const [activeBookId, setActiveBookId] = useState<string>("");
 
   const [bookMeta, setBookMeta] = useState<BookMeta | null>(null);
   const [activeChapter, setActiveChapter] = useState<ChapterMeta | null>(null);
   const [chapterMarkdown, setChapterMarkdown] = useState<string>("");
+  // The chapter whose words `chapterMarkdown` holds. A place is saved only for the words on screen (DS-11).
+  const [markdownSource, setMarkdownSource] = useState<ChapterRef | null>(null);
   const [progressPercent, setProgressPercent] = useState<number>(0);
   const [highlights, setHighlights] = useState<HighlightItem[]>([]);
   const [targetAnchor, setTargetAnchor] = useState<string | undefined>();
@@ -51,6 +56,10 @@ export function useBookSession({ onCardsRefreshNeeded, requestChapterMove }: Boo
   // nothing, so the words of the chapter you left are never shown under the chapter you opened (DS-07).
   const loads = useRef(createLoadGuard()).current;
 
+  // Where you stopped reading is saved in the vault, one bookmark per book, and never over a bookmark that could not
+  // be read (DS-11).
+  const [bookmarks] = useState(() => createBookmarkKeeper(persistBookmark, reportBackendError));
+
   // Load canonical vault path on mount
   useEffect(() => {
     getVaultPath()
@@ -60,30 +69,34 @@ export function useBookSession({ onCardsRefreshNeeded, requestChapterMove }: Boo
 
   const loadBook = useCallback(
     async (bookId: string) => {
-      await loadBookOnto(fetchBookMeta, loads, bookId, {
-        showBook: (meta, firstChapter) => {
+      await loadBookOnto({ fetchBookMeta, fetchBookmark }, loads, bookId, {
+        // The book opens where the reader stopped, not at chapter 1 (DS-11).
+        showBook: (meta, opening, bookmarkRead) => {
+          bookmarks.bookOpened(meta.book_id, bookmarkRead);
           setBookMeta(meta);
-          if (firstChapter) {
-            setActiveChapter(firstChapter);
-            setTargetAnchor(undefined);
+          if (opening.chapter) {
+            setActiveChapter(opening.chapter);
+            setTargetAnchor(opening.anchor);
           }
           onCardsRefreshNeeded?.(bookId);
         },
       }, reportBackendError);
     },
-    [loads, onCardsRefreshNeeded]
+    [loads, bookmarks, onCardsRefreshNeeded]
   );
 
-  // Discover available library books and hydrate active book from localStorage
+  // Discover the library and open the book the reader read last: the book of the newest bookmark in the vault.
+  // Browser storage is read only for the open book an older version of the app remembered there (DS-11).
   useEffect(() => {
+    const lastPlace = fetchLastBookmark().catch((err) => {
+      reportBackendError("Could not find the book you read last, so the app opens your first book.", err);
+      return null;
+    });
     fetchLibraryBooks()
-      .then((books) => {
+      .then(async (books) => {
         setAvailableBooks(books);
-        const savedId = localStorage.getItem("book_engine_active_book_id");
-        const targetId =
-          savedId && books.some((b) => b.id === savedId)
-            ? savedId
-            : books[0]?.id || "sample";
+        const targetId = startingBookId(books, await lastPlace, readBrowserBookId(() => window.localStorage));
+        if (!targetId) return;
 
         setActiveBookId(targetId);
         loadBook(targetId);
@@ -93,7 +106,6 @@ export function useBookSession({ onCardsRefreshNeeded, requestChapterMove }: Boo
 
   const handleSelectBook = (bookId: string) => {
     setActiveBookId(bookId);
-    localStorage.setItem("book_engine_active_book_id", bookId);
     loadBook(bookId);
   };
 
@@ -109,11 +121,15 @@ export function useBookSession({ onCardsRefreshNeeded, requestChapterMove }: Boo
       {
         clear: () => {
           setChapterMarkdown("");
+          setMarkdownSource(null);
           setProgressPercent(0);
           setHighlights([]);
           setHighlightsChapter(null);
         },
-        showMarkdown: setChapterMarkdown,
+        showMarkdown: (markdown, source) => {
+          setChapterMarkdown(markdown);
+          setMarkdownSource(source);
+        },
         showHighlights: (items, source) => {
           setHighlights(items);
           setHighlightsChapter(source);
@@ -234,7 +250,6 @@ export function useBookSession({ onCardsRefreshNeeded, requestChapterMove }: Boo
         }
         // Another book opens without the gate, which guards only the moves inside one book.
         setActiveBookId(location.bookId);
-        localStorage.setItem("book_engine_active_book_id", location.bookId);
         setBookMeta(target.book);
         if (target.chapter) {
           setActiveChapter(target.chapter);
@@ -247,6 +262,12 @@ export function useBookSession({ onCardsRefreshNeeded, requestChapterMove }: Boo
     [bookMeta, openChapter, loads]
   );
 
+  /** Saves where the reader stopped, once the reader stops scrolling: the chapter on screen and its middle paragraph. */
+  const handlePlaceSettled = useCallback(
+    (place: ChapterRef, anchor: string | undefined) => bookmarks.save(place, anchor),
+    [bookmarks]
+  );
+
   return {
     vaultPath,
     availableBooks,
@@ -254,6 +275,8 @@ export function useBookSession({ onCardsRefreshNeeded, requestChapterMove }: Boo
     bookMeta,
     activeChapter,
     chapterMarkdown,
+    markdownSource,
+    handlePlaceSettled,
     progressPercent,
     setProgressPercent,
     highlights,

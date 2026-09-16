@@ -14,6 +14,7 @@ use commands::{
     get_vault_status, choose_vault_folder,
     lookup_dictionary_term, save_book_vocabulary, get_analytical_data, save_analytical_data,
     get_chapter_highlights, save_chapter_highlights,
+    get_bookmark, save_bookmark, get_last_bookmark, get_preferences, save_preferences,
     get_syntopic_topics, get_syntopic_topic, save_syntopic_topic, export_syntopic_report,
 };
 
@@ -106,6 +107,11 @@ pub fn run() {
             save_book_vocabulary,
             get_chapter_highlights,
             save_chapter_highlights,
+            get_bookmark,
+            save_bookmark,
+            get_last_bookmark,
+            get_preferences,
+            save_preferences,
             get_analytical_data,
             save_analytical_data,
             get_syntopic_topics,

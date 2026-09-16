@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Highlight from "@tiptap/extension-highlight";
@@ -7,6 +7,7 @@ import { parseChapterMarkdown } from "../lib/markdown";
 import { applyBionicReading } from "../lib/bionic";
 import { applyHighlightsToHtml } from "../lib/highlights";
 import { toAnchorAttribute } from "../lib/anchors";
+import { createPlaceWatcher, paragraphAtMiddle, type ChapterRef } from "../lib/readingPlace";
 import { FootnoteItem, HighlightItem, ReaderPreferences } from "../lib/types";
 import { FootnotePopover } from "./FootnotePopover";
 import { SelectionMenu } from "./SelectionMenu";
@@ -18,10 +19,28 @@ import { ArgumentGutterBadge } from "./analytical/ArgumentGutterBadge";
 import { AnalyticalStore } from "../lib/types/analytical";
 import { FigureLightboxModal } from "./FigureLightboxModal";
 
+/** The place is saved this long after the reader stops scrolling, so a long scroll makes one save. */
+const PLACE_SETTLE_MS = 1000;
+
+/** The paragraph in the middle of the reader, in the saved form, read from the paragraphs on screen. */
+function middleParagraph(container: HTMLElement | null): string | undefined {
+  if (!container) return undefined;
+  const view = container.getBoundingClientRect();
+  const paragraphs = Array.from(container.querySelectorAll<HTMLElement>("[data-anchor]"), (element) => ({
+    anchor: element.getAttribute("data-anchor"),
+    top: element.getBoundingClientRect().top,
+  }));
+  return paragraphAtMiddle(paragraphs, view.top + view.height / 2);
+}
+
 interface ReaderProps {
   bookId: string;
   vaultPath?: string;
   markdown: string;
+  /** The book and chapter whose words `markdown` holds. */
+  markdownSource?: ChapterRef | null;
+  /** Called once the reader stops scrolling, with the chapter on screen and the paragraph in the middle of it (DS-11). */
+  onPlaceSettled?: (place: ChapterRef, anchor: string | undefined) => void;
   isBionic: boolean;
   highlights: HighlightItem[];
   targetAnchor?: string;
@@ -44,13 +63,31 @@ interface ReaderProps {
 }
 
 export const Reader: React.FC<ReaderProps> = ({
-  bookId, vaultPath, markdown, isBionic, highlights, targetAnchor,
+  bookId, vaultPath, markdown, markdownSource, onPlaceSettled, isBionic, highlights, targetAnchor,
   onProgressChange, onAddHighlight, onAddNoteFromSelection,
   onAddTerm, onAddArgument, onAddCritique, onAddInquiry, onAddSyntopic,
   analyticalStore, currentChapterFile, preferences, onPreferencesChange,
   activeLevel = "elementary", onOpenInSplit, isPacingRunning, onTogglePacer,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Where the reader stopped is reported a moment after the scrolling stops, for the chapter whose words are on
+  // screen, so the book opens there next time (DS-11).
+  const onPlaceSettledRef = useRef(onPlaceSettled);
+  useEffect(() => {
+    onPlaceSettledRef.current = onPlaceSettled;
+  }, [onPlaceSettled]);
+  const [placeWatcher] = useState(() =>
+    createPlaceWatcher(
+      PLACE_SETTLE_MS,
+      () => middleParagraph(containerRef.current),
+      (place, anchor) => onPlaceSettledRef.current?.(place, anchor)
+    )
+  );
+  // A layout effect, because its clean-up runs while the paragraphs are still on screen: leaving the reader for
+  // the inspectional level saves the place that was still waiting.
+  useLayoutEffect(() => () => placeWatcher.flush(), [placeWatcher]);
+
   const [footnotes, setFootnotes] = useState<Record<string, FootnoteItem>>({});
   const [activeFootnote, setActiveFootnote] = useState<FootnoteItem | null>(null);
   const [footnotePos, setFootnotePos] = useState<{ x: number; y: number } | null>(null);
@@ -163,21 +200,32 @@ export const Reader: React.FC<ReaderProps> = ({
     }
 
     editor.commands.setContent(html);
+    placeWatcher.shown(markdownSource ?? null);
     if (containerRef.current) {
       setTimeout(handleScroll, 50);
     }
-  }, [editor, markdown, isBionic, highlights, bookId, vaultPath]);
+  }, [editor, markdown, markdownSource, isBionic, highlights, bookId, vaultPath, placeWatcher]);
 
-  // Jump to target paragraph anchor when requested
+  // Jump to target paragraph anchor when requested. A chapter that has just opened lands on the paragraph at once,
+  // for example where the reader stopped (DS-11): a smooth scroll does not move a window that is not on screen, and
+  // the place saved next would then be the top of the chapter. A jump inside the open chapter still scrolls there.
+  const chapterSeen = useRef<ChapterRef | null | undefined>(undefined);
   useEffect(() => {
     const cleanAnchor = toAnchorAttribute(targetAnchor);
-    if (!cleanAnchor || !containerRef.current) return;
+    if (!cleanAnchor || !markdown || !containerRef.current) {
+      chapterSeen.current = markdownSource;
+      return;
+    }
+    // Read here, and written only when the jump runs, so an effect that React runs twice still sees a new chapter.
+    const justOpened = chapterSeen.current !== markdownSource;
 
     const timer = setTimeout(() => {
       if (!containerRef.current) return;
+      chapterSeen.current = markdownSource;
       const el = containerRef.current.querySelector(`[data-anchor="${cleanAnchor}"]`);
       if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.scrollIntoView({ behavior: justOpened ? "instant" : "smooth", block: "center" });
+        placeWatcher.moved();
         el.classList.add("bg-amber-100/50", "dark:bg-amber-900/30", "transition-colors", "duration-500");
         setTimeout(() => {
           el.classList.remove("bg-amber-100/50", "dark:bg-amber-900/30");
@@ -186,11 +234,12 @@ export const Reader: React.FC<ReaderProps> = ({
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [targetAnchor, markdown]);
+  }, [targetAnchor, markdown, markdownSource, placeWatcher]);
 
   // Handle scroll progress tracking
   const handleScroll = () => {
     if (!containerRef.current) return;
+    placeWatcher.moved();
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
     const total = scrollHeight - clientHeight;
     if (total <= 0) {

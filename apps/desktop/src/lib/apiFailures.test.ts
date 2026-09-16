@@ -37,6 +37,7 @@ const vocabularyEntry: VocabularyEntry = {
   savedAt: "2026-09-15T10:00:00Z",
 };
 const analyticalStore: AnalyticalStore = { terms: [], arguments: [] };
+const { DEFAULT_PREFERENCES: preferences } = await import("./preferences.ts");
 const topic: SyntopicTopic = {
   id: "division-of-labour",
   title: "Division of labour",
@@ -78,6 +79,11 @@ const backendCalls: [name: string, call: () => Promise<unknown>][] = [
   ["saveBookVocabulary", () => api.saveBookVocabulary("sample", vocabularyEntry)],
   ["getAnalyticalData", () => api.getAnalyticalData("sample")],
   ["saveAnalyticalData", () => api.saveAnalyticalData("sample", analyticalStore)],
+  ["fetchPreferences", () => api.fetchPreferences()],
+  ["persistPreferences", () => api.persistPreferences(preferences)],
+  ["fetchBookmark", () => api.fetchBookmark("sample")],
+  ["persistBookmark", () => api.persistBookmark("sample", "ch-01.md", "^p-001")],
+  ["fetchLastBookmark", () => api.fetchLastBookmark()],
   ["getSyntopicTopics", () => syntopicon.getSyntopicTopics()],
   ["getSyntopicTopic", () => syntopicon.getSyntopicTopic("division-of-labor")],
   ["saveSyntopicTopic", () => syntopicon.saveSyntopicTopic(topic)],

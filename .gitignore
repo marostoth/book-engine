@@ -29,6 +29,7 @@ vault/books/*
 !vault/books/.gitkeep
 vault/notes/*
 !vault/notes/.gitkeep
+vault/preferences.json*
 
 # IDE & OS files
 .DS_Store

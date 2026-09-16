@@ -349,6 +349,53 @@ pub async fn save_chapter_highlights(
     .map_err(|e| format!("{:#}", e))
 }
 
+/// Where the reader stopped in a book, or `None` when they have not read it yet (DS-11).
+#[command]
+pub async fn get_bookmark(book_id: String) -> Result<Option<crate::vault::bookmark::Bookmark>, String> {
+    tokio::task::spawn_blocking(move || crate::vault::bookmark::load_bookmark(&book_id))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+        .map_err(|e| format!("{:#}", e))
+}
+
+/// Saves where the reader is in a book: the chapter, and the paragraph in the middle of the screen.
+#[command]
+pub async fn save_bookmark(book_id: String, chapter_file: String, anchor: Option<String>) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        crate::vault::bookmark::save_bookmark(&book_id, &chapter_file, anchor.as_deref()).map(|_| ())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))?
+    .map_err(|e| format!("{:#}", e))
+}
+
+/// The newest bookmark of all books, which names the book the app opens with.
+#[command]
+pub async fn get_last_bookmark() -> Result<Option<crate::vault::bookmark::BookBookmark>, String> {
+    tokio::task::spawn_blocking(crate::vault::bookmark::last_bookmark)
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+        .map_err(|e| format!("{:#}", e))
+}
+
+/// The reader settings saved in `vault/preferences.json`, or `None` when none are saved yet (DS-11).
+#[command]
+pub async fn get_preferences() -> Result<Option<crate::vault::preferences::Preferences>, String> {
+    tokio::task::spawn_blocking(crate::vault::preferences::load_preferences)
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+        .map_err(|e| format!("{:#}", e))
+}
+
+/// Saves the reader settings to `vault/preferences.json`. A damaged settings file stops the save.
+#[command]
+pub async fn save_preferences(preferences: crate::vault::preferences::Preferences) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || crate::vault::preferences::save_preferences(&preferences))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+        .map_err(|e| format!("{:#}", e))
+}
+
 #[command]
 pub async fn get_analytical_data(book_id: String) -> Result<crate::vault::AnalyticalStore, String> {
     tokio::task::spawn_blocking(move || crate::vault::load_analytical_store(&book_id))

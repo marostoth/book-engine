@@ -6,8 +6,10 @@ import {
   highlightsSource,
   loadBookOnto,
   loadChapterOnto,
+  type BookSource,
   type ChapterSource,
 } from "./readerLoads.ts";
+import type { Bookmark } from "./readingPlace.ts";
 
 /** A promise this test resolves by hand, so a slow disk can be played out step by step. */
 function slowRead<T>() {
@@ -53,35 +55,50 @@ function highlight(id: string): HighlightItem {
   return { id, exact: id, prefix: "", suffix: "", createdAt: "2026-09-16T00:00:00Z" };
 }
 
+/** The vault reads of a book: its meta, and a bookmark that is missing unless one is given. */
+function bookSource(
+  fetchBookMeta: (bookId: string) => Promise<BookMeta>,
+  fetchBookmark: (bookId: string) => Promise<Bookmark | null> = async () => null
+): BookSource {
+  return { fetchBookMeta, fetchBookmark };
+}
+
 /** A reader screen that records what the loads put on it. */
 function screen() {
   const state = {
     markdown: "",
+    markdownFrom: null as string | null,
     highlights: [] as HighlightItem[],
     highlightsFrom: null as string | null,
     clears: 0,
     bookId: null as string | null,
     openChapter: null as string | null,
+    openAnchor: undefined as string | undefined,
+    bookmarkRead: null as boolean | null,
     errors: [] as string[],
   };
   return {
     state,
     clear() {
       state.markdown = "";
+      state.markdownFrom = null;
       state.highlights = [];
       state.highlightsFrom = null;
       state.clears += 1;
     },
-    showMarkdown(markdown: string) {
+    showMarkdown(markdown: string, source: { bookId: string; chapterFile: string }) {
       state.markdown = markdown;
+      state.markdownFrom = `${source.bookId}/${source.chapterFile}`;
     },
     showHighlights(items: HighlightItem[], source: string) {
       state.highlights = items;
       state.highlightsFrom = source;
     },
-    showBook(loaded: BookMeta, first: ChapterMeta | null) {
+    showBook(loaded: BookMeta, opening: { chapter: ChapterMeta | null; anchor?: string }, bookmarkRead: boolean) {
       state.bookId = loaded.book_id;
-      state.openChapter = first?.file_path ?? null;
+      state.openChapter = opening.chapter?.file_path ?? null;
+      state.openAnchor = opening.anchor;
+      state.bookmarkRead = bookmarkRead;
     },
     report(message: string) {
       state.errors.push(message);
@@ -193,8 +210,8 @@ test("a book that answers late changes nothing after the reader picked another b
   const view = screen();
   const guard = createLoadGuard();
 
-  const first = loadBookOnto(fetchBookMeta, guard, "adler", view, view.report);
-  await loadBookOnto(fetchBookMeta, guard, "hume", view, view.report);
+  const first = loadBookOnto(bookSource(fetchBookMeta), guard, "adler", view, view.report);
+  await loadBookOnto(bookSource(fetchBookMeta), guard, "hume", view, view.report);
 
   adler.answer(book("adler", [chapter(9)]));
   await first;
@@ -207,7 +224,7 @@ test("a book that answers late changes nothing after the reader picked another b
 
 test("a book with no chapters opens without a chapter", async () => {
   const view = screen();
-  await loadBookOnto(async () => book("empty", []), createLoadGuard(), "empty", view, view.report);
+  await loadBookOnto(bookSource(async () => book("empty", [])), createLoadGuard(), "empty", view, view.report);
 
   assert.equal(view.state.bookId, "empty");
   assert.equal(view.state.openChapter, null);
@@ -223,7 +240,7 @@ test("a book and a chapter share one guard, so a book switch drops the chapter t
   const guard = createLoadGuard();
 
   const chapterLoad = loadChapterOnto(source, guard, book("adler", []), chapter(1), view, view.report);
-  await loadBookOnto(async () => book("hume", [chapter(1)]), guard, "hume", view, view.report);
+  await loadBookOnto(bookSource(async () => book("hume", [chapter(1)])), guard, "hume", view, view.report);
 
   one.answer("the words of an Adler chapter");
   await settle();
@@ -257,4 +274,75 @@ test("two guards do not mix", () => {
 
 test("the chapter a list of highlights came from names the book and the file", () => {
   assert.equal(highlightsSource("adler", "ch-01.md"), "adler/ch-01.md");
+});
+
+// DS-11: a book opens where the reader stopped, not at chapter 1.
+
+test("a book opens at the chapter and the paragraph where the reader stopped", async () => {
+  const view = screen();
+  const hume = book("hume", [chapter(1), chapter(2), chapter(3)]);
+  const source = bookSource(
+    async () => hume,
+    async () => ({ chapterFile: "ch-03.md", anchor: "^p-012", savedAt: "2026-09-16T08:00:00.000Z" })
+  );
+
+  await loadBookOnto(source, createLoadGuard(), "hume", view, view.report);
+
+  assert.equal(view.state.openChapter, "ch-03.md", "the book must open at the chapter the reader stopped in");
+  assert.equal(view.state.openAnchor, "^p-012", "and show the paragraph the reader stopped at");
+  assert.equal(view.state.bookmarkRead, true);
+  assert.deepEqual(view.state.errors, []);
+});
+
+test("a bookmark that cannot be read still opens the book, at its first chapter, and says why", async () => {
+  const view = screen();
+  const source = bookSource(
+    async () => book("hume", [chapter(1), chapter(2)]),
+    async () => {
+      throw new Error("vault/notes/hume/bookmark.json is damaged and was left as it is");
+    }
+  );
+
+  await loadBookOnto(source, createLoadGuard(), "hume", view, view.report);
+
+  assert.equal(view.state.bookId, "hume", "a bookmark must never keep a book closed");
+  assert.equal(view.state.openChapter, "ch-01.md");
+  assert.equal(view.state.openAnchor, undefined);
+  assert.equal(view.state.bookmarkRead, false, "the place in this book must not be saved over the damaged bookmark");
+  assert.deepEqual(view.state.errors, [
+    'Where you stopped reading in "hume" could not be read, so the book opens at its first chapter.',
+  ]);
+});
+
+test("a slow bookmark of a book the reader left changes nothing", async () => {
+  const adlerPlace = slowRead<Bookmark | null>();
+  const source = bookSource(
+    async (bookId) => book(bookId, [chapter(1), chapter(2)]),
+    (bookId) => (bookId === "adler" ? adlerPlace.promise : Promise.resolve(null))
+  );
+  const view = screen();
+  const guard = createLoadGuard();
+
+  const first = loadBookOnto(source, guard, "adler", view, view.report);
+  await loadBookOnto(source, guard, "hume", view, view.report);
+
+  adlerPlace.answer({ chapterFile: "ch-02.md", anchor: "^p-040" });
+  await first;
+  await settle();
+
+  assert.equal(view.state.bookId, "hume");
+  assert.equal(view.state.openChapter, "ch-01.md", "Adler's place must not move the reader inside Hume");
+  assert.equal(view.state.openAnchor, undefined);
+});
+
+test("the words of a chapter name the chapter they belong to", async () => {
+  const view = screen();
+  const source: ChapterSource = {
+    fetchChapter: async () => "the words of chapter two",
+    getChapterHighlights: async () => [],
+  };
+
+  await loadChapterOnto(source, createLoadGuard(), book("hume", []), chapter(2), view, view.report);
+
+  assert.equal(view.state.markdownFrom, "hume/ch-02.md", "a place read from these words is saved for this chapter");
 });

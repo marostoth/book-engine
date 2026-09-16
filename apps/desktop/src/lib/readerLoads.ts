@@ -1,4 +1,5 @@
 import type { BookMeta, ChapterMeta, HighlightItem } from "./types";
+import { openingPlace, type Bookmark, type ChapterRef, type OpeningPlace } from "./readingPlace.ts";
 
 /**
  * Keeps the newest load in charge of the reader.
@@ -43,7 +44,8 @@ export interface ChapterSource {
 export interface ChapterScreen {
   /** Empties the chapter: no text, no highlights, and the progress back to the top. */
   clear(): void;
-  showMarkdown(markdown: string): void;
+  /** The chapter's words, and the chapter they belong to. The reader saves a place only for the words on screen. */
+  showMarkdown(markdown: string, source: ChapterRef): void;
   /** The saved highlights and the chapter they were read from. A new highlight is saved only for that chapter. */
   showHighlights(items: HighlightItem[], source: string): void;
 }
@@ -69,7 +71,7 @@ export async function loadChapterOnto(
 
   const text = source.fetchChapter(book.book_id, chapter.file_path).then(
     (markdown) => {
-      if (isNewest()) screen.showMarkdown(markdown);
+      if (isNewest()) screen.showMarkdown(markdown, { bookId: book.book_id, chapterFile: chapter.file_path });
     },
     (err) => {
       if (isNewest()) reportError(`Could not load the chapter "${chapter.title}".`, err);
@@ -88,28 +90,50 @@ export async function loadChapterOnto(
   await Promise.all([text, marks]);
 }
 
+/** The two vault reads one book needs. */
+export interface BookSource {
+  fetchBookMeta(bookId: string): Promise<BookMeta>;
+  /** Where the reader stopped in the book, or null when they have not read it. */
+  fetchBookmark(bookId: string): Promise<Bookmark | null>;
+}
+
 /** What a book load may change on the screen. */
 export interface BookScreen {
-  /** The book, and the chapter it opens at, or null when the book has no chapters. */
-  showBook(book: BookMeta, firstChapter: ChapterMeta | null): void;
+  /**
+   * The book, and where it opens: the chapter and paragraph where the reader stopped (DS-11). `bookmarkRead` is false
+   * when the bookmark could not be read, so the place in this book must not be saved over it.
+   */
+  showBook(book: BookMeta, opening: OpeningPlace, bookmarkRead: boolean): void;
 }
 
 /**
- * Loads one book onto the screen. The book lands only while this load is still the newest one, so the book
- * on screen is always the book the reader picked last.
+ * Loads one book onto the screen, at the place where the reader stopped. The book lands only while this load is still
+ * the newest one, so the book on screen is always the book the reader picked last. A bookmark that cannot be read never
+ * keeps the book closed: the book opens at its first chapter, and the reader is told.
  */
 export async function loadBookOnto(
-  fetchBookMeta: (bookId: string) => Promise<BookMeta>,
+  source: BookSource,
   guard: LoadGuard,
   bookId: string,
   screen: BookScreen,
   reportError: ReportError
 ): Promise<void> {
   const isNewest = guard.start();
+  const bookmark = source.fetchBookmark(bookId).then(
+    (saved) => ({ saved, read: true, failure: undefined as unknown }),
+    (failure: unknown) => ({ saved: null, read: false, failure })
+  );
   try {
-    const book = await fetchBookMeta(bookId);
+    const book = await source.fetchBookMeta(bookId);
+    const place = await bookmark;
     if (!isNewest()) return;
-    screen.showBook(book, book.spine?.[0] ?? null);
+    if (!place.read) {
+      reportError(
+        `Where you stopped reading in "${book.title}" could not be read, so the book opens at its first chapter.`,
+        place.failure
+      );
+    }
+    screen.showBook(book, openingPlace(book, place.saved), place.read);
   } catch (err) {
     if (isNewest()) reportError(`Could not open the book "${bookId}".`, err);
   }
