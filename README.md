@@ -125,8 +125,8 @@ npm run tauri build
 ```
 
 The build produces:
-- **Standalone Portable Binary**: `apps/desktop/src-tauri/target/release/book-engine-desktop.exe` (~13.8 MB)
-- **Windows NSIS Setup Package**: `apps/desktop/src-tauri/target/release/bundle/nsis/Book Engine_0.1.0_x64-setup.exe` (~3.5 MB)
+- **Standalone Portable Binary**: `apps/desktop/src-tauri/target/release/book-engine-desktop.exe` (~13.8 MB). Put a `vault` folder beside it and it finds it on its own; otherwise it asks you to choose your vault folder the first time and remembers it.
+- **Windows NSIS Setup Package**: `apps/desktop/src-tauri/target/release/bundle/nsis/Book Engine_0.1.0_x64-setup.exe` (~3.5 MB). On the first start it asks you to choose your vault folder, because the installer starts the app in its own install folder.
 
 
 ---

@@ -1,5 +1,6 @@
 pub mod models;
 pub mod json_store;
+pub mod locate;
 pub mod safe_write;
 pub mod study_log;
 pub mod highlights;
@@ -14,6 +15,8 @@ pub mod syntopicon_compiler;
 mod reader_tests;
 #[cfg(test)]
 mod highlights_tests;
+#[cfg(test)]
+mod locate_tests;
 
 pub use models::*;
 pub use reader::*;

@@ -28,6 +28,7 @@ export {
   fallbackSaveVocabulary as saveBookVocabulary,
 } from "./fallbackLexicon.ts";
 export { getAnalyticalData, saveAnalyticalData } from "./fallbackAnalytical.ts";
+export { getVaultStatus, chooseVaultFolder } from "./fallbackVault.ts";
 export {
   getFallbackStudyAnalytics as getStudyAnalytics,
   getFallbackRetentionMetrics as fetchRetentionMetrics,

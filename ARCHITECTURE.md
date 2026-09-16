@@ -242,9 +242,11 @@ book-engine/
 │           │   │   ├── highlights.rs        # Chapter highlights file: load, save, and the one-time move out of the old notes comment (quotes may hold `-->`)
 │           │   │   ├── highlights_tests.rs  # Highlight tests: a notes save cannot erase a highlight, and the move keeps the reader's text
 │           │   │   ├── json_store.rs        # Safe JSON read for vault files: byte order mark removed, a damaged file errors and is copied to <name>.corrupt-<time>
+│           │   │   ├── locate.rs            # Finds the vault folder, and remembers the one the reader picked
+│           │   │   ├── locate_tests.rs      # Find tests: a folder with no books inside is refused, and nothing is remembered
 │           │   │   ├── models.rs            # Vault metadata, analytical and note structures
 │           │   │   ├── notes.rs             # Chapter reflection notes loader, saver & summary export
-│           │   │   ├── reader.rs            # Vault root resolution, book discovery & chapter I/O; a rewritten _meta.json keeps its key order and line endings
+│           │   │   ├── reader.rs            # Book discovery & chapter I/O; a rewritten _meta.json keeps its key order and line endings (the vault folder comes from locate.rs)
 │           │   │   ├── reader_tests.rs      # Vault write tests: no half-written file while a save runs, _meta.json key order and line endings kept
 │           │   │   ├── safe_write.rs        # The one vault write: temporary file in the same folder, flushed, then renamed over the target, so a save is never half done
 │           │   │   ├── study_log.rs         # The permanent record of your study: reviews & reading time, one line each
@@ -337,6 +339,7 @@ Multi-column textbook pages frequently include full-width conceptual matrices, m
 
 - **Vault (`vault/`):** Human-readable plain-text Markdown files and images. Can be edited externally (Obsidian, Neovim, VS Code).
 - **Ephemeral Cache (`index.db`):** Stored strictly in the OS application data folder (`%APPDATA%\book-engine\`). Never checked into version control. It holds only a copy: everything in it is rebuilt from the vault.
+- **The Reader Says Where the Vault Is:** The vault folder is looked for in this order (`apps/desktop/src-tauri/src/vault/locate.rs`): the folder the reader picked, saved in `%APPDATA%\book-engine\settings.json`; the `BOOK_ENGINE_VAULT` variable; a `vault` folder beside the program or beside its parent, for a copy carried on a stick; and a `vault` folder up to six levels above the working folder, which is the dev run from the repository. Only the last of these existed before, so an installed copy started in its install folder and found nothing, and every read and write failed with no way to put it right (LC-01). A folder counts as a vault only when it holds a `books` folder: `remember_vault` refuses anything else and says what a vault looks like, so the app never quietly points at an empty folder. `VaultGate.tsx` holds the app back until the folder is known and opens the picker (`choose_vault_folder`).
 - **Your Study Is in the Vault:** Every card review and every piece of reading time is written as one line to `vault/notes/<book-id>/reviews.jsonl` and `vault/notes/<book-id>/reading.jsonl` (`apps/desktop/src-tauri/src/vault/study_log.rs`), before the cache is touched. A review the vault refuses is not saved at all. Card schedules, review history and reading time used to live only in `index.db`, which is not in the vault and is not backed up, so losing that file lost every bit of study progress (DS-01). At startup `db/backfill.rs` copies whatever a cache from before the change still holds and the vault does not, once; `db/restore.rs` then puts back whatever the cache is missing. Both write only what is missing, so a normal start changes nothing, and a deleted, damaged or brand new cache fills itself again.
 - **Cache Shape:** `PRAGMA user_version` holds the shape of `index.db`, and `CACHE_SCHEMA_VERSION` (`db/schema.rs`) is the shape this build knows. A file stamped higher was made by a newer build and is not opened, because a newer shape can hold things this build would drop. The vault keeps the study progress either way.
 - **Newest Load Wins:** A book or a chapter is read from the disk, so its answer comes back a moment later. The reader takes a ticket for every load (`createLoadGuard`, `src/lib/readerLoads.ts`), and an answer that is no longer the newest one changes nothing. Before this, a slow chapter one showed its text and its highlights under chapter two, and a slow book left the open book and the book on screen pointing at different books, so notes and highlights were saved under the wrong book (DS-07). Opening a chapter also empties the reader at once, so the words of the chapter you left are never shown under the chapter you opened.
@@ -433,6 +436,8 @@ All disk I/O operations are offloaded from the Tauri main thread using `tokio::t
 
 | Command | Signature | Description |
 | :--- | :--- | :--- |
+| `get_vault_status` | `() -> Result<VaultStatus, String>` | Where the vault folder is (`path`), how it was found (`foundBy`), or the message to show when there is none. `VaultGate.tsx` asks this before the app starts. |
+| `choose_vault_folder` | `() -> Result<Option<VaultStatus>, String>` | Opens a folder picker and remembers the choice. `None` means the reader closed it without choosing; a folder with no `books` inside is refused with a message. |
 | `get_library_books` | `() -> Result<Vec<BookMetadata>, AppError>` | Scans `vault/books/*/` for `_meta.json`, returning dynamic library manifest with `id`, `title`, `author`, `chapter_count`, and `total_words`. |
 | `list_books` | `() -> Result<Vec<BookSummary>, String>` | Scans `vault/books/` and parses available `_meta.json` records. |
 | `load_book_meta` | `(book_id: String) -> Result<String, String>` | Reads `vault/books/<book_id>/_meta.json` as JSON string. |

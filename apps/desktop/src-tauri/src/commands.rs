@@ -236,6 +236,81 @@ pub async fn get_vault_path() -> Result<String, String> {
     .map_err(|e| format!("Task join error: {}", e))?
 }
 
+/// Where the vault is, or why it was not found. The app asks this before it shows the library (LC-01).
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VaultStatus {
+    /// The vault folder, or an empty string when there is none.
+    pub path: String,
+    /// How it was found: "saved", "variable", "nextToTheProgram", "nearTheWorkingFolder", or "" for none.
+    pub found_by: String,
+    /// What to tell the reader when there is no vault.
+    pub message: String,
+}
+
+fn status_of(found: Option<(std::path::PathBuf, crate::vault::locate::FoundBy)>) -> VaultStatus {
+    use crate::vault::locate::FoundBy;
+    match found {
+        None => VaultStatus {
+            path: String::new(),
+            found_by: String::new(),
+            message: crate::vault::locate::not_found_message(),
+        },
+        Some((folder, how)) => VaultStatus {
+            path: folder.to_string_lossy().to_string(),
+            found_by: match how {
+                FoundBy::Saved => "saved",
+                FoundBy::Variable => "variable",
+                FoundBy::NextToTheProgram => "nextToTheProgram",
+                FoundBy::NearTheWorkingFolder => "nearTheWorkingFolder",
+            }
+            .to_string(),
+            message: String::new(),
+        },
+    }
+}
+
+#[command]
+pub async fn get_vault_status() -> Result<VaultStatus, String> {
+    tokio::task::spawn_blocking(|| status_of(crate::vault::locate::locate_vault()))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))
+}
+
+/// Opens a folder picker and remembers what the reader chose. A folder that is not a vault is refused
+/// with a message that says what a vault looks like, so the app never quietly points somewhere empty.
+/// Returns the new status, or `None` when the reader closed the picker without choosing.
+#[command]
+pub async fn choose_vault_folder(app: tauri::AppHandle) -> Result<Option<VaultStatus>, String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    let picked = tokio::task::spawn_blocking(move || {
+        app.dialog()
+            .file()
+            .set_title("Choose your vault folder (the folder that holds \"books\")")
+            .blocking_pick_folder()
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))?;
+
+    let Some(picked) = picked else {
+        return Ok(None);
+    };
+    let folder = picked
+        .into_path()
+        .map_err(|e| format!("That folder could not be read: {e}"))?;
+
+    tokio::task::spawn_blocking(move || {
+        crate::vault::locate::remember_vault(&folder).map_err(|e| format!("{:#}", e))
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))??;
+
+    tokio::task::spawn_blocking(|| Some(status_of(crate::vault::locate::locate_vault())))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))
+}
+
 #[command]
 pub async fn lookup_dictionary_term(word: String) -> Result<Option<crate::db::DictionaryEntry>, String> {
     tokio::task::spawn_blocking(move || crate::db::lookup_dictionary_blocking(&word))

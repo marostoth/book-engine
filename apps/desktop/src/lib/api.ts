@@ -14,6 +14,7 @@ export * from "./api/highlightsApi.ts";
 export * from "./api/analyticsApi.ts";
 export * from "./api/lexiconApi.ts";
 export * from "./api/analyticalApi.ts";
+export * from "./api/vaultApi.ts";
 export { isTauri, tauriInvoke } from "./api/clientBase.ts";
 
 // Every function below rejects when its backend command fails: see callBackend in api/clientBase.ts.
