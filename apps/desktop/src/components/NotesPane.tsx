@@ -2,13 +2,21 @@ import React, { useEffect, useState, useRef } from "react";
 import { Check, Edit3, Eye, FileText, Lock, RotateCcw, Save, TriangleAlert } from "lucide-react";
 import { fetchNotes, persistNotes } from "../lib/api";
 import { reportBackendError } from "../lib/backendErrors";
+import { createNotesAutosave } from "../lib/notesAutosave";
 
+/**
+ * App.tsx gives this pane a key of book and chapter, so every chapter gets its own pane. A pane that keeps
+ * its text across a chapter change could save the notes of one chapter into the file of another (DS-07).
+ */
 interface NotesPaneProps {
   bookId: string;
   chapterFile: string;
   insertedQuote: { quote: string; anchorId?: string } | null;
   onClearInsertedQuote: () => void;
 }
+
+/** The typing waits this long for the next keystroke before the notes are saved. */
+const AUTOSAVE_DELAY_MS = 800;
 
 /** The chapter notes: still loading, loaded, or failed to load. Only loaded notes can be edited and saved. */
 type LoadState = "loading" | "ready" | "failed";
@@ -49,11 +57,39 @@ export const NotesPane: React.FC<NotesPaneProps> = ({
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [loadAttempt, setLoadAttempt] = useState<number>(0);
   const [mode, setMode] = useState<"edit" | "preview">("edit");
-  const saveTimeoutRef = useRef<number | null>(null);
+  const isOpenRef = useRef<boolean>(true);
 
   const notesFileName = chapterFile.replace(".md", "-notes.md");
   const canEdit = loadState === "ready";
   const status = saveStatus(loadState, saveState);
+  const target = { bookId, notesFile: notesFileName };
+
+  // A failed save keeps the text in the pane. The next edit, or a click on "Not saved", saves it again.
+  const [autosave] = useState(() =>
+    createNotesAutosave(AUTOSAVE_DELAY_MS, (saveTo, text) => {
+      persistNotes(saveTo.bookId, saveTo.notesFile, text)
+        .then(() => {
+          if (isOpenRef.current) setSaveState("saved");
+        })
+        .catch((err) => {
+          if (isOpenRef.current) {
+            setSaveState("failed");
+            reportBackendError("Your chapter notes were not saved. Your text is still in the notes pane.", err);
+          } else {
+            reportBackendError(`Your notes for ${saveTo.notesFile} were not saved, and that chapter is closed now.`, err);
+          }
+        });
+    })
+  );
+
+  // Save what is waiting when the chapter closes. The text goes into the chapter it was typed in, whatever
+  // chapter is open by then (DS-07).
+  useEffect(() => {
+    return () => {
+      autosave.flush();
+      isOpenRef.current = false;
+    };
+  }, [autosave]);
 
   // Load notes when chapter changes. Editing stays locked until they load: a save before that would overwrite the
   // notes file with text that is not in it.
@@ -79,45 +115,41 @@ export const NotesPane: React.FC<NotesPaneProps> = ({
     };
   }, [bookId, notesFileName, loadAttempt]);
 
-  // Insert quote if triggered from selection menu
+  // Insert quote if triggered from selection menu. The quote is saved like a keystroke: it used to wait for
+  // the next one, so a quote added just before a chapter change was lost.
   useEffect(() => {
-    if (insertedQuote) {
-      const anchorSuffix = insertedQuote.anchorId ? ` (#${insertedQuote.anchorId})` : "";
-      const quoteBlock = `\n\n> "${insertedQuote.quote}"${anchorSuffix}\n\n- Reflection: \n`;
-      setContent((prev) => prev + quoteBlock);
-      setSaveState("pending");
+    if (!insertedQuote) return;
+    // While the notes load, the quote waits: this effect runs again when they are ready.
+    if (loadState === "loading") return;
+    if (loadState === "failed") {
+      reportBackendError(
+        "The quote was not added to your notes.",
+        "Your notes for this chapter did not load, and adding to text that is not in the file would overwrite it."
+      );
       onClearInsertedQuote();
+      return;
     }
-  }, [insertedQuote, onClearInsertedQuote]);
-
-  // A failed save keeps the text in the pane. The next edit, or a click on "Not saved", saves it again.
-  const saveNotes = (text: string) => {
-    persistNotes(bookId, notesFileName, text)
-      .then(() => setSaveState("saved"))
-      .catch((err) => {
-        setSaveState("failed");
-        reportBackendError("Your chapter notes were not saved. Your text is still in the notes pane.", err);
-      });
-  };
+    const anchorSuffix = insertedQuote.anchorId ? ` (#${insertedQuote.anchorId})` : "";
+    const quoteBlock = `\n\n> "${insertedQuote.quote}"${anchorSuffix}\n\n- Reflection: \n`;
+    const withQuote = content + quoteBlock;
+    setContent(withQuote);
+    setSaveState("pending");
+    autosave.change({ bookId, notesFile: notesFileName }, withQuote);
+    onClearInsertedQuote();
+  }, [insertedQuote, onClearInsertedQuote, loadState, content, autosave, bookId, notesFileName]);
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     if (!canEdit) return;
     const newText = e.target.value;
     setContent(newText);
     setSaveState("pending");
-
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
-
-    // Auto-save after 800ms debounce
-    saveTimeoutRef.current = window.setTimeout(() => saveNotes(newText), 800);
+    autosave.change(target, newText);
   };
 
   const handleManualSave = () => {
-    if (canEdit) {
-      saveNotes(content);
-    }
+    if (!canEdit) return;
+    autosave.change(target, content);
+    autosave.flush();
   };
 
   return (
