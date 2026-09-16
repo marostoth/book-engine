@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   BookMeta,
   BookMetadata,
@@ -9,6 +9,7 @@ import {
   fetchBookMeta,
   fetchChapter,
   fetchLibraryBooks,
+  indexVault,
   getChapterHighlights,
   saveChapterHighlights,
   recordReadingProgress,
@@ -20,6 +21,7 @@ import {
 import { reportBackendError } from "../lib/backendErrors";
 import { ReaderLocation, resolveLocation } from "../lib/readerLocation";
 import { createLoadGuard, loadBookOnto, loadChapterOnto } from "../lib/readerLoads";
+import { rescanLibrary, rescanSummary, type LibraryRescanControl } from "../lib/libraryRescan";
 import { createBookmarkKeeper, readBrowserBookId, startingBookId, type ChapterRef } from "../lib/readingPlace";
 import { ChapterMoveRequest } from "./useChapterGate";
 
@@ -108,6 +110,29 @@ export function useBookSession({ onCardsRefreshNeeded, requestChapterMove }: Boo
     setActiveBookId(bookId);
     loadBook(bookId);
   };
+
+  // A book imported while the app is open shows after "Rescan library": the library is read again, and search is
+  // updated (DS-13).
+  const [rescanRunning, setRescanRunning] = useState(false);
+  const [rescanNote, setRescanNote] = useState("");
+  const runLibraryRescan = useCallback(async () => {
+    setRescanRunning(true);
+    try {
+      const result = await rescanLibrary(
+        { fetchLibraryBooks, indexVault },
+        availableBooks,
+        setAvailableBooks,
+        reportBackendError
+      );
+      setRescanNote(rescanSummary(result));
+    } finally {
+      setRescanRunning(false);
+    }
+  }, [availableBooks]);
+  const libraryRescan = useMemo<LibraryRescanControl>(
+    () => ({ run: () => void runLibraryRescan(), running: rescanRunning, note: rescanNote }),
+    [runLibraryRescan, rescanRunning, rescanNote]
+  );
 
   // Load chapter text and hydrate highlights when activeChapter changes
   useEffect(() => {
@@ -271,6 +296,7 @@ export function useBookSession({ onCardsRefreshNeeded, requestChapterMove }: Boo
   return {
     vaultPath,
     availableBooks,
+    libraryRescan,
     activeBookId,
     bookMeta,
     activeChapter,

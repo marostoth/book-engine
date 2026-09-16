@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { BookMeta, ChapterMeta, BookMetadata, TOCItem, ReadingLevelMode, InspectionalSubView } from "../lib/types";
 import { BookSelector } from "./BookSelector";
+import type { LibraryRescanControl } from "../lib/libraryRescan";
 import { TOCItemRow } from "./sidebar/TOCItemRow";
 import { Compass, BookCheck } from "lucide-react";
 
@@ -19,6 +20,8 @@ interface SidebarProps {
   bookMeta: BookMeta | null;
   availableBooks: BookMetadata[];
   onSelectBook: (bookId: string) => void;
+  /** The "Rescan library" button of the book list (DS-13). */
+  libraryRescan?: LibraryRescanControl;
   activeChapterId: string;
   onSelectChapter: (chapter: ChapterMeta) => void;
   onOpenNotesDrawer?: () => void;
@@ -33,6 +36,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   bookMeta,
   availableBooks,
   onSelectBook,
+  libraryRescan,
   activeChapterId,
   onSelectChapter,
   onOpenNotesDrawer,
@@ -126,6 +130,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             currentAuthor={bookMeta?.author || "Local Vault Library"}
             books={availableBooks}
             onSelectBook={onSelectBook}
+            libraryRescan={libraryRescan}
           />
         </div>
         <button

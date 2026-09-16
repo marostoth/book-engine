@@ -81,6 +81,7 @@ export const App: React.FC<AppProps> = ({ startingPreferences }) => {
   const {
     vaultPath,
     availableBooks,
+    libraryRescan,
     activeBookId,
     bookMeta,
     activeChapter,
@@ -161,6 +162,7 @@ export const App: React.FC<AppProps> = ({ startingPreferences }) => {
         <Sidebar
           isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)}
           bookMeta={bookMeta} availableBooks={availableBooks} onSelectBook={handleSelectBook}
+          libraryRescan={libraryRescan}
           activeChapterId={activeChapter?.id || ""} onSelectChapter={openChapter}
           onOpenNotesDrawer={handleOpenNotesDrawer}
           activeLevel={activeLevel} activeSubView={inspectionalSession.activeSubView}
@@ -171,7 +173,7 @@ export const App: React.FC<AppProps> = ({ startingPreferences }) => {
       <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
         <TopNav
           currentBookId={activeBookId} bookTitle={bookMeta?.title} bookAuthor={bookMeta?.author}
-          availableBooks={availableBooks} onSelectBook={handleSelectBook}
+          availableBooks={availableBooks} onSelectBook={handleSelectBook} libraryRescan={libraryRescan}
           chapterTitle={activeChapter?.title || "Reading"} progressPercent={progressPercent}
           sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           theme={theme} onThemeChange={handleThemeChange}

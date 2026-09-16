@@ -18,10 +18,12 @@ if (-not (Test-Path $desktopPath)) {
 $shortcutPath = Join-Path $desktopPath "Book Engine.lnk"
 
 # Launcher command:
-# 1. Kill any lingering process occupying port 5173
-# 2. Set working directory to apps/desktop
-# 3. Execute npm run tauri dev
-$launchCommand = "Get-NetTCPConnection -LocalPort 5173 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id `$_.OwningProcess -Force -ErrorAction SilentlyContinue }; Set-Location '$appsDesktop'; npm run tauri dev"
+# 1. If Book Engine is already open, start its program again and stop there. The app lets only one copy run, so
+#    the open window comes to the front, and the dev server of the open app keeps running (DS-13).
+# 2. Otherwise kill any lingering process occupying port 5173
+# 3. Set working directory to apps/desktop
+# 4. Execute npm run tauri dev
+$launchCommand = "`$open = Get-Process -Name 'book-engine-desktop' -ErrorAction SilentlyContinue | Where-Object Path | Select-Object -First 1; if (`$open) { Start-Process -FilePath `$open.Path } else { Get-NetTCPConnection -LocalPort 5173 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id `$_.OwningProcess -Force -ErrorAction SilentlyContinue }; Set-Location '$appsDesktop'; npm run tauri dev }"
 
 $wshShell = New-Object -ComObject WScript.Shell
 $shortcut = $wshShell.CreateShortcut($shortcutPath)

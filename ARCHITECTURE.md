@@ -117,7 +117,7 @@ book-engine/
 │       │   │   ├── AnalyticsModal.tsx   # FSRS retention heatmap & reading velocity dashboard modal
 │       │   │   ├── AppModals.tsx        # Modular modal dialog coordinator & container
 │       │   │   ├── BackendErrorBar.tsx  # Error bar: every failed backend load or save, with a count and Dismiss
-│       │   │   ├── BookSelector.tsx     # Dynamic vault library switcher popover
+│       │   │   ├── BookSelector.tsx     # Dynamic vault library switcher popover; "Rescan library" finds books imported while the app is open
 │       │   │   ├── FigureLightboxModal.tsx # High-resolution diagram pan/zoom lightbox with split page link
 │       │   │   ├── FootnotePopover.tsx  # Floating UI citation preview popover
 │       │   │   ├── GatekeeperModal.tsx  # Chapter Gatekeeper dynamic-quota recall challenge modal
@@ -136,7 +136,7 @@ book-engine/
 │       │   ├── hooks/           # Modular application custom hooks
 │       │   │   ├── useAnalyticalModals.ts    # Level 3 modal open/close & staged target coordinator
 │       │   │   ├── useAnalyticalSession.ts   # Analytical reading store, cascading integrity & persistence hook
-│       │   │   ├── useBookSession.ts         # Book loading, reading progress, session timing & chapter jumping (every in-book chapter change goes through openChapter; only the newest load lands; a book opens where the reader stopped)
+│       │   │   ├── useBookSession.ts         # Book loading, reading progress, session timing & chapter jumping (every in-book chapter change goes through openChapter; only the newest load lands; a book opens where the reader stopped); "Rescan library" reads the library again and updates search
 │       │   │   ├── useChapterGate.ts         # Chapter Gatekeeper (soft gate): tests the due cards of the chapter the reader leaves
 │       │   │   ├── useInspectionalSession.ts # Inspectional countdown timer, sub-view, exit prompt & the exit assessment of the open book
 │       │   │   ├── usePracticeDeck.ts        # Practice deck state, mode/ratio filtering & daily target limits
@@ -182,6 +182,8 @@ book-engine/
 │       │   │   ├── exitAssessment.test.ts # Exit assessment tests: a save shows with no reload, an unreadable assessment is not saved over, a late answer changes nothing
 │       │   │   ├── highlights.ts        # W3C Text Quote Selector reader, paragraph placement & old-comment parser (finds the JSON list, not the first `-->`)
 │       │   │   ├── highlights.test.ts   # Highlight tests: a saved anchor brings each highlight back to its own paragraph
+│       │   │   ├── libraryRescan.ts     # "Rescan library": reads the library again, then updates search; the note names the new books
+│       │   │   ├── libraryRescan.test.ts # Rescan tests: a book imported while the app is open shows in the list, and search is updated
 │       │   │   ├── levelGuideData.ts    # Mortimer Adler levels static cheatsheet & hotkeys registry
 │       │   │   ├── markdown.ts          # Chapter Markdown preprocessor & anchor normalizer
 │       │   │   ├── notesAggregator.ts   # Cross-chapter note aggregation, anchor sorting & summary compiler
@@ -240,13 +242,13 @@ book-engine/
 │           │   │   ├── restore_tests.rs     # Restore tests: throwing the cache away loses no study progress
 │           │   │   ├── schema.rs            # SQLite database initialization & migrations
 │           │   │   ├── search_query.rs      # Typed search to FTS5 expression: quoted words & phrases, hyphen spellings, AND/OR/NOT operators, 2-character minimum
-│           │   │   ├── search_tests.rs      # Search tests on a real FTS5 index: operators, inner punctuation, phrases, short searches
+│           │   │   ├── search_tests.rs      # Search tests on a real FTS5 index: operators, inner punctuation, phrases, short searches, a book imported after the first index
 │           │   │   ├── seed_lexicon.rs      # Curated seed dictionary entries & initial SQLite database seeding
 │           │   │   └── mod.rs               # Ephemeral SQLite database module root & test suite
 │           │   ├── fsrs/                # FSRS engine test module
 │           │   │   └── tests.rs             # FSRS-5 reference tests with numbers from the official py-fsrs 5.1.3
 │           │   ├── fsrs.rs              # Local FSRS-5 spaced repetition scheduling engine
-│           │   ├── lib.rs               # Application builder, plugin setup, and invoke router
+│           │   ├── lib.rs               # Application builder, plugin setup, and invoke router; only one copy of the app runs (single-instance plugin, registered first)
 │           │   ├── main.rs              # Tauri binary executable entrypoint
 │           │   ├── test_support.rs      # Test-only sandbox: temporary vault & cache database per unit test, also for its test threads (Sandbox::spawn); the vault search finds nothing outside it
 │           │   ├── vault/               # Modular vault file I/O & notes aggregation
@@ -274,7 +276,7 @@ book-engine/
 │           │   │   ├── syntopicon_tests.rs  # Topic tests: a title whose file is taken is refused and that topic stays byte for byte, two creates at once make one topic
 │           │   │   ├── vocabulary.rs        # Vault vocabulary persistence with case-insensitive deduplication; a damaged file stops the load and the save
 │           │   │   └── mod.rs               # Vault module facade
-│           ├── Cargo.toml       # Rust dependency manifest (rusqlite, tokio, tauri v2)
+│           ├── Cargo.toml       # Rust dependency manifest (rusqlite, tokio, tauri v2, single-instance plugin)
 │           └── tauri.conf.json  # Tauri v2 window, security, and bundle configuration
 │ 
 ├── docs/
@@ -318,7 +320,7 @@ book-engine/
 │       │   └── test_toc.py              # Table of contents extraction & hierarchy tests
 │       └── pyproject.toml       # Python package configuration and CLI entrypoints
 ├── scripts/
-│   └── create_desktop_shortcut.ps1 # One-click Windows desktop shortcut generator
+│   └── create_desktop_shortcut.ps1 # One-click Windows desktop shortcut generator; an open app comes to the front, and no second copy starts
 ├── vault/                       # SOLE PERMANENT RECORD: User Markdown vault (Versioned / Syncable)
 │   ├── books/<book-id>/         # Chapter Markdown (`ch-XX.md`), `_meta.json`, and extracted assets
 │   ├── notes/<book-id>/         # Chapter notes (`ch-XX-notes.md`), highlights (`ch-XX-highlights.json`), study decks, the study log (`reviews.jsonl`, `reading.jsonl`), your exit assessment (`inspectional.json`), and where you stopped reading (`bookmark.json`)
@@ -372,6 +374,7 @@ Multi-column textbook pages frequently include full-width conceptual matrices, m
 - **One Writer per File:** The chapter notes `ch-XX-notes.md` hold only what the reader writes, and the notes pane is their only writer. Nothing parses a highlight out of Markdown any more, so no character in a quote can break the saved list (DS-06). Highlights live in `ch-XX-highlights.json`, and `vault/highlights.rs` is their only writer. Before this, both parts saved the same Markdown file, so a keystroke in the notes pane erased a highlight that had just been added (DS-05). A chapter that still keeps its highlights in the old `<!-- highlights-json ... -->` comment is moved over the first time it is read: the highlights and the quote lines the app wrote leave the notes file, and the reader's own headings and text stay.
 - **Safe Vault Write:** Every write into the vault goes through `write_file` (`apps/desktop/src-tauri/src/vault/safe_write.rs`): the bytes go to a temporary file in the same folder, are flushed to the disk, and are then renamed over the target. A rename is one step, so a crash or a power cut leaves the whole old file or the whole new file, never an empty or cut-off one. A rename that fails because another program holds the file, such as the OneDrive client, is tried a few times before the save reports an error, and the temporary file is removed. `serde_json` is built with `preserve_order`, so a JSON object that the app reads and writes back, such as the settings, keeps its key order.
 - **Damaged Vault File:** A vault JSON file that cannot be parsed is never read as empty data, because the next save would write that empty data back. `read_json_file` (`apps/desktop/src-tauri/src/vault/json_store.rs`) removes a leading byte order mark, and a file it still cannot parse gives an error that names the file and is copied to `<file name>.corrupt-<time>`. `vocabulary.rs` and `analytical.rs` read through it, so both the load and the save fail and the file on disk is left exactly as it is.
+- **One Copy of the App:** Only one copy of the app runs (`one_copy_only` in `apps/desktop/src-tauri/src/lib.rs`: the single-instance plugin, registered before every other plugin). A second start tells the open copy, which brings its window to the front, and the second copy ends before it opens a window or reads the vault or the cache. Before this, two copies could run at once. Analytical and syntopicon saves write the whole object that a copy holds in memory, so the copy that saved last wrote over the work of the other (DS-13). The desktop shortcut starts the program of the open app again, which brings it to the front, instead of stopping its dev server. Two starts less than about 2 ms apart can both run, because the first has not made its message window yet.
 - **No Hidden Fallback:** Inside the app, every frontend call to the backend goes through `callBackend` (`apps/desktop/src/lib/api/clientBase.ts`). A failed load or save rejects with the backend error and shows in the error bar (`BackendErrorBar.tsx`). Nothing falls back to sample data, and no vault data goes to browser storage. Data that did not load is not saved over: the notes pane stays locked, a new highlight is not saved, and analytical changes for that book are not saved.
 
 ### Highlight Stability (W3C Text Quote Selector)
@@ -565,7 +568,7 @@ All SQLite queries, FTS5 matches, and disk indexing execute exclusively inside `
 
 | Command | Signature | Description |
 | :--- | :--- | :--- |
-| `index_vault` | `() -> Result<usize, String>` | Scans `vault/books/*/*.md`, detects modified chapters via `mtime`, splits text into paragraphs, and indexes into SQLite FTS5. Returns indexed paragraph count. Runs automatically on startup in a detached background thread. |
+| `index_vault` | `() -> Result<IndexSummary, String>` | Reads the chapters in the spine of every `vault/books/*/_meta.json`, splits them into paragraphs, and indexes a chapter into SQLite FTS5 when its text changed (a content hash) or it has no rows yet. So a chapter with no paragraphs, such as a part title, is read again on every run. Returns the chapters and paragraphs indexed and the time taken. Runs on startup in a detached background thread, and again when the reader clicks "Rescan library" in the book list (DS-13). |
 | `search_vault` | `(query: String) -> Result<Vec<SearchResult>, String>` | Queries `search_index` using BM25 ranking and SQLite `snippet()` syntax with `<mark>` tags. `db/search_query.rs` turns the typed search into a valid FTS5 expression, and a search shorter than 2 characters returns no results. Returns up to 40 matches. |
 
 **Search Result Contract (`SearchResult`):**
@@ -659,6 +662,7 @@ The backend scans `vault/books/` dynamically on startup and command invocation, 
 ### Book Selector Dropdown & State Persistence
 - Interactive `BookSelector.tsx` popover in the Sidebar header with library icon, book title, author, and animated chevron.
 - Also available in compact mode in `TopNav.tsx` when the sidebar is collapsed.
+- **Rescan library:** The button under the book list reads the library again, shows it, and then updates search (`rescanLibrary`, `src/lib/libraryRescan.ts`). A book imported while the app is open used to stay out of the list and out of search until the next start (DS-13). The list does not wait for search. The note under the button names the new books and says that search is updated. It does not count chapters, because the index reads a chapter with no paragraphs again on every run. A failed read or index shows in the error bar, and the other half still runs.
 - At startup the app opens the book of the newest `vault/notes/<book-id>/bookmark.json` (DS-11). The browser storage key `book_engine_active_book_id` is only read, for a reader who has no bookmark yet.
 - Switching books cleanly dismounts the current chapter, loads the new manifest, reloads the hierarchical Table of Contents, and opens the chapter and paragraph where the reader stopped in that book (chapter 1 for a book not read yet).
 

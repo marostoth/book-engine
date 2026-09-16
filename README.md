@@ -13,6 +13,7 @@ Designed for deep reading of academic, technical, and dense literature with pers
    - Your study progress is part of that record. Every card review and every piece of reading time is written as one line to `vault/notes/<book-id>/reviews.jsonl` and `vault/notes/<book-id>/reading.jsonl`.
    - Where you stopped reading is kept per book in `vault/notes/<book-id>/bookmark.json`, and your reader settings (theme, pacer speed, Gatekeeper, daily target) in `vault/preferences.json`. A release build or a new PC opens the book you read last, at the paragraph where you stopped, with your own settings.
    - Your exit assessment of a book is kept next to your notes, in `vault/notes/<book-id>/inspectional.json`. An import makes `vault/books/<book-id>/` again, so nothing you write is kept there.
+   - Only one copy of the app runs. A second start brings the open window to the front, so two copies never save over each other's work.
    - SQLite (`index.db`) is strictly an ephemeral query accelerator and search cache stored in OS AppData (`%APPDATA%\book-engine\app_cache\`).
    - If `index.db` is deleted, the system rebuilds the search index from the vault files and puts your card schedules, review history and reading time back from those log files at the next start. Nothing is lost, and moving to another PC takes your progress with the vault.
 
@@ -91,6 +92,8 @@ Ingestion relocates endnotes into chapter-level inline footnotes `[^n]`, tags ev
 
 An import stops, and changes nothing, when the vault already has the book, for example an annotated copy of a PDF you imported before. It names your own files for that book in `vault/notes/<book-id>/`. Run the import again with `--force` to replace the book: your own files are kept, but a paragraph they point to can be a different paragraph after the new import.
 
+A book you import while the app is open shows after you click **Rescan library** at the bottom of the book list. The app reads the library again and updates search.
+
 ---
 
 ### 2. Desktop Application (`apps/desktop`)
@@ -122,6 +125,8 @@ To generate a convenient desktop shortcut (`Book Engine.lnk`) configured with au
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/create_desktop_shortcut.ps1
 ```
+
+If Book Engine is already open, the shortcut brings its window to the front. It does not stop the dev server of the open app, and it does not start a second copy. A shortcut keeps the command it was made with, so run the script again after the script changes.
 
 #### Build Production Release & Windows Installer (NSIS)
 To compile the optimized release executable and native Windows installer package:

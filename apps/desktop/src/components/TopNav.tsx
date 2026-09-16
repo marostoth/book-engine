@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Theme, ViewMode, BookMetadata, ReaderPreferences, ReadingLevelMode } from "../lib/types";
 import { BookSelector } from "./BookSelector";
+import type { LibraryRescanControl } from "../lib/libraryRescan";
 import { SettingsPopover } from "./SettingsPopover";
 import { InspectionalSessionState } from "../hooks/useInspectionalSession";
 import { SkimTimerWidget } from "./inspectional/SkimTimerWidget";
@@ -26,6 +27,8 @@ interface TopNavProps {
   bookAuthor?: string;
   availableBooks?: BookMetadata[];
   onSelectBook?: (bookId: string) => void;
+  /** The "Rescan library" button of the book list (DS-13). */
+  libraryRescan?: LibraryRescanControl;
   chapterTitle: string;
   progressPercent: number;
   sidebarOpen: boolean;
@@ -52,7 +55,7 @@ interface TopNavProps {
 }
 
 export const TopNav: React.FC<TopNavProps> = ({
-  currentBookId, bookTitle, bookAuthor, availableBooks, onSelectBook,
+  currentBookId, bookTitle, bookAuthor, availableBooks, onSelectBook, libraryRescan,
   chapterTitle, progressPercent, sidebarOpen, onToggleSidebar,
   theme, onThemeChange, viewMode, onViewModeChange, isBionic, onToggleBionic,
   onOpenSearch, dueCardsCount = 0, onOpenPractice, onOpenNotesDrawer,
@@ -97,6 +100,7 @@ export const TopNav: React.FC<TopNavProps> = ({
               currentAuthor={bookAuthor || ""}
               books={availableBooks}
               onSelectBook={onSelectBook}
+              libraryRescan={libraryRescan}
               compact
             />
           </div>
