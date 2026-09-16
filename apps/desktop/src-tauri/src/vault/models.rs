@@ -124,7 +124,12 @@ pub struct AggregatedNoteItem {
 pub struct VocabularyEntry {
     pub word: String,
     pub definition: String,
+    /// An entry saved without an anchor reads as empty, so the whole file still loads.
+    #[serde(default)]
     pub anchor: String,
+    /// An entry saved without a time reads as empty, so the whole file still loads.
+    /// The alias reads a file that spells the key `saved_at`, so its time is not dropped.
+    #[serde(default, alias = "saved_at")]
     pub saved_at: String,
 }
 
@@ -172,6 +177,7 @@ pub struct CritiqueItem {
     pub defects: Vec<String>, // "uninformed" | "misinformed" | "illogical" | "incomplete"
     #[serde(default)]
     pub rationale: String,
+    #[serde(default, alias = "created_at")]
     pub created_at: String,
 }
 
@@ -213,6 +219,7 @@ pub struct AuthorInquiry {
     pub solution_argument_ids: Vec<String>,
     #[serde(default)]
     pub solution_citation: Option<AnchoredCitation>,
+    #[serde(default, alias = "created_at")]
     pub created_at: String,
 }
 

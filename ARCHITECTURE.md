@@ -224,14 +224,15 @@ book-engine/
 │           │   ├── main.rs              # Tauri binary executable entrypoint
 │           │   ├── test_support.rs      # Test-only sandbox: temporary vault & cache database per unit test, also for its test threads (Sandbox::spawn)
 │           │   ├── vault/               # Modular vault file I/O & notes aggregation
-│           │   │   ├── analytical.rs        # Level 3 analytical store loader, saver & unit tests
+│           │   │   ├── analytical.rs        # Level 3 analytical store loader, saver & unit tests; a damaged file stops the load and the save
+│           │   │   ├── json_store.rs        # Safe JSON read for vault files: byte order mark removed, a damaged file errors and is copied to <name>.corrupt-<time>
 │           │   │   ├── models.rs            # Vault metadata, analytical and note structures
 │           │   │   ├── notes.rs             # Chapter reflection notes loader, saver & summary export
 │           │   │   ├── reader.rs            # Vault root resolution, book discovery & chapter I/O
 │           │   │   ├── syntopicon.rs        # Level 4 Syntopicon topic file I/O & report exporter
 │           │   │   ├── syntopicon_compiler.rs # Level 4 Dialectical dossier compiler producing Markdown reports
 │           │   │   ├── syntopicon_models.rs # Level 4 Syntopicon neutral terms & controversy structs
-│           │   │   ├── vocabulary.rs        # Vault vocabulary persistence with case-insensitive deduplication
+│           │   │   ├── vocabulary.rs        # Vault vocabulary persistence with case-insensitive deduplication; a damaged file stops the load and the save
 │           │   │   └── mod.rs               # Vault module facade
 │           ├── Cargo.toml       # Rust dependency manifest (rusqlite, tokio, tauri v2)
 │           └── tauri.conf.json  # Tauri v2 window, security, and bundle configuration
@@ -317,6 +318,7 @@ Multi-column textbook pages frequently include full-width conceptual matrices, m
 
 - **Vault (`vault/`):** Human-readable plain-text Markdown files and images. Can be edited externally (Obsidian, Neovim, VS Code).
 - **Ephemeral Cache (`index.db`):** Stored strictly in the OS application data folder (`%APPDATA%\book-engine\`). Never checked into version control.
+- **Damaged Vault File:** A vault JSON file that cannot be parsed is never read as empty data, because the next save would write that empty data back. `read_json_file` (`apps/desktop/src-tauri/src/vault/json_store.rs`) removes a leading byte order mark, and a file it still cannot parse gives an error that names the file and is copied to `<file name>.corrupt-<time>`. `vocabulary.rs` and `analytical.rs` read through it, so both the load and the save fail and the file on disk is left exactly as it is.
 - **No Hidden Fallback:** Inside the app, every frontend call to the backend goes through `callBackend` (`apps/desktop/src/lib/api/clientBase.ts`). A failed load or save rejects with the backend error and shows in the error bar (`BackendErrorBar.tsx`). Nothing falls back to sample data, and no vault data goes to browser storage. Data that did not load is not saved over: the notes pane stays locked, a new highlight is not saved, and analytical changes for that book are not saved.
 
 ### Highlight Stability (W3C Text Quote Selector)
