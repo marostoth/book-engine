@@ -7,11 +7,17 @@ pub mod fsrs_parser;
 pub mod fsrs_store;
 pub mod due_cards;
 pub mod reading_velocity;
+pub mod backfill;
+pub mod restore;
 pub mod analytics;
 pub mod card_identity;
 pub mod deck_sync;
 #[cfg(test)]
+mod backfill_tests;
+#[cfg(test)]
 mod deck_sync_tests;
+#[cfg(test)]
+mod restore_tests;
 #[cfg(test)]
 mod fsrs_store_tests;
 #[cfg(test)]
@@ -24,6 +30,8 @@ pub use fsrs_store::*;
 pub use deck_sync::*;
 pub use due_cards::*;
 pub use reading_velocity::*;
+pub use backfill::*;
+pub use restore::*;
 pub use analytics::*;
 
 /// Blocking helper: opens the SQLite cache and queries the dictionary with sanitized input.

@@ -1,6 +1,7 @@
 pub mod models;
 pub mod json_store;
 pub mod safe_write;
+pub mod study_log;
 pub mod highlights;
 pub mod reader;
 pub mod notes;
