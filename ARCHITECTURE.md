@@ -125,7 +125,7 @@ book-engine/
 │       │   │   ├── LevelGuideModal.tsx  # Contextual HUD, level cheatsheets & keyboard shortcuts modal
 │       │   │   ├── NotesDrawer.tsx      # Unified slide-over notes & W3C highlights drawer with summary export
 │       │   │   ├── NotesPane.tsx        # Dual-pane Markdown reflection notes editor (locked until the notes file loads; one pane per chapter)
-│       │   │   ├── OmniSearchModal.tsx  # Ctrl+K global full-text search palette
+│       │   │   ├── OmniSearchModal.tsx  # Ctrl+K global full-text search palette; each result shows as text with its hits marked (SEC-01)
 │       │   │   ├── PracticeModal.tsx    # Extractive practice suite (Cloze, Scenario MCQ & Scramble drills)
 │       │   │   ├── PreferencesGate.tsx  # Holds the app back until the reader settings are read from vault/preferences.json
 │       │   │   ├── Reader.tsx           # Virtualized TipTap chapter canvas with margin anchors; saves where you stopped once the scrolling stops; a chapter opens at its top
@@ -217,6 +217,8 @@ book-engine/
 │       │   │   ├── searchIndex.test.ts  # Search update tests: a file the index could not read shows in the error bar with its name and the reason, and a renamed book folder shows with the name to give it back
 │       │   │   ├── searchQuery.ts       # Search box minimum length (2 characters), the same as the backend
 │       │   │   ├── searchQuery.test.ts  # Search length tests: 1 character does not search, spaces at the ends do not count
+│       │   │   ├── searchSnippet.ts     # Search result snippets as React text with a <mark> around each hit, so book text never becomes HTML (SEC-01)
+│       │   │   ├── searchSnippet.test.ts # Snippet tests: a tag in a result shows as text, each hit is marked and nothing else, a hit with no end marks the rest
 │       │   │   └── types.ts             # Canonical TypeScript interfaces & data contracts
 │       │   ├── App.tsx          # Application shell, global state coordinator & router
 │       │   ├── index.css        # Editorial design tokens, typography, and margin glyphs
@@ -245,7 +247,7 @@ book-engine/
 │           │   │   ├── fsrs_parser.rs       # Practice card markdown extraction & verbatim validator (a card whose chapter cannot be read is left out)
 │           │   │   ├── fsrs_store.rs        # FSRS deck statistics & review submission (card update and review log row in one transaction)
 │           │   │   ├── fsrs_store_tests.rs  # Review saving tests: failed log row, card without a book id, double click
-│           │   │   ├── indexer.rs           # Vault indexing, each book on its own (a file it cannot read is named; deleted books & removed chapters leave search) & FTS5 full-text search; a book is known by its folder name, and a renamed book folder is named
+│           │   │   ├── indexer.rs           # Vault indexing, each book on its own (a file it cannot read is named; deleted books & removed chapters leave search) & FTS5 full-text search; a book is known by its folder name, and a renamed book folder is named; the rows hold the words of each paragraph, never its HTML (SEC-01)
 │           │   │   ├── indexer_tests.rs     # Index tests: a broken book or chapter stops nothing, and deleted books & removed chapters leave search; search and the library know a book by its folder name
 │           │   │   ├── models.rs            # SQLite row models and analytics transfer structs
 │           │   │   ├── reading_velocity.rs  # Chapter reading time & completed chapters, with no word count or speed (AN-01); chapter & book titles and the chapter total (AN-03)
@@ -256,7 +258,9 @@ book-engine/
 │           │   │   ├── restore_tests.rs     # Restore tests: throwing the cache away loses no study progress, and a book that left the vault gets nothing back
 │           │   │   ├── schema.rs            # SQLite database initialization & migrations
 │           │   │   ├── search_query.rs      # Typed search to FTS5 expression: quoted words & phrases, hyphen spellings, AND/OR/NOT operators, 2-character minimum
+│           │   │   ├── search_results_tests.rs # Search result tests: a tag in a chapter file never reaches a result, book text shows as written, tag names are not found, old rows are written again
 │           │   │   ├── search_tests.rs      # Search tests on a real FTS5 index: operators, inner punctuation, phrases, short searches, a book imported after the first index
+│           │   │   ├── search_text.rs       # The text that search keeps of a paragraph (no HTML tags, character references as characters) & the characters that mark a hit (SEC-01)
 │           │   │   ├── seed_lexicon.rs      # Curated seed dictionary entries & initial SQLite database seeding
 │           │   │   └── mod.rs               # Ephemeral SQLite database module root & test suite
 │           │   ├── fsrs/                # FSRS engine test module
@@ -308,8 +312,9 @@ book-engine/
 │       │   ├── cli.py                   # Command-line entrypoint (`book-ingest`); a book the vault already has is replaced only with --force
 │       │   ├── elementary.py            # Deterministic Flesch-Kincaid & reading time metrics
 │       │   ├── endnotes.py              # Backmatter endnote relocation to inline footnotes
-│       │   ├── epub_parser.py           # XHTML chapter extractor & typography normalizer
+│       │   ├── epub_parser.py           # XHTML chapter extractor & typography normalizer; book text that looks like HTML is written as text (SEC-01)
 │       │   ├── layout_stitcher.py       # Narrative sentence healing, layout reconciliation & callout hoisting
+│       │   ├── markdown_text.py         # Book text in chapter Markdown: a < or & that could be read as HTML is written as &lt; or &amp;, and read back (SEC-01)
 │       │   ├── models.py                # Pydantic schema validation for metadata and cards
 │       │   ├── pdf_parser.py            # Sequential chapter-by-chapter PDF parser & asset coordinator
 │       │   ├── pdf_sanitizer.py         # PDF slug normalization, drop-cap healing, heading & author sanitization
@@ -324,6 +329,7 @@ book-engine/
 │       │   ├── test_anchors.py          # Deterministic paragraph anchor injection test suite
 │       │   ├── test_endnotes.py         # Endnote relocation & inline footnote syntax test suite
 │       │   ├── test_figure_cards.py     # Figure extraction, full-width dimensions & table suppression tests
+│       │   ├── test_markdown_text.py    # Book text tests: a tag the book shows as text is written as text in every kind of block, and reads back as the book has it
 │       │   ├── test_meta_schema.py      # Book metadata, hierarchical TOC & schema validation tests
 │       │   ├── test_pdf.py              # PDF parsing, chapter splitting & text preservation tests
 │       │   ├── test_pipeline.py         # End-to-end ingestion pipeline integration test suite
@@ -352,6 +358,9 @@ book-engine/
 
 ### Endnote Relocation Pass
 EPUB backmatter citations (`notes.xhtml#n1`) are severed when splitting by chapter. The ingestion script resolves internal reference targets, extracts the citation text, inlines it as a standard Markdown footnote definition at the bottom of the corresponding chapter (`[^1]: Citation text`), and updates the in-text link to `[^1]`.
+
+### Book Text That Looks Like HTML (`packages/ingestion/ingest/markdown_text.py`)
+The app reads the HTML that a chapter file holds: the reader shows it, and search leaves it out. The EPUB import wrote the text of a book as it is, so a book that shows a tag as an example (`&lt;img src=x onerror=...&gt;` in its XHTML) got a live `<img>` tag in its chapter file, and the reader lost those words. Now `escape_markdown_text` writes a `<` of the book text that could start a tag as `&lt;`, and a `&` that could start a character reference such as `&lt;` as `&amp;`, in every paragraph, heading, list, table, quote and image text (SEC-01). Every other character stays, so `AT&T` and `2 < 3` stay as they are. The chapter title and the previews in `_meta.json` hold the text itself (`unescape_markdown_text`). A footnote keeps its text as it is, because the reader shows a footnote as text. A practice card is made from the chapter file, so a card from such a sentence shows `&lt;`, as a card from a PDF chapter shows `<sup>`. The PDF import writes the text as it is, with the tags it adds.
 
 ### Paragraph Anchor Tagging
 Every top-level paragraph in chapter Markdown files receives a deterministic anchor:
@@ -529,6 +538,7 @@ App.tsx (Global state: reader settings with the theme, viewMode, activeBook, act
 - `src/lib/chapterGate.ts`: Chapter Gatekeeper rules. `gatedChapterFile` gives the chapter a move must pass (only a move to a later chapter, at every level except syntopical), and `gatePassed` passes a gate run only when every card was rated Good or Easy and no scenario answer was wrong.
 - `src/lib/readerShortcuts.ts`: Gives every reader keyboard shortcut one owner, so one key press runs its action once. `appShortcut` is the App window listener (Ctrl+K or Cmd+K search, Alt+P pacer, ? or F1 Field Guide), and `elementaryCanvasShortcut` is the elementary canvas listener (`[` and `]` pacer speed, elementary level only). Alt+P, ? and F1 do nothing in inputs, textareas, and editable elements.
 - `src/lib/searchQuery.ts`: `isSearchable` tells the Omni-Search palette whether a typed search has at least `MIN_SEARCH_CHARACTERS` (2) characters. The backend (`src-tauri/src/db/search_query.rs`) uses the same minimum and finds nothing for a shorter search.
+- `src/lib/searchSnippet.ts`: A search result snippet is plain text with the private-use characters U+E000 and U+E001 (`HIT_START`, `HIT_END`) around each hit. `snippetParts` splits it into text and hits, and `snippetNodes` gives the search window React text with a `<mark>` around each hit, so book text never becomes HTML there (SEC-01). `src-tauri/src/db/search_text.rs` uses the same characters, and a Rust test checks that the two files agree.
 - `src/lib/bionic.ts`: Deterministic Bionic reading transformer bolding the initial 40–50% of word tokens for eye fixation.
 - `src/lib/types.ts`: TypeScript contracts matching `BookMeta`, `ChapterMeta`, `TOCItem`, and theme definitions.
 
@@ -585,8 +595,8 @@ All SQLite queries, FTS5 matches, and disk indexing execute exclusively inside `
 
 | Command | Signature | Description |
 | :--- | :--- | :--- |
-| `index_vault` | `() -> Result<IndexSummary, String>` | Reads the chapters in the spine of every `vault/books/*/_meta.json`, splits them into paragraphs, and indexes a chapter into SQLite FTS5 when its text changed (a content hash) or it has no rows yet. So a chapter with no paragraphs, such as a part title, is read again on every run. Each book is written in a transaction of its own, and the rows of books and chapters that left the vault are removed. A book is known by its folder name, and the study rows of a book that left the vault leave the cache too (`db/removed_books.rs`, LC-02). Returns the chapters and paragraphs indexed, the files it could not read (`problems`, each with the file and the reason), the renamed book folders (`renamed_books`, each with the folder and its old name), and the time taken. The window runs it when the app opens and when the reader clicks "Rescan library" in the book list (`updateSearch`, `src/lib/searchIndex.ts`; DS-13, SI-02). |
-| `search_vault` | `(query: String) -> Result<Vec<SearchResult>, String>` | Queries `search_index` using BM25 ranking and SQLite `snippet()` syntax with `<mark>` tags. `db/search_query.rs` turns the typed search into a valid FTS5 expression, and a search shorter than 2 characters returns no results. Returns up to 40 matches. |
+| `index_vault` | `() -> Result<IndexSummary, String>` | Reads the chapters in the spine of every `vault/books/*/_meta.json`, splits them into paragraphs, and indexes a chapter into SQLite FTS5 when its text changed (a content hash) or it has no rows yet. Each row holds the words of its paragraph as plain text: HTML tags and comments are left out, and character references become their characters (`db/search_text.rs`, SEC-01). The hash also holds the form of the rows, so a chapter indexed before SEC-01 is read again once. So a chapter with no paragraphs, such as a part title, is read again on every run. Each book is written in a transaction of its own, and the rows of books and chapters that left the vault are removed. A book is known by its folder name, and the study rows of a book that left the vault leave the cache too (`db/removed_books.rs`, LC-02). Returns the chapters and paragraphs indexed, the files it could not read (`problems`, each with the file and the reason), the renamed book folders (`renamed_books`, each with the folder and its old name), and the time taken. The window runs it when the app opens and when the reader clicks "Rescan library" in the book list (`updateSearch`, `src/lib/searchIndex.ts`; DS-13, SI-02). |
+| `search_vault` | `(query: String) -> Result<Vec<SearchResult>, String>` | Queries `search_index` using BM25 ranking. Each `snippet()` is plain text with the private-use characters U+E000 and U+E001 around each hit and holds no HTML; the window shows it as text (`src/lib/searchSnippet.ts`, SEC-01). `db/search_query.rs` turns the typed search into a valid FTS5 expression, and a search shorter than 2 characters returns no results. Returns up to 30 matches. |
 
 **One Broken Book Stops Nothing (SI-02):** `index_vault_blocking` (`db/indexer.rs`) reads and writes each book on its own. A `_meta.json` or a chapter that cannot be used (not valid JSON, no `spine`, a chapter with no `id` or `file_path`, text that is not UTF-8, a locked file) is left out and named in `IndexSummary.problems`, and its book or chapter keeps the rows that search read last, because a file in OneDrive can be locked or offline for a moment. Before this, the whole run was one transaction that stopped at the first file it could not read. The edits in every other book stayed out of search, and the error went only to the console, without the name of the file. The rows of a book folder that is gone or has no `_meta.json`, of a chapter that `_meta.json` no longer lists, and of a listed chapter whose file is missing are removed, so a deleted book no longer shows in search. When an entry of the books folder cannot be read, the run removes no book. Only one run goes at a time, so a run that read the vault before an import cannot remove the rows that a newer run wrote for the new book. The files that a run could not read share one line in the error bar.
 
@@ -598,13 +608,15 @@ All SQLite queries, FTS5 matches, and disk indexing execute exclusively inside `
 
 **Only Numbers the App Has (AN-03):** The analytics window showed made-up numbers. A retention rate of 0% showed as "90.0%", because the window took 0 as no number, and with no reviewed card the cache itself sent a default of 90%. "Due Today" counted every card that was never reviewed, so it showed 51 of the 51 cards of a deck with 1 review. The reading table named each chapter by its file name, because the cache sent no titles, so "All Books" showed two rows called `ch-01.md`, and it divided the finished chapters by the chapters of the open book. Now `retention_rate` is `null` when no card was reviewed, and the window shows a dash for it (`src/lib/analyticsText.ts`). "Reviews Due" counts the reviewed cards whose due time has passed, which are the reviews practice gives first (`db/due_cards.rs`), and the new cards show apart under it. Each reading row names its book and its chapter with the titles in `_meta.json`, and `total_chapters` counts the chapters of the book, or of every book in the vault for "All Books". The vault word card still estimates the reading time of the vault at 225 words a minute, marked with `~`.
 
+**Search Results Are Text (SEC-01):** The search window put each result into the page as HTML, and the index held each paragraph as the chapter file has it. A book whose text held a tag such as `<img src=x onerror=...>` could run a script in the window when you searched a word near it. The tags that the PDF import writes showed as broken text: "sup" and "br" found the tag names, and a result that ended inside a tag lost its last words, like the text after "Water<Less". Now the index keeps the words only (`db/search_text.rs`). A tag or a comment is left out, and between two words it becomes a space, so `96<sup>29</sup>` is still found by "96" and by "29". A `<` that starts no tag, as in "Water<Less", stays, and a character reference such as `&lt;` becomes its character. A snippet marks each hit with the private-use characters U+E000 and U+E001, and the window shows it as text with a `<mark>` only around each hit (`src/lib/searchSnippet.ts`). The rows hold their form in the chapter hash, so the index reads every chapter again once. The EPUB import writes book text that looks like HTML as text (see "Book Text That Looks Like HTML").
+
 **Search Result Contract (`SearchResult`):**
 ```rust
 pub struct SearchResult {
     pub book_id: String,
     pub chapter_file: String,
     pub anchor: String,
-    pub snippet: String,
+    pub snippet: String, // plain text, U+E000 and U+E001 around each hit (SEC-01)
 }
 ```
 
@@ -661,7 +673,7 @@ When a chapter HTML payload is prepared for mounting into TipTap:
 - **Keyboard-Driven Interaction:** Global listener toggles modal via `Ctrl + K` (Windows/Linux) or `Cmd + K` (macOS), with Arrow keys for selection, `Enter` to navigate, and `Escape` to dismiss.
 - **Debounced Sub-Millisecond Search:** Queries are debounced by 150ms and dispatched asynchronously via `search_vault`.
 - **Search Syntax (`src-tauri/src/db/search_query.rs`):** A search needs at least 2 characters: for a shorter search the palette shows a hint and sends nothing (`isSearchable` in `src/lib/searchQuery.ts`). Every word and every quoted phrase goes to FTS5 as a string, so words with inner punctuation (`don't`, `well-known`, `U.S.`) match the book text, and a word with hyphens (`e-mail`) also finds its spelling without them (`email`). A word also matches longer words (`labo` finds `labour`) when its last part has at least 2 letters or digits, or when it ends in `*`; a word that ends in other punctuation (`C++`) or in a 1-letter part (the `t` of `don't`) matches only itself. `"quotes"` search an exact phrase. `AND`, `OR`, and `NOT` in capitals are operators (`war NOT peace`); lowercase `and`, `or`, and `not` are words. Words with no operator between them must all match, and a `NOT` with no word before it finds nothing.
-- **Snippet `<mark>` Rendering:** SQLite FTS5 snippets with `<mark>` highlight tags are sanitized and rendered directly in the result item preview.
+- **Snippets as Text (SEC-01):** A result snippet is plain text with U+E000 and U+E001 around each hit. `snippetNodes` (`src/lib/searchSnippet.ts`) shows it as React text with a `<mark>` around each hit, so a tag in a book shows as text and never runs. The index keeps the words of each paragraph without its HTML (`src-tauri/src/db/search_text.rs`), so the names of tags such as `sup` and `br` are not found.
 - **Cross-Book Anchor Navigation:** Search covers all books, and every book names its chapters `ch-01.md`, `ch-02.md`, ..., so each result shows its book title and keeps its `book_id`. Selecting a result calls `navigateToCrossBookCitation` with `searchResultLocation(result)`; `resolveLocation` (`src/lib/readerLocation.ts`) loads the result's own book when another book is open. The reader then switches the active chapter (maintaining single-chapter DOM virtualization), waits for DOM mounting, and smoothly scrolls to the target paragraph anchor (`^p-xxx`) with a brief amber flash (`bg-amber-100/50`).
 
 ### High-Resolution Figure Lightbox & Split-View Jump (`apps/desktop/src/components/FigureLightboxModal.tsx`)

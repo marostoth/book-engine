@@ -3,6 +3,7 @@ pub mod schema;
 pub mod seed_lexicon;
 pub mod indexer;
 pub mod search_query;
+pub mod search_text;
 pub mod fsrs_parser;
 pub mod fsrs_store;
 pub mod due_cards;
@@ -31,6 +32,8 @@ mod indexer_tests;
 mod removed_books_tests;
 #[cfg(test)]
 mod reading_velocity_tests;
+#[cfg(test)]
+mod search_results_tests;
 #[cfg(test)]
 mod search_tests;
 

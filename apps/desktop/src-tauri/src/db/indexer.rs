@@ -10,10 +10,18 @@ use super::models::{IndexProblem, IndexSummary, RenamedBook, SearchResult};
 use super::removed_books::set_aside_removed_books;
 use super::schema::open_or_create_db;
 use super::search_query::fts5_match_expression;
+use super::search_text::{search_text, HIT_END, HIT_START};
 
 /// One index run at a time. A run that read the vault before an import could otherwise remove the rows that a newer
 /// run has just written for the new book.
 static INDEX_RUN: Mutex<()> = Mutex::new(());
+
+/// The form of the search rows that `index_chapter` writes. It is part of the hash of every indexed chapter, so a
+/// chapter whose rows have another form is read again at the next run, even when its file did not change.
+///
+/// Form 2 (SEC-01): the rows hold `search_text` of each paragraph. Before, the rows held each paragraph as the chapter
+/// file has it, with its HTML, and the hash held only the text of the file.
+const SEARCH_ROWS_FORM: u32 = 2;
 
 /// The search rows of a book that stay after an index run.
 enum RowsToKeep {
@@ -168,8 +176,8 @@ fn index_chapter(
 ) -> Result<Option<usize>> {
     let content = raw_content.replace("\r\n", "\n");
 
-    // Simple hash to detect updates
-    let content_hash = format!("{:x}", md5_hash(&content));
+    // Simple hash to detect updates. It holds the form of the rows too, so rows of an older form are written again.
+    let content_hash = format!("{:x}", md5_hash(&format!("{SEARCH_ROWS_FORM}\n{content}")));
 
     // Check if already indexed with same hash and has indexed rows
     let mut check_stmt = conn.prepare_cached(
@@ -215,6 +223,9 @@ fn index_chapter(
             para_text = trimmed[..pos].trim().to_string();
         }
 
+        // Search keeps the words of the paragraph as plain text, never its HTML (SEC-01).
+        let para_text = search_text(&para_text);
+        let para_text = para_text.trim();
         if para_text.is_empty() {
             continue;
         }
@@ -223,7 +234,7 @@ fn index_chapter(
         conn.execute(
             "INSERT INTO search_index (book_id, chapter_id, chapter_title, chapter_file, anchor, content)
              VALUES (?, ?, ?, ?, ?, ?)",
-            params![book_id, ch_id, ch_title, ch_file, &anchor, &para_text]
+            params![book_id, ch_id, ch_title, ch_file, &anchor, para_text]
         )?;
         paragraphs += 1;
     }
@@ -333,8 +344,9 @@ fn problem(file: String, reason: impl Into<String>) -> IndexProblem {
     IndexProblem { file, reason: reason.into() }
 }
 
-/// Executes an FTS5 search query returning snippets with <mark> tags.
-/// `search_query::fts5_match_expression` turns the typed search into the MATCH expression.
+/// Executes an FTS5 search query. Each snippet is plain text with `HIT_START` and `HIT_END` around each hit, and the
+/// window shows it as text (SEC-01). `search_query::fts5_match_expression` turns the typed search into the MATCH
+/// expression.
 pub fn search_vault_blocking(raw_query: &str) -> Result<Vec<SearchResult>> {
     let Some(match_expression) = fts5_match_expression(raw_query) else {
         return Ok(Vec::new());
@@ -349,15 +361,15 @@ pub fn search_vault_blocking(raw_query: &str) -> Result<Vec<SearchResult>> {
              chapter_title,
              chapter_file,
              anchor,
-             snippet(search_index, 5, '<mark>', '</mark>', '...', 18) AS snippet_text,
+             snippet(search_index, 5, ?2, ?3, '...', 18) AS snippet_text,
              bm25(search_index) AS rank
          FROM search_index
-         WHERE search_index MATCH ?
+         WHERE search_index MATCH ?1
          ORDER BY rank
          LIMIT 30;"
     )?;
 
-    let rows = stmt.query_map(params![match_expression], |row| {
+    let rows = stmt.query_map(params![match_expression, HIT_START.to_string(), HIT_END.to_string()], |row| {
         Ok(SearchResult {
             book_id: row.get(0)?,
             chapter_id: row.get(1)?,

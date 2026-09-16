@@ -9,6 +9,8 @@ from __future__ import annotations
 import re
 from typing import List, Tuple
 
+from ingest.markdown_text import unescape_markdown_text
+
 ANCHOR_REGEX = re.compile(r"\s*\^p-[a-zA-Z0-9_-]+$")
 
 
@@ -78,6 +80,7 @@ def clean_preview_text(text: str) -> str:
       - Inline footnote citations (\[\^\w+\])
       - Markdown emphasis/code marks (**, *, _, `)
       - Block paragraph anchors (^p-xxx)
+      - Writes `&lt;` and `&amp;` that the import wrote for book text as `<` and `&` again (SEC-01)
       - Normalizes whitespace
     """
     cleaned = text
@@ -92,6 +95,8 @@ def clean_preview_text(text: str) -> str:
     cleaned = re.sub(r"[*_`]+", "", cleaned)
     # Strip image markdown syntax
     cleaned = re.sub(r"!\[.*?\]\(.*?\)", "", cleaned)
+    # The book text again, as the reader shows it
+    cleaned = unescape_markdown_text(cleaned)
     # Normalize whitespace
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     return cleaned
