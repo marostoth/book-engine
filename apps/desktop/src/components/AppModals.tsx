@@ -153,7 +153,6 @@ export const AppModals: React.FC<AppModalsProps> = ({
         isOpen={analyticsModalOpen}
         onClose={onCloseAnalytics}
         activeBookId={activeBookId}
-        bookMeta={bookMeta}
         preferences={preferences}
       />
 

@@ -14,6 +14,8 @@ pub mod card_identity;
 pub mod deck_sync;
 pub mod removed_books;
 #[cfg(test)]
+mod analytics_numbers_tests;
+#[cfg(test)]
 mod analytics_tests;
 #[cfg(test)]
 mod backfill_tests;
@@ -146,7 +148,8 @@ mod tests {
         assert!(!heatmap.is_empty(), "Expected at least 1 block of reviews in the heatmap");
 
         let retention = get_retention_metrics_blocking(Some("sample")).expect("Failed to get retention");
-        assert!(retention.retention_rate >= 0.0 && retention.retention_rate <= 100.0);
+        let rate = retention.retention_rate.expect("a card was reviewed, so there is a retention rate");
+        assert!((0.0..=100.0).contains(&rate));
 
         record_reading_session_blocking("sample", "ch-01.md", 120, true)
             .expect("Failed to record reading session");
@@ -157,7 +160,8 @@ mod tests {
 
         // Test Phase 5 IPC endpoints: get_study_analytics_blocking
         let analytics = get_study_analytics_blocking(Some("sample")).expect("Failed to get study analytics");
-        assert!(analytics.retention_rate >= 0.0 && analytics.retention_rate <= 100.0);
+        let rate = analytics.retention_rate.expect("a card was reviewed, so there is a retention rate");
+        assert!((0.0..=100.0).contains(&rate));
         assert!(analytics.total_vault_words > 0);
         assert_eq!(
             analytics.state_counts.total_cards,

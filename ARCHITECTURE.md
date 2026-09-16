@@ -58,7 +58,7 @@ book-engine/
 │       │   ├── components/      # UI components (Reader, Sidebar, TopNav, Modals, Popovers)
 │       │   │   ├── analytics/       # Modular analytics subcomponents
 │       │   │   │   ├── HeatmapGrid.tsx      # GitHub-style annual FSRS study activity heatmap: rows from Monday to Sunday, days of your time zone (AN-02)
-│       │   │   │   └── VelocityTable.tsx    # Chapter reading time & completion table (no word count or WPM, AN-01)
+│       │   │   │   └── VelocityTable.tsx    # Chapter reading time & completion table (no word count or WPM, AN-01; chapter & book titles, AN-03)
 │       │   │   ├── analytical/      # Level 3 Analytical reading & interpretive workbench (Rules 4–12)
 │       │   │   │   ├── AnalyticalWorkbenchPane.tsx # Mortimer Adler companion pane (Terms, Args, Inquiries, Critique)
 │       │   │   │   ├── ArgumentBuilderModal.tsx    # Premise-to-conclusion argument graph assembler (Rules 6–7)
@@ -168,6 +168,8 @@ book-engine/
 │       │   │   ├── types/           # Modular contract definitions
 │       │   │   │   ├── analytical.ts        # Level 3 analytical terms, citations & argument graph interfaces
 │       │   │   │   └── syntopicon.ts        # Level 4 syntopical neutral terms, questions & controversy models
+│       │   │   ├── analyticsText.ts     # Analytics numbers as text: a dash for a number the app does not have, so a real 0 shows as 0
+│       │   │   ├── analyticsText.test.ts # Analytics text tests: 0% shows as 0%, no retention rate shows a dash, finished chapters over the real total
 │       │   │   ├── anchors.ts           # Paragraph anchor forms: saved ^p-xxx vs. HTML data-anchor p-xxx
 │       │   │   ├── api.ts               # Unified API client facade: a failed backend call reaches the caller
 │       │   │   ├── apiFailures.test.ts  # API tests: inside the app, every failed backend call rejects; empty answers stay empty
@@ -232,6 +234,7 @@ book-engine/
 │           │   ├── commands.rs          # Asynchronous Tauri IPC command handlers
 │           │   ├── db/                  # Modular SQLite storage, FTS5 indexer & analytics
 │           │   │   ├── analytics.rs         # Retention metrics, study analytics & review heatmap (reviews in 15-minute blocks, AN-02)
+│           │   │   ├── analytics_numbers_tests.rs # Analytics number tests: no made-up retention rate, a new card is not due, titles & real chapter totals in the reading table
 │           │   │   ├── analytics_tests.rs   # Heatmap tests: the cache counts the reviews of each 15-minute block and leaves the day to the window
 │           │   │   ├── backfill.rs          # One-time copy of an older cache into the vault study log
 │           │   │   ├── backfill_tests.rs    # Copy tests: the cache reaches the vault once, and never twice
@@ -245,7 +248,7 @@ book-engine/
 │           │   │   ├── indexer.rs           # Vault indexing, each book on its own (a file it cannot read is named; deleted books & removed chapters leave search) & FTS5 full-text search; a book is known by its folder name, and a renamed book folder is named
 │           │   │   ├── indexer_tests.rs     # Index tests: a broken book or chapter stops nothing, and deleted books & removed chapters leave search; search and the library know a book by its folder name
 │           │   │   ├── models.rs            # SQLite row models and analytics transfer structs
-│           │   │   ├── reading_velocity.rs  # Chapter reading time & completed chapters, with no word count or speed (AN-01)
+│           │   │   ├── reading_velocity.rs  # Chapter reading time & completed chapters, with no word count or speed (AN-01); chapter & book titles and the chapter total (AN-03)
 │           │   │   ├── reading_velocity_tests.rs # Reading time tests: the analytics show time & completed chapters, and no word count
 │           │   │   ├── removed_books.rs     # A book that left the vault: its cards move to the archive, its review history & reading time leave the cache
 │           │   │   ├── removed_books_tests.rs # Removed book tests: a deleted book leaves All Books analytics & practice, and gets its progress back when it returns
@@ -518,6 +521,7 @@ App.tsx (Global state: reader settings with the theme, viewMode, activeBook, act
 - `src/lib/readingPlace.ts`: Where the reader stopped. `openingPlace` gives the chapter and paragraph a book opens at (its first chapter when the saved chapter is gone), `startingBookId` the book the app opens with (the newest bookmark, then the book an older version kept in browser storage, then the first book), `paragraphAtMiddle` the paragraph a place is saved at, `createPlaceWatcher` reports the place a second after the scrolling stops, for the chapter whose words are on screen, and `createBookmarkKeeper` never saves over a bookmark that could not be read. A jump into a chapter that has just opened lands at once; a jump inside the open chapter scrolls there.
 - `src/lib/readingTime.ts`: Reading time. `createReadingTimer` counts the seconds the words of a chapter are on screen while the window has focus, in ticks of 1 second (a longer gap, as when the PC sleeps, counts 5 seconds at most). It saves the time in pieces of 15 seconds, and the rest when the next chapter shows. A scroll only tells it how far down the chapter on screen you are: 90% completes the chapter, and a scroll reported for the chapter you left does not count (AN-01).
 - `src/lib/reviewDays.ts`: Review days. The cache sends the reviews in 15-minute blocks of time. `reviewsPerDay` puts each block on the day it starts in the time zone of the window, `heatmapWeeks` gives the heatmap columns from Monday to Sunday with today in the last column, `reviewStreaks` gives the current and the longest streak, and `reviewsInLastDays` gives the count next to the heatmap title. They count days on the calendar, not in steps of 24 hours, so a day when the clocks change is one day (AN-02).
+- `src/lib/analyticsText.ts`: The numbers of the analytics window as text. `retentionText`, `countText`, `completedChaptersText` and `readingTimeText` show a dash for a number the app does not have, and never a default, so a real 0 shows as 0. `chapterName` and `bookName` name a reading row by its titles, and by its file or folder name only when there is no title (AN-03).
 - `src/lib/preferences.ts`: The reader settings. `loadPreferences` reads them from the vault and copies the settings browser storage still holds into the vault once; `createPreferencesSaver` saves 400 ms after the last change, one save at a time with the newest settings last; `themeOf` and `withTheme` keep the reading theme among the saved settings.
 - `src/lib/notesAutosave.ts`: The chapter notes autosave. `change` holds the text together with the notes file it was typed in and saves it when the typing stops; `flush` saves what is waiting right now, which the notes pane does when the chapter closes and for a quote.
 - `src/lib/notesQuote.ts`: `addQuoteToNotes` puts a quote from the selection menu at the end of the chapter notes and saves them at once. `quoteBlock` is the text it adds: a blank line, the quote with its paragraph anchor, and an empty `- Reflection:` line.
@@ -591,6 +595,8 @@ All SQLite queries, FTS5 matches, and disk indexing execute exclusively inside `
 **Reading Time, Not Reading Speed (AN-01):** The app sees how long the words of a chapter are on screen and how far down it you scrolled. It cannot see how many words you read. It used to save the word count of the whole chapter with every piece of reading time, so a chapter that was open for 20 seconds showed 21,357 words a minute. The analytics now show the reading time and the completed chapters, with no word count and no reading speed. An older line of `reading.jsonl` still holds a `wordsRead`, which is not read back, and the `words_read` column of the cache is no longer used. The old timer counted in steps of 5 seconds and started again at every scroll, so with a scroll every 3 seconds it kept 5 of 48 seconds. One timer now counts every focused second while the words of a chapter are on screen (`src/lib/readingTime.ts`). A chapter also kept the scroll position of the chapter before it, so it could open near its end and get the "Completed" mark of the chapter you left. A chapter now opens at its top, and only a scroll of the chapter on screen can complete it.
 
 **Review Days in Your Time Zone (AN-02):** The cache counted the reviews of each UTC day, and the heatmap named its days with `toISOString`, which gives the UTC day of a local midnight. In British Summer Time (UTC+1), today's reviews did not show, each cell showed the count of the day before, and the rows were not the weekdays of their labels. On the days the clocks change, one day showed twice and one day was missing. The cache cannot know the time zone of the window. So it now counts the reviews in each 15-minute block of time (`get_review_heatmap`, `StudyAnalytics.review_blocks`), and the window puts every block on a day of its own time zone (`src/lib/reviewDays.ts`). Every time zone is a whole number of 15-minute blocks from UTC, so a midnight never falls inside a block. The heatmap rows go from Monday to Sunday and its last column ends today. The streak counts the same days, and the count next to the heatmap title counts the reviews of the past 365 days, not every review ever made.
+
+**Only Numbers the App Has (AN-03):** The analytics window showed made-up numbers. A retention rate of 0% showed as "90.0%", because the window took 0 as no number, and with no reviewed card the cache itself sent a default of 90%. "Due Today" counted every card that was never reviewed, so it showed 51 of the 51 cards of a deck with 1 review. The reading table named each chapter by its file name, because the cache sent no titles, so "All Books" showed two rows called `ch-01.md`, and it divided the finished chapters by the chapters of the open book. Now `retention_rate` is `null` when no card was reviewed, and the window shows a dash for it (`src/lib/analyticsText.ts`). "Reviews Due" counts the reviewed cards whose due time has passed, which are the reviews practice gives first (`db/due_cards.rs`), and the new cards show apart under it. Each reading row names its book and its chapter with the titles in `_meta.json`, and `total_chapters` counts the chapters of the book, or of every book in the vault for "All Books". The vault word card still estimates the reading time of the vault at 225 words a minute, marked with `~`.
 
 **Search Result Contract (`SearchResult`):**
 ```rust
@@ -708,13 +714,13 @@ Aggregates all chapter notes and W3C highlights across the active book:
 A study analytics modal accessible from `TopNav.tsx` or `SettingsPopover.tsx`:
 - **FSRS Retention Heatmap:** Renders a 52-week GitHub-style annual activity grid visualizing card reviews submitted per day, with intensity tiers, cell hover tooltips, and study streak statistics (current streak, longest streak, total yearly reviews). A day is a day of the window's time zone, the rows go from Monday to Sunday, and the last column ends today (`src/lib/reviewDays.ts`, AN-02).
 - **Retention Statistics Cards:**
-  - **Cards Due Today:** Number of reviews scheduled for the current day.
+  - **Reviews Due:** Reviewed cards whose due time has passed: the reviews practice gives first (`reps > 0 AND due <= now`). The new cards show apart under the number, with the daily target (AN-03).
   - **Mastered Cards:** Cards that have graduated to mature stability ($\ge 21$ days).
-  - **FSRS Retention Rate Percentage:** Calculated using the canonical power-law retrievability formula $R(t, S) = (1 + 19/81 \cdot t/S)^{-0.5}$ over reviewed cards.
+  - **Retention Rate:** The share of the reviews not rated Again. With no review history, the average of the canonical power-law retrievability formula $R(t, S) = (1 + 19/81 \cdot t/S)^{-0.5}$ over reviewed cards. A dash when no card was reviewed (AN-03).
 - **Reading Time & Progress:**
   - The reading timer counts the seconds the words of a chapter are on screen while the window has focus (`src/lib/readingTime.ts`). A scroll never starts the count again.
   - A chapter is completed once you scroll $\ge 90\%$ down it while its words are on screen. A chapter opens at its top, so it never takes the scroll position of the chapter before.
-  - Chapter-by-chapter table (time spent, completion status). There is no word count and no WPM: the app cannot see how many words you read (AN-01).
+  - Chapter-by-chapter table (time spent, completion status). There is no word count and no WPM: the app cannot see how many words you read (AN-01). Each row shows the chapter title from the book's spine, and "All Books" also shows the book title. "Completed Chapters" counts against the chapters of the book, or of every book in the vault for "All Books" (AN-03).
 
 ### Ephemeral SQLite Schema Extensions (`apps/desktop/src-tauri/src/db.rs`)
 Stored strictly in OS AppData (`%APPDATA%\book-engine\app_cache\index.db`):
@@ -745,12 +751,12 @@ CREATE TABLE IF NOT EXISTS reading_sessions (
 | :--- | :--- | :--- |
 | `get_all_book_notes` | `(book_id: String) -> Result<Vec<AggregatedNoteItem>, String>` | Scans `vault/notes/<book-id>/ch-*-notes.md`, parses W3C highlights & Markdown reflection items, extracts `^p-xxx` anchors, and returns entries sorted in reading order. |
 | `export_book_summary` | `(book_id: String) -> Result<String, String>` | Compiles all chapter notes, reflections, and quotes into a unified Markdown summary file: `vault/notes/<book-id>/summary-export.md`. |
-| `get_study_analytics` | `(book_id: Option<String>) -> Result<StudyAnalytics, String>` | Returns complete analytics: the reviews in 15-minute blocks of time (`review_blocks`, which the window puts on days of its time zone, AN-02), card counts grouped by state (New, Learning, Review, Relearning), retention rate %, mastered cards, cards due today, and total vault words / estimated reading time. |
+| `get_study_analytics` | `(book_id: Option<String>) -> Result<StudyAnalytics, String>` | Returns complete analytics: the reviews in 15-minute blocks of time (`review_blocks`, which the window puts on days of its time zone, AN-02), card counts grouped by state (New, Learning, Review, Relearning), retention rate % (`null` when no card was reviewed), mastered cards, the reviews due now (`reviews_due`) and the new cards apart (`new_cards`), and total vault words / estimated reading time (AN-03). |
 | `load_all_book_notes` | `(book_id: String) -> Result<Vec<ChapterNoteFile>, String>` | Scans `vault/notes/<book_id>/` in strictly read-only mode, returning all raw chapter notes files. |
 | `export_summary` | `(book_id: String, content: String) -> Result<String, String>` | Writes arbitrary compiled executive summary string directly to `vault/notes/<book_id>/summary-export.md`. |
 | `get_review_heatmap` | `(book_id: Option<String>) -> Result<Vec<ReviewBlock>, String>` | Queries the `review_logs` table in `index.db` and returns the number of reviews in each 15-minute block of time (`started_at`, `count`). The window puts each block on a day of its own time zone (AN-02). |
-| `get_retention_metrics` | `(book_id: Option<String>) -> Result<RetentionMetrics, String>` | Computes due today, mastered cards, and FSRS power-law retrievability $R(t, S)$ retention %. |
-| `get_reading_velocity` | `(book_id: Option<String>) -> Result<ReadingVelocityStats, String>` | Aggregates reading time and completed chapters across chapters. There is no word count and no WPM: the app cannot see how many words you read (AN-01). |
+| `get_retention_metrics` | `(book_id: Option<String>) -> Result<RetentionMetrics, String>` | Computes due today, mastered cards, and FSRS power-law retrievability $R(t, S)$ retention % (`null` when no card was reviewed, AN-03). |
+| `get_reading_velocity` | `(book_id: Option<String>) -> Result<ReadingVelocityStats, String>` | Aggregates reading time and completed chapters across chapters. There is no word count and no WPM: the app cannot see how many words you read (AN-01). Each row names its book and chapter with the titles in `_meta.json` (`book_title`, `chapter_title`), in book and reading order, and `total_chapters` counts the chapters of the book or of every book in the vault (AN-03). |
 | `record_reading_progress`| `(book_id: String, chapter_file: String, seconds_spent: u64, completed: bool) -> Result<(), String>` | Writes a piece of reading time and whether the chapter is completed to the vault study log, then to `index.db`. No word count (AN-01). |
 
 ### Retention Rate Formula Standard

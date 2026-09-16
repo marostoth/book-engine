@@ -110,12 +110,18 @@ pub struct RetentionMetrics {
     pub due_today: usize,
     pub total_cards: usize,
     pub mastered_cards: usize,
-    pub retention_rate: f64,
+    /// The average FSRS retrievability of the reviewed cards, in percent. `None` when no card was reviewed (AN-03).
+    pub retention_rate: Option<f64>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ChapterReadingStatItem {
+    pub book_id: String,
+    /// The title in the book's `_meta.json`. `None` when that file cannot be read (AN-03).
+    pub book_title: Option<String>,
     pub chapter_file: String,
+    /// The title in the spine of the book. `None` when the spine does not list the chapter file (AN-03).
+    pub chapter_title: Option<String>,
     pub seconds_spent: u64,
     pub completed: bool,
     pub last_read_at: i64,
@@ -127,6 +133,9 @@ pub struct ChapterReadingStatItem {
 pub struct ReadingVelocityStats {
     pub total_seconds: u64,
     pub completed_chapters: usize,
+    /// The chapters of the book, or of every book in the vault for "All Books". `None` when no `_meta.json` of them
+    /// can be read (AN-03).
+    pub total_chapters: Option<usize>,
     pub chapter_stats: Vec<ChapterReadingStatItem>,
 }
 
@@ -143,8 +152,13 @@ pub struct StateCounts {
 pub struct StudyAnalytics {
     pub review_blocks: Vec<ReviewBlock>,
     pub state_counts: StateCounts,
-    pub retention_rate: f64,
-    pub cards_due_today: usize,
+    /// The share of the reviews not rated Again, in percent. With no review history, the average FSRS retrievability
+    /// of the reviewed cards. `None` when no card was reviewed, so the window shows a dash (AN-03).
+    pub retention_rate: Option<f64>,
+    /// Reviewed cards whose due time has passed: the reviews practice gives first (`db/due_cards.rs`, AN-03).
+    pub reviews_due: usize,
+    /// Cards that were never reviewed. They are not due, so they count apart (AN-03).
+    pub new_cards: usize,
     pub mastered_cards: usize,
     pub total_vault_words: usize,
     pub estimated_reading_time_mins: usize,
