@@ -1,4 +1,4 @@
-use tauri::command;
+use tauri::{command, Manager};
 use crate::vault::{
     scan_library_books, scan_available_books, read_book_meta_json, read_chapter_file,
     read_notes_file, write_notes_file, BookMetadata, BookSummary, AppError
@@ -58,12 +58,20 @@ pub async fn save_inspectional_exit_assessment(
         .map_err(|e| format!("{:#}", e))
 }
 
+/// Reads a chapter, and lets the window load the pictures of the books in the vault: the app config lets the window
+/// load no file on its own (SEC-02). Pictures that cannot be allowed do not stop the chapter.
 #[command]
-pub async fn load_chapter(book_id: String, chapter_file: String) -> Result<String, String> {
-    tokio::task::spawn_blocking(move || read_chapter_file(&book_id, &chapter_file))
-        .await
-        .map_err(|e| format!("Task join error: {}", e))?
-        .map_err(|e| format!("Failed to load chapter: {}", e))
+pub async fn load_chapter(app: tauri::AppHandle, book_id: String, chapter_file: String) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        let chapter = read_chapter_file(&book_id, &chapter_file)?;
+        if let Err(e) = crate::vault::book_pictures::allow_book_pictures(&app.asset_protocol_scope()) {
+            eprintln!("Warning: the pictures of your books may not show: {:#}", e);
+        }
+        Ok::<String, anyhow::Error>(chapter)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))?
+    .map_err(|e| format!("Failed to load chapter: {}", e))
 }
 
 #[command]

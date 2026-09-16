@@ -152,6 +152,8 @@ The build produces:
 - **Standalone Portable Binary**: `apps/desktop/src-tauri/target/release/book-engine-desktop.exe` (~13.8 MB). Put a `vault` folder beside it and it finds it on its own; otherwise it asks you to choose your vault folder the first time and remembers it.
 - **Windows NSIS Setup Package**: `apps/desktop/src-tauri/target/release/bundle/nsis/Book Engine_0.1.0_x64-setup.exe` (~3.5 MB). On the first start it asks you to choose your vault folder, because the installer starts the app in its own install folder.
 
+The built app runs only its own code. A tag in a book cannot run a script, the window loads pictures only from the `assets` folder of each book, and it reaches no server but Google Fonts for its two fonts. `npm run tauri dev` and the browser dev server do not use these rules, so try a change that loads something new in a built app.
+
 
 ---
 

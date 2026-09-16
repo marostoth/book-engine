@@ -1,4 +1,5 @@
 pub mod models;
+pub mod book_pictures;
 pub mod json_store;
 pub mod bookmark;
 pub mod inspectional;
@@ -14,6 +15,8 @@ pub mod analytical;
 pub mod syntopicon_models;
 pub mod syntopicon;
 pub mod syntopicon_compiler;
+#[cfg(test)]
+mod book_pictures_tests;
 #[cfg(test)]
 mod reader_tests;
 #[cfg(test)]
