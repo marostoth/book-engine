@@ -1,4 +1,5 @@
 pub mod models;
+pub mod json_store;
 pub mod reader;
 pub mod notes;
 pub mod vocabulary;
