@@ -48,6 +48,19 @@ def run_reconstruction() -> bool:
     return True
 
 
+def restore_backup(db_path, backup_path) -> None:
+    """Puts the whole cache back: the .db file and its -wal and -shm files.
+
+    Restoring the .db on its own used to lose whatever the -wal still held (DS-01).
+    """
+    if backup_path.exists():
+        shutil.move(str(backup_path), str(db_path))
+    for name in ("index.db-wal", "index.db-shm"):
+        saved = backup_path.parent / (name + ".test_bak")
+        if saved.exists():
+            shutil.move(str(saved), str(db_path.with_name(name)))
+
+
 def main() -> int:
     db_path = get_db_path()
     print(f"[*] Live Database Path: {db_path}")
@@ -87,15 +100,13 @@ def main() -> int:
     success = run_reconstruction()
     if not success:
         print("[-] Index reconstruction failed.", file=sys.stderr)
-        if backup_path.exists():
-            shutil.move(str(backup_path), str(db_path))
+        restore_backup(db_path, backup_path)
         return 1
 
     # 3. Assert reconstructed database integrity
     if not db_path.exists():
         print("[-] Reconstructed database was not created at target location.", file=sys.stderr)
-        if backup_path.exists():
-            shutil.move(str(backup_path), str(db_path))
+        restore_backup(db_path, backup_path)
         return 1
 
     conn = sqlite3.connect(str(db_path))
@@ -128,14 +139,14 @@ def main() -> int:
     assert marketing_matches > 0, "FTS5 query 'marketing' returned 0 results."
     assert division_matches > 0, "FTS5 query 'division of labour' returned 0 results."
 
-    # 4. Cleanup backup
-    if backup_path.exists():
-        backup_path.unlink()
-    for extra in [backup_path.parent / "index.db-wal.test_bak", backup_path.parent / "index.db-shm.test_bak"]:
-        if extra.exists():
-            extra.unlink()
-
+    # 4. Keep the backup. It used to be deleted here, which left nothing to go back to (DS-01).
+    #    The next run writes over it, so it never grows past one copy.
     print("\n[+] PASS: Cache self-healing verified! Database successfully reconstructed 100% from Markdown vault.")
+    if backup_path.exists():
+        print(f"[*] The cache from before this run is kept at: {backup_path}")
+    print("[*] The rebuilt cache holds the search index only. Your card schedules, review history and")
+    print("    reading time come back from vault/notes/<book-id>/reviews.jsonl and reading.jsonl the")
+    print("    next time the app starts.")
     return 0
 
 

@@ -212,6 +212,8 @@ book-engine/
 │           │   ├── commands.rs          # Asynchronous Tauri IPC command handlers
 │           │   ├── db/                  # Modular SQLite storage, FTS5 indexer & analytics
 │           │   │   ├── analytics.rs         # Retention metrics, study analytics & review heatmap
+│           │   │   ├── backfill.rs          # One-time copy of an older cache into the vault study log
+│           │   │   ├── backfill_tests.rs    # Copy tests: the cache reaches the vault once, and never twice
 │           │   │   ├── card_identity.rs     # Stable practice card ids from the question text (FNV-1a), not the deck position
 │           │   │   ├── deck_sync.rs         # Practice deck sync: one card per question, archive for cards that left the deck, old-id migration
 │           │   │   ├── deck_sync_tests.rs   # Deck sync tests: removed, changed, reordered, returning & duplicate cards
@@ -222,6 +224,8 @@ book-engine/
 │           │   │   ├── indexer.rs           # Background vault indexing & FTS5 full-text search
 │           │   │   ├── models.rs            # SQLite row models and analytics transfer structs
 │           │   │   ├── reading_velocity.rs  # Chapter reading session recording & velocity calculations
+│           │   │   ├── restore.rs           # Puts the study progress back into the cache from the vault study log
+│           │   │   ├── restore_tests.rs     # Restore tests: throwing the cache away loses no study progress
 │           │   │   ├── schema.rs            # SQLite database initialization & migrations
 │           │   │   ├── search_query.rs      # Typed search to FTS5 expression: quoted words & phrases, hyphen spellings, AND/OR/NOT operators, 2-character minimum
 │           │   │   ├── search_tests.rs      # Search tests on a real FTS5 index: operators, inner punctuation, phrases, short searches
@@ -243,6 +247,7 @@ book-engine/
 │           │   │   ├── reader.rs            # Vault root resolution, book discovery & chapter I/O; a rewritten _meta.json keeps its key order and line endings
 │           │   │   ├── reader_tests.rs      # Vault write tests: no half-written file while a save runs, _meta.json key order and line endings kept
 │           │   │   ├── safe_write.rs        # The one vault write: temporary file in the same folder, flushed, then renamed over the target, so a save is never half done
+│           │   │   ├── study_log.rs         # The permanent record of your study: reviews & reading time, one line each
 │           │   │   ├── syntopicon.rs        # Level 4 Syntopicon topic file I/O & report exporter
 │           │   │   ├── syntopicon_compiler.rs # Level 4 Dialectical dossier compiler producing Markdown reports
 │           │   │   ├── syntopicon_models.rs # Level 4 Syntopicon neutral terms & controversy structs
@@ -293,12 +298,12 @@ book-engine/
 │   └── create_desktop_shortcut.ps1 # One-click Windows desktop shortcut generator
 ├── vault/                       # SOLE PERMANENT RECORD: User Markdown vault (Versioned / Syncable)
 │   ├── books/<book-id>/         # Chapter Markdown (`ch-XX.md`), `_meta.json`, and extracted assets
-│   ├── notes/<book-id>/         # Chapter notes (`ch-XX-notes.md`), highlights (`ch-XX-highlights.json`), and study decks
+│   ├── notes/<book-id>/         # Chapter notes (`ch-XX-notes.md`), highlights (`ch-XX-highlights.json`), study decks, and the study log (`reviews.jsonl`, `reading.jsonl`)
 │   └── syntopicon/              # Level 4 Syntopicon topic registries & compiled reports
 │       ├── topics/              # Cross-book syntopical topics (`<topic-id>.json`)
 │       └── reports/             # Compiled dialectical dossiers (`<topic-id>-synthesis.md`)
-└── %APPDATA%\book-engine\       # EPHEMERAL CACHE: OS AppData (Never in vault; reconstructible)
-    └── app_cache/index.db       # SQLite database (FTS5 search index + FSRS card review states)
+└── %APPDATA%\book-engine\       # EPHEMERAL CACHE: OS AppData (Never in vault; rebuilt from the vault)
+    └── app_cache/index.db       # SQLite database (FTS5 search index + a copy of the study progress)
 ```
 
 ---
@@ -331,7 +336,9 @@ Multi-column textbook pages frequently include full-width conceptual matrices, m
 ## 3. Storage Separation & Synchronization
 
 - **Vault (`vault/`):** Human-readable plain-text Markdown files and images. Can be edited externally (Obsidian, Neovim, VS Code).
-- **Ephemeral Cache (`index.db`):** Stored strictly in the OS application data folder (`%APPDATA%\book-engine\`). Never checked into version control.
+- **Ephemeral Cache (`index.db`):** Stored strictly in the OS application data folder (`%APPDATA%\book-engine\`). Never checked into version control. It holds only a copy: everything in it is rebuilt from the vault.
+- **Your Study Is in the Vault:** Every card review and every piece of reading time is written as one line to `vault/notes/<book-id>/reviews.jsonl` and `vault/notes/<book-id>/reading.jsonl` (`apps/desktop/src-tauri/src/vault/study_log.rs`), before the cache is touched. A review the vault refuses is not saved at all. Card schedules, review history and reading time used to live only in `index.db`, which is not in the vault and is not backed up, so losing that file lost every bit of study progress (DS-01). At startup `db/backfill.rs` copies whatever a cache from before the change still holds and the vault does not, once; `db/restore.rs` then puts back whatever the cache is missing. Both write only what is missing, so a normal start changes nothing, and a deleted, damaged or brand new cache fills itself again.
+- **Cache Shape:** `PRAGMA user_version` holds the shape of `index.db`, and `CACHE_SCHEMA_VERSION` (`db/schema.rs`) is the shape this build knows. A file stamped higher was made by a newer build and is not opened, because a newer shape can hold things this build would drop. The vault keeps the study progress either way.
 - **Newest Load Wins:** A book or a chapter is read from the disk, so its answer comes back a moment later. The reader takes a ticket for every load (`createLoadGuard`, `src/lib/readerLoads.ts`), and an answer that is no longer the newest one changes nothing. Before this, a slow chapter one showed its text and its highlights under chapter two, and a slow book left the open book and the book on screen pointing at different books, so notes and highlights were saved under the wrong book (DS-07). Opening a chapter also empties the reader at once, so the words of the chapter you left are never shown under the chapter you opened.
 - **One Pane per Chapter:** `App.tsx` gives the notes pane a key of book and chapter, so every chapter gets its own pane with its own text. A pane that kept its text across a chapter change could save the notes of one chapter into the file of another (DS-07). What the reader typed is held together with the file it belongs to (`src/lib/notesAutosave.ts`) and is saved into that file when the chapter closes, so the last words are never left waiting in a timer.
 - **A Quote Is Saved at Once:** "Add note" on a selection puts the quote at the end of the chapter notes and saves them right away (`addQuoteToNotes`, `src/lib/notesQuote.ts`), because a quote is a click, not typing. It used to change the text on screen only, so it reached the vault after the next keystroke and was lost at the next chapter change without one (DS-08). A quote waits while the notes are read from the disk, on screen as well, so the notes that arrive cannot wipe it; notes that failed to load never take a quote, and the reader is told.
@@ -355,7 +362,7 @@ Review intervals and memory retention calculations are computed locally via the 
 - **Scheduling Policy:** Elapsed time counts whole days since the last review. Again brings a card back after 10 minutes (Learning or Relearning); Hard, Good, and Easy schedule whole days (Review). The tests in `fsrs/tests.rs` pin reference numbers from the official py-fsrs 5.1.3 implementation.
 
 ### Ephemeral SQLite Schema (`%APPDATA%\book-engine\app_cache\index.db`)
-Card state, stability, difficulty, and scheduling timestamps are strictly decoupled from the Markdown vault:
+Card state, stability, difficulty, and scheduling timestamps are held here so the app can ask questions of them quickly. The permanent record of every review is `vault/notes/<book-id>/reviews.jsonl`, and this table is rebuilt from it (`db/restore.rs`):
 ```sql
 CREATE TABLE IF NOT EXISTS fsrs_cards (
     card_id TEXT PRIMARY KEY, -- question id: <book>-card-<hash> or <book>-sc-<hash> (db/card_identity.rs)
@@ -489,7 +496,7 @@ The reader pairs an editorial serif with a clean sans-serif UI, constrained to `
 ## 6. Highlight Engine & SQLite FTS5 Ephemeral Search: As-Built Implementation (Phase 3)
 
 ### Ephemeral SQLite FTS5 Database (`index.db`)
-Strictly isolated within OS Application Data (`%APPDATA%\book-engine\app_cache\index.db` on Windows, `~/.config/book-engine/app_cache/index.db` on Linux, `~/Library/Application Support/book-engine/app_cache/index.db` on macOS). The database is ephemeral and completely decoupled from `vault/`. If deleted, it is recreated and re-indexed automatically from vault Markdown files on next launch.
+Strictly isolated within OS Application Data (`%APPDATA%\book-engine\app_cache\index.db` on Windows, `~/.config/book-engine/app_cache/index.db` on Linux, `~/Library/Application Support/book-engine/app_cache/index.db` on macOS). The database is ephemeral and completely decoupled from `vault/`. If deleted, it is recreated on next launch: the search index is built again from the vault Markdown files, and the study progress is put back from `vault/notes/<book-id>/reviews.jsonl` and `reading.jsonl`.
 
 Unit tests never open this database or the real vault: in test builds, `get_db_path()` and `find_vault_root()` resolve only inside a per-test temporary sandbox (`apps/desktop/src-tauri/src/test_support.rs`) and return an error when no sandbox is active.
 

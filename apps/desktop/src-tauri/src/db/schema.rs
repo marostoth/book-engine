@@ -1,6 +1,16 @@
 use std::path::PathBuf;
 use rusqlite::Connection;
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
+
+/// The shape of the cache this build knows. `PRAGMA user_version` holds the shape of the file on disk.
+///
+/// 0 = a file made before there was a version, which this build reads and then stamps as 1.
+/// 1 = the tables below.
+///
+/// A file stamped higher than this was made by a newer build. It is not opened, because a newer shape can
+/// hold things this build would drop. The vault keeps your study progress either way (DS-01), so the
+/// answer is to use the newer build, not to let this one rewrite the file.
+pub const CACHE_SCHEMA_VERSION: i64 = 1;
 
 /// Test builds only place the database inside the active `test_support::Sandbox`.
 #[cfg(test)]
@@ -32,6 +42,17 @@ pub fn open_or_create_db() -> Result<Connection> {
         .with_context(|| format!("Failed to open SQLite database: {}", db_path.display()))?;
 
     conn.busy_timeout(std::time::Duration::from_secs(5))?;
+
+    let on_disk: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+    if on_disk > CACHE_SCHEMA_VERSION {
+        return Err(anyhow!(
+            "{} was made by a newer version of this app (cache shape {}, this build knows {}). \
+             Use the newer version. Your study progress is in the vault either way.",
+            db_path.display(),
+            on_disk,
+            CACHE_SCHEMA_VERSION
+        ));
+    }
 
     conn.execute_batch(
         "PRAGMA journal_mode = WAL;
@@ -143,6 +164,11 @@ pub fn open_or_create_db() -> Result<Connection> {
     }
     if !columns.iter().any(|c| c == "payload") {
         conn.execute("ALTER TABLE fsrs_cards ADD COLUMN payload TEXT DEFAULT NULL;", [])?;
+    }
+
+    if on_disk < CACHE_SCHEMA_VERSION {
+        conn.pragma_update(None, "user_version", CACHE_SCHEMA_VERSION)
+            .context("Failed to stamp the cache with its shape")?;
     }
 
     // Seed dictionary table if empty

@@ -1,9 +1,12 @@
 use rusqlite::params;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use super::models::{ChapterReadingStatItem, ReadingVelocityStats};
 use super::schema::open_or_create_db;
 
 /// Records reading time and completion progress for a chapter.
+///
+/// The time goes into the vault first (`vault/study_log.rs`), because the vault is the permanent record
+/// and the database is only a cache (DS-01).
 pub fn record_reading_session_blocking(
     book_id: &str,
     chapter_file: &str,
@@ -16,6 +19,16 @@ pub fn record_reading_session_blocking(
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs() as i64;
+
+    crate::vault::study_log::append_reading(&crate::vault::study_log::ReadingLine {
+        book_id: book_id.to_string(),
+        chapter_file: chapter_file.to_string(),
+        seconds_spent: seconds_spent as i64,
+        words_read: words_read as i64,
+        completed,
+        read_at: now,
+    })
+    .context("Failed to save your reading time in the vault, so it was not saved at all")?;
 
     conn.execute(
         "INSERT INTO reading_sessions (book_id, chapter_file, seconds_spent, words_read, completed, last_read_at)

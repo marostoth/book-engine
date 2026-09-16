@@ -35,6 +35,37 @@ pub fn run() {
                 eprintln!("Warning: Failed to ensure syntopicon directories on startup: {}", e);
             }
 
+            // Copy a cache that was filled before the vault kept the record. It writes only what the
+            // vault does not have, so it costs nothing after the first startup (DS-01).
+            match db::backfill_vault_blocking() {
+                Err(e) => eprintln!("Warning: Could not copy your study progress into the vault: {:#}", e),
+                Ok(report) => {
+                    if !report.changed_nothing() {
+                        eprintln!(
+                            "Copied into the vault: {} reviews, {} cards, {} chapters of reading time.",
+                            report.reviews_written, report.cards_written, report.chapters_written
+                        );
+                    }
+                }
+            }
+
+            // Put back whatever the cache is missing, from the permanent record in the vault. A cache
+            // that was deleted, damaged or copied from another PC fills itself again (DS-01).
+            match db::restore_progress_blocking() {
+                Err(e) => eprintln!("Warning: Could not put your study progress back from the vault: {:#}", e),
+                Ok(report) => {
+                    if !report.changed_nothing() {
+                        eprintln!(
+                            "Put back from the vault: {} reviews, {} cards rescheduled, {} chapters of reading time.",
+                            report.reviews_added, report.cards_rescheduled, report.chapters_restored
+                        );
+                    }
+                    for line in &report.damaged_lines {
+                        eprintln!("Warning: a line of your study log could not be read: {}", line);
+                    }
+                }
+            }
+
             // Asynchronously build / update FTS5 search index on startup without blocking UI
             std::thread::spawn(|| {
                 if let Err(e) = db::index_vault_blocking() {

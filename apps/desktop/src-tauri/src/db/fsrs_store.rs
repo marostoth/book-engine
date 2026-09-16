@@ -74,6 +74,10 @@ pub fn get_deck_stats_blocking(book_id: Option<&str>) -> Result<DeckStats> {
 /// Applies an FSRS-5 rating (1=Again, 2=Hard, 3=Good, 4=Easy), updates SQLite, and returns new schedule.
 /// The card update and its review log row are saved in one transaction: both are saved or neither is,
 /// and every error is returned.
+///
+/// The review goes into the vault first (`vault/study_log.rs`), because the vault is the permanent record
+/// and the database is only a cache (DS-01). A review the vault refuses is not saved at all. A review the
+/// vault took but the database did not is put back at the next startup, so nothing is lost either way.
 pub fn submit_card_review_blocking(card_id: &str, rating_val: u8) -> Result<crate::fsrs::CardSchedule> {
     let rating = crate::fsrs::Rating::try_from(rating_val)
         .map_err(|e| anyhow::anyhow!(e))?;
@@ -138,6 +142,21 @@ pub fn submit_card_review_blocking(card_id: &str, rating_val: u8) -> Result<crat
         params![card_id, book_id, rating_val as i64, now],
     )
     .context("Failed to save the review log row")?;
+
+    crate::vault::study_log::append_review(&crate::vault::study_log::ReviewLine {
+        card_id: card_id.to_string(),
+        book_id,
+        rating: Some(rating_val),
+        reviewed_at: now,
+        schedule: Some(crate::vault::study_log::CardStanding {
+            state: schedule.state,
+            stability: schedule.stability,
+            difficulty: schedule.difficulty,
+            due: schedule.due,
+            reps: schedule.reps,
+        }),
+    })
+    .context("Failed to save the review in the vault, so it was not saved at all")?;
 
     tx.commit()?;
     Ok(schedule)
