@@ -49,7 +49,7 @@ fn practice_one_card(book: &str) {
 /// What "All Books" in the analytics window counts: cards, reviews, and seconds of reading.
 fn all_books() -> (usize, usize, u64) {
     let analytics = get_study_analytics_blocking(None).expect("study analytics");
-    let reviews = analytics.daily_reviews.iter().map(|day| day.count).sum();
+    let reviews = analytics.review_blocks.iter().map(|block| block.count).sum();
     let seconds = get_reading_velocity_blocking(None).expect("reading velocity").total_seconds;
     (analytics.state_counts.total_cards, reviews, seconds)
 }

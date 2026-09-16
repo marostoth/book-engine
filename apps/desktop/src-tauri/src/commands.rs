@@ -175,7 +175,7 @@ pub async fn export_summary(book_id: String, content: String) -> Result<String, 
 }
 
 #[command]
-pub async fn get_review_heatmap(book_id: Option<String>) -> Result<Vec<crate::db::DayReviewActivity>, String> {
+pub async fn get_review_heatmap(book_id: Option<String>) -> Result<Vec<crate::db::ReviewBlock>, String> {
     tokio::task::spawn_blocking(move || crate::db::get_review_heatmap_blocking(book_id.as_deref()))
         .await
         .map_err(|e| format!("Task join error: {}", e))?

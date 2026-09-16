@@ -95,9 +95,13 @@ pub struct DeckStats {
     pub total_cards: usize,
 }
 
+/// The reviews made in one 15-minute block of time. The cache cannot know the time zone of the window, so the window
+/// puts each block on a day of its own time zone (AN-02). Every time zone is a whole number of 15-minute blocks from
+/// UTC, so a midnight never falls inside a block.
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct DayReviewActivity {
-    pub date: String,
+pub struct ReviewBlock {
+    /// When the block starts, in seconds since 1970 (UTC).
+    pub started_at: i64,
     pub count: usize,
 }
 
@@ -137,7 +141,7 @@ pub struct StateCounts {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StudyAnalytics {
-    pub daily_reviews: Vec<DayReviewActivity>,
+    pub review_blocks: Vec<ReviewBlock>,
     pub state_counts: StateCounts,
     pub retention_rate: f64,
     pub cards_due_today: usize,

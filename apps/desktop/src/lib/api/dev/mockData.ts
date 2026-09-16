@@ -1,7 +1,7 @@
 import type {
   BookMeta,
   PracticeCardItem,
-  DayReviewActivity,
+  ReviewBlock,
   SearchResult,
   InspectionalBlueprint,
 } from "../../types";
@@ -244,12 +244,12 @@ export function fallbackSearchVault(query: string): SearchResult[] {
   return results;
 }
 
-export function generateFallbackHeatmap(): DayReviewActivity[] {
-  const activities: DayReviewActivity[] = [];
+export function generateFallbackHeatmap(): ReviewBlock[] {
+  const blocks: ReviewBlock[] = [];
   const now = new Date();
   for (let i = 364; i >= 0; i--) {
-    const d = new Date(now.getTime() - i * 86400000);
-    const dateStr = d.toISOString().split("T")[0];
+    // The start of the day i days ago in the time zone of this window: one block with all the reviews of that day.
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
     const dayOfWeek = d.getDay();
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
     const rand = Math.random();
@@ -261,9 +261,9 @@ export function generateFallbackHeatmap(): DayReviewActivity[] {
     } else {
       if (rand > 0.6) count = Math.floor(rand * 6) + 1;
     }
-    if (count > 0) activities.push({ date: dateStr, count });
+    if (count > 0) blocks.push({ started_at: Math.floor(d.getTime() / 1000), count });
   }
-  return activities;
+  return blocks;
 }
 
 export const FALLBACK_INSPECTIONAL_BLUEPRINT: InspectionalBlueprint = {

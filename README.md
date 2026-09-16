@@ -100,6 +100,8 @@ The app knows a book by the name of its folder in `vault/books/`. A book you del
 
 The analytics show how long you read each chapter and which chapters you finished. Time counts while the words of a chapter are on screen and the app window has focus. A chapter is finished when you scroll to 90% of it. The analytics show no word count and no reading speed, because the app cannot see how many words you read.
 
+The review heatmap counts each review on the day you made it, in the time zone of your computer. Its rows go from Monday to Sunday, and its last column ends today.
+
 ---
 
 ### 2. Desktop Application (`apps/desktop`)
