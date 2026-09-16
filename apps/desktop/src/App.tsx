@@ -89,7 +89,7 @@ export const App: React.FC<AppProps> = ({ startingPreferences }) => {
     markdownSource,
     handlePlaceSettled,
     progressPercent,
-    setProgressPercent,
+    handleProgressChange,
     highlights,
     targetAnchor,
     handleSelectBook,
@@ -214,7 +214,7 @@ export const App: React.FC<AppProps> = ({ startingPreferences }) => {
                 vaultPath={vaultPath} markdown={chapterMarkdown} isBionic={isBionic}
                 markdownSource={markdownSource} onPlaceSettled={handlePlaceSettled}
                 highlights={highlights} targetAnchor={targetAnchor}
-                onProgressChange={setProgressPercent} onAddHighlight={handleAddHighlight}
+                onProgressChange={handleProgressChange} onAddHighlight={handleAddHighlight}
                 onAddNoteFromSelection={(quote, anchorId) => {
                   setInsertedQuote({ quote, anchorId });
                   if (viewMode !== "dual") setViewMode("dual");

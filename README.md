@@ -98,6 +98,8 @@ If search cannot read a file of a book, such as a damaged `_meta.json` or a chap
 
 The app knows a book by the name of its folder in `vault/books/`. A book you delete also leaves practice and the "All Books" analytics. Its notes and study log stay in `vault/notes/`, so its progress comes back if you put the book back. If you rename a book folder, the book opens as a new book, and the error bar tells you the name to give it back.
 
+The analytics show how long you read each chapter and which chapters you finished. Time counts while the words of a chapter are on screen and the app window has focus. A chapter is finished when you scroll to 90% of it. The analytics show no word count and no reading speed, because the app cannot see how many words you read.
+
 ---
 
 ### 2. Desktop Application (`apps/desktop`)

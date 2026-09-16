@@ -11,7 +11,8 @@
 //! - A card only takes the schedule of a replayed review that is newer than its last review, so a review
 //!   done in the app is never undone by an older line.
 //! - Reading time is put back only for a chapter the cache has no row for at all, so seconds are never
-//!   added to a count that is already there.
+//!   added to a count that is already there. The word count on an older line is not put back: it was the
+//!   length of the whole chapter, not the words read (AN-01).
 //! - A book that left the vault (no `vault/books/<book-id>/_meta.json`) gets nothing back until it returns (LC-02).
 
 use anyhow::{Context, Result};
@@ -156,20 +157,18 @@ fn add_missing_reading(tx: &rusqlite::Transaction, reading: &[ReadingLine], repo
             .iter()
             .filter(|line| line.book_id == book_id && line.chapter_file == chapter_file);
         let mut seconds = 0i64;
-        let mut words = 0i64;
         let mut completed = false;
         let mut last_read_at = 0i64;
         for line in lines {
             seconds += line.seconds_spent;
-            words = words.max(line.words_read);
             completed |= line.completed;
             last_read_at = last_read_at.max(line.read_at);
         }
 
         tx.execute(
-            "INSERT INTO reading_sessions (book_id, chapter_file, seconds_spent, words_read, completed, last_read_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![book_id, chapter_file, seconds, words, i64::from(completed), last_read_at],
+            "INSERT INTO reading_sessions (book_id, chapter_file, seconds_spent, completed, last_read_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![book_id, chapter_file, seconds, i64::from(completed), last_read_at],
         )?;
         report.chapters_restored += 1;
     }

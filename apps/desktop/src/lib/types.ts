@@ -255,17 +255,14 @@ export interface ChapterReadingStatItem {
   chapter_file: string;
   chapter_title?: string;
   seconds_spent: number;
-  words_read: number;
   completed: boolean;
-  wpm: number;
   last_read_at: number;
 }
 
+/** Reading time and finished chapters. There is no word count and no reading speed: the app cannot see how many words you read (AN-01). */
 export interface ReadingVelocityStats {
   total_seconds: number;
   completed_chapters: number;
-  total_words_read: number;
-  average_wpm: number;
   chapter_stats: ChapterReadingStatItem[];
 }
 

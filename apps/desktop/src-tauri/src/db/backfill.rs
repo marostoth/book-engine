@@ -135,21 +135,20 @@ fn copy_cards(conn: &Connection, book_id: &str, have: &[ReviewLine], report: &mu
     Ok(())
 }
 
-/// Writes the reading time of every chapter the vault has no line for.
+/// Writes the reading time of every chapter the vault has no line for. The word count in the cache stays behind:
+/// it was the length of the whole chapter, not the words read (AN-01).
 fn copy_reading(conn: &Connection, book_id: &str, have: &[ReadingLine], report: &mut BackfillReport) -> Result<()> {
     let known: std::collections::HashSet<&str> = have.iter().map(|line| line.chapter_file.as_str()).collect();
 
     let mut stmt = conn.prepare(
-        "SELECT chapter_file, seconds_spent, words_read, completed, last_read_at
+        "SELECT chapter_file, seconds_spent, completed, last_read_at
          FROM reading_sessions WHERE book_id = ?1 ORDER BY chapter_file",
     )?;
-    let rows: Vec<(String, i64, i64, i64, i64)> = stmt
-        .query_map(params![book_id], |row| {
-            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
-        })?
+    let rows: Vec<(String, i64, i64, i64)> = stmt
+        .query_map(params![book_id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))?
         .collect::<rusqlite::Result<_>>()?;
 
-    for (chapter_file, seconds_spent, words_read, completed, last_read_at) in rows {
+    for (chapter_file, seconds_spent, completed, last_read_at) in rows {
         if known.contains(chapter_file.as_str()) {
             continue;
         }
@@ -157,7 +156,6 @@ fn copy_reading(conn: &Connection, book_id: &str, have: &[ReadingLine], report: 
             book_id: book_id.to_string(),
             chapter_file,
             seconds_spent,
-            words_read,
             completed: completed != 0,
             read_at: last_read_at,
         })?;

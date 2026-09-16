@@ -134,6 +134,8 @@ pub fn open_or_create_db() -> Result<Connection> {
              book_id TEXT NOT NULL,
              chapter_file TEXT NOT NULL,
              seconds_spent INTEGER NOT NULL DEFAULT 0,
+             -- Not used since AN-01: the app cannot see how many words you read. An older row holds the word
+             -- count of the whole chapter.
              words_read INTEGER NOT NULL DEFAULT 0,
              completed INTEGER NOT NULL DEFAULT 0,
              last_read_at INTEGER NOT NULL,

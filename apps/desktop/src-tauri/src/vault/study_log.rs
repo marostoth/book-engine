@@ -66,13 +66,15 @@ pub struct ReviewLine {
 }
 
 /// One piece of reading time for one chapter.
+///
+/// A line written before AN-01 also holds `wordsRead`: the word count of the whole chapter, not the words that were
+/// read. It is not read back, and new lines leave it out.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ReadingLine {
     pub book_id: String,
     pub chapter_file: String,
     pub seconds_spent: i64,
-    pub words_read: i64,
     pub completed: bool,
     pub read_at: i64,
 }

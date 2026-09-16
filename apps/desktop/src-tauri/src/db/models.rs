@@ -113,18 +113,16 @@ pub struct RetentionMetrics {
 pub struct ChapterReadingStatItem {
     pub chapter_file: String,
     pub seconds_spent: u64,
-    pub words_read: usize,
     pub completed: bool,
-    pub wpm: f64,
     pub last_read_at: i64,
 }
 
+/// The reading time and the finished chapters. There is no word count and no reading speed: the app cannot see
+/// how many words you read (AN-01).
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ReadingVelocityStats {
     pub total_seconds: u64,
     pub completed_chapters: usize,
-    pub total_words_read: usize,
-    pub average_wpm: f64,
     pub chapter_stats: Vec<ChapterReadingStatItem>,
 }
 

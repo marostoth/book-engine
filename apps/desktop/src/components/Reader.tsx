@@ -44,7 +44,8 @@ interface ReaderProps {
   isBionic: boolean;
   highlights: HighlightItem[];
   targetAnchor?: string;
-  onProgressChange: (progressPercent: number) => void;
+  /** Called on every scroll with how far down the reader is, in percent, and the chapter whose words are on screen. */
+  onProgressChange: (progressPercent: number, chapter: ChapterRef | null) => void;
   onAddHighlight: (highlight: HighlightItem) => void;
   onAddNoteFromSelection: (quote: string, anchorId?: string) => void;
   onAddTerm?: (quote: string, anchorId?: string) => void;
@@ -184,6 +185,11 @@ export const Reader: React.FC<ReaderProps> = ({
     editable: false,
   });
 
+  // A chapter opens at its top. The reader used to keep the scroll position of the chapter before, so a chapter opened
+  // part of the way down and could get the "Completed" mark of the chapter you left (AN-01). A jump to a paragraph, like
+  // the place where you stopped, runs after this.
+  const chapterAtTop = useRef<ChapterRef | null | undefined>(undefined);
+
   // Parse markdown, extract footnotes, resolve asset URLs, and inject into TipTap
   useEffect(() => {
     if (!editor || !markdown) return;
@@ -201,6 +207,10 @@ export const Reader: React.FC<ReaderProps> = ({
 
     editor.commands.setContent(html);
     placeWatcher.shown(markdownSource ?? null);
+    if (chapterAtTop.current !== markdownSource) {
+      chapterAtTop.current = markdownSource;
+      containerRef.current?.scrollTo({ top: 0, behavior: "instant" });
+    }
     if (containerRef.current) {
       setTimeout(handleScroll, 50);
     }
@@ -240,13 +250,14 @@ export const Reader: React.FC<ReaderProps> = ({
   const handleScroll = () => {
     if (!containerRef.current) return;
     placeWatcher.moved();
+    const chapter = markdownSource ?? null;
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
     const total = scrollHeight - clientHeight;
     if (total <= 0) {
-      onProgressChange(100);
+      onProgressChange(100, chapter);
     } else {
       const pct = Math.min(100, Math.max(0, Math.round((scrollTop / total) * 100)));
-      onProgressChange(pct);
+      onProgressChange(pct, chapter);
     }
   };
 

@@ -153,7 +153,7 @@ export const TopNav: React.FC<TopNavProps> = ({
           <button
             onClick={onOpenAnalytics}
             className="flex items-center gap-1.5 px-2.5 h-8 flex-shrink-0 whitespace-nowrap rounded-lg border border-black/10 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.05] hover:bg-black/10 dark:hover:bg-white/10 text-neutral-600 dark:text-neutral-300 text-xs font-medium transition-colors cursor-pointer"
-            title="Study & Reading Analytics (FSRS Heatmap, Retention, Velocity)"
+            title="Study & Reading Analytics (FSRS Heatmap, Retention, Reading Time)"
           >
             <BarChart3 className="w-3.5 h-3.5 text-amber-600 dark:text-nord-accent flex-shrink-0" />
             <span className="hidden md:inline">Analytics</span>
