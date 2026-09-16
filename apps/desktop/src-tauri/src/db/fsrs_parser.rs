@@ -264,17 +264,21 @@ fn parse_cloze_section(trimmed: &str, book_dir: &Path) -> Option<RawCard> {
         return None;
     }
 
-    // Programmatic Verbatim Validation against chapter Markdown
+    // Programmatic Verbatim Validation against chapter Markdown. A card whose chapter is missing or cannot be read
+    // cannot be checked, so it is left out, as a scenario card is. It used to be kept without the check (LC-02).
     let ch_path = book_dir.join(&chapter_file);
-    if ch_path.exists() {
-        if let Ok(ch_text) = std::fs::read_to_string(&ch_path) {
-            let clean_ans = answer_key.replace("**", "").trim().to_string();
-            let clean_text = ch_text.replace("**", "");
-            if !clean_text.contains(&clean_ans) && !ch_text.contains(&answer_key) {
-                eprintln!("Rejecting non-verbatim practice card {}: '{}' not found in {}", card_id, answer_key, chapter_file);
-                return None;
-            }
+    let ch_text = match std::fs::read_to_string(&ch_path) {
+        Ok(ch_text) => ch_text,
+        Err(e) => {
+            eprintln!("Rejecting practice card {}: chapter {} could not be read ({})", card_id, chapter_file, e);
+            return None;
         }
+    };
+    let clean_ans = answer_key.replace("**", "").trim().to_string();
+    let clean_text = ch_text.replace("**", "");
+    if !clean_text.contains(&clean_ans) && !ch_text.contains(&answer_key) {
+        eprintln!("Rejecting non-verbatim practice card {}: '{}' not found in {}", card_id, answer_key, chapter_file);
+        return None;
     }
 
     Some(RawCard {

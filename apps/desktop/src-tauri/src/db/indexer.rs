@@ -5,8 +5,9 @@ use std::sync::{Mutex, PoisonError};
 
 use anyhow::{Context, Result};
 use rusqlite::{params, Connection, TransactionBehavior};
-use crate::vault::find_vault_root;
-use super::models::{IndexProblem, IndexSummary, SearchResult};
+use crate::vault::{book_id_of, find_vault_root};
+use super::models::{IndexProblem, IndexSummary, RenamedBook, SearchResult};
+use super::removed_books::set_aside_removed_books;
 use super::schema::open_or_create_db;
 use super::search_query::fts5_match_expression;
 
@@ -28,17 +29,23 @@ enum RowsToKeep {
 /// (SI-02). A file that cannot be read is left out and named in `IndexSummary::problems`, and its book or chapter keeps
 /// the rows that search read last: a file in OneDrive can be locked or offline for a moment. The rows of a book or a
 /// chapter that is no longer in the vault are removed.
+///
+/// A book is known by its folder name, as the library knows it (LC-02). The study rows of a book that left the vault
+/// leave the cache too (`removed_books.rs`), and a book folder that was renamed is named in `renamed_books`.
 pub fn index_vault_blocking() -> Result<IndexSummary> {
     let _one_run = INDEX_RUN.lock().unwrap_or_else(PoisonError::into_inner);
     let start_time = std::time::Instant::now();
     let mut conn = open_or_create_db()?;
-    let books_dir = find_vault_root()?.join("books");
+    let vault = find_vault_root()?;
+    let books_dir = vault.join("books");
     let mut summary = IndexSummary::default();
 
     // Every book folder with a `_meta.json`, and the rows of that book that stay.
     let mut books = HashMap::new();
     // False when an entry of the books folder could not be read: a book that the run did not see can still be there.
     let mut saw_every_book = true;
+    // The book folders whose `_meta.json` names another book: (folder, the name in `_meta.json`).
+    let mut other_names = Vec::new();
 
     let listing = match std::fs::read_dir(&books_dir) {
         Ok(listing) => Some(listing),
@@ -46,6 +53,7 @@ pub fn index_vault_blocking() -> Result<IndexSummary> {
         Err(e) if e.kind() == ErrorKind::NotFound => None,
         Err(e) => return Err(e).with_context(|| format!("Failed to read {}", books_dir.display())),
     };
+    let books_folder_is_there = listing.is_some();
     for entry in listing.into_iter().flatten() {
         let book_path = match entry {
             Ok(entry) => entry.path(),
@@ -59,9 +67,17 @@ pub fn index_vault_blocking() -> Result<IndexSummary> {
             continue;
         }
 
-        let book_id = book_path.file_name().unwrap_or_default().to_string_lossy().to_string();
+        let Some(book_id) = book_id_of(&book_path) else {
+            // The library does not list it either: no file read could find the folder by that name.
+            continue;
+        };
         let rows_to_keep = match std::fs::read_to_string(book_path.join("_meta.json")) {
-            Ok(meta) => index_book(&mut conn, &book_path, &book_id, &meta, &mut summary)?,
+            Ok(meta) => {
+                if let Some(name) = book_id_in_meta(&meta).filter(|name| *name != book_id) {
+                    other_names.push((book_id.clone(), name));
+                }
+                index_book(&mut conn, &book_path, &book_id, &meta, &mut summary)?
+            }
             // Not a book, or an import that has not written `_meta.json` yet. The library does not list it either.
             Err(e) if e.kind() == ErrorKind::NotFound => continue,
             Err(e) => {
@@ -73,6 +89,13 @@ pub fn index_vault_blocking() -> Result<IndexSummary> {
     }
 
     remove_rows_that_left_the_vault(&mut conn, &books, saw_every_book)?;
+    // Study progress is not rebuilt from the book files as search is, so it leaves the cache only when the run saw the
+    // whole books folder. A books folder that is missing is a problem with the vault, not a sign that every book left.
+    if books_folder_is_there && saw_every_book {
+        let in_vault: HashSet<String> = books.keys().cloned().collect();
+        set_aside_removed_books(&mut conn, &in_vault)?;
+    }
+    summary.renamed_books = renamed_books(&vault, &books, other_names);
 
     summary.problems.sort_by(|a, b| a.file.cmp(&b.file));
     summary.duration_ms = start_time.elapsed().as_millis();
@@ -253,6 +276,34 @@ fn remove_rows_that_left_the_vault(
     }
     tx.commit()?;
     Ok(())
+}
+
+/// The folders whose `_meta.json` names a book that has notes in the vault and no folder: a book folder that was
+/// renamed. The notes and study progress under the old name do not show, because a book is known by its folder name.
+/// A folder whose `_meta.json` names a book that is still there is a copy, and its notes are in use.
+fn renamed_books(
+    vault: &Path,
+    books: &HashMap<String, RowsToKeep>,
+    other_names: Vec<(String, String)>,
+) -> Vec<RenamedBook> {
+    let mut renamed: Vec<RenamedBook> = other_names
+        .into_iter()
+        .filter(|(_, old_name)| !books.contains_key(old_name) && vault.join("notes").join(old_name).is_dir())
+        .map(|(folder, old_name)| RenamedBook { folder, old_name })
+        .collect();
+    renamed.sort_by(|a, b| a.folder.cmp(&b.folder));
+    renamed
+}
+
+/// The `book_id` that a `_meta.json` text records, when it is a name that one folder can have.
+fn book_id_in_meta(meta: &str) -> Option<String> {
+    let meta: serde_json::Value = serde_json::from_str(meta).ok()?;
+    let name = meta.get("book_id")?.as_str()?;
+    let mut parts = Path::new(name).components();
+    match (parts.next(), parts.next()) {
+        (Some(std::path::Component::Normal(_)), None) => Some(name.to_string()),
+        _ => None,
+    }
 }
 
 /// The chapter list ("spine") of a `_meta.json` text, or why the text has none.

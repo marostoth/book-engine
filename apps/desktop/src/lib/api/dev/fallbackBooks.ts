@@ -50,7 +50,7 @@ export function searchVault(query: string): SearchResult[] {
 
 /** Browser stand-in for `index_vault`: the sample books never change, and every file can be read. */
 export function indexVault(): IndexSummary {
-  return { chapters_indexed: 2, paragraphs_indexed: 20, problems: [], duration_ms: 0 };
+  return { chapters_indexed: 2, paragraphs_indexed: 20, problems: [], renamed_books: [], duration_ms: 0 };
 }
 
 /** Browser stand-in for `get_vault_path`: no vault folder, so book images keep their relative paths. */

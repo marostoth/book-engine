@@ -151,3 +151,24 @@ fn deck_without_valid_cards_keeps_the_stored_cards() {
     assert_eq!(reps_of(DIVISION), [1]);
     assert_eq!(total_cards(), 1);
 }
+
+/// A cloze card is stored only when its answer is in its chapter. A card whose chapter file is missing was stored
+/// without that check (LC-02).
+#[test]
+fn card_whose_chapter_file_is_missing_is_not_synced() {
+    let sandbox = Sandbox::new();
+    sandbox.write_sample_book();
+    sandbox.write_cloze_deck(&[("card-ch-01-001", DIVISION)]);
+    // The deck also asks about chapter 9, which the book does not have.
+    let path = sandbox.vault().join("notes/sample/practice-deck.md");
+    let mut deck = std::fs::read_to_string(&path).expect("read the deck");
+    deck.push_str(&format!(
+        "\n### card-ch-09-001\n- **Chapter:** ch-09\n- **Anchor:** ^p-001\n- **Cloze:** {}\n- **Answer Key:** ``{}``\n",
+        STEAM.0, STEAM.1
+    ));
+    sandbox.write("notes/sample/practice-deck.md", &deck);
+
+    sync(1);
+    assert!(reps_of(STEAM).is_empty(), "a card whose answer cannot be checked is not stored");
+    assert_eq!(due_prompts(), [DIVISION.0]);
+}

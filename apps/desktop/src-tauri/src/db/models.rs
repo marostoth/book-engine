@@ -18,7 +18,19 @@ pub struct IndexSummary {
     pub paragraphs_indexed: usize,
     /// The files that the run could not read. Every other book and chapter was still indexed (SI-02).
     pub problems: Vec<IndexProblem>,
+    /// The book folders that were renamed, so their notes and study progress do not show (LC-02).
+    pub renamed_books: Vec<RenamedBook>,
     pub duration_ms: u128,
+}
+
+/// A book folder whose `_meta.json` names another book, whose notes are in the vault while no folder has its name.
+/// The app knows a book by its folder name, so the notes and study progress under the old name do not show.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct RenamedBook {
+    /// The name of the folder in `vault/books/` now.
+    pub folder: String,
+    /// The name in its `_meta.json`, which its notes folder in `vault/notes/` still has.
+    pub old_name: String,
 }
 
 /// A file in the vault that the search index could not read.

@@ -1,21 +1,27 @@
 //! Index tests: a broken book or chapter never stops the other books, and a book or a chapter that leaves the vault
 //! leaves search (SI-02).
 
-use crate::db::{index_vault_blocking, search_vault_blocking, IndexSummary};
+use crate::db::{index_vault_blocking, search_vault_blocking, IndexSummary, RenamedBook};
 use crate::test_support::Sandbox;
+use crate::vault::scan_library_books;
 
 /// A damaged `_meta.json`: the file ends in the middle of its chapter list.
 const DAMAGED_META: &str = r#"{ "book_id": "broken", "title": "Broken", "spine": [ "#;
 
 /// Writes the book `id` with one chapter per text, `ch-01.md`, `ch-02.md`, ..., each chapter one paragraph.
 fn write_book(sandbox: &Sandbox, id: &str, chapters: &[&str]) {
+    write_book_in_folder(sandbox, id, id, chapters);
+}
+
+/// Writes a book like `write_book` into the folder `books/<folder>`, with a `_meta.json` that names it `book_id`.
+fn write_book_in_folder(sandbox: &Sandbox, folder: &str, book_id: &str, chapters: &[&str]) {
     let spine: Vec<String> = (1..=chapters.len())
         .map(|n| format!(r#"{{ "id": "ch-{n:02}", "title": "Chapter {n}", "file_path": "ch-{n:02}.md", "order": {n} }}"#))
         .collect();
-    sandbox.write(&format!("books/{id}/_meta.json"), &book_meta(id, &spine.join(", ")));
+    sandbox.write(&format!("books/{folder}/_meta.json"), &book_meta(book_id, &spine.join(", ")));
     for (index, text) in chapters.iter().enumerate() {
         let n = index + 1;
-        sandbox.write(&format!("books/{id}/ch-{n:02}.md"), &format!("# Chapter {n}\n\n{text} ^p-001\n"));
+        sandbox.write(&format!("books/{folder}/ch-{n:02}.md"), &format!("# Chapter {n}\n\n{text} ^p-001\n"));
     }
 }
 
@@ -193,4 +199,41 @@ fn a_chapter_list_that_cannot_be_used_is_named() {
             problem("books/no-list/_meta.json", "has no chapter list (\"spine\")"),
         ]
     );
+}
+
+/// The library and search know a book by the name of its folder, so a search hit opens its book. The library used to
+/// take the `book_id` in `_meta.json`, so after a folder was renamed, a hit named a book that the library did not list
+/// (LC-02).
+#[test]
+fn search_and_the_library_know_a_book_by_its_folder_name() {
+    let sandbox = Sandbox::new();
+    write_book_in_folder(&sandbox, "smith", "wealth-of-nations", &["Pins are made in eighteen steps."]);
+
+    index();
+    let library: Vec<String> = scan_library_books().expect("read the library").into_iter().map(|book| book.id).collect();
+    assert_eq!(library, ["smith"]);
+    assert_eq!(found("pins"), ["smith/ch-01"]);
+}
+
+/// A book folder that was renamed is named with its old name. Its notes and study progress are kept under that name, so
+/// the app does not show them (LC-02).
+#[test]
+fn a_renamed_book_folder_is_named_with_its_old_name() {
+    let sandbox = Sandbox::new();
+    // Renamed: the notes have the name in _meta.json, and no book folder has that name.
+    write_book_in_folder(&sandbox, "smith", "wealth-of-nations", &["Pins are made in eighteen steps."]);
+    sandbox.write("notes/wealth-of-nations/ch-01-notes.md", "# Notes\n");
+    // A copy of a book that is still in the vault: the notes belong to that book.
+    write_book(&sandbox, "hume", &["Custom is the great guide of human life."]);
+    write_book_in_folder(&sandbox, "hume-copy", "hume", &["Custom is the great guide of human life."]);
+    sandbox.write("notes/hume/ch-01-notes.md", "# Notes\n");
+    // No notes have the name in _meta.json, so nothing is hidden.
+    write_book_in_folder(&sandbox, "fresh", "draft", &["Nothing was read here yet."]);
+
+    let summary = index();
+    assert_eq!(
+        summary.renamed_books,
+        [RenamedBook { folder: "smith".to_string(), old_name: "wealth-of-nations".to_string() }]
+    );
+    assert!(summary.problems.is_empty(), "{:?}", summary.problems);
 }

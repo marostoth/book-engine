@@ -12,6 +12,7 @@
 //!   done in the app is never undone by an older line.
 //! - Reading time is put back only for a chapter the cache has no row for at all, so seconds are never
 //!   added to a count that is already there.
+//! - A book that left the vault (no `vault/books/<book-id>/_meta.json`) gets nothing back until it returns (LC-02).
 
 use anyhow::{Context, Result};
 use rusqlite::{params, Connection, TransactionBehavior};
@@ -41,6 +42,11 @@ pub fn restore_progress_blocking() -> Result<RestoreReport> {
     let mut report = RestoreReport::default();
 
     for book_id in books {
+        // Or every start would put back what the index run takes out again (`removed_books.rs`). The study log stays
+        // in the vault, so it comes back with the book.
+        if !crate::vault::book_is_in_vault(&book_id)? {
+            continue;
+        }
         let log = study_log::read_book_log(&book_id)
             .with_context(|| format!("Failed to read the study log of '{book_id}'"))?;
         report.damaged_lines.extend(log.damaged);

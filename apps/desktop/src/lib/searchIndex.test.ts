@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { IndexProblem, IndexSummary } from "./types.ts";
+import type { IndexProblem, IndexSummary, RenamedBook } from "./types.ts";
 import { updateSearch } from "./searchIndex.ts";
 
 /**
@@ -9,8 +9,8 @@ import { updateSearch } from "./searchIndex.ts";
  * on "Rescan library", and both go through `updateSearch`.
  */
 
-function summary(problems: IndexProblem[] = []): IndexSummary {
-  return { chapters_indexed: 3, paragraphs_indexed: 120, problems, duration_ms: 40 };
+function summary(problems: IndexProblem[] = [], renamed: RenamedBook[] = []): IndexSummary {
+  return { chapters_indexed: 3, paragraphs_indexed: 120, problems, renamed_books: renamed, duration_ms: 40 };
 }
 
 /** The error bar: what failed, and the detail under it. */
@@ -66,6 +66,44 @@ test("search that read every file shows nothing in the error bar", async () => {
 
   assert.deepEqual(bar.errors, []);
   assert.deepEqual(result, summary());
+});
+
+/**
+ * LC-02: the app knows a book by its folder name. A renamed folder opens as a new book, so the notes and study progress
+ * under its old name do not show. The error bar says which folder, and the name to give it back.
+ */
+const smith: RenamedBook = { folder: "smith", old_name: "wealth-of-nations" };
+const enquiry: RenamedBook = { folder: "enquiry", old_name: "hume" };
+
+test("a renamed book folder shows in the error bar, with the name to give it back", async () => {
+  const bar = fakeErrorBar();
+
+  const result = await updateSearch(async () => summary([], [smith]), bar.reportError);
+
+  assert.deepEqual(bar.errors, [
+    {
+      action: "A book folder has a new name, so the app does not show its notes and study progress.",
+      detail: "books/smith: rename it back to wealth-of-nations",
+    },
+  ]);
+  assert.deepEqual(result, summary([], [smith]), "search was still updated");
+});
+
+test("renamed book folders share one line in the error bar, apart from the files search could not read", async () => {
+  const bar = fakeErrorBar();
+
+  await updateSearch(async () => summary([oldCodePage], [smith, enquiry]), bar.reportError);
+
+  assert.deepEqual(bar.errors, [
+    {
+      action: "Search could not read 1 file, so search results from it can be old or missing.",
+      detail: "books/hume/ch-04.md is not UTF-8 text",
+    },
+    {
+      action: "2 book folders have a new name, so the app does not show their notes and study progress.",
+      detail: "books/smith: rename it back to wealth-of-nations; books/enquiry: rename it back to hume",
+    },
+  ]);
 });
 
 test("search that could not be updated shows in the error bar", async () => {

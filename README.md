@@ -96,6 +96,8 @@ A book you import while the app is open shows after you click **Rescan library**
 
 If search cannot read a file of a book, such as a damaged `_meta.json` or a chapter that is not UTF-8 text, the error bar names the file, and the other books are still updated. A book you delete from the vault leaves search when the app opens again or after a rescan.
 
+The app knows a book by the name of its folder in `vault/books/`. A book you delete also leaves practice and the "All Books" analytics. Its notes and study log stay in `vault/notes/`, so its progress comes back if you put the book back. If you rename a book folder, the book opens as a new book, and the error bar tells you the name to give it back.
+
 ---
 
 ### 2. Desktop Application (`apps/desktop`)

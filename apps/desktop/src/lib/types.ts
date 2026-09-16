@@ -133,7 +133,18 @@ export interface IndexSummary {
   paragraphs_indexed: number;
   /** The files that the run could not read. Every other book and chapter was still indexed (SI-02). */
   problems: IndexProblem[];
+  /** The book folders that were renamed, so their notes and study progress do not show (LC-02). */
+  renamed_books: RenamedBook[];
   duration_ms: number;
+}
+
+/** A book folder whose `_meta.json` names another book, whose notes are still in the vault (`RenamedBook` in
+ * src-tauri/src/db/models.rs). The app knows a book by its folder name, so the notes under the old name do not show. */
+export interface RenamedBook {
+  /** The name of the folder in `vault/books/` now. */
+  folder: string;
+  /** The name in its `_meta.json`, which its notes folder in `vault/notes/` still has. */
+  old_name: string;
 }
 
 export type { ScenarioOption, ScenarioPayload, PracticeCardItem } from "./practiceTypes";

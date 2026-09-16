@@ -2,7 +2,9 @@
 //! The app no longer writes `_meta.json` at all; `inspectional_tests.rs` checks that (DS-09).
 
 use crate::test_support::Sandbox;
-use crate::vault::{read_notes_file, write_notes_file};
+use crate::vault::{
+    read_book_meta_json, read_chapter_file, read_notes_file, scan_available_books, scan_library_books, write_notes_file,
+};
 
 const BOOK: &str = "sample";
 const NOTES_FILE: &str = "ch-01-notes.md";
@@ -70,4 +72,24 @@ fn a_reader_never_sees_a_half_written_notes_file() {
         new_len,
         "the new notes must be there when the save finishes"
     );
+}
+
+/// A book is known by the name of its folder, which every file read uses. The library used to take the `book_id` in
+/// `_meta.json`, so a renamed folder was listed under a name that no file read could find (LC-02).
+#[test]
+fn a_renamed_book_folder_opens_under_its_folder_name() {
+    let sandbox = Sandbox::new();
+    sandbox.write_sample_book();
+    std::fs::rename(sandbox.vault().join("books/sample"), sandbox.vault().join("books/economics"))
+        .expect("rename the book folder");
+
+    let library = scan_library_books().expect("read the library");
+    let ids: Vec<&str> = library.iter().map(|book| book.id.as_str()).collect();
+    assert_eq!(ids, ["economics"], "the library names the book by its folder");
+    let listed: Vec<String> = scan_available_books().expect("list the books").into_iter().map(|book| book.book_id).collect();
+    assert_eq!(listed, ["economics"], "list_books names it the same way");
+
+    let chapter = read_chapter_file(ids[0], "ch-01.md").expect("the chapter opens under the name the library gives");
+    assert!(chapter.contains("division of labour"));
+    read_book_meta_json(ids[0]).expect("and so does its _meta.json");
 }
