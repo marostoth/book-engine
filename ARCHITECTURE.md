@@ -19,7 +19,8 @@ LOCAL FILE VAULT (Sole Permanent Record)
     ├── assets/               <-- Extracted diagrams/figures
     └── ch-01.md              <-- Tagged source text
   notes/<book-id>/
-    ├── ch-01-notes.md        <-- User notes & reflections
+    ├── ch-01-notes.md        <-- User notes & reflections (the notes pane is its only writer)
+    ├── ch-01-highlights.json <-- Saved highlights (the reader is its only writer)
     └── practice-deck.md      <-- Pre-generated study items
           │
           ▲ (File System Watcher / Async Read-Write)
@@ -143,6 +144,7 @@ book-engine/
 │       │   │   │   │   ├── fallbackAnalytical.ts # Sample analytical store & localStorage analytical data
 │       │   │   │   │   ├── fallbackAnalytics.ts # In-memory analytics mock generators
 │       │   │   │   │   ├── fallbackBooks.ts     # Sample library & chapters, localStorage notes, plain text search
+│       │   │   │   │   ├── fallbackHighlights.ts # Sample chapter highlights in browser storage
 │       │   │   │   │   ├── fallbackLexicon.ts   # In-memory dictionary and deduplicated vocabulary storage
 │       │   │   │   │   ├── fallbackNotes.ts     # Sample chapter notes, in-browser notes aggregation & summary export
 │       │   │   │   │   ├── fallbackPractice.ts  # Sample practice cards, due-card filter & simple review schedule
@@ -151,6 +153,7 @@ book-engine/
 │       │   │   │   ├── analyticalApi.ts     # Analytical reading store load/save IPC
 │       │   │   │   ├── analyticsApi.ts      # Study analytics, reading session & velocity IPC client
 │       │   │   │   ├── clientBase.ts        # Tauri detection & callBackend: inside the app a failed command rejects
+│       │   │   │   ├── highlightsApi.ts     # Chapter highlights IPC: the only writer of `<chapter>-highlights.json`
 │       │   │   │   ├── lexiconApi.ts        # Sanitized offline dictionary lookup & vocabulary vault persistence IPC
 │       │   │   │   ├── notesApi.ts          # Cross-chapter note aggregation & summary export IPC
 │       │   │   │   ├── practiceApi.ts       # FSRS practice card synchronization & review IPC
@@ -168,11 +171,12 @@ book-engine/
 │       │   │   ├── chapterGate.test.ts  # Gate tests: later chapters only, every level but syntopical, wrong answers never pass
 │       │   │   ├── elementaryPacer.ts      # Pure pacer timing, chunking, and contrast opacity functions
 │       │   │   ├── elementaryPacer.test.ts # Unit tests for pacer timing, chunking, and contrast math
-│       │   │   ├── highlights.ts        # W3C Text Quote Selector parser, serializer & paragraph placement
+│       │   │   ├── highlights.ts        # W3C Text Quote Selector reader, paragraph placement & old-comment parser
 │       │   │   ├── highlights.test.ts   # Highlight tests: a saved anchor brings each highlight back to its own paragraph
 │       │   │   ├── levelGuideData.ts    # Mortimer Adler levels static cheatsheet & hotkeys registry
 │       │   │   ├── markdown.ts          # Chapter Markdown preprocessor & anchor normalizer
 │       │   │   ├── notesAggregator.ts   # Cross-chapter note aggregation, anchor sorting & summary compiler
+│       │   │   ├── notesWriters.test.ts # Writer tests: the chapter notes and the highlights use different backend commands
 │       │   │   ├── practiceContract.json    # Exact get_due_cards scenario-card JSON shared by the Rust & TS contract tests
 │       │   │   ├── practiceContract.test.ts # Contract tests: backend field names vs. frontend grading & browser mocks
 │       │   │   ├── practiceSession.ts       # Pure practice/gatekeeper session: card type per practice mode, fixed card copy, position, ratings & completion
@@ -225,6 +229,8 @@ book-engine/
 │           │   ├── test_support.rs      # Test-only sandbox: temporary vault & cache database per unit test, also for its test threads (Sandbox::spawn)
 │           │   ├── vault/               # Modular vault file I/O & notes aggregation
 │           │   │   ├── analytical.rs        # Level 3 analytical store loader, saver & unit tests; a damaged file stops the load and the save
+│           │   │   ├── highlights.rs        # Chapter highlights file: load, save, and the one-time move out of the old notes comment
+│           │   │   ├── highlights_tests.rs  # Highlight tests: a notes save cannot erase a highlight, and the move keeps the reader's text
 │           │   │   ├── json_store.rs        # Safe JSON read for vault files: byte order mark removed, a damaged file errors and is copied to <name>.corrupt-<time>
 │           │   │   ├── models.rs            # Vault metadata, analytical and note structures
 │           │   │   ├── notes.rs             # Chapter reflection notes loader, saver & summary export
@@ -281,7 +287,7 @@ book-engine/
 │   └── create_desktop_shortcut.ps1 # One-click Windows desktop shortcut generator
 ├── vault/                       # SOLE PERMANENT RECORD: User Markdown vault (Versioned / Syncable)
 │   ├── books/<book-id>/         # Chapter Markdown (`ch-XX.md`), `_meta.json`, and extracted assets
-│   ├── notes/<book-id>/         # Chapter notes, serialized highlights, and study decks
+│   ├── notes/<book-id>/         # Chapter notes (`ch-XX-notes.md`), highlights (`ch-XX-highlights.json`), and study decks
 │   └── syntopicon/              # Level 4 Syntopicon topic registries & compiled reports
 │       ├── topics/              # Cross-book syntopical topics (`<topic-id>.json`)
 │       └── reports/             # Compiled dialectical dossiers (`<topic-id>-synthesis.md`)
@@ -320,6 +326,7 @@ Multi-column textbook pages frequently include full-width conceptual matrices, m
 
 - **Vault (`vault/`):** Human-readable plain-text Markdown files and images. Can be edited externally (Obsidian, Neovim, VS Code).
 - **Ephemeral Cache (`index.db`):** Stored strictly in the OS application data folder (`%APPDATA%\book-engine\`). Never checked into version control.
+- **One Writer per File:** The chapter notes `ch-XX-notes.md` hold only what the reader writes, and the notes pane is their only writer. Highlights live in `ch-XX-highlights.json`, and `vault/highlights.rs` is their only writer. Before this, both parts saved the same Markdown file, so a keystroke in the notes pane erased a highlight that had just been added (DS-05). A chapter that still keeps its highlights in the old `<!-- highlights-json ... -->` comment is moved over the first time it is read: the highlights and the quote lines the app wrote leave the notes file, and the reader's own headings and text stay.
 - **Safe Vault Write:** Every write into the vault goes through `write_file` (`apps/desktop/src-tauri/src/vault/safe_write.rs`): the bytes go to a temporary file in the same folder, are flushed to the disk, and are then renamed over the target. A rename is one step, so a crash or a power cut leaves the whole old file or the whole new file, never an empty or cut-off one. A rename that fails because another program holds the file, such as the OneDrive client, is tried a few times before the save reports an error, and the temporary file is removed. `serde_json` is built with `preserve_order`, so a rewritten `_meta.json` keeps the key order it had, and `save_inspectional_exit_assessment` writes back the line endings the file had.
 - **Damaged Vault File:** A vault JSON file that cannot be parsed is never read as empty data, because the next save would write that empty data back. `read_json_file` (`apps/desktop/src-tauri/src/vault/json_store.rs`) removes a leading byte order mark, and a file it still cannot parse gives an error that names the file and is copied to `<file name>.corrupt-<time>`. `vocabulary.rs` and `analytical.rs` read through it, so both the load and the save fail and the file on disk is left exactly as it is.
 - **No Hidden Fallback:** Inside the app, every frontend call to the backend goes through `callBackend` (`apps/desktop/src/lib/api/clientBase.ts`). A failed load or save rejects with the backend error and shows in the error bar (`BackendErrorBar.tsx`). Nothing falls back to sample data, and no vault data goes to browser storage. Data that did not load is not saved over: the notes pane stays locked, a new highlight is not saved, and analytical changes for that book are not saved.
@@ -416,6 +423,8 @@ All disk I/O operations are offloaded from the Tauri main thread using `tokio::t
 | `load_chapter` | `(book_id: String, chapter_file: String) -> Result<String, String>` | Reads chapter Markdown text (`ch-XX.md`) from the vault. |
 | `load_notes` | `(book_id: String, notes_file: String) -> Result<String, String>` | Reads `vault/notes/<book_id>/<notes_file>` (auto-scaffolds starter template if missing). |
 | `save_notes` | `(book_id: String, notes_file: String, content: String) -> Result<(), String>` | Persists user reflection notes to `vault/notes/<book_id>/<notes_file>`. |
+| `get_chapter_highlights` | `(book_id: String, chapter_file: String) -> Result<Vec<HighlightItem>, String>` | Reads `vault/notes/<book_id>/<chapter>-highlights.json`. A chapter that still keeps its highlights in the old notes comment is moved over once, keeping the reader's own text. |
+| `save_chapter_highlights` | `(book_id: String, chapter_file: String, highlights: Vec<HighlightItem>) -> Result<(), String>` | Writes `vault/notes/<book_id>/<chapter>-highlights.json`. It never touches the chapter notes, and a damaged highlights file stops the save. |
 
 ### Frontend Component Hierarchy (`apps/desktop/src/`)
 The desktop client is structured around a single-chapter virtualized TipTap canvas:
@@ -527,12 +536,9 @@ export interface HighlightItem {
 }
 ```
 
-**Persistence & Markdown Vault Roundtrip:**
-Highlights are serialized into `vault/notes/<book-id>/<chapter-file>-notes.md` inside a dedicated `## Highlights` section containing both machine-readable JSON in an HTML comment and a human-readable list:
-```markdown
-## Highlights
-
-<!-- highlights-json
+**Persistence:**
+Highlights are saved as a JSON list in `vault/notes/<book-id>/<chapter>-highlights.json`, written only by `get_chapter_highlights` and `save_chapter_highlights` (`apps/desktop/src-tauri/src/vault/highlights.rs`). A chapter with no highlights has no file.
+```json
 [
   {
     "id": "hl-1789116786-a1b2c",
@@ -544,14 +550,13 @@ Highlights are serialized into `vault/notes/<book-id>/<chapter-file>-notes.md` i
     "createdAt": "2026-09-11T08:53:00.000Z"
   }
 ]
--->
-
-- > "Market segmentation is the bedrock of targeted positioning." (^p-042)
 ```
+
+Older chapters kept the same list inside a `<!-- highlights-json ... -->` comment in the notes Markdown. `load_chapter_highlights` moves such a chapter over the first time it is read and leaves the reader's own text in place. A comment that cannot be parsed is left alone and gives an error, so nothing is lost.
 
 **Fuzzy Hydration & TreeWalker Injection Algorithm (`applyHighlightsToHtml`):**
 When a chapter HTML payload is prepared for mounting into TipTap:
-1. `parseHighlightsFromNotes`: Scans `<!-- highlights-json ... -->` in the chapter's notes file and parses the `HighlightItem[]` payload.
+1. `getChapterHighlights`: Reads the `HighlightItem[]` list of the chapter from its highlights file.
 2. `Paragraph Resolution` (`findHighlightParagraph`): For each highlight, converts the saved anchor (`^p-xxx`) to the attribute form with `toAnchorAttribute` and uses the paragraph with `data-anchor="p-xxx"` when it still contains the quote. If the anchor is absent or its paragraph no longer contains the quote, falls back to the first candidate `<p>` element that contains it.
 3. `Fuzzy Recovery Pass`:
    - Checks verbatim match: `pText.includes(hl.exact)`.

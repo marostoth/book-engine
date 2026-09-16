@@ -66,6 +66,8 @@ const backendCalls: [name: string, call: () => Promise<unknown>][] = [
   ["submitReview", () => api.submitReview("card-ch-01-001", 3)],
   ["getDeckStats", () => api.getDeckStats("sample")],
   ["getAllBookNotes", () => api.getAllBookNotes("sample")],
+  ["getChapterHighlights", () => api.getChapterHighlights("sample", "ch-01.md")],
+  ["saveChapterHighlights", () => api.saveChapterHighlights("sample", "ch-01.md", [])],
   ["exportBookSummary", () => api.exportBookSummary("sample")],
   ["getStudyAnalytics", () => api.getStudyAnalytics("sample")],
   ["fetchReviewHeatmap", () => api.fetchReviewHeatmap("sample")],

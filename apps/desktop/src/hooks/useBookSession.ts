@@ -9,12 +9,11 @@ import {
   fetchBookMeta,
   fetchChapter,
   fetchLibraryBooks,
-  fetchNotes,
-  persistNotes,
+  getChapterHighlights,
+  saveChapterHighlights,
   recordReadingProgress,
   getVaultPath,
 } from "../lib/api";
-import { parseHighlightsFromNotes, serializeHighlightsToNotes } from "../lib/highlights";
 import { reportBackendError } from "../lib/backendErrors";
 import { ReaderLocation, resolveLocation } from "../lib/readerLocation";
 import { ChapterMoveRequest } from "./useChapterGate";
@@ -43,9 +42,9 @@ export function useBookSession({ onCardsRefreshNeeded, requestChapterMove }: Boo
   const [progressPercent, setProgressPercent] = useState<number>(0);
   const [highlights, setHighlights] = useState<HighlightItem[]>([]);
   const [targetAnchor, setTargetAnchor] = useState<string | undefined>();
-  // The notes file ("book/file") whose highlights are shown. It is null while they load and after a failed load.
-  // A new highlight is saved only into this file: a save with highlights that did not load would erase the saved ones.
-  const [highlightsFile, setHighlightsFile] = useState<string | null>(null);
+  // The chapter ("book/file") whose highlights are shown. It is null while they load and after a failed load.
+  // A new highlight is saved only for this chapter: a save with highlights that did not load would erase the saved ones.
+  const [highlightsChapter, setHighlightsChapter] = useState<string | null>(null);
 
   // Load canonical vault path on mount
   useEffect(() => {
@@ -111,14 +110,13 @@ export function useBookSession({ onCardsRefreshNeeded, requestChapterMove }: Boo
         reportBackendError(`Could not load the chapter "${activeChapter.title}".`, err);
       });
 
-    const notesFile = activeChapter.file_path.replace(".md", "-notes.md");
-    const highlightsSource = `${bookMeta.book_id}/${notesFile}`;
-    setHighlightsFile(null);
-    fetchNotes(bookMeta.book_id, notesFile)
-      .then((notesContent) => {
-        const parsedHighlights = parseHighlightsFromNotes(notesContent);
-        setHighlights(parsedHighlights);
-        setHighlightsFile(highlightsSource);
+    const chapterFile = activeChapter.file_path;
+    const highlightsSource = `${bookMeta.book_id}/${chapterFile}`;
+    setHighlightsChapter(null);
+    getChapterHighlights(bookMeta.book_id, chapterFile)
+      .then((saved) => {
+        setHighlights(saved);
+        setHighlightsChapter(highlightsSource);
       })
       .catch((err) => {
         setHighlights([]);
@@ -165,8 +163,8 @@ export function useBookSession({ onCardsRefreshNeeded, requestChapterMove }: Boo
   const handleAddHighlight = (newHighlight: HighlightItem) => {
     if (!bookMeta || !activeChapter) return;
 
-    const notesFile = activeChapter.file_path.replace(".md", "-notes.md");
-    if (highlightsFile !== `${bookMeta.book_id}/${notesFile}`) {
+    const chapterFile = activeChapter.file_path;
+    if (highlightsChapter !== `${bookMeta.book_id}/${chapterFile}`) {
       reportBackendError(
         "The highlight was not saved.",
         "The saved highlights of this chapter did not load, and a save now would erase them. Open the chapter again."
@@ -177,12 +175,9 @@ export function useBookSession({ onCardsRefreshNeeded, requestChapterMove }: Boo
     const updated = [...highlights, newHighlight];
     setHighlights(updated);
 
-    fetchNotes(bookMeta.book_id, notesFile)
-      .then((currentNotes) => {
-        const updatedNotes = serializeHighlightsToNotes(currentNotes, updated);
-        return persistNotes(bookMeta.book_id, notesFile, updatedNotes);
-      })
-      .catch((err) => reportBackendError("The highlight was not saved.", err));
+    saveChapterHighlights(bookMeta.book_id, chapterFile, updated).catch((err) =>
+      reportBackendError("The highlight was not saved.", err)
+    );
   };
 
   /**

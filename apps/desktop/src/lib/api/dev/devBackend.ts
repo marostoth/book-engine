@@ -22,6 +22,7 @@ export {
 } from "./mockData.ts";
 export { syncPracticeDeck, getDueCards, getChapterDueCards, submitReview, getDeckStats } from "./fallbackPractice.ts";
 export { getAllBookNotes, exportBookSummary } from "./fallbackNotes.ts";
+export { getChapterHighlights, saveChapterHighlights } from "./fallbackHighlights.ts";
 export {
   fallbackLookupDictionaryTerm as lookupDictionaryTerm,
   fallbackSaveVocabulary as saveBookVocabulary,

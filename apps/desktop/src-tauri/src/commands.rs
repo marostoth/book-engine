@@ -253,6 +253,28 @@ pub async fn save_book_vocabulary(book_id: String, entry: crate::vault::Vocabula
 }
 
 #[command]
+pub async fn get_chapter_highlights(book_id: String, chapter_file: String) -> Result<Vec<crate::vault::HighlightItem>, String> {
+    tokio::task::spawn_blocking(move || crate::vault::load_chapter_highlights(&book_id, &chapter_file))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+        .map_err(|e| format!("{:#}", e))
+}
+
+#[command]
+pub async fn save_chapter_highlights(
+    book_id: String,
+    chapter_file: String,
+    highlights: Vec<crate::vault::HighlightItem>,
+) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        crate::vault::save_chapter_highlights(&book_id, &chapter_file, highlights)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))?
+    .map_err(|e| format!("{:#}", e))
+}
+
+#[command]
 pub async fn get_analytical_data(book_id: String) -> Result<crate::vault::AnalyticalStore, String> {
     tokio::task::spawn_blocking(move || crate::vault::load_analytical_store(&book_id))
         .await
