@@ -1,12 +1,19 @@
 use anyhow::Result;
 use crate::vault::find_vault_root;
 use super::models::{
-    DayReviewActivity, RetentionMetrics, StateCounts, StudyAnalytics,
+    RetentionMetrics, ReviewBlock, StateCounts, StudyAnalytics,
 };
 use super::schema::open_or_create_db;
 
-/// Queries review activity per day for FSRS GitHub-style heatmap.
-pub fn get_review_heatmap_blocking(book_id: Option<&str>) -> Result<Vec<DayReviewActivity>> {
+/// The length of one block of review time for the heatmap: 15 minutes, in seconds.
+const REVIEW_BLOCK_SECONDS: i64 = 15 * 60;
+
+/// Counts the reviews in each 15-minute block of time, for the heatmap and the streak (AN-02).
+///
+/// The cache cannot know the time zone of the window, and the UTC day is the wrong day for a review made near
+/// midnight. So the window puts each block on a day of its own time zone. Every time zone is a whole number of
+/// 15-minute blocks from UTC, so a midnight never falls inside a block.
+pub fn get_review_heatmap_blocking(book_id: Option<&str>) -> Result<Vec<ReviewBlock>> {
     let conn = open_or_create_db()?;
 
     let (where_clause, params_vec): (&str, Vec<rusqlite::types::Value>) = match book_id {
@@ -15,48 +22,48 @@ pub fn get_review_heatmap_blocking(book_id: Option<&str>) -> Result<Vec<DayRevie
     };
 
     let sql = format!(
-        "SELECT strftime('%Y-%m-%d', reviewed_at, 'unixepoch') as day, COUNT(*) as cnt
+        "SELECT reviewed_at - reviewed_at % {REVIEW_BLOCK_SECONDS} as started_at, COUNT(*) as cnt
          FROM review_logs
          {}
-         GROUP BY day
-         ORDER BY day ASC",
+         GROUP BY started_at
+         ORDER BY started_at ASC",
         where_clause
     );
 
     let mut stmt = conn.prepare(&sql)?;
     let rows = stmt.query_map(
         rusqlite::params_from_iter(params_vec.iter().cloned()),
-        |r| Ok(DayReviewActivity {
-            date: r.get(0)?,
+        |r| Ok(ReviewBlock {
+            started_at: r.get(0)?,
             count: r.get(1)?,
         })
     )?;
 
-    let mut activities: Vec<DayReviewActivity> = rows.filter_map(|r| r.ok()).collect();
+    let mut blocks: Vec<ReviewBlock> = rows.filter_map(|r| r.ok()).collect();
 
     // Fallback: If review_logs has no records yet, check fsrs_cards with last_review > 0
-    if activities.is_empty() {
+    if blocks.is_empty() {
         let card_sql = format!(
-            "SELECT strftime('%Y-%m-%d', last_review, 'unixepoch') as day, COUNT(*) as cnt
+            "SELECT last_review - last_review % {REVIEW_BLOCK_SECONDS} as started_at, COUNT(*) as cnt
              FROM fsrs_cards
              {} {}
-             GROUP BY day
-             ORDER BY day ASC",
+             GROUP BY started_at
+             ORDER BY started_at ASC",
             if where_clause.is_empty() { "WHERE" } else { "WHERE book_id = ? AND" },
             "last_review > 0"
         );
         let mut card_stmt = conn.prepare(&card_sql)?;
         let card_rows = card_stmt.query_map(
             rusqlite::params_from_iter(params_vec),
-            |r| Ok(DayReviewActivity {
-                date: r.get(0)?,
+            |r| Ok(ReviewBlock {
+                started_at: r.get(0)?,
                 count: r.get(1)?,
             })
         )?;
-        activities = card_rows.filter_map(|r| r.ok()).collect();
+        blocks = card_rows.filter_map(|r| r.ok()).collect();
     }
 
-    Ok(activities)
+    Ok(blocks)
 }
 
 /// Calculates retention stats (due today, total mastered cards, FSRS power-law retention percentage).
@@ -202,8 +209,8 @@ pub fn get_study_analytics_blocking(book_id: Option<&str>) -> Result<StudyAnalyt
         total_cards,
     };
 
-    // 2. Daily review frequency
-    let daily_reviews = get_review_heatmap_blocking(book_id)?;
+    // 2. Reviews in 15-minute blocks: the window puts them on the days of its time zone (AN-02)
+    let review_blocks = get_review_heatmap_blocking(book_id)?;
 
     // 3. Retention rate: (total_reviews - again_count) / total_reviews
     let total_reviews: usize = conn.query_row(
@@ -284,7 +291,7 @@ pub fn get_study_analytics_blocking(book_id: Option<&str>) -> Result<StudyAnalyt
     };
 
     Ok(StudyAnalytics {
-        daily_reviews,
+        review_blocks,
         state_counts,
         retention_rate,
         cards_due_today,

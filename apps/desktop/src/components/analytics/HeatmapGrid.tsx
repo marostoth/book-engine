@@ -1,55 +1,19 @@
 import React, { useMemo, useState } from "react";
 import { Calendar } from "lucide-react";
-import { DayReviewActivity } from "../../lib/types";
+import { heatmapWeeks, reviewsInLastDays, startOfLocalDay } from "../../lib/reviewDays";
 
 interface HeatmapGridProps {
-  heatmapData: DayReviewActivity[];
+  /** The number of reviews on each "YYYY-MM-DD" day, in the time zone of this window (`reviewsPerDay`). */
+  reviewsPerDay: Map<string, number>;
 }
 
-export const HeatmapGrid: React.FC<HeatmapGridProps> = ({ heatmapData }) => {
+export const HeatmapGrid: React.FC<HeatmapGridProps> = ({ reviewsPerDay }) => {
   const [hoveredDay, setHoveredDay] = useState<{ date: string; count: number } | null>(null);
 
-  // Transform heatmapData into a 52-week calendar grid (364 days, 7 rows: Mon-Sun)
-  const calendarGrid = useMemo(() => {
-    const activityMap = new Map<string, number>();
-    for (const item of heatmapData) {
-      activityMap.set(item.date, item.count);
-    }
+  // 52 week columns with rows from Monday to Sunday; the last column ends today (AN-02)
+  const calendarGrid = useMemo(() => heatmapWeeks(reviewsPerDay, new Date()), [reviewsPerDay]);
 
-    const today = new Date();
-    const end = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const daysToShow = 52 * 7;
-    const start = new Date(end.getTime() - (daysToShow - 1) * 86400000);
-
-    const weeks: { dateStr: string; count: number; month: string; isNewMonth: boolean }[][] = [];
-    let currentWeek: { dateStr: string; count: number; month: string; isNewMonth: boolean }[] = [];
-    let prevMonth = "";
-
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      const dateStr = d.toISOString().split("T")[0];
-      const count = activityMap.get(dateStr) || 0;
-      const month = d.toLocaleString("default", { month: "short" });
-      const isNewMonth = month !== prevMonth && d.getDate() <= 7;
-      if (isNewMonth) prevMonth = month;
-
-      currentWeek.push({ dateStr, count, month, isNewMonth });
-
-      if (currentWeek.length === 7) {
-        weeks.push(currentWeek);
-        currentWeek = [];
-      }
-    }
-
-    if (currentWeek.length > 0) {
-      weeks.push(currentWeek);
-    }
-
-    return weeks;
-  }, [heatmapData]);
-
-  const totalReviewsYear = useMemo(() => {
-    return heatmapData.reduce((acc, item) => acc + item.count, 0);
-  }, [heatmapData]);
+  const totalReviewsYear = useMemo(() => reviewsInLastDays(reviewsPerDay, new Date()), [reviewsPerDay]);
 
   const getCellColorClass = (count: number) => {
     if (count === 0) return "bg-black/[0.04] dark:bg-white/[0.05] border-black/5 dark:border-white/5";
@@ -76,7 +40,7 @@ export const HeatmapGrid: React.FC<HeatmapGridProps> = ({ heatmapData }) => {
           {hoveredDay ? (
             <span>
               <strong>{hoveredDay.count}</strong> {hoveredDay.count === 1 ? "review" : "reviews"} on{" "}
-              {new Date(hoveredDay.date).toLocaleDateString(undefined, {
+              {startOfLocalDay(hoveredDay.date).toLocaleDateString(undefined, {
                 month: "short",
                 day: "numeric",
                 year: "numeric",
@@ -103,16 +67,16 @@ export const HeatmapGrid: React.FC<HeatmapGridProps> = ({ heatmapData }) => {
                     if (!dayData) {
                       return <div key={weekIndex} className="w-3 h-3 rounded-sm bg-transparent" />;
                     }
-                    const isHovered = hoveredDay?.date === dayData.dateStr;
+                    const isHovered = hoveredDay?.date === dayData.day;
                     return (
                       <div
                         key={weekIndex}
-                        onMouseEnter={() => setHoveredDay({ date: dayData.dateStr, count: dayData.count })}
+                        onMouseEnter={() => setHoveredDay({ date: dayData.day, count: dayData.count })}
                         onMouseLeave={() => setHoveredDay(null)}
                         className={`w-3 h-3 rounded-[2.5px] border cursor-pointer transition-all ${getCellColorClass(
                           dayData.count
                         )} ${isHovered ? "ring-2 ring-amber-500 scale-125 z-10" : ""}`}
-                        title={`${dayData.dateStr}: ${dayData.count} reviews`}
+                        title={`${dayData.day}: ${dayData.count} reviews`}
                       />
                     );
                   })}

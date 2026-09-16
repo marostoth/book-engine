@@ -239,8 +239,13 @@ export interface AggregatedEntry {
   createdAt?: string;
 }
 
-export interface DayReviewActivity {
-  date: string;
+/**
+ * The reviews made in one 15-minute block of time. The cache cannot know the time zone of the window, so the window
+ * puts each block on a day of its own time zone (`reviewDays.ts`, AN-02).
+ */
+export interface ReviewBlock {
+  /** When the block starts, in seconds since 1970 (UTC). */
+  started_at: number;
   count: number;
 }
 
@@ -288,7 +293,7 @@ export interface StateCounts {
 }
 
 export interface StudyAnalytics {
-  daily_reviews: DayReviewActivity[];
+  review_blocks: ReviewBlock[];
   state_counts: StateCounts;
   retention_rate: number;
   cards_due_today: number;

@@ -14,6 +14,8 @@ pub mod card_identity;
 pub mod deck_sync;
 pub mod removed_books;
 #[cfg(test)]
+mod analytics_tests;
+#[cfg(test)]
 mod backfill_tests;
 #[cfg(test)]
 mod deck_sync_tests;
@@ -141,7 +143,7 @@ mod tests {
         submit_card_review_blocking(&due[0].card_id, 4).expect("Submit review failed");
 
         let heatmap = get_review_heatmap_blocking(Some("sample")).expect("Failed to get heatmap");
-        assert!(!heatmap.is_empty(), "Expected at least 1 day in review heatmap");
+        assert!(!heatmap.is_empty(), "Expected at least 1 block of reviews in the heatmap");
 
         let retention = get_retention_metrics_blocking(Some("sample")).expect("Failed to get retention");
         assert!(retention.retention_rate >= 0.0 && retention.retention_rate <= 100.0);

@@ -1,6 +1,6 @@
 import type {
   StudyAnalytics,
-  DayReviewActivity,
+  ReviewBlock,
   RetentionMetrics,
   ReadingVelocityStats,
 } from "../types.ts";
@@ -12,8 +12,8 @@ export async function getStudyAnalytics(bookId?: string): Promise<StudyAnalytics
   );
 }
 
-export async function fetchReviewHeatmap(bookId?: string): Promise<DayReviewActivity[]> {
-  return callBackend<DayReviewActivity[]>("get_review_heatmap", { bookId }, (dev) => dev.fetchReviewHeatmap());
+export async function fetchReviewHeatmap(bookId?: string): Promise<ReviewBlock[]> {
+  return callBackend<ReviewBlock[]>("get_review_heatmap", { bookId }, (dev) => dev.fetchReviewHeatmap());
 }
 
 export async function fetchRetentionMetrics(bookId?: string): Promise<RetentionMetrics> {

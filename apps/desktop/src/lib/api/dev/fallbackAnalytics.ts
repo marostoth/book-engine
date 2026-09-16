@@ -20,7 +20,7 @@ export function getFallbackStudyAnalytics(): StudyAnalytics {
   const totalVaultWords = 22400;
 
   return {
-    daily_reviews: heatmap,
+    review_blocks: heatmap,
     state_counts: {
       new_count: 5,
       learning_count: 3,

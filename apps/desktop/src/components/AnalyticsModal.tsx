@@ -13,12 +13,13 @@ import {
 import {
   BookMeta,
   ReaderPreferences,
-  DayReviewActivity,
+  ReviewBlock,
   ReadingVelocityStats,
   StudyAnalytics,
 } from "../lib/types";
 import { getStudyAnalytics, fetchReadingVelocity } from "../lib/api";
 import { reportBackendError } from "../lib/backendErrors";
+import { reviewsPerDay, reviewStreaks } from "../lib/reviewDays";
 import { HeatmapGrid } from "./analytics/HeatmapGrid";
 import { VelocityTable } from "./analytics/VelocityTable";
 
@@ -40,7 +41,7 @@ export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
   const [scope, setScope] = useState<"active" | "all">("active");
   const [loading, setLoading] = useState<boolean>(true);
   const [studyAnalytics, setStudyAnalytics] = useState<StudyAnalytics | null>(null);
-  const [heatmapData, setHeatmapData] = useState<DayReviewActivity[]>([]);
+  const [reviewBlocks, setReviewBlocks] = useState<ReviewBlock[]>([]);
   const [velocityStats, setVelocityStats] = useState<ReadingVelocityStats | null>(null);
 
   const loadAnalytics = async () => {
@@ -52,7 +53,7 @@ export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
         fetchReadingVelocity(targetBookId),
       ]);
       setStudyAnalytics(analytics);
-      setHeatmapData(analytics.daily_reviews);
+      setReviewBlocks(analytics.review_blocks);
       setVelocityStats(velocity);
     } catch (err) {
       reportBackendError("Could not load your study analytics.", err);
@@ -78,45 +79,9 @@ export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Calculate streaks
-  const { currentStreak, longestStreak } = useMemo(() => {
-    const activityMap = new Map<string, number>();
-    for (const item of heatmapData) {
-      activityMap.set(item.date, item.count);
-    }
-
-    const today = new Date();
-    let current = 0;
-    let longest = 0;
-    let temp = 0;
-
-    for (let i = 365; i >= 0; i--) {
-      const d = new Date(today.getTime() - i * 86400000);
-      const str = d.toISOString().split("T")[0];
-      const count = activityMap.get(str) || 0;
-      if (count > 0) {
-        temp++;
-        longest = Math.max(longest, temp);
-      } else {
-        temp = 0;
-      }
-    }
-
-    for (let i = 0; i < 365; i++) {
-      const d = new Date(today.getTime() - i * 86400000);
-      const str = d.toISOString().split("T")[0];
-      const count = activityMap.get(str) || 0;
-      if (count > 0) {
-        current++;
-      } else if (i === 0) {
-        continue;
-      } else {
-        break;
-      }
-    }
-
-    return { currentStreak: current, longestStreak: longest };
-  }, [heatmapData]);
+  // Reviews per day and the streaks, in the time zone of this window (AN-02)
+  const perDay = useMemo(() => reviewsPerDay(reviewBlocks), [reviewBlocks]);
+  const { current: currentStreak, longest: longestStreak } = useMemo(() => reviewStreaks(perDay, new Date()), [perDay]);
 
   if (!isOpen) return null;
 
@@ -288,7 +253,7 @@ export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
         </div>
 
         {/* Section 2: FSRS Retention Activity Grid (GitHub-style Heatmap) */}
-        <HeatmapGrid heatmapData={heatmapData} />
+        <HeatmapGrid reviewsPerDay={perDay} />
 
         {/* Section 3: Reading Time & Completed Chapters */}
         <VelocityTable velocityStats={velocityStats} bookMeta={bookMeta} />
