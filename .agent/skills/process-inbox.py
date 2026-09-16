@@ -18,6 +18,7 @@ ROOT_DIR = SKILL_DIR.parent.parent
 sys.path.insert(0, str(ROOT_DIR / "packages" / "ingestion"))
 
 from ingest.pipeline import ingest_book
+from ingest.reimport import BookAlreadyInVaultError
 
 INBOX_DIR = ROOT_DIR / "inbox"
 PROCESSED_DIR = INBOX_DIR / "processed"
@@ -119,7 +120,12 @@ def main() -> int:
     import argparse
 
     parser = argparse.ArgumentParser(description="Automated book intake and ledger manager.")
-    parser.add_argument("--force", action="store_true", help="Force re-processing even if book is already in ledger.")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Process a book again even if it is in the ledger, and replace a book that is already in the vault. "
+        "Your own files for it in vault/notes/<book-id>/ are kept.",
+    )
     parser.add_argument("--book", type=str, default=None, help="Process or re-process a specific file from inbox/ or inbox/processed/.")
     args = parser.parse_args()
 
@@ -190,8 +196,8 @@ def main() -> int:
 
             print(f"[*] Processing '{filename}' (SHA-256: {file_hash[:12]}...)...", flush=True)
 
-            # Ingest book into vault
-            meta = ingest_book(file_path, VAULT_DIR)
+            # Ingest book into vault. A book that the vault already has is replaced only with --force (DS-09).
+            meta = ingest_book(file_path, VAULT_DIR, replace=args.force)
 
             # Run anchor integrity check
             anchors_verified = run_anchor_audit(meta.book_id)
@@ -230,6 +236,23 @@ def main() -> int:
                 "status": "Success",
             })
 
+        except BookAlreadyInVaultError as e:
+            # A new copy of a book the vault has, such as an annotated PDF. Nothing was written (DS-09).
+            sys.stdout.flush()
+            print(f"[STOP] '{filename}': {e}", file=sys.stderr, flush=True)
+            print(
+                "[STOP] The file stays in inbox/. To replace the book, run: "
+                f'python .agent/skills/process-inbox.py --force --book "{filename}"',
+                file=sys.stderr,
+                flush=True,
+            )
+            report_rows.append({
+                "book_id": e.book_id,
+                "title": file_path.stem,
+                "chapters": "-",
+                "anchors": "-",
+                "status": "Stopped",
+            })
         except Exception as e:
             sys.stdout.flush()
             print(f"[ERROR] Failed to process {filename}: {e}", file=sys.stderr, flush=True)

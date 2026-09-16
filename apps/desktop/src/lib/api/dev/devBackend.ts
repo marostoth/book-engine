@@ -17,7 +17,6 @@ export {
 } from "./fallbackBooks.ts";
 export {
   getFallbackInspectionalBlueprint as getInspectionalBlueprint,
-  saveFallbackInspectionalExitAssessment as saveInspectionalExitAssessment,
   generateFallbackHeatmap as fetchReviewHeatmap,
 } from "./mockData.ts";
 export { syncPracticeDeck, getDueCards, getChapterDueCards, submitReview, getDeckStats } from "./fallbackPractice.ts";
@@ -35,6 +34,8 @@ export {
   fetchBookmark,
   persistBookmark,
   fetchLastBookmark,
+  getInspectionalExitAssessment,
+  saveInspectionalExitAssessment,
 } from "./fallbackReaderState.ts";
 export {
   getFallbackStudyAnalytics as getStudyAnalytics,

@@ -62,7 +62,6 @@ def test_inspectional_blueprint_schema():
         synthetic_index_clusters=[
             {"term": "Consensus", "anchors": ["^p-001", "^p-015"]}
         ],
-        exit_assessment={"question": "What is linearizability?", "concept": "Atomicity"},
     )
     data = blueprint.model_dump()
     assert data["front_matter"]["has_preface"] is True
@@ -197,6 +196,37 @@ def test_audit_inspectional_parity_detects_corrupt_sampling(tmp_path: Path):
     passed, err = mod.audit_inspectional_parity(empty_vault)
     assert passed is False
     assert "Zero inspectional sampling items detected" in err
+
+
+def test_audit_inspectional_parity_checks_the_exit_assessment_next_to_the_notes(tmp_path: Path):
+    """The reader's exit assessment lives in vault/notes/<book-id>/inspectional.json, so the audit checks it there (DS-09)."""
+    import importlib.util
+
+    skill_path = Path(".agent/skills/audit-system.py")
+    spec = importlib.util.spec_from_file_location("audit_system", skill_path)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    epub_path = tmp_path / "sample.epub"
+    create_sample_epub(epub_path)
+    vault_dir = tmp_path / "vault"
+    ingest_epub(epub_path, vault_dir, custom_book_id="sample")
+    passed, metric = mod.audit_inspectional_parity(vault_dir)
+    assert passed is True, metric
+
+    answers = {
+        "exitAssessment": {
+            "classification": "Theoretical - Science",
+            "unityStatement": " ",
+            "partsStructure": ["Consistency models", "Consensus"],
+            "completedAt": "2026-09-16T10:00:00.000Z",
+        }
+    }
+    (vault_dir / "notes" / "sample" / "inspectional.json").write_text(json.dumps(answers), encoding="utf-8")
+    passed, err = mod.audit_inspectional_parity(vault_dir)
+    assert passed is False
+    assert "unityStatement" in err
 
 
 

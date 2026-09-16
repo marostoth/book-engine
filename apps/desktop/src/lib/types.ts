@@ -25,6 +25,7 @@ export interface FrontMatterMetadata {
   publisher_blurb?: string | null;
 }
 
+/** The reader's exit assessment of a book, kept in `vault/notes/<book-id>/inspectional.json` (DS-09). */
 export interface ExitAssessmentPayload {
   classification: string;
   unityStatement: string;
@@ -36,11 +37,11 @@ export type ReadingLevelMode = "elementary" | "inspectional" | "analytical" | "s
 
 export type InspectionalSubView = "blueprint" | "dips";
 
+/** The blueprint the importer makes. The reader's exit assessment is not part of it (DS-09). */
 export interface InspectionalBlueprint {
   front_matter: FrontMatterMetadata | Record<string, any>;
   pivotal_chapters: string[];
   synthetic_index_clusters: Array<Record<string, any>>;
-  exit_assessment?: ExitAssessmentPayload | Record<string, any> | null;
 }
 
 export interface ChapterMeta {

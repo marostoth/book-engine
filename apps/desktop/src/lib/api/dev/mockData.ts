@@ -4,7 +4,6 @@ import type {
   DayReviewActivity,
   SearchResult,
   InspectionalBlueprint,
-  ExitAssessmentPayload,
 } from "../../types";
 
 export const FALLBACK_META: BookMeta = {
@@ -76,7 +75,6 @@ export const FALLBACK_META: BookMeta = {
     },
     pivotal_chapters: ["ch-01", "ch-02"],
     synthetic_index_clusters: [],
-    exit_assessment: null,
   },
 };
 
@@ -279,17 +277,9 @@ export const FALLBACK_INSPECTIONAL_BLUEPRINT: InspectionalBlueprint = {
     { term: "Consensus", weight: 1.0, anchors: ["^p-001", "^p-008"] },
     { term: "Replication", weight: 0.85, anchors: ["^p-001", "^p-004"] },
   ],
-  exit_assessment: {
-    question: "What is the primary trade-off established by the CAP theorem?",
-    expected_concept: "Consistency vs Availability during network partitions",
-  },
 };
 
 export function getFallbackInspectionalBlueprint(_bookId: string): InspectionalBlueprint {
   return FALLBACK_INSPECTIONAL_BLUEPRINT;
-}
-
-export function saveFallbackInspectionalExitAssessment(_bookId: string, assessment: ExitAssessmentPayload): void {
-  FALLBACK_INSPECTIONAL_BLUEPRINT.exit_assessment = assessment;
 }
 

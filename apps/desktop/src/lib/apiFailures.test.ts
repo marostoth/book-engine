@@ -54,6 +54,7 @@ const backendCalls: [name: string, call: () => Promise<unknown>][] = [
   ["fetchAvailableBooks", () => api.fetchAvailableBooks()],
   ["fetchBookMeta", () => api.fetchBookMeta("sample")],
   ["getInspectionalBlueprint", () => api.getInspectionalBlueprint("sample")],
+  ["getInspectionalExitAssessment", () => api.getInspectionalExitAssessment("sample")],
   ["saveInspectionalExitAssessment", () => api.saveInspectionalExitAssessment("sample", assessment)],
   ["fetchChapter", () => api.fetchChapter("sample", "ch-01.md")],
   ["fetchNotes", () => api.fetchNotes("sample", "ch-01-notes.md")],

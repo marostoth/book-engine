@@ -22,6 +22,7 @@ LOCAL FILE VAULT (Sole Permanent Record)
     ├── ch-01-notes.md        <-- User notes & reflections (the notes pane is its only writer)
     ├── ch-01-highlights.json <-- Saved highlights (the reader is its only writer)
     ├── practice-deck.md      <-- Pre-generated study items
+    ├── inspectional.json     <-- Your exit assessment (an import never writes it)
     └── bookmark.json         <-- Where you stopped reading: chapter & paragraph
   preferences.json            <-- Reader settings: theme, pacer speed, Gatekeeper, daily target
           │
@@ -46,7 +47,7 @@ book-engine/
 │       ├── audit-practice.py        # Audits zero-hallucination verbatim extractive study cards
 │       ├── audit-system.py          # Universal dynamic health orchestrator (12 vectors: Ledger, Anchors, Cards, Rust, TS, FTS5, GUI smoke test, Inspectional, Analytical, Syntopical, Elementary, Modularity & Isolation)
 │       ├── benchmark-fts.py         # Benchmarks SQLite FTS5 query latency (<15ms target)
-│       ├── process-inbox.py         # Automated fail-safe batch book intake pipeline & ledger manager
+│       ├── process-inbox.py         # Automated fail-safe batch book intake pipeline & ledger manager; a book the vault already has stops unless --force
 │       └── test-index-rebuild.py    # Verifies self-healing FTS5 index reconstruction from vault
 ├── AGENTS.md                    # Canonical agent directives, operational guardrails & technology standards
 ├── CLAUDE.md                    # Claude agent pointer referencing canonical AGENTS.md
@@ -137,7 +138,7 @@ book-engine/
 │       │   │   ├── useAnalyticalSession.ts   # Analytical reading store, cascading integrity & persistence hook
 │       │   │   ├── useBookSession.ts         # Book loading, reading progress, session timing & chapter jumping (every in-book chapter change goes through openChapter; only the newest load lands; a book opens where the reader stopped)
 │       │   │   ├── useChapterGate.ts         # Chapter Gatekeeper (soft gate): tests the due cards of the chapter the reader leaves
-│       │   │   ├── useInspectionalSession.ts # Inspectional countdown timer, sub-view & exit prompt manager
+│       │   │   ├── useInspectionalSession.ts # Inspectional countdown timer, sub-view, exit prompt & the exit assessment of the open book
 │       │   │   ├── usePracticeDeck.ts        # Practice deck state, mode/ratio filtering & daily target limits
 │       │   │   └── useSyntopiconSession.ts   # Level 4 Syntopicon registry, cascade-pruning & topic session hook
 │       │   ├── lib/             # Core TypeScript utilities, transformers, and contracts
@@ -151,7 +152,7 @@ book-engine/
 │       │   │   │   │   ├── fallbackLexicon.ts   # In-memory dictionary and deduplicated vocabulary storage
 │       │   │   │   │   ├── fallbackNotes.ts     # Sample chapter notes, in-browser notes aggregation & summary export
 │       │   │   │   │   ├── fallbackPractice.ts  # Sample practice cards, due-card filter & simple review schedule
-│       │   │   │   │   ├── fallbackReaderState.ts # Reader settings & bookmarks in browser storage
+│       │   │   │   │   ├── fallbackReaderState.ts # Reader settings, bookmarks & exit assessments in browser storage
 │       │   │   │   │   ├── fallbackSyntopicon.ts # Sample syntopicon topic & localStorage topic registry
 │       │   │   │   │   └── mockData.ts          # Default mock book catalogs & sample chapters
 │       │   │   │   ├── analyticalApi.ts     # Analytical reading store load/save IPC
@@ -177,6 +178,8 @@ book-engine/
 │       │   │   ├── chapterGate.test.ts  # Gate tests: later chapters only, every level but syntopical, wrong answers never pass
 │       │   │   ├── elementaryPacer.ts      # Pure pacer timing, chunking, and contrast opacity functions
 │       │   │   ├── elementaryPacer.test.ts # Unit tests for pacer timing, chunking, and contrast math
+│       │   │   ├── exitAssessment.ts    # The exit assessment of the open book: read from the reader's notes, shown at once when saved, never saved over one that could not be read
+│       │   │   ├── exitAssessment.test.ts # Exit assessment tests: a save shows with no reload, an unreadable assessment is not saved over, a late answer changes nothing
 │       │   │   ├── highlights.ts        # W3C Text Quote Selector reader, paragraph placement & old-comment parser (finds the JSON list, not the first `-->`)
 │       │   │   ├── highlights.test.ts   # Highlight tests: a saved anchor brings each highlight back to its own paragraph
 │       │   │   ├── levelGuideData.ts    # Mortimer Adler levels static cheatsheet & hotkeys registry
@@ -252,6 +255,8 @@ book-engine/
 │           │   │   ├── bookmark_tests.rs    # Bookmark tests: the newest moment wins, a damaged bookmark is never saved over
 │           │   │   ├── highlights.rs        # Chapter highlights file: load, save, and the one-time move out of the old notes comment (quotes may hold `-->`)
 │           │   │   ├── highlights_tests.rs  # Highlight tests: a notes save cannot erase a highlight, and the move keeps the reader's text
+│           │   │   ├── inspectional.rs      # Your exit assessment in `vault/notes/<book-id>/inspectional.json`, never in the `_meta.json` an import writes again
+│           │   │   ├── inspectional_tests.rs # Exit assessment tests: an import keeps it, `_meta.json` is never written, a damaged file is never saved over
 │           │   │   ├── json_store.rs        # Safe JSON read for vault files: byte order mark removed, a damaged file errors and is copied to <name>.corrupt-<time>
 │           │   │   ├── locate.rs            # Finds the vault folder, and remembers the one the reader picked
 │           │   │   ├── locate_tests.rs      # Find tests: a folder with no books inside is refused, and nothing is remembered
@@ -259,8 +264,8 @@ book-engine/
 │           │   │   ├── notes.rs             # Chapter reflection notes loader, saver & summary export
 │           │   │   ├── preferences.rs       # Reader settings in `vault/preferences.json`, kept key for key; a damaged file stops the load and the save
 │           │   │   ├── preferences_tests.rs # Settings tests: a setting this build does not know is kept, a damaged file is never saved over
-│           │   │   ├── reader.rs            # Book discovery & chapter I/O; a rewritten _meta.json keeps its key order and line endings (the vault folder comes from locate.rs)
-│           │   │   ├── reader_tests.rs      # Vault write tests: no half-written file while a save runs, _meta.json key order and line endings kept
+│           │   │   ├── reader.rs            # Book discovery & chapter I/O; `_meta.json` is only read, because the importer makes it (the vault folder comes from locate.rs)
+│           │   │   ├── reader_tests.rs      # Vault write tests: no half-written notes file while a save runs
 │           │   │   ├── safe_write.rs        # The one vault write: temporary file in the same folder, flushed, then renamed over the target, so a save is never half done
 │           │   │   ├── study_log.rs         # The permanent record of your study: reviews & reading time, one line each
 │           │   │   ├── syntopicon.rs        # Level 4 Syntopicon topic file I/O & report exporter
@@ -283,7 +288,7 @@ book-engine/
 │       │   ├── anchors.py               # Deterministic paragraph anchor (^p-xxx) injector
 │       │   ├── assets.py                # Asset extraction, micro-asset filtering & page-level image suppression
 │       │   ├── batch.py                 # Batch document intake utility (.epub & .pdf)
-│       │   ├── cli.py                   # Command-line entrypoint (`book-ingest`)
+│       │   ├── cli.py                   # Command-line entrypoint (`book-ingest`); a book the vault already has is replaced only with --force
 │       │   ├── elementary.py            # Deterministic Flesch-Kincaid & reading time metrics
 │       │   ├── endnotes.py              # Backmatter endnote relocation to inline footnotes
 │       │   ├── epub_parser.py           # XHTML chapter extractor & typography normalizer
@@ -292,6 +297,7 @@ book-engine/
 │       │   ├── pdf_parser.py            # Sequential chapter-by-chapter PDF parser & asset coordinator
 │       │   ├── pdf_sanitizer.py         # PDF slug normalization, drop-cap healing, heading & author sanitization
 │       │   ├── pipeline.py              # End-to-end ingestion pipeline coordinator
+│       │   ├── reimport.py              # Stops an import of a book the vault already has before it writes anything, and names the reader's own files
 │       │   ├── salience.py              # Deterministic salience scorer & Cloze deck generator
 │       │   ├── sample_generator.py      # Starter sample generator for development
 │       │   ├── scenarios.py             # Contextual deductive scenario & MCQ engine with thematic distractor matching
@@ -305,6 +311,7 @@ book-engine/
 │       │   ├── test_pdf.py              # PDF parsing, chapter splitting & text preservation tests
 │       │   ├── test_pipeline.py         # End-to-end ingestion pipeline integration test suite
 │       │   ├── test_practice_deck.py    # Zero-hallucination verbatim practice card validation tests
+│       │   ├── test_reimport.py         # Import stop tests: nothing changes, --force keeps the reader's files, the inbox keeps a stopped copy
 │       │   ├── test_salience.py         # Salience scoring & extractive cloze extraction tests
 │       │   ├── test_syntopicon_audit.py # Vector 10 syntopical cross-vault referential parity test suite
 │       │   └── test_toc.py              # Table of contents extraction & hierarchy tests
@@ -313,7 +320,7 @@ book-engine/
 │   └── create_desktop_shortcut.ps1 # One-click Windows desktop shortcut generator
 ├── vault/                       # SOLE PERMANENT RECORD: User Markdown vault (Versioned / Syncable)
 │   ├── books/<book-id>/         # Chapter Markdown (`ch-XX.md`), `_meta.json`, and extracted assets
-│   ├── notes/<book-id>/         # Chapter notes (`ch-XX-notes.md`), highlights (`ch-XX-highlights.json`), study decks, the study log (`reviews.jsonl`, `reading.jsonl`), and where you stopped reading (`bookmark.json`)
+│   ├── notes/<book-id>/         # Chapter notes (`ch-XX-notes.md`), highlights (`ch-XX-highlights.json`), study decks, the study log (`reviews.jsonl`, `reading.jsonl`), your exit assessment (`inspectional.json`), and where you stopped reading (`bookmark.json`)
 │   ├── preferences.json         # Reader settings: theme, pacer speed, Gatekeeper, daily target
 │   └── syntopicon/              # Level 4 Syntopicon topic registries & compiled reports
 │       ├── topics/              # Cross-book syntopical topics (`<topic-id>.json`)
@@ -335,7 +342,7 @@ Every top-level paragraph in chapter Markdown files receives a deterministic anc
 Anchors follow the format `^p-[0-9]{3,}` and are preserved across re-indexes.
 
 ### Hierarchical Spine Contract (_meta.json)
-The manifest models multi-level books (Parts -> Chapters -> Sections) with word counts, paths, and anchors.
+The manifest models multi-level books (Parts -> Chapters -> Sections) with word counts, paths, and anchors. The importer makes this file and writes it again on every import, so it holds nothing the reader writes, and the app only reads it (DS-09).
 
 ### Vector Figure Extraction & Full-Width Section Bounding (`packages/ingestion/ingest/vector_figures.py`)
 Multi-column textbook pages frequently include full-width conceptual matrices, multi-step process models, and leader callout boxes. To guarantee unclipped, high-resolution rendering:
@@ -356,12 +363,13 @@ Multi-column textbook pages frequently include full-width conceptual matrices, m
 - **The Reader Says Where the Vault Is:** The vault folder is looked for in this order (`apps/desktop/src-tauri/src/vault/locate.rs`): the folder the reader picked, saved in `%APPDATA%\book-engine\settings.json`; the `BOOK_ENGINE_VAULT` variable; a `vault` folder beside the program or beside its parent, for a copy carried on a stick; and a `vault` folder up to six levels above the working folder, which is the dev run from the repository. Only the last of these existed before, so an installed copy started in its install folder and found nothing, and every read and write failed with no way to put it right (LC-01). A folder counts as a vault only when it holds a `books` folder: `remember_vault` refuses anything else and says what a vault looks like, so the app never quietly points at an empty folder. `VaultGate.tsx` holds the app back until the folder is known and opens the picker (`choose_vault_folder`).
 - **Your Study Is in the Vault:** Every card review and every piece of reading time is written as one line to `vault/notes/<book-id>/reviews.jsonl` and `vault/notes/<book-id>/reading.jsonl` (`apps/desktop/src-tauri/src/vault/study_log.rs`), before the cache is touched. A review the vault refuses is not saved at all. Card schedules, review history and reading time used to live only in `index.db`, which is not in the vault and is not backed up, so losing that file lost every bit of study progress (DS-01). At startup `db/backfill.rs` copies whatever a cache from before the change still holds and the vault does not, once; `db/restore.rs` then puts back whatever the cache is missing. Both write only what is missing, so a normal start changes nothing, and a deleted, damaged or brand new cache fills itself again.
 - **Your Place and Your Settings Are in the Vault:** Each book keeps where the reader stopped, the chapter and the paragraph in the middle of the screen, in `vault/notes/<book-id>/bookmark.json` (`apps/desktop/src-tauri/src/vault/bookmark.rs`), and the reader settings, the theme included, live in `vault/preferences.json` (`vault/preferences.rs`). Both used to live only in the browser storage of the app window, so a release build, a new PC or a reinstall opened chapter 1 with the default settings, and the theme was never kept at all (DS-11). A book opens at its bookmark (`openingPlace`, `src/lib/readingPlace.ts`), the app opens the book of the newest bookmark, and the reader saves its place a second after the scrolling stops, only for the chapter whose words are on screen. The app starts once the settings are read (`PreferencesGate.tsx`). Settings that browser storage still holds from an older version are copied into the vault once, and settings or a bookmark that cannot be read are never saved over.
+- **Your Answers Are Not in the Files an Import Makes:** The exit assessment of a book lives in `vault/notes/<book-id>/inspectional.json` (`apps/desktop/src-tauri/src/vault/inspectional.rs`). It used to be saved inside `_meta.json`, which the importer makes, so importing the book again wrote `exit_assessment: null` over it, and a save for a book with no blueprint in `_meta.json` wrote an empty blueprint that hid the one the app builds (DS-09). The app now only reads `_meta.json`; an assessment that an older build saved there is copied next to the notes the first time it is read. The open book's assessment shows as soon as it is saved (`src/lib/exitAssessment.ts`), and one that could not be read is never saved over. An import stops before it writes anything when the vault already has the book, that is `books/<book-id>/_meta.json` or files of the reader in `notes/<book-id>/` (`packages/ingestion/ingest/reimport.py`), and it names those files. `--force` on `ingest.cli` and on `process-inbox.py` replaces the book: the reader's files stay, but a paragraph they point to can then be a different paragraph. `process-inbox.py` reports a stopped book as `Stopped` and leaves its file in `inbox/`.
 - **Cache Shape:** `PRAGMA user_version` holds the shape of `index.db`, and `CACHE_SCHEMA_VERSION` (`db/schema.rs`) is the shape this build knows. A file stamped higher was made by a newer build and is not opened, because a newer shape can hold things this build would drop. The vault keeps the study progress either way.
 - **Newest Load Wins:** A book or a chapter is read from the disk, so its answer comes back a moment later. The reader takes a ticket for every load (`createLoadGuard`, `src/lib/readerLoads.ts`), and an answer that is no longer the newest one changes nothing. Before this, a slow chapter one showed its text and its highlights under chapter two, and a slow book left the open book and the book on screen pointing at different books, so notes and highlights were saved under the wrong book (DS-07). Opening a chapter also empties the reader at once, so the words of the chapter you left are never shown under the chapter you opened.
 - **One Pane per Chapter:** `App.tsx` gives the notes pane a key of book and chapter, so every chapter gets its own pane with its own text. A pane that kept its text across a chapter change could save the notes of one chapter into the file of another (DS-07). What the reader typed is held together with the file it belongs to (`src/lib/notesAutosave.ts`) and is saved into that file when the chapter closes, so the last words are never left waiting in a timer.
 - **A Quote Is Saved at Once:** "Add note" on a selection puts the quote at the end of the chapter notes and saves them right away (`addQuoteToNotes`, `src/lib/notesQuote.ts`), because a quote is a click, not typing. It used to change the text on screen only, so it reached the vault after the next keystroke and was lost at the next chapter change without one (DS-08). A quote waits while the notes are read from the disk, on screen as well, so the notes that arrive cannot wipe it; notes that failed to load never take a quote, and the reader is told.
 - **One Writer per File:** The chapter notes `ch-XX-notes.md` hold only what the reader writes, and the notes pane is their only writer. Nothing parses a highlight out of Markdown any more, so no character in a quote can break the saved list (DS-06). Highlights live in `ch-XX-highlights.json`, and `vault/highlights.rs` is their only writer. Before this, both parts saved the same Markdown file, so a keystroke in the notes pane erased a highlight that had just been added (DS-05). A chapter that still keeps its highlights in the old `<!-- highlights-json ... -->` comment is moved over the first time it is read: the highlights and the quote lines the app wrote leave the notes file, and the reader's own headings and text stay.
-- **Safe Vault Write:** Every write into the vault goes through `write_file` (`apps/desktop/src-tauri/src/vault/safe_write.rs`): the bytes go to a temporary file in the same folder, are flushed to the disk, and are then renamed over the target. A rename is one step, so a crash or a power cut leaves the whole old file or the whole new file, never an empty or cut-off one. A rename that fails because another program holds the file, such as the OneDrive client, is tried a few times before the save reports an error, and the temporary file is removed. `serde_json` is built with `preserve_order`, so a rewritten `_meta.json` keeps the key order it had, and `save_inspectional_exit_assessment` writes back the line endings the file had.
+- **Safe Vault Write:** Every write into the vault goes through `write_file` (`apps/desktop/src-tauri/src/vault/safe_write.rs`): the bytes go to a temporary file in the same folder, are flushed to the disk, and are then renamed over the target. A rename is one step, so a crash or a power cut leaves the whole old file or the whole new file, never an empty or cut-off one. A rename that fails because another program holds the file, such as the OneDrive client, is tried a few times before the save reports an error, and the temporary file is removed. `serde_json` is built with `preserve_order`, so a JSON object that the app reads and writes back, such as the settings, keeps its key order.
 - **Damaged Vault File:** A vault JSON file that cannot be parsed is never read as empty data, because the next save would write that empty data back. `read_json_file` (`apps/desktop/src-tauri/src/vault/json_store.rs`) removes a leading byte order mark, and a file it still cannot parse gives an error that names the file and is copied to `<file name>.corrupt-<time>`. `vocabulary.rs` and `analytical.rs` read through it, so both the load and the save fail and the file on disk is left exactly as it is.
 - **No Hidden Fallback:** Inside the app, every frontend call to the backend goes through `callBackend` (`apps/desktop/src/lib/api/clientBase.ts`). A failed load or save rejects with the backend error and shows in the error bar (`BackendErrorBar.tsx`). Nothing falls back to sample data, and no vault data goes to browser storage. Data that did not load is not saved over: the notes pane stays locked, a new highlight is not saved, and analytical changes for that book are not saved.
 
@@ -466,6 +474,8 @@ All disk I/O operations are offloaded from the Tauri main thread using `tokio::t
 | `get_last_bookmark` | `() -> Result<Option<BookBookmark>, String>` | The newest bookmark of all books, with its `bookId`, which names the book the app opens with. A bookmark that cannot be read is passed over. |
 | `get_preferences` | `() -> Result<Option<Map<String, Value>>, String>` | Reads the reader settings from `vault/preferences.json`. `None` when none are saved yet; a file that is damaged or holds no JSON object is an error and is copied. |
 | `save_preferences` | `(preferences: Map<String, Value>) -> Result<(), String>` | Writes the reader settings key for key, keeping settings this build does not know. A damaged settings file stops the save. |
+| `get_inspectional_exit_assessment` | `(book_id: String) -> Result<Option<ExitAssessmentPayload>, String>` | Reads the reader's exit assessment from `vault/notes/<book_id>/inspectional.json`. `None` when there is none; a damaged file is an error and is copied. An assessment that an older build saved in `_meta.json` is copied there once. |
+| `save_inspectional_exit_assessment` | `(book_id: String, assessment: ExitAssessmentPayload) -> Result<(), String>` | Writes the exit assessment into `vault/notes/<book_id>/inspectional.json`, keeping keys this build does not know. It never writes `_meta.json`, and a damaged file stops the save. |
 
 ### Frontend Component Hierarchy (`apps/desktop/src/`)
 The desktop client is structured around a single-chapter virtualized TipTap canvas:
@@ -1016,7 +1026,7 @@ The system health orchestrator in `.agent/skills/audit-system.py` dynamically va
 5. **Vector 5 (Frontend Safety):** TypeScript strict typecheck in `apps/desktop` with zero errors.
 6. **Vector 6 (FTS5 Search Latency Benchmark):** SQLite FTS5 query latency average strictly $< 15.0\text{ms}$.
 7. **Vector 7 (Desktop Runtime Launch Smoke Test):** Launches compiled native release binary headlessly and confirms window stability for 5.0 seconds.
-8. **Vector 8 (Inspectional Parity - Level 2):** Audits `_meta.json` structural blueprints, pivotal chapters, non-overlapping head/tail dip sampling pairs, preview snippet hygiene, and Adlerian exit assessments.
+8. **Vector 8 (Inspectional Parity - Level 2):** Audits `_meta.json` structural blueprints, pivotal chapters, non-overlapping head/tail dip sampling pairs, preview snippet hygiene, and the Adlerian exit assessments in `vault/notes/<book-id>/inspectional.json`.
 9. **Vector 9 (Analytical Parity - Level 3):** Audits `vault/notes/*/analytical.json` for verified specialized terms, argument premise-to-conclusion graphs, Stage III evaluative critiques (Adler Rules 9–12), and author inquiry solutions.
 10. **Vector 10 (Syntopical Parity - Level 4):** Audits `vault/syntopicon/` neutral terminology translations, universal questions, cross-book author perspectives, and multi-book citation anchor grounding.
 11. **Vector 11 (Elementary Parity - Level 1):** Audits `_meta.json` readability metrics (`flesch_kincaid_grade`, `avg_sentence_length_words`, `estimated_reading_minutes`) within physiological bounds and confirms chapter-to-spine word count consistency.

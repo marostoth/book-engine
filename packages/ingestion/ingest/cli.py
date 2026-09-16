@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from ingest.pipeline import ingest_book
+from ingest.reimport import BookAlreadyInVaultError
 
 
 def main() -> None:
@@ -14,18 +15,27 @@ def main() -> None:
     parser.add_argument("--vault", type=Path, default=Path("vault"), help="Path to local Markdown vault root")
     parser.add_argument("--book-id", type=str, default=None, help="Custom identifier for the book directory")
     parser.add_argument("--chapter", type=int, default=None, help="Process only a specific chapter index (e.g. 1)")
-    parser.add_argument("--force", action="store_true", help="Force overwrite if book already exists in vault")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Replace a book that is already in the vault. Your own files for it in notes/<book-id>/ are kept.",
+    )
 
     args = parser.parse_args()
 
     try:
         print(f"[*] Ingesting {args.file_path} into {args.vault}...")
         target_chapters = [args.chapter] if args.chapter is not None else None
-        meta = ingest_book(args.file_path, args.vault, args.book_id, target_chapters=target_chapters)
+        meta = ingest_book(args.file_path, args.vault, args.book_id, target_chapters=target_chapters, replace=args.force)
         print(f"[+] Successfully ingested '{meta.title}' (ID: {meta.book_id})")
         print(f"[+] Total chapters: {meta.total_chapters}, Total words: {meta.total_words}")
         print(f"[+] Output written to: {args.vault / 'books' / meta.book_id}")
         print(f"[+] Practice deck written to: {args.vault / 'notes' / meta.book_id / 'practice-deck.md'}")
+    except BookAlreadyInVaultError as e:
+        # Not a crash: the import stopped before it wrote anything (DS-09)
+        print(f"[-] {e}", file=sys.stderr)
+        print("[-] To replace the book, run the same import again with --force.", file=sys.stderr)
+        sys.exit(1)
     except Exception as e:
         print(f"[-] Ingestion failed: {e}", file=sys.stderr)
         import traceback

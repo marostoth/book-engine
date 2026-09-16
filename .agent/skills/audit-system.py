@@ -747,7 +747,7 @@ def check_inspectional_parity(vault_dir: Path = VAULT_DIR) -> DiagnosticResult:
         if book_has_sampling:
             sampled_books.add(book_dir.name)
 
-        # Blueprint & Exit Assessment Structure
+        # Blueprint Structure
         blueprint = meta.get("inspectional_blueprint")
         if blueprint and isinstance(blueprint, dict):
             pivotal = blueprint.get("pivotal_chapters", [])
@@ -758,8 +758,22 @@ def check_inspectional_parity(vault_dir: Path = VAULT_DIR) -> DiagnosticResult:
                             f"{book_dir.name}: Pivotal chapter '{piv}' in blueprint does not point to an existing chapter."
                         )
 
-            exit_assessment = blueprint.get("exit_assessment")
-            if exit_assessment and isinstance(exit_assessment, dict):
+        # Exit Assessment Structure: the reader's answers live next to their notes, because an import writes
+        # _meta.json again (DS-09)
+        inspectional_path = vault_dir / "notes" / book_dir.name / "inspectional.json"
+        if inspectional_path.exists():
+            try:
+                answers = json.loads(inspectional_path.read_text(encoding="utf-8-sig"))
+            except Exception as e:
+                errors.append(f"{book_dir.name}: Unreadable notes/{book_dir.name}/inspectional.json: {e}")
+                answers = {}
+            if not isinstance(answers, dict):
+                errors.append(f"{book_dir.name}: notes/{book_dir.name}/inspectional.json must hold a JSON object.")
+                answers = {}
+            exit_assessment = answers.get("exitAssessment")
+            if exit_assessment is not None and not isinstance(exit_assessment, dict):
+                errors.append(f"{book_dir.name}: Exit assessment in inspectional.json must be a JSON object.")
+            elif isinstance(exit_assessment, dict):
                 for req_key in ("classification", "unityStatement", "partsStructure", "completedAt"):
                     if req_key not in exit_assessment or exit_assessment[req_key] is None or (isinstance(exit_assessment[req_key], str) and not exit_assessment[req_key].strip()):
                         errors.append(
