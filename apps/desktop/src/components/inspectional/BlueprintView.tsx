@@ -5,6 +5,7 @@ import {
   InspectionalBlueprint,
 } from "../../lib/types";
 import { getInspectionalBlueprint } from "../../lib/api";
+import { reportBackendError } from "../../lib/backendErrors";
 import {
   Compass,
   BookOpen,
@@ -41,7 +42,7 @@ export const BlueprintView: React.FC<BlueprintViewProps> = ({
       } else {
         getInspectionalBlueprint(bookMeta.book_id)
           .then((bp) => setBlueprint(bp))
-          .catch((e) => console.warn("Failed to load blueprint:", e));
+          .catch((e) => reportBackendError("Could not load the blueprint of this book.", e));
       }
     }
   }, [bookMeta]);

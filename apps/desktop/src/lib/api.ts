@@ -1,64 +1,24 @@
-import {
+import type {
   BookMeta,
   BookMetadata,
   BookSummary,
   SearchResult,
   InspectionalBlueprint,
   ExitAssessmentPayload,
-} from "./types";
-import { isTauri, tauriInvoke } from "./api/clientBase";
-import {
-  FALLBACK_META,
-  FALLBACK_CHAPTERS,
-  fallbackSearchVault,
-  getFallbackInspectionalBlueprint,
-  saveFallbackInspectionalExitAssessment,
-} from "./api/mockData";
+} from "./types.ts";
+import { callBackend, isTauri } from "./api/clientBase.ts";
 
-export * from "./api/practiceApi";
-export * from "./api/notesApi";
-export * from "./api/analyticsApi";
-export * from "./api/lexiconApi";
-export * from "./api/analyticalApi";
-export { isTauri, tauriInvoke } from "./api/clientBase";
+export * from "./api/practiceApi.ts";
+export * from "./api/notesApi.ts";
+export * from "./api/analyticsApi.ts";
+export * from "./api/lexiconApi.ts";
+export * from "./api/analyticalApi.ts";
+export { isTauri, tauriInvoke } from "./api/clientBase.ts";
+
+// Every function below rejects when its backend command fails: see callBackend in api/clientBase.ts.
 
 export async function fetchLibraryBooks(): Promise<BookMetadata[]> {
-  if (isTauri) {
-    try {
-      return await tauriInvoke<BookMetadata[]>("get_library_books");
-    } catch (e) {
-      console.warn("Tauri get_library_books failed, trying list_books fallback:", e);
-      try {
-        const summaries = await tauriInvoke<BookSummary[]>("list_books");
-        return summaries.map((s) => ({
-          id: s.book_id,
-          title: s.title,
-          author: s.author,
-          chapter_count: s.total_chapters,
-          total_words: s.total_words,
-        }));
-      } catch (e2) {
-        console.warn("Tauri list_books failed, falling back to mock:", e2);
-      }
-    }
-  }
-
-  return [
-    {
-      id: "sample",
-      title: "Principles of Distributed Systems",
-      author: "Leslie Lamport & Friends",
-      chapter_count: 2,
-      total_words: 458,
-    },
-    {
-      id: "wealth-of-nations",
-      title: "An Inquiry into the Nature and Causes of the Wealth of Nations",
-      author: "Adam Smith",
-      chapter_count: 37,
-      total_words: 387438,
-    },
-  ];
+  return callBackend<BookMetadata[]>("get_library_books", undefined, (dev) => dev.fetchLibraryBooks());
 }
 
 export async function fetchAvailableBooks(): Promise<BookSummary[]> {
@@ -73,117 +33,59 @@ export async function fetchAvailableBooks(): Promise<BookSummary[]> {
 }
 
 export async function fetchBookMeta(bookId: string): Promise<BookMeta> {
-  if (isTauri) {
-    try {
-      const json = await tauriInvoke<string>("load_book_meta", { bookId });
-      return JSON.parse(json);
-    } catch (e) {
-      console.warn("Tauri load_book_meta failed, falling back:", e);
-    }
-  }
-  return FALLBACK_META;
+  const json = await callBackend<string>("load_book_meta", { bookId }, (dev) => dev.loadBookMetaJson());
+  return JSON.parse(json);
 }
 
 export async function getInspectionalBlueprint(bookId: string): Promise<InspectionalBlueprint> {
-  if (isTauri) {
-    try {
-      return await tauriInvoke<InspectionalBlueprint>("get_inspectional_blueprint", { bookId });
-    } catch (e) {
-      console.warn("Tauri get_inspectional_blueprint failed, falling back:", e);
-    }
-  }
-  return getFallbackInspectionalBlueprint(bookId);
+  return callBackend<InspectionalBlueprint>("get_inspectional_blueprint", { bookId }, (dev) =>
+    dev.getInspectionalBlueprint(bookId)
+  );
 }
 
 export async function saveInspectionalExitAssessment(
   bookId: string,
   assessment: ExitAssessmentPayload
 ): Promise<void> {
-  if (isTauri) {
-    try {
-      await tauriInvoke<void>("save_inspectional_exit_assessment", { bookId, assessment });
-      return;
-    } catch (e) {
-      console.warn("Tauri save_inspectional_exit_assessment failed, falling back to mock:", e);
-    }
-  }
-  saveFallbackInspectionalExitAssessment(bookId, assessment);
+  return callBackend<void>("save_inspectional_exit_assessment", { bookId, assessment }, (dev) =>
+    dev.saveInspectionalExitAssessment(bookId, assessment)
+  );
 }
 
 export async function fetchChapter(bookId: string, chapterFile: string): Promise<string> {
-  if (isTauri) {
-    try {
-      if (!cachedVaultPath) {
-        getVaultPath().catch(() => {});
-      }
-      return await tauriInvoke<string>("load_chapter", { bookId, chapterFile });
-    } catch (e) {
-      console.warn("Tauri load_chapter failed, falling back:", e);
-    }
+  if (isTauri && !cachedVaultPath) {
+    // Only fills the vault path cache for book images. useBookSession shows a vault path that fails.
+    getVaultPath().catch(() => {});
   }
-  return FALLBACK_CHAPTERS[chapterFile] || FALLBACK_CHAPTERS["ch-01.md"];
+  return callBackend<string>("load_chapter", { bookId, chapterFile }, (dev) => dev.fetchChapter(chapterFile));
 }
 
 export async function fetchNotes(bookId: string, notesFile: string): Promise<string> {
-  if (isTauri) {
-    try {
-      return await tauriInvoke<string>("load_notes", { bookId, notesFile });
-    } catch (e) {
-      console.warn("Tauri load_notes failed, falling back:", e);
-    }
-  }
-  const stored = localStorage.getItem(`notes_${bookId}_${notesFile}`);
-  if (stored) return stored;
-  return `# Reflections: ${bookId}\n\n## Key Takeaways\n\n- Linearizability creates the illusion of single-copy atomic operations.\n- Vector clocks track partial ordering without global wall clocks.\n\n## Questions\n\n- How does Raft handle network partitions during leader election?\n`;
+  return callBackend<string>("load_notes", { bookId, notesFile }, (dev) => dev.fetchNotes(bookId, notesFile));
 }
 
 export async function persistNotes(bookId: string, notesFile: string, content: string): Promise<void> {
-  if (isTauri) {
-    try {
-      await tauriInvoke<void>("save_notes", { bookId, notesFile, content });
-      return;
-    } catch (e) {
-      console.warn("Tauri save_notes failed, falling back to localStorage:", e);
-    }
-  }
-  localStorage.setItem(`notes_${bookId}_${notesFile}`, content);
+  return callBackend<void>("save_notes", { bookId, notesFile, content }, (dev) =>
+    dev.persistNotes(bookId, notesFile, content)
+  );
 }
 
 export async function searchVault(query: string): Promise<SearchResult[]> {
-  if (isTauri) {
-    try {
-      return await tauriInvoke<SearchResult[]>("search_vault", { query });
-    } catch (e) {
-      console.warn("Tauri search_vault failed, falling back:", e);
-    }
-  }
-  return fallbackSearchVault(query);
+  return callBackend<SearchResult[]>("search_vault", { query }, (dev) => dev.searchVault(query));
 }
 
 export async function indexVault(): Promise<{ chapters_indexed: number; paragraphs_indexed: number }> {
-  if (isTauri) {
-    try {
-      return await tauriInvoke("index_vault");
-    } catch (e) {
-      console.warn("Tauri index_vault failed:", e);
-    }
-  }
-  return { chapters_indexed: 2, paragraphs_indexed: 20 };
+  return callBackend<{ chapters_indexed: number; paragraphs_indexed: number }>("index_vault", undefined, (dev) =>
+    dev.indexVault()
+  );
 }
 
 let cachedVaultPath: string | null = null;
 
 export async function getVaultPath(): Promise<string> {
   if (cachedVaultPath) return cachedVaultPath;
-  if (isTauri) {
-    try {
-      cachedVaultPath = await tauriInvoke<string>("get_vault_path");
-      return cachedVaultPath;
-    } catch (e) {
-      console.warn("Failed to retrieve vault path from backend:", e);
-    }
-  }
-  return "";
+  cachedVaultPath = await callBackend<string>("get_vault_path", undefined, (dev) => dev.getVaultPath());
+  return cachedVaultPath;
 }
 
 export function resolveAssetUrl(bookId: string, src: string, vaultPath?: string): string {

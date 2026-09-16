@@ -41,7 +41,8 @@ export const SyntopiconPane: React.FC<SyntopiconPaneProps> = ({
   const handleCreateTopicSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTopicTitle.trim()) return;
-    await createTopic(newTopicTitle.trim(), newTopicDesc.trim());
+    // A topic that was not saved keeps the form open, with its text.
+    if (!(await createTopic(newTopicTitle.trim(), newTopicDesc.trim()))) return;
     setNewTopicTitle("");
     setNewTopicDesc("");
     setShowNewTopicForm(false);

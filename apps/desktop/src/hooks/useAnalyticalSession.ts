@@ -7,6 +7,7 @@ import {
   AuthorInquiry,
 } from "../lib/types/analytical";
 import { getAnalyticalData, saveAnalyticalData } from "../lib/api/analyticalApi";
+import { reportBackendError } from "../lib/backendErrors";
 import { useAnalyticalModals } from "./useAnalyticalModals";
 
 export interface UseAnalyticalSessionProps {
@@ -25,12 +26,16 @@ export function useAnalyticalSession({
     inquiries: [],
   });
   const [loading, setLoading] = useState<boolean>(false);
+  // The book whose analytical data loaded. Changes are saved only for this book: a save of data that did not load
+  // would replace the analytical.json of the book with it.
+  const [loadedBookId, setLoadedBookId] = useState<string | null>(null);
 
   const modals = useAnalyticalModals({ currentChapterFile });
 
   // Load analytical data whenever active book changes
   useEffect(() => {
     let isCurrent = true;
+    setLoadedBookId(null);
     if (!bookId) {
       setAnalyticalStore({ terms: [], arguments: [], critiques: [], inquiries: [] });
       modals.closeModals();
@@ -48,10 +53,14 @@ export function useAnalyticalSession({
             inquiries: data?.inquiries || [],
             overallVerdict: data?.overallVerdict,
           });
+          setLoadedBookId(bookId);
         }
       })
       .catch((err) => {
-        console.error("Failed to load analytical store:", err);
+        if (isCurrent) {
+          setAnalyticalStore({ terms: [], arguments: [], critiques: [], inquiries: [] });
+          reportBackendError("Your analytical notes for this book did not load, so changes to them are not saved.", err);
+        }
       })
       .finally(() => {
         if (isCurrent) setLoading(false);
@@ -62,9 +71,32 @@ export function useAnalyticalSession({
     };
   }, [bookId]);
 
+  /** True when the analytical data of this book loaded. Otherwise shows why a change is not saved. */
+  const canSave = useCallback((): boolean => {
+    if (bookId && loadedBookId === bookId) return true;
+    reportBackendError(
+      "Your change was not saved.",
+      "The analytical notes of this book did not load, and a save now would erase them. Open another book, then this book again."
+    );
+    return false;
+  }, [bookId, loadedBookId]);
+
+  /** Saves the store to the vault. A failed save keeps the change on screen and shows the error. */
+  const saveStore = useCallback(
+    async (newStore: AnalyticalStore) => {
+      if (!bookId) return;
+      try {
+        await saveAnalyticalData(bookId, newStore);
+      } catch (err) {
+        reportBackendError("Your analytical notes were not saved. The change stays on screen until you open another book.", err);
+      }
+    },
+    [bookId]
+  );
+
   const saveTerm = useCallback(
     async (term: AuthorTerm) => {
-      if (!bookId) return;
+      if (!bookId || !canSave()) return;
       const index = analyticalStore.terms.findIndex((t) => t.id === term.id);
       const updatedTerms =
         index >= 0
@@ -78,14 +110,14 @@ export function useAnalyticalSession({
 
       setAnalyticalStore(newStore);
       modals.closeModals();
-      await saveAnalyticalData(bookId, newStore);
+      await saveStore(newStore);
     },
-    [bookId, analyticalStore, modals.closeModals]
+    [bookId, analyticalStore, modals.closeModals, canSave, saveStore]
   );
 
   const deleteTerm = useCallback(
     async (termId: string) => {
-      if (!bookId) return;
+      if (!bookId || !canSave()) return;
       const updatedTerms = analyticalStore.terms.filter((t) => t.id !== termId);
       const newStore: AnalyticalStore = {
         ...analyticalStore,
@@ -93,14 +125,14 @@ export function useAnalyticalSession({
       };
 
       setAnalyticalStore(newStore);
-      await saveAnalyticalData(bookId, newStore);
+      await saveStore(newStore);
     },
-    [bookId, analyticalStore]
+    [bookId, analyticalStore, canSave, saveStore]
   );
 
   const saveArgument = useCallback(
     async (argument: ArgumentNode) => {
-      if (!bookId) return;
+      if (!bookId || !canSave()) return;
       const index = analyticalStore.arguments.findIndex((a) => a.id === argument.id);
       const updatedArguments =
         index >= 0
@@ -114,14 +146,14 @@ export function useAnalyticalSession({
 
       setAnalyticalStore(newStore);
       modals.closeModals();
-      await saveAnalyticalData(bookId, newStore);
+      await saveStore(newStore);
     },
-    [bookId, analyticalStore, modals.closeModals]
+    [bookId, analyticalStore, modals.closeModals, canSave, saveStore]
   );
 
   const deleteArgument = useCallback(
     async (argId: string) => {
-      if (!bookId) return;
+      if (!bookId || !canSave()) return;
       const updatedArguments = analyticalStore.arguments.filter((a) => a.id !== argId);
 
       // Cascading referential integrity: remove deleted arg ID from solutionArgumentIds in all inquiries
@@ -138,14 +170,14 @@ export function useAnalyticalSession({
       };
 
       setAnalyticalStore(newStore);
-      await saveAnalyticalData(bookId, newStore);
+      await saveStore(newStore);
     },
-    [bookId, analyticalStore]
+    [bookId, analyticalStore, canSave, saveStore]
   );
 
   const saveCritique = useCallback(
     async (item: CritiqueItem) => {
-      if (!bookId) return;
+      if (!bookId || !canSave()) return;
       const critiques = analyticalStore.critiques || [];
       const index = critiques.findIndex((c) => c.id === item.id);
       const updated =
@@ -160,14 +192,14 @@ export function useAnalyticalSession({
 
       setAnalyticalStore(newStore);
       modals.closeModals();
-      await saveAnalyticalData(bookId, newStore);
+      await saveStore(newStore);
     },
-    [bookId, analyticalStore, modals.closeModals]
+    [bookId, analyticalStore, modals.closeModals, canSave, saveStore]
   );
 
   const deleteCritique = useCallback(
     async (id: string) => {
-      if (!bookId) return;
+      if (!bookId || !canSave()) return;
       const critiques = analyticalStore.critiques || [];
       const updated = critiques.filter((c) => c.id !== id);
       const newStore: AnalyticalStore = {
@@ -176,14 +208,14 @@ export function useAnalyticalSession({
       };
 
       setAnalyticalStore(newStore);
-      await saveAnalyticalData(bookId, newStore);
+      await saveStore(newStore);
     },
-    [bookId, analyticalStore]
+    [bookId, analyticalStore, canSave, saveStore]
   );
 
   const saveInquiry = useCallback(
     async (inquiry: AuthorInquiry) => {
-      if (!bookId) return;
+      if (!bookId || !canSave()) return;
       const inquiries = analyticalStore.inquiries || [];
       const index = inquiries.findIndex((i) => i.id === inquiry.id);
       const updated =
@@ -198,14 +230,14 @@ export function useAnalyticalSession({
 
       setAnalyticalStore(newStore);
       modals.closeModals();
-      await saveAnalyticalData(bookId, newStore);
+      await saveStore(newStore);
     },
-    [bookId, analyticalStore, modals.closeModals]
+    [bookId, analyticalStore, modals.closeModals, canSave, saveStore]
   );
 
   const deleteInquiry = useCallback(
     async (id: string) => {
-      if (!bookId) return;
+      if (!bookId || !canSave()) return;
       const inquiries = analyticalStore.inquiries || [];
       const updated = inquiries.filter((i) => i.id !== id);
       const newStore: AnalyticalStore = {
@@ -214,9 +246,9 @@ export function useAnalyticalSession({
       };
 
       setAnalyticalStore(newStore);
-      await saveAnalyticalData(bookId, newStore);
+      await saveStore(newStore);
     },
-    [bookId, analyticalStore]
+    [bookId, analyticalStore, canSave, saveStore]
   );
 
   return {

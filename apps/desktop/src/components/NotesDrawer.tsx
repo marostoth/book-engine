@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { BookMeta, AggregatedNoteItem } from "../lib/types";
 import { getAllBookNotes, exportBookSummary } from "../lib/api";
+import { reportBackendError } from "../lib/backendErrors";
 import { NoteEntryCard } from "./notes/NoteEntryCard";
 import { DrawerFilterBar } from "./notes/DrawerFilterBar";
 
@@ -41,7 +42,8 @@ export const NotesDrawer: React.FC<NotesDrawerProps> = ({
         setAllEntries(items);
       })
       .catch((err) => {
-        console.warn("Failed to load book notes:", err);
+        setAllEntries([]);
+        reportBackendError("Could not load the notes and highlights of this book.", err);
       })
       .finally(() => {
         setLoading(false);
@@ -107,8 +109,7 @@ export const NotesDrawer: React.FC<NotesDrawerProps> = ({
         setExportNotice(null);
       }, 4500);
     } catch (err) {
-      console.error("Export summary failed:", err);
-      setExportNotice("Failed to export summary file.");
+      reportBackendError("The summary was not exported.", err);
     } finally {
       setIsExporting(false);
     }

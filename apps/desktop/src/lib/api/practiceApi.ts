@@ -1,16 +1,8 @@
-import { PracticeCardItem, CardSchedule, DeckStats } from "../types";
-import { isTauri, tauriInvoke } from "./clientBase";
-import { fallbackCardsMemory } from "./mockData";
+import type { PracticeCardItem, CardSchedule, DeckStats } from "../types.ts";
+import { callBackend } from "./clientBase.ts";
 
 export async function syncPracticeDeck(bookId: string): Promise<number> {
-  if (isTauri) {
-    try {
-      return await tauriInvoke("sync_practice_deck", { bookId });
-    } catch (e) {
-      console.warn("Tauri sync_practice_deck failed:", e);
-    }
-  }
-  return fallbackCardsMemory.length;
+  return callBackend<number>("sync_practice_deck", { bookId }, (dev) => dev.syncPracticeDeck());
 }
 
 export async function getDueCards(
@@ -19,14 +11,9 @@ export async function getDueCards(
   limit?: number,
   hybridRatio?: number
 ): Promise<PracticeCardItem[]> {
-  if (isTauri) {
-    try {
-      return await tauriInvoke("get_due_cards", { bookId, cardType, limit, hybridRatio });
-    } catch (e) {
-      console.warn("Tauri get_due_cards failed:", e);
-    }
-  }
-  return fallbackDueCards(cardType, limit);
+  return callBackend<PracticeCardItem[]>("get_due_cards", { bookId, cardType, limit, hybridRatio }, (dev) =>
+    dev.getDueCards(cardType, limit)
+  );
 }
 
 /** Due cards of one chapter file of a book, for the Chapter Gatekeeper. */
@@ -37,89 +24,17 @@ export async function getChapterDueCards(
   limit?: number,
   hybridRatio?: number
 ): Promise<PracticeCardItem[]> {
-  if (isTauri) {
-    try {
-      return await tauriInvoke("get_chapter_due_cards", { bookId, chapterFile, cardType, limit, hybridRatio });
-    } catch (e) {
-      console.warn("Tauri get_chapter_due_cards failed:", e);
-    }
-  }
-  return fallbackDueCards(cardType, limit, (c) => c.book_id === bookId && c.chapter_file === chapterFile);
-}
-
-function fallbackDueCards(
-  cardType?: string,
-  limit?: number,
-  keep: (card: PracticeCardItem) => boolean = () => true
-): PracticeCardItem[] {
-  const now = Math.floor(Date.now() / 1000);
-  let cards = fallbackCardsMemory.filter((c) => (c.due <= now || c.reps === 0) && keep(c));
-  if (cardType === "scenario") {
-    cards = cards.filter((c) => c.card_type === "scenario" || c.item_type === "scenario");
-  } else if (cardType === "cloze") {
-    cards = cards.filter((c) => c.card_type !== "scenario" && c.item_type !== "scenario");
-  }
-  if (limit) {
-    cards = cards.slice(0, limit);
-  }
-  return cards;
+  return callBackend<PracticeCardItem[]>(
+    "get_chapter_due_cards",
+    { bookId, chapterFile, cardType, limit, hybridRatio },
+    (dev) => dev.getChapterDueCards(bookId, chapterFile, cardType, limit)
+  );
 }
 
 export async function submitReview(cardId: string, rating: number): Promise<CardSchedule> {
-  if (isTauri) {
-    try {
-      return await tauriInvoke("submit_review", { cardId, rating });
-    } catch (e) {
-      console.warn("Tauri submit_review failed:", e);
-    }
-  }
-
-  const card = fallbackCardsMemory.find((c) => c.card_id === cardId);
-  const now = Math.floor(Date.now() / 1000);
-  const intervalDays = rating === 1 ? 0 : rating === 2 ? 1 : rating === 3 ? 3 : 7;
-  const due = intervalDays === 0 ? now + 600 : now + intervalDays * 86400;
-
-  if (card) {
-    card.state = rating === 1 ? 1 : 2;
-    card.stability = rating === 1 ? 0.4 : rating * 1.2;
-    card.difficulty = Math.max(1, 7 - rating);
-    card.due = due;
-    card.last_review = now;
-    card.reps += 1;
-  }
-
-  return {
-    card_id: cardId,
-    state: rating === 1 ? 1 : 2,
-    stability: rating === 1 ? 0.4 : rating * 1.2,
-    difficulty: Math.max(1, 7 - rating),
-    due,
-    last_review: now,
-    reps: card?.reps || 0,
-    interval_days: intervalDays,
-  };
+  return callBackend<CardSchedule>("submit_review", { cardId, rating }, (dev) => dev.submitReview(cardId, rating));
 }
 
 export async function getDeckStats(bookId?: string): Promise<DeckStats> {
-  if (isTauri) {
-    try {
-      return await tauriInvoke("get_deck_stats", { bookId });
-    } catch (e) {
-      console.warn("Tauri get_deck_stats failed:", e);
-    }
-  }
-
-  const now = Math.floor(Date.now() / 1000);
-  const due = fallbackCardsMemory.filter((c) => c.due <= now || c.reps === 0).length;
-  const newCards = fallbackCardsMemory.filter((c) => c.state === 0).length;
-  const learning = fallbackCardsMemory.filter((c) => c.state === 1 || c.state === 3).length;
-  const review = fallbackCardsMemory.filter((c) => c.state === 2).length;
-
-  return {
-    due_count: due,
-    new_count: newCards,
-    learning_count: learning,
-    review_count: review,
-    total_cards: fallbackCardsMemory.length,
-  };
+  return callBackend<DeckStats>("get_deck_stats", { bookId }, (dev) => dev.getDeckStats());
 }

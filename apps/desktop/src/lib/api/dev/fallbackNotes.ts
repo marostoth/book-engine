@@ -1,4 +1,6 @@
-import { ChapterNoteFile } from "../types";
+import { AggregatedNoteItem, ChapterNoteFile } from "../../types";
+import { aggregateBookNotes, generateSummaryMarkdown } from "../../notesAggregator";
+import { FALLBACK_META } from "./mockData";
 
 export function getFallbackBookNoteFiles(bookId: string): ChapterNoteFile[] {
   const ch1Notes = localStorage.getItem(`notes_${bookId}_ch-01-notes.md`) || `# Reflections: Chapter 1 - Consistency Models
@@ -66,4 +68,28 @@ export function getFallbackBookNoteFiles(bookId: string): ChapterNoteFile[] {
     { file_name: "ch-01-notes.md", chapter_file: "ch-01.md", content: ch1Notes },
     { file_name: "ch-02-notes.md", chapter_file: "ch-02.md", content: ch2Notes },
   ];
+}
+
+/** Browser stand-in for `get_all_book_notes`: aggregates the sample notes in the browser. */
+export function getAllBookNotes(bookId: string): AggregatedNoteItem[] {
+  const entries = aggregateBookNotes(FALLBACK_META, getFallbackBookNoteFiles(bookId));
+  return entries.map((e) => ({
+    id: e.id,
+    item_type: e.type,
+    chapter_file: e.chapterFile,
+    chapter_title: e.chapterTitle,
+    chapter_order: e.chapterOrder,
+    anchor: e.anchor || null,
+    text: e.text,
+    color: e.color || null,
+    section_heading: e.sectionHeading || null,
+    created_at: e.createdAt || null,
+  }));
+}
+
+/** Browser stand-in for `export_book_summary`: keeps the summary in browser storage. */
+export function exportBookSummary(bookId: string): string {
+  const entries = aggregateBookNotes(FALLBACK_META, getFallbackBookNoteFiles(bookId));
+  localStorage.setItem(`summary_export_${bookId}`, generateSummaryMarkdown(FALLBACK_META, entries));
+  return `vault/notes/${bookId}/summary-export.md`;
 }

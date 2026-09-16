@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { X, Check, BookCheck, Plus, Trash2, HelpCircle } from "lucide-react";
 import { ExitAssessmentPayload } from "../../lib/types";
 import { saveInspectionalExitAssessment } from "../../lib/api";
+import { reportBackendError } from "../../lib/backendErrors";
 
 interface InspectionalExitModalProps {
   isOpen: boolean;
@@ -93,8 +94,8 @@ export const InspectionalExitModal: React.FC<InspectionalExitModalProps> = ({
       await saveInspectionalExitAssessment(bookId, payload);
       if (onSaved) onSaved(payload);
       onClose();
-    } catch (err: any) {
-      setErrorMsg(err?.message || "Failed to save exit assessment.");
+    } catch (err) {
+      reportBackendError("Your exit assessment was not saved. Your answers are still in the form.", err);
     } finally {
       setIsSaving(false);
     }

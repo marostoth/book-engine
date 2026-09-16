@@ -4,6 +4,7 @@ import { PracticeCardItem, CardSchedule } from "../lib/types";
 import { submitReview } from "../lib/api";
 import { gatePassed, gateRightAnswers } from "../lib/chapterGate";
 import { currentSessionCard, recordSessionReview, startSession, syncSession } from "../lib/practiceSession";
+import { reportBackendError } from "../lib/backendErrors";
 
 import { GatekeeperCardDrill } from "./practice/GatekeeperCardDrill";
 
@@ -66,7 +67,7 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
       setSession((prev) => recordSessionReview(prev, currentCard.card_id, rating));
       onReviewSubmitted(currentCard.card_id, schedule);
     } catch (e) {
-      console.error("Failed to submit gatekeeper review:", e);
+      reportBackendError("Your rating was not saved. Rate the card again.", e);
     } finally {
       setSubmitting(false);
     }

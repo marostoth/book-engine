@@ -14,6 +14,7 @@ import { NotesPane } from "./components/NotesPane";
 import { BlueprintView } from "./components/inspectional/BlueprintView";
 import { DipStream } from "./components/inspectional/DipStream";
 import { AppModals } from "./components/AppModals";
+import { BackendErrorBar } from "./components/BackendErrorBar";
 import { useAnalyticalSession } from "./hooks/useAnalyticalSession";
 import { useSyntopiconSession } from "./hooks/useSyntopiconSession";
 import { LevelCompanionPane } from "./components/LevelCompanionPane";
@@ -243,6 +244,9 @@ export const App: React.FC = () => {
         preferences={preferences} inspectionalSession={inspectionalSession}
         analyticalSession={analyticalSession} syntopiconSession={syntopiconSession} currentChapterFile={activeChapter?.file_path}
       />
+
+      {/* Every failed backend load or save shows here */}
+      <BackendErrorBar />
     </div>
   );
 };

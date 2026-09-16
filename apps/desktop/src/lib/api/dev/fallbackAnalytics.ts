@@ -2,7 +2,7 @@ import {
   RetentionMetrics,
   ReadingVelocityStats,
   StudyAnalytics,
-} from "../types";
+} from "../../types";
 import { generateFallbackHeatmap } from "./mockData";
 
 export function getFallbackRetentionMetrics(): RetentionMetrics {

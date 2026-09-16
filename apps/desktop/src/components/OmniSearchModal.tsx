@@ -4,6 +4,7 @@ import { BookMetadata, SearchResult } from "../lib/types";
 import { searchVault } from "../lib/api";
 import { ReaderLocation, searchResultBookTitle, searchResultLocation } from "../lib/readerLocation";
 import { MIN_SEARCH_CHARACTERS, isSearchable } from "../lib/searchQuery";
+import { reportBackendError } from "../lib/backendErrors";
 
 interface OmniSearchModalProps {
   isOpen: boolean;
@@ -24,6 +25,8 @@ export const OmniSearchModal: React.FC<OmniSearchModalProps> = ({
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
+  // The last search failed in the backend, so "No matching paragraphs" would not be true.
+  const [searchFailed, setSearchFailed] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Focus input on open
@@ -40,6 +43,7 @@ export const OmniSearchModal: React.FC<OmniSearchModalProps> = ({
   useEffect(() => {
     if (!isSearchable(query)) {
       setResults([]);
+      setSearchFailed(false);
       setIsSearching(false);
       return;
     }
@@ -49,7 +53,13 @@ export const OmniSearchModal: React.FC<OmniSearchModalProps> = ({
       searchVault(query.trim())
         .then((res) => {
           setResults(res);
+          setSearchFailed(false);
           setSelectedIndex(0);
+        })
+        .catch((err) => {
+          setResults([]);
+          setSearchFailed(true);
+          reportBackendError("The search did not run.", err);
         })
         .finally(() => setIsSearching(false));
     }, 150);
@@ -122,7 +132,11 @@ export const OmniSearchModal: React.FC<OmniSearchModalProps> = ({
 
           {!isSearching && results.length === 0 && isSearchable(query) && (
             <div className="p-8 text-center text-xs text-[var(--theme-muted)]">
-              No matching paragraphs found for &quot;{query}&quot;
+              {searchFailed ? (
+                "The search did not run. The error shows at the bottom of the window."
+              ) : (
+                <>No matching paragraphs found for &quot;{query}&quot;</>
+              )}
             </div>
           )}
 

@@ -18,6 +18,7 @@ import {
   StudyAnalytics,
 } from "../lib/types";
 import { getStudyAnalytics, fetchReadingVelocity } from "../lib/api";
+import { reportBackendError } from "../lib/backendErrors";
 import { HeatmapGrid } from "./analytics/HeatmapGrid";
 import { VelocityTable } from "./analytics/VelocityTable";
 
@@ -54,7 +55,7 @@ export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
       setHeatmapData(analytics.daily_reviews);
       setVelocityStats(velocity);
     } catch (err) {
-      console.warn("Failed to load analytics:", err);
+      reportBackendError("Could not load your study analytics.", err);
     } finally {
       setLoading(false);
     }

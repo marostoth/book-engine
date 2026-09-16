@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { PracticeCardItem, CardSchedule, ReaderPreferences } from "../lib/types";
 import { syncPracticeDeck, getDueCards } from "../lib/api";
 import { practiceCardType } from "../lib/practiceSession";
+import { reportBackendError } from "../lib/backendErrors";
 
 export function usePracticeDeck(activeBookId: string, preferences: ReaderPreferences) {
   const [dueCards, setDueCards] = useState<PracticeCardItem[]>([]);
@@ -19,10 +20,16 @@ export function usePracticeDeck(activeBookId: string, preferences: ReaderPrefere
 
       try {
         await syncPracticeDeck(targetBookId);
+      } catch (err) {
+        // The cards that are already in the database can still be used for practice.
+        reportBackendError("Your practice deck did not sync, so new or changed cards can be missing.", err);
+      }
+      try {
         const cards = await getDueCards(targetBookId, practiceCardType(practiceMode), dailyTarget, hybridRatio);
         setDueCards(cards);
       } catch (err) {
-        console.warn("Failed to refresh practice cards:", err);
+        setDueCards([]);
+        reportBackendError("Could not load your practice cards.", err);
       }
     },
     [activeBookId, practiceMode, dailyTarget, hybridRatio]

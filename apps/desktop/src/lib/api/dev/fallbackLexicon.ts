@@ -1,8 +1,4 @@
-import { DictionaryEntry, VocabularyEntry } from "../types";
-
-export function sanitizeLexiconWord(word: string): string {
-  return word.trim().replace(/^[^a-zA-Z]+|[^a-zA-Z]+$/g, "").toLowerCase();
-}
+import { DictionaryEntry, VocabularyEntry } from "../../types";
 
 export const FALLBACK_LEXICON: Record<string, DictionaryEntry> = {
   elementary: {
@@ -147,9 +143,9 @@ export const FALLBACK_LEXICON: Record<string, DictionaryEntry> = {
   },
 };
 
+/** Looks up a word that `sanitizeLexiconWord` (`../lexiconApi.ts`) already cleaned. */
 export function fallbackLookupDictionaryTerm(word: string): DictionaryEntry | null {
-  const clean = sanitizeLexiconWord(word);
-  return FALLBACK_LEXICON[clean] || null;
+  return FALLBACK_LEXICON[word] || null;
 }
 
 export function fallbackSaveVocabulary(bookId: string, entry: VocabularyEntry): void {

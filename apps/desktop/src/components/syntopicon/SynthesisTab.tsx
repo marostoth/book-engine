@@ -11,7 +11,7 @@ export const SynthesisTab: React.FC<SynthesisTabProps> = ({ session }) => {
 
   const [synthesisNotes, setSynthesisNotes] = useState(activeTopic?.synthesisNotes || "");
   const [resolution, setResolution] = useState(activeTopic?.dialecticalResolution || "");
-  const [saveStatus, setSaveStatus] = useState<"saved" | "saving">("saved");
+  const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "failed">("saved");
   const [copied, setCopied] = useState(false);
   const [exportSuccess, setExportSuccess] = useState<string | null>(null);
 
@@ -50,8 +50,7 @@ export const SynthesisTab: React.FC<SynthesisTabProps> = ({ session }) => {
     setSaveStatus("saving");
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(async () => {
-      await saveSynthesis(newNotes, newRes);
-      setSaveStatus("saved");
+      setSaveStatus((await saveSynthesis(newNotes, newRes)) ? "saved" : "failed");
     }, 800);
   };
 
@@ -68,8 +67,10 @@ export const SynthesisTab: React.FC<SynthesisTabProps> = ({ session }) => {
   const handleExport = async () => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
-      await saveSynthesis(synthesisNotes, resolution);
-      setSaveStatus("saved");
+      const saved = await saveSynthesis(synthesisNotes, resolution);
+      setSaveStatus(saved ? "saved" : "failed");
+      // Save-Before-Export: notes that were not saved are not exported.
+      if (!saved) return;
     }
     try {
       const path = await exportReport();
@@ -113,10 +114,12 @@ export const SynthesisTab: React.FC<SynthesisTabProps> = ({ session }) => {
             className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors ${
               saveStatus === "saved"
                 ? "bg-emerald-950/60 text-emerald-400 border border-emerald-800/60"
-                : "bg-amber-950/60 text-amber-400 border border-amber-800/60 animate-pulse"
+                : saveStatus === "failed"
+                  ? "bg-red-950/60 text-red-400 border border-red-800/60"
+                  : "bg-amber-950/60 text-amber-400 border border-amber-800/60 animate-pulse"
             }`}
           >
-            {saveStatus === "saved" ? "Saved" : "Saving..."}
+            {saveStatus === "saved" ? "Saved" : saveStatus === "failed" ? "Not saved" : "Saving..."}
           </span>
         </div>
         <p className="text-[11px] text-stone-400 leading-relaxed">
