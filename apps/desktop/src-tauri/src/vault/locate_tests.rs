@@ -2,6 +2,8 @@
 //!
 //! `locate_vault` reads the working folder and the program folder, which a test cannot change safely, so
 //! these tests cover the two parts a reader meets: what counts as a vault, and what the app remembers.
+//! In a test build the search takes only a folder inside the sandbox, so a test run from the repository
+//! never finds the real vault above its working folder (DS-10).
 
 use crate::test_support::Sandbox;
 use crate::vault::locate::{forget_vault, is_vault, locate_vault, not_found_message, remember_vault, FoundBy};
@@ -48,6 +50,14 @@ fn a_folder_that_does_not_exist_is_not_a_vault() {
     let sandbox = Sandbox::new();
 
     assert!(!is_vault(&sandbox.vault().join("nowhere")));
+}
+
+#[test]
+fn a_test_never_finds_the_real_vault() {
+    let _sandbox = Sandbox::new();
+
+    // The tests run inside the repository, so a search up from the working folder would find the real vault.
+    assert_eq!(locate_vault(), None, "a test may only find a vault it made");
 }
 
 #[test]
@@ -106,13 +116,10 @@ fn a_saved_folder_that_is_gone_is_not_used() {
     remember_vault(&picked).expect("remember the folder");
     std::fs::remove_dir_all(&picked).expect("the stick is pulled out");
 
-    // Nothing else in the sandbox is a vault, and the real vault is out of reach in a test build.
+    // Nothing else in the sandbox is a vault.
     let found = locate_vault();
 
-    assert!(
-        found.is_none() || found.as_ref().is_some_and(|(path, _)| path != &picked),
-        "a folder that is gone must not be used: {found:?}"
-    );
+    assert_eq!(found, None, "a folder that is gone must not be used");
 }
 
 #[test]
@@ -139,10 +146,7 @@ fn a_damaged_settings_file_does_not_stop_the_app() {
     // It must not panic and must not use the damaged file.
     let found = locate_vault();
 
-    assert!(
-        found.is_none() || found.as_ref().is_some_and(|(path, _)| path != &picked),
-        "a damaged settings file must not be trusted: {found:?}"
-    );
+    assert_eq!(found, None, "a damaged settings file must not be trusted");
     // And the reader can pick again, which writes the file afresh.
     remember_vault(&picked).expect("pick again");
     let (found, how) = locate_vault().expect("the vault must be found");

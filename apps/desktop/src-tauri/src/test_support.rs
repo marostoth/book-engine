@@ -2,11 +2,13 @@
 //!
 //! In test builds, `vault::find_vault_root` and `db::get_db_path` resolve paths only
 //! through this module. Without an active sandbox they return an error, so a unit test
-//! can never read or write the real vault or the real AppData cache.
+//! can never read or write the real vault or the real AppData cache. The vault search in
+//! `vault/locate.rs` takes only a folder inside the sandbox (`is_inside_sandbox`), so it
+//! never finds the real vault above the working folder either.
 //! Integration tests (`tests/`) and doc tests do not get this guard.
 
 use std::cell::RefCell;
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use anyhow::{anyhow, Result};
@@ -135,6 +137,14 @@ pub(crate) fn vault_root() -> Result<PathBuf> {
     Ok(active_root()?.join("vault"))
 }
 
+/// True when `path` is inside the active sandbox and does not climb out of it with `..`.
+/// With no active sandbox, nothing is inside one.
+pub(crate) fn is_inside_sandbox(path: &Path) -> bool {
+    active_root().is_ok_and(|root| {
+        path.starts_with(&root) && !path.components().any(|part| part == Component::ParentDir)
+    })
+}
+
 /// Settings file path in test builds.
 pub(crate) fn settings_path() -> Result<PathBuf> {
     Ok(active_root()?.join("settings.json"))
@@ -212,14 +222,16 @@ const SAMPLE_NOTES: &str = r#"# Notes: sample
 "#;
 
 mod tests {
-    use super::Sandbox;
+    use super::{is_inside_sandbox, Sandbox};
     use crate::db::get_db_path;
     use crate::vault::find_vault_root;
+    use crate::vault::locate::locate_vault;
 
     #[test]
     fn paths_fail_without_a_sandbox() {
         assert!(find_vault_root().is_err(), "tests must never resolve the real vault");
         assert!(get_db_path().is_err(), "tests must never resolve the real cache database");
+        assert_eq!(locate_vault(), None, "tests must never find the real vault");
     }
 
     #[test]
@@ -231,5 +243,23 @@ mod tests {
 
         drop(sandbox);
         assert!(find_vault_root().is_err(), "paths must stop working when the sandbox ends");
+    }
+
+    #[test]
+    fn only_a_path_inside_the_active_sandbox_is_inside_it() {
+        let working_folder = std::env::current_dir().expect("working folder");
+        assert!(!is_inside_sandbox(&working_folder), "with no sandbox, nothing is inside one");
+
+        let sandbox = Sandbox::new();
+        assert!(is_inside_sandbox(&sandbox.vault().join("books")));
+        assert!(!is_inside_sandbox(&working_folder), "the repository is outside the sandbox");
+        assert!(
+            !is_inside_sandbox(sandbox.root.parent().expect("temporary folder")),
+            "the folder above the sandbox is outside it"
+        );
+        assert!(
+            !is_inside_sandbox(&sandbox.vault().join("..").join("..")),
+            "`..` must not climb out of the sandbox"
+        );
     }
 }

@@ -99,14 +99,26 @@ fn saved_vault() -> Option<PathBuf> {
     None
 }
 
+/// `folder`, when it is a vault.
+#[cfg(not(test))]
+fn searched_vault(folder: PathBuf) -> Option<PathBuf> {
+    is_vault(&folder).then_some(folder)
+}
+
+/// Test builds take only a vault inside the active sandbox. The tests run inside the repository, so the
+/// search would otherwise find the real vault above the working folder (DS-10).
+#[cfg(test)]
+fn searched_vault(folder: PathBuf) -> Option<PathBuf> {
+    (crate::test_support::is_inside_sandbox(&folder) && is_vault(&folder)).then_some(folder)
+}
+
 /// `vault` beside the program, and beside the folder above it.
 fn vault_near_the_program() -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
     let beside = exe.parent()?;
     for folder in [beside, beside.parent()?] {
-        let candidate = folder.join("vault");
-        if is_vault(&candidate) {
-            return Some(candidate);
+        if let Some(vault) = searched_vault(folder.join("vault")) {
+            return Some(vault);
         }
     }
     None
@@ -116,9 +128,8 @@ fn vault_near_the_program() -> Option<PathBuf> {
 fn vault_near_the_working_folder() -> Option<PathBuf> {
     let mut current = std::env::current_dir().ok()?;
     for _ in 0..6 {
-        let candidate = current.join("vault");
-        if is_vault(&candidate) {
-            return Some(candidate);
+        if let Some(vault) = searched_vault(current.join("vault")) {
+            return Some(vault);
         }
         if !current.pop() {
             break;
@@ -133,8 +144,7 @@ pub fn locate_vault() -> Option<(PathBuf, FoundBy)> {
         return Some((folder, FoundBy::Saved));
     }
     if let Ok(from_variable) = std::env::var("BOOK_ENGINE_VAULT") {
-        let folder = PathBuf::from(from_variable);
-        if is_vault(&folder) {
+        if let Some(folder) = searched_vault(PathBuf::from(from_variable)) {
             return Some((folder, FoundBy::Variable));
         }
     }
