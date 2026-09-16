@@ -102,6 +102,8 @@ The analytics show how long you read each chapter and which chapters you finishe
 
 The review heatmap counts each review on the day you made it, in the time zone of your computer. Its rows go from Monday to Sunday, and its last column ends today.
 
+The analytics show a dash for a number the app does not have, such as the retention rate before your first review. "Reviews Due" counts the reviews that practice gives you now, and new cards are counted apart. The reading table names each chapter and book by its title.
+
 ---
 
 ### 2. Desktop Application (`apps/desktop`)

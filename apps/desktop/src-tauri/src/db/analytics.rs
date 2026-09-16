@@ -145,11 +145,9 @@ pub fn get_retention_metrics_blocking(book_id: Option<&str>) -> Result<Retention
         reviewed_count += 1;
     }
 
-    let retention_rate = if reviewed_count > 0 {
-        ((sum_retrievability / reviewed_count as f64) * 1000.0).round() / 10.0
-    } else {
-        90.0 // Default target retention
-    };
+    // No reviewed card, no retention rate: the window shows a dash, not a made-up 90% (AN-03).
+    let retention_rate =
+        (reviewed_count > 0).then(|| ((sum_retrievability / reviewed_count as f64) * 1000.0).round() / 10.0);
 
     Ok(RetentionMetrics {
         due_today,
@@ -160,7 +158,7 @@ pub fn get_retention_metrics_blocking(book_id: Option<&str>) -> Result<Retention
 }
 
 /// Aggregates full study analytics: review frequency, card states, retention rate,
-/// mastered count, cards due today, and total vault words / reading time.
+/// mastered count, reviews due now and new cards, and total vault words / reading time.
 pub fn get_study_analytics_blocking(book_id: Option<&str>) -> Result<StudyAnalytics> {
     let conn = open_or_create_db()?;
     let now = std::time::SystemTime::now()
@@ -228,25 +226,34 @@ pub fn get_study_analytics_blocking(book_id: Option<&str>) -> Result<StudyAnalyt
     ).unwrap_or(0);
 
     let retention_rate = if total_reviews > 0 {
-        (((total_reviews - again_count) as f64 / total_reviews as f64) * 1000.0).round() / 10.0
+        Some((((total_reviews - again_count) as f64 / total_reviews as f64) * 1000.0).round() / 10.0)
     } else {
-        let ret = get_retention_metrics_blocking(book_id)?;
-        ret.retention_rate
+        get_retention_metrics_blocking(book_id)?.retention_rate
     };
 
-    // 4. Cards due today & Mastered cards
+    // 4. Reviews due now, new cards & Mastered cards
+    // The two queues practice takes cards from (`db/due_cards.rs`): a card that was never reviewed is new, not due,
+    // so "Due Today" no longer counts every new card of the deck (AN-03).
     let due_where = if where_clause.is_empty() {
-        "WHERE (due <= ? OR reps = 0)"
+        "WHERE reps > 0 AND due <= ?"
     } else {
-        "WHERE (due <= ? OR reps = 0) AND book_id = ?"
+        "WHERE reps > 0 AND due <= ? AND book_id = ?"
     };
-    let mut due_params: Vec<rusqlite::types::Value> = vec![(now + 86400).into()];
+    let mut due_params: Vec<rusqlite::types::Value> = vec![now.into()];
     if let Some(b) = book_id {
         due_params.push(b.to_string().into());
     }
-    let cards_due_today: usize = conn.query_row(
+    let reviews_due: usize = conn.query_row(
         &format!("SELECT COUNT(*) FROM fsrs_cards {}", due_where),
         rusqlite::params_from_iter(due_params),
+        |r| r.get(0),
+    ).unwrap_or(0);
+
+    let new_cards: usize = conn.query_row(
+        &format!("SELECT COUNT(*) FROM fsrs_cards {} {}",
+            if where_clause.is_empty() { "WHERE" } else { "WHERE book_id = ? AND" },
+            "reps = 0"),
+        rusqlite::params_from_iter(params_vec.iter().cloned()),
         |r| r.get(0),
     ).unwrap_or(0);
 
@@ -294,7 +301,8 @@ pub fn get_study_analytics_blocking(book_id: Option<&str>) -> Result<StudyAnalyt
         review_blocks,
         state_counts,
         retention_rate,
-        cards_due_today,
+        reviews_due,
+        new_cards,
         mastered_cards,
         total_vault_words,
         estimated_reading_time_mins,

@@ -3,7 +3,7 @@ import {
   ReadingVelocityStats,
   StudyAnalytics,
 } from "../../types";
-import { generateFallbackHeatmap } from "./mockData";
+import { FALLBACK_META, generateFallbackHeatmap } from "./mockData";
 
 export function getFallbackRetentionMetrics(): RetentionMetrics {
   return {
@@ -29,7 +29,8 @@ export function getFallbackStudyAnalytics(): StudyAnalytics {
       total_cards: 16,
     },
     retention_rate: retention.retention_rate,
-    cards_due_today: retention.due_today,
+    reviews_due: retention.due_today,
+    new_cards: 5,
     mastered_cards: retention.mastered_cards,
     total_vault_words: totalVaultWords,
     estimated_reading_time_mins: Math.round(totalVaultWords / 225),
@@ -47,8 +48,11 @@ export function getFallbackReadingVelocity(bookId?: string): ReadingVelocityStat
   return {
     total_seconds: 5280,
     completed_chapters: 2,
+    total_chapters: FALLBACK_META.total_chapters,
     chapter_stats: [
       {
+        book_id: FALLBACK_META.book_id,
+        book_title: FALLBACK_META.title,
         chapter_file: "ch-01.md",
         chapter_title: "Chapter 1: Consistency Models",
         seconds_spent: 2640,
@@ -56,6 +60,8 @@ export function getFallbackReadingVelocity(bookId?: string): ReadingVelocityStat
         last_read_at: Math.floor(Date.now() / 1000) - 86400,
       },
       {
+        book_id: FALLBACK_META.book_id,
+        book_title: FALLBACK_META.title,
         chapter_file: "ch-02.md",
         chapter_title: "Chapter 2: State Machine Replication",
         seconds_spent: 2640,
@@ -79,14 +85,19 @@ export function updateFallbackReadingProgress(
         JSON.stringify({
           total_seconds: 0,
           completed_chapters: 0,
+          total_chapters: bookId === FALLBACK_META.book_id ? FALLBACK_META.total_chapters : null,
           chapter_stats: [],
         })
     );
 
     let ch = cur.chapter_stats.find((s) => s.chapter_file === chapterFile);
     if (!ch) {
+      const sample = bookId === FALLBACK_META.book_id;
       ch = {
+        book_id: bookId,
+        book_title: sample ? FALLBACK_META.title : null,
         chapter_file: chapterFile,
+        chapter_title: (sample && FALLBACK_META.spine.find((c) => c.file_path === chapterFile)?.title) || null,
         seconds_spent: 0,
         completed: false,
         last_read_at: Math.floor(Date.now() / 1000),

@@ -11,7 +11,6 @@ import {
   Layers,
 } from "lucide-react";
 import {
-  BookMeta,
   ReaderPreferences,
   ReviewBlock,
   ReadingVelocityStats,
@@ -19,6 +18,7 @@ import {
 } from "../lib/types";
 import { getStudyAnalytics, fetchReadingVelocity } from "../lib/api";
 import { reportBackendError } from "../lib/backendErrors";
+import { countText, NO_DATA, retentionText } from "../lib/analyticsText";
 import { reviewsPerDay, reviewStreaks } from "../lib/reviewDays";
 import { HeatmapGrid } from "./analytics/HeatmapGrid";
 import { VelocityTable } from "./analytics/VelocityTable";
@@ -27,7 +27,6 @@ interface AnalyticsModalProps {
   isOpen: boolean;
   onClose: () => void;
   activeBookId: string;
-  bookMeta: BookMeta | null;
   preferences: ReaderPreferences;
 }
 
@@ -35,7 +34,6 @@ export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
   isOpen,
   onClose,
   activeBookId,
-  bookMeta,
   preferences,
 }) => {
   const [scope, setScope] = useState<"active" | "all">("active");
@@ -164,10 +162,10 @@ export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
               </div>
               <div>
                 <div className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
-                  {studyAnalytics?.retention_rate ? `${studyAnalytics.retention_rate}%` : "90.0%"}
+                  {retentionText(studyAnalytics?.retention_rate)}
                 </div>
                 <p className="text-[11px] text-[var(--theme-muted)] mt-0.5">
-                  Extractive memory recall
+                  {studyAnalytics && studyAnalytics.retention_rate === null ? "No reviews yet" : "Extractive memory recall"}
                 </p>
               </div>
             </div>
@@ -179,24 +177,27 @@ export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
               </div>
               <div>
                 <div className="text-2xl font-bold font-mono text-[var(--theme-text)]">
-                  {studyAnalytics?.mastered_cards ?? 0}
+                  {countText(studyAnalytics?.mastered_cards)}
                 </div>
                 <p className="text-[11px] text-[var(--theme-muted)] mt-0.5">
-                  Stability &ge; 21 days ({studyAnalytics?.state_counts.total_cards ?? 0} total)
+                  Stability &ge; 21 days ({countText(studyAnalytics?.state_counts.total_cards)} total)
                 </p>
               </div>
             </div>
 
             <div className="p-4 rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg)]/40 flex flex-col justify-between">
               <div className="flex items-center justify-between text-[var(--theme-muted)] text-xs font-medium mb-2">
-                <span>Due Today</span>
+                <span>Reviews Due</span>
                 <Target className="w-4 h-4 text-[var(--theme-accent)]" />
               </div>
               <div>
                 <div className="text-2xl font-bold font-mono text-[var(--theme-text)]">
-                  {studyAnalytics?.cards_due_today ?? 0}
+                  {countText(studyAnalytics?.reviews_due)}
                 </div>
                 <p className="text-[11px] text-[var(--theme-muted)] mt-0.5">
+                  {countText(studyAnalytics?.new_cards)} new cards
+                </p>
+                <p className="text-[11px] text-[var(--theme-muted)]">
                   Target: {preferences.dailyTarget} cards/day
                 </p>
               </div>
@@ -209,10 +210,10 @@ export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
               </div>
               <div>
                 <div className="text-2xl font-bold font-mono text-[var(--theme-text)]">
-                  {(studyAnalytics?.total_vault_words ?? 0).toLocaleString()}
+                  {countText(studyAnalytics?.total_vault_words)}
                 </div>
                 <p className="text-[11px] text-[var(--theme-muted)] mt-0.5">
-                  ~{studyAnalytics?.estimated_reading_time_mins ?? 0} mins reading time
+                  {studyAnalytics ? `~${studyAnalytics.estimated_reading_time_mins} mins reading time` : NO_DATA}
                 </p>
               </div>
             </div>
@@ -226,19 +227,19 @@ export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
             <div className="flex items-center gap-4 text-xs font-mono">
               <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
                 <span className="w-2 h-2 rounded-full bg-blue-500" />
-                New: <strong>{studyAnalytics?.state_counts.new_count ?? 0}</strong>
+                New: <strong>{countText(studyAnalytics?.state_counts.new_count)}</strong>
               </span>
               <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
                 <span className="w-2 h-2 rounded-full bg-amber-500" />
-                Learning: <strong>{studyAnalytics?.state_counts.learning_count ?? 0}</strong>
+                Learning: <strong>{countText(studyAnalytics?.state_counts.learning_count)}</strong>
               </span>
               <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
                 <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                Review: <strong>{studyAnalytics?.state_counts.review_count ?? 0}</strong>
+                Review: <strong>{countText(studyAnalytics?.state_counts.review_count)}</strong>
               </span>
               <span className="flex items-center gap-1.5 text-rose-600 dark:text-rose-400">
                 <span className="w-2 h-2 rounded-full bg-rose-500" />
-                Relearning: <strong>{studyAnalytics?.state_counts.relearning_count ?? 0}</strong>
+                Relearning: <strong>{countText(studyAnalytics?.state_counts.relearning_count)}</strong>
               </span>
             </div>
             <div className="flex items-center gap-1.5 text-xs text-[var(--theme-muted)] font-mono">
@@ -256,7 +257,7 @@ export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
         <HeatmapGrid reviewsPerDay={perDay} />
 
         {/* Section 3: Reading Time & Completed Chapters */}
-        <VelocityTable velocityStats={velocityStats} bookMeta={bookMeta} />
+        <VelocityTable velocityStats={velocityStats} showBooks={scope === "all"} />
       </div>
     </div>
   );

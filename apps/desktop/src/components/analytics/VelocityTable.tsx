@@ -1,28 +1,23 @@
-import React, { useMemo } from "react";
+import React from "react";
 import { CheckCircle, Clock } from "lucide-react";
-import { ReadingVelocityStats, BookMeta } from "../../lib/types";
+import { ReadingVelocityStats } from "../../lib/types";
+import { bookName, chapterName, completedChaptersText, readingTimeText } from "../../lib/analyticsText";
 
 interface VelocityTableProps {
   velocityStats: ReadingVelocityStats | null;
-  bookMeta: BookMeta | null;
+  /** "All Books": each row also names its book, because every book has a ch-01.md. */
+  showBooks: boolean;
 }
 
 /**
  * Reading time and finished chapters. The app sees how long a chapter is on screen, but not how many words you read, so
- * this shows no word count and no reading speed (AN-01).
+ * this shows no word count and no reading speed (AN-01). The rows show the chapter titles, and the finished chapters
+ * count against the chapters of the book or of every book in the vault (AN-03).
  */
 export const VelocityTable: React.FC<VelocityTableProps> = ({
   velocityStats,
-  bookMeta,
+  showBooks,
 }) => {
-  const formattedReadingTime = useMemo(() => {
-    const totalSecs = velocityStats?.total_seconds || 0;
-    const hours = Math.floor(totalSecs / 3600);
-    const mins = Math.floor((totalSecs % 3600) / 60);
-    if (hours > 0) return `${hours}h ${mins}m`;
-    return `${mins}m ${totalSecs % 60}s`;
-  }, [velocityStats]);
-
   return (
     <div className="p-5 rounded-3xl border border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] space-y-4">
       <div className="flex items-center gap-2">
@@ -38,7 +33,7 @@ export const VelocityTable: React.FC<VelocityTableProps> = ({
           <div>
             <span className="text-[11px] text-neutral-400">Completed Chapters</span>
             <div className="text-xl font-bold font-mono text-neutral-900 dark:text-neutral-100">
-              {velocityStats?.completed_chapters ?? 0} / {bookMeta?.total_chapters ?? 1}
+              {completedChaptersText(velocityStats)}
             </div>
           </div>
           <CheckCircle className="w-5 h-5 text-amber-600 dark:text-nord-accent" />
@@ -48,7 +43,7 @@ export const VelocityTable: React.FC<VelocityTableProps> = ({
           <div>
             <span className="text-[11px] text-neutral-400">Reading Time</span>
             <div className="text-xl font-bold font-mono text-neutral-900 dark:text-neutral-100">
-              {formattedReadingTime}
+              {readingTimeText(velocityStats)}
             </div>
           </div>
           <Clock className="w-5 h-5 text-blue-500" />
@@ -71,9 +66,15 @@ export const VelocityTable: React.FC<VelocityTableProps> = ({
                 const mins = Math.floor(stat.seconds_spent / 60);
                 const secs = stat.seconds_spent % 60;
                 return (
-                  <tr key={stat.chapter_file} className="hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
-                    <td className="py-2 px-3.5 font-sans font-medium text-neutral-800 dark:text-neutral-200 truncate max-w-[200px]">
-                      {stat.chapter_title || stat.chapter_file}
+                  <tr key={`${stat.book_id}/${stat.chapter_file}`} className="hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
+                    <td
+                      className="py-2 px-3.5 font-sans font-medium text-neutral-800 dark:text-neutral-200 truncate max-w-[360px]"
+                      title={showBooks ? `${chapterName(stat)} (${bookName(stat)})` : chapterName(stat)}
+                    >
+                      {chapterName(stat)}
+                      {showBooks && (
+                        <span className="block text-[10px] font-normal text-neutral-400 truncate">{bookName(stat)}</span>
+                      )}
                     </td>
                     <td className="py-2 px-3 text-right text-neutral-600 dark:text-neutral-400">
                       {mins}m {secs}s

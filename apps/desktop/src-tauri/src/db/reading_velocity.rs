@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use rusqlite::params;
 use anyhow::{Context, Result};
 use super::models::{ChapterReadingStatItem, ReadingVelocityStats};
@@ -51,7 +53,40 @@ pub fn record_reading_session_blocking(
     Ok(())
 }
 
+/// What a book's `_meta.json` says about it: its title, and the place and title of each chapter in its spine.
+struct BookOutline {
+    title: Option<String>,
+    /// Chapter file -> (place in the spine, chapter title).
+    chapters: HashMap<String, (usize, Option<String>)>,
+    total_chapters: usize,
+}
+
+/// Reads the outline of a book. `None` when its `_meta.json` cannot be read.
+fn book_outline(book_id: &str) -> Option<BookOutline> {
+    let meta: serde_json::Value = serde_json::from_str(&crate::vault::read_book_meta_json(book_id).ok()?).ok()?;
+    let text = |value: &serde_json::Value| value.as_str().filter(|text| !text.is_empty()).map(str::to_string);
+    let spine = meta["spine"].as_array();
+    let chapters = spine
+        .into_iter()
+        .flatten()
+        .enumerate()
+        .filter_map(|(place, chapter)| {
+            Some((chapter["file_path"].as_str()?.to_string(), (place, text(&chapter["title"]))))
+        })
+        .collect();
+    let total_chapters = meta["total_chapters"]
+        .as_u64()
+        .map(|count| count as usize)
+        .or_else(|| spine.map(Vec::len))
+        .unwrap_or(0);
+    Some(BookOutline { title: text(&meta["title"]), chapters, total_chapters })
+}
+
 /// Adds up the reading time and the finished chapters. There is no word count and no reading speed (AN-01).
+///
+/// Each row names its book and its chapter with the titles in the book's `_meta.json`, in book order and then reading
+/// order. A chapter file that the spine does not list keeps only its file name. `total_chapters` counts the chapters
+/// of the book, or of every book in the vault for "All Books", not of the book that is open (AN-03).
 pub fn get_reading_velocity_blocking(book_id: Option<&str>) -> Result<ReadingVelocityStats> {
     let conn = open_or_create_db()?;
 
@@ -61,10 +96,9 @@ pub fn get_reading_velocity_blocking(book_id: Option<&str>) -> Result<ReadingVel
     };
 
     let sql = format!(
-        "SELECT chapter_file, seconds_spent, completed, last_read_at
+        "SELECT book_id, chapter_file, seconds_spent, completed, last_read_at
          FROM reading_sessions
-         {}
-         ORDER BY chapter_file ASC",
+         {}",
         where_clause
     );
 
@@ -72,21 +106,55 @@ pub fn get_reading_velocity_blocking(book_id: Option<&str>) -> Result<ReadingVel
     let rows = stmt.query_map(
         rusqlite::params_from_iter(params_vec),
         |r| {
-            let chapter_file: String = r.get(0)?;
-            let seconds_spent: i64 = r.get(1)?;
-            let completed_int: i64 = r.get(2)?;
-            let last_read_at: i64 = r.get(3)?;
-
-            Ok(ChapterReadingStatItem {
-                chapter_file,
-                seconds_spent: seconds_spent.max(0) as u64,
-                completed: completed_int == 1,
-                last_read_at,
-            })
+            let book_id: String = r.get(0)?;
+            let chapter_file: String = r.get(1)?;
+            let seconds_spent: i64 = r.get(2)?;
+            let completed_int: i64 = r.get(3)?;
+            let last_read_at: i64 = r.get(4)?;
+            Ok((book_id, chapter_file, seconds_spent.max(0) as u64, completed_int == 1, last_read_at))
         }
     )?;
 
-    let chapter_stats: Vec<ChapterReadingStatItem> = rows.filter_map(|r| r.ok()).collect();
+    let mut outlines: HashMap<String, Option<BookOutline>> = HashMap::new();
+    let mut placed_rows: Vec<(Option<usize>, ChapterReadingStatItem)> = Vec::new();
+    for (book, chapter_file, seconds_spent, completed, last_read_at) in rows.filter_map(|r| r.ok()) {
+        let outline = outlines.entry(book.clone()).or_insert_with(|| book_outline(&book)).as_ref();
+        let chapter = outline.and_then(|outline| outline.chapters.get(&chapter_file));
+        placed_rows.push((
+            chapter.map(|(place, _)| *place),
+            ChapterReadingStatItem {
+                book_title: outline.and_then(|outline| outline.title.clone()),
+                chapter_title: chapter.and_then(|(_, title)| title.clone()),
+                book_id: book,
+                chapter_file,
+                seconds_spent,
+                completed,
+                last_read_at,
+            },
+        ));
+    }
+    // Book by book, as the library lists them, and each book in reading order. A chapter that the spine does not list
+    // comes after the listed ones.
+    let book_name = |row: &ChapterReadingStatItem| row.book_title.as_deref().unwrap_or(&row.book_id).to_lowercase();
+    placed_rows.sort_by(|(a_place, a), (b_place, b)| {
+        book_name(a)
+            .cmp(&book_name(b))
+            .then_with(|| a.book_id.cmp(&b.book_id))
+            .then_with(|| a_place.unwrap_or(usize::MAX).cmp(&b_place.unwrap_or(usize::MAX)))
+            .then_with(|| a.chapter_file.cmp(&b.chapter_file))
+    });
+    let chapter_stats: Vec<ChapterReadingStatItem> = placed_rows.into_iter().map(|(_, row)| row).collect();
+
+    let total_chapters = match book_id {
+        Some(book) => book_outline(book).map(|outline| outline.total_chapters),
+        None => crate::vault::scan_available_books().ok().map(|books| {
+            books
+                .iter()
+                .filter_map(|book| book_outline(&book.book_id))
+                .map(|outline| outline.total_chapters)
+                .sum()
+        }),
+    };
 
     let mut total_seconds = 0u64;
     let mut completed_chapters = 0usize;
@@ -101,6 +169,7 @@ pub fn get_reading_velocity_blocking(book_id: Option<&str>) -> Result<ReadingVel
     Ok(ReadingVelocityStats {
         total_seconds,
         completed_chapters,
+        total_chapters,
         chapter_stats,
     })
 }

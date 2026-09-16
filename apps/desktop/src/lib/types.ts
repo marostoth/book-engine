@@ -253,12 +253,17 @@ export interface RetentionMetrics {
   due_today: number;
   total_cards: number;
   mastered_cards: number;
-  retention_rate: number;
+  /** The average FSRS retrievability of the reviewed cards, in percent. Null when no card was reviewed (AN-03). */
+  retention_rate: number | null;
 }
 
 export interface ChapterReadingStatItem {
+  book_id: string;
+  /** The title in the book's `_meta.json`. Null when that file cannot be read (AN-03). */
+  book_title: string | null;
   chapter_file: string;
-  chapter_title?: string;
+  /** The title in the spine of the book. Null when the spine does not list the chapter file (AN-03). */
+  chapter_title: string | null;
   seconds_spent: number;
   completed: boolean;
   last_read_at: number;
@@ -268,6 +273,8 @@ export interface ChapterReadingStatItem {
 export interface ReadingVelocityStats {
   total_seconds: number;
   completed_chapters: number;
+  /** The chapters of the book, or of every book in the vault for "All Books". Null when no `_meta.json` of them can be read (AN-03). */
+  total_chapters: number | null;
   chapter_stats: ChapterReadingStatItem[];
 }
 
@@ -295,8 +302,15 @@ export interface StateCounts {
 export interface StudyAnalytics {
   review_blocks: ReviewBlock[];
   state_counts: StateCounts;
-  retention_rate: number;
-  cards_due_today: number;
+  /**
+   * The share of the reviews not rated Again, in percent. With no review history, the average FSRS retrievability of
+   * the reviewed cards. Null when no card was reviewed (AN-03).
+   */
+  retention_rate: number | null;
+  /** Reviewed cards whose due time has passed: the reviews practice gives first (AN-03). */
+  reviews_due: number;
+  /** Cards that were never reviewed. They are not due, so they count apart (AN-03). */
+  new_cards: number;
   mastered_cards: number;
   total_vault_words: number;
   estimated_reading_time_mins: number;
