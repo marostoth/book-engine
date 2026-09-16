@@ -389,3 +389,23 @@ fn throwing_away_the_cache_loses_no_study_progress() {
     assert_eq!(count("SELECT seconds_spent FROM reading_sessions"), 60, "every second of reading is back");
     assert_eq!(count("SELECT completed FROM reading_sessions"), 1);
 }
+
+/// A book that left the vault gets nothing back at the start, or every start would put back what the index run takes
+/// out again. Its study log stays in the vault, so it comes back with the book (LC-02).
+#[test]
+fn a_book_that_left_the_vault_gets_nothing_back_at_the_start() {
+    let sandbox = Sandbox::new();
+    sandbox.write_sample_book();
+    append_review(&review(CARD, 1_758_000_000, 3, 1_759_000_000, 1)).expect("write the review");
+    append_reading(&reading(900, 1200, false, 1_758_000_000)).expect("write the reading time");
+    std::fs::remove_dir_all(sandbox.vault().join("books").join(BOOK)).expect("delete the book");
+
+    let report = restore_progress_blocking().expect("start the app");
+    assert!(report.changed_nothing(), "{report:?}");
+    assert_eq!(count("SELECT COUNT(*) FROM review_logs"), 0);
+    assert_eq!(count("SELECT COUNT(*) FROM reading_sessions"), 0);
+
+    sandbox.write_sample_book();
+    let report = restore_progress_blocking().expect("start the app again, with the book back");
+    assert_eq!((report.reviews_added, report.chapters_restored), (1, 1));
+}

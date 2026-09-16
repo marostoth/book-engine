@@ -33,7 +33,7 @@ function fakeBackend(library: BookMetadata[] | Error, chapters: number | Error, 
     indexVault: async () => {
       calls.push("indexVault");
       if (chapters instanceof Error) throw chapters;
-      return { chapters_indexed: chapters, paragraphs_indexed: chapters * 40, problems, duration_ms: 12 };
+      return { chapters_indexed: chapters, paragraphs_indexed: chapters * 40, problems, renamed_books: [], duration_ms: 12 };
     },
   };
   return { backend, calls };
@@ -158,7 +158,7 @@ test("the new book shows before search is done", async () => {
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.deepEqual(screen.shown, [[adler, smith]], "a large vault can take a while to index, and the list does not wait");
-  finishIndex({ chapters_indexed: 5, paragraphs_indexed: 200, problems: [], duration_ms: 90 });
+  finishIndex({ chapters_indexed: 5, paragraphs_indexed: 200, problems: [], renamed_books: [], duration_ms: 90 });
   assert.equal((await rescan).searchUpdated, true);
 });
 

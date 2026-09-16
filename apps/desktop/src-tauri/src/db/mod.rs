@@ -12,6 +12,7 @@ pub mod restore;
 pub mod analytics;
 pub mod card_identity;
 pub mod deck_sync;
+pub mod removed_books;
 #[cfg(test)]
 mod backfill_tests;
 #[cfg(test)]
@@ -22,6 +23,8 @@ mod restore_tests;
 mod fsrs_store_tests;
 #[cfg(test)]
 mod indexer_tests;
+#[cfg(test)]
+mod removed_books_tests;
 #[cfg(test)]
 mod search_tests;
 

@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use super::models::{AppError, BookMetadata, BookSummary};
 
@@ -91,7 +91,27 @@ pub fn write_notes_file(book_id: &str, file_name: &str, content: &str) -> Result
     super::safe_write::write_file(&path, content)
 }
 
+/// The id of the book in `folder`: the name of the folder, which every file read uses, `books/<id>/` for the book and
+/// `notes/<id>/` for the reader's notes and study progress (LC-02). None when the name is not valid Unicode.
+pub fn book_id_of(folder: &Path) -> Option<String> {
+    folder.file_name()?.to_str().map(str::to_string)
+}
+
+/// Whether the vault holds the book `book_id`: a folder `books/<book_id>` with a `_meta.json`, as the library lists it.
+/// A `_meta.json` that cannot be looked at still counts, because a file in OneDrive can be locked or offline for a
+/// moment (LC-02).
+pub fn book_is_in_vault(book_id: &str) -> Result<bool> {
+    let meta = find_vault_root()?.join("books").join(book_id).join("_meta.json");
+    match std::fs::metadata(meta) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        _ => Ok(true),
+    }
+}
+
 /// Scans vault/books/ for all subdirectories containing a _meta.json and returns BookMetadata list.
+///
+/// A book's id is its folder name (`book_id_of`). The `book_id` in `_meta.json` is not used: it named a book that no
+/// file read could find once the folder was renamed (LC-02). The index run names a renamed folder in the error bar.
 pub fn scan_library_books() -> std::result::Result<Vec<BookMetadata>, AppError> {
     let vault = find_vault_root().map_err(|e| AppError::VaultNotFound(e.to_string()))?;
     let books_dir = vault.join("books");
@@ -132,17 +152,10 @@ pub fn scan_library_books() -> std::result::Result<Vec<BookMetadata>, AppError> 
                     }
                 };
 
-                let dir_name = path
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or("unknown")
-                    .to_string();
-
-                let id = val["book_id"]
-                    .as_str()
-                    .filter(|s| !s.is_empty())
-                    .map(|s| s.to_string())
-                    .unwrap_or(dir_name);
+                let Some(id) = book_id_of(&path) else {
+                    eprintln!("Warning: Skipping a book folder whose name is not valid Unicode: {}", path.display());
+                    continue;
+                };
 
                 let title = val["title"]
                     .as_str()
@@ -209,22 +222,22 @@ pub fn scan_available_books() -> Result<Vec<BookSummary>> {
             let meta_path = path.join("_meta.json");
             if meta_path.exists() {
                 if let Ok(content) = std::fs::read_to_string(&meta_path) {
-                    if let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
-                        let book_id = val["book_id"].as_str().unwrap_or("").to_string();
+                    // A book is known by its folder name, as the library knows it (LC-02).
+                    if let (Ok(val), Some(book_id)) =
+                        (serde_json::from_str::<serde_json::Value>(&content), book_id_of(&path))
+                    {
                         let title = val["title"].as_str().unwrap_or("Untitled").to_string();
                         let author = val["author"].as_str().unwrap_or("Unknown").to_string();
                         let total_chapters = val["total_chapters"].as_u64().unwrap_or(0) as usize;
                         let total_words = val["total_words"].as_u64().unwrap_or(0) as usize;
 
-                        if !book_id.is_empty() {
-                            results.push(BookSummary {
-                                book_id,
-                                title,
-                                author,
-                                total_chapters,
-                                total_words,
-                            });
-                        }
+                        results.push(BookSummary {
+                            book_id,
+                            title,
+                            author,
+                            total_chapters,
+                            total_words,
+                        });
                     }
                 }
             }
