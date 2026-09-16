@@ -30,6 +30,13 @@ export {
 export { getAnalyticalData, saveAnalyticalData } from "./fallbackAnalytical.ts";
 export { getVaultStatus, chooseVaultFolder } from "./fallbackVault.ts";
 export {
+  fetchPreferences,
+  persistPreferences,
+  fetchBookmark,
+  persistBookmark,
+  fetchLastBookmark,
+} from "./fallbackReaderState.ts";
+export {
   getFallbackStudyAnalytics as getStudyAnalytics,
   getFallbackRetentionMetrics as fetchRetentionMetrics,
   getFallbackReadingVelocity as fetchReadingVelocity,

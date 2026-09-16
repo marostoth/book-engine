@@ -11,6 +11,7 @@ Designed for deep reading of academic, technical, and dense literature with pers
 1. **Markdown Vault is Ground Truth:**
    - The user's Markdown vault (`vault/`) is the sole permanent record.
    - Your study progress is part of that record. Every card review and every piece of reading time is written as one line to `vault/notes/<book-id>/reviews.jsonl` and `vault/notes/<book-id>/reading.jsonl`.
+   - Where you stopped reading is kept per book in `vault/notes/<book-id>/bookmark.json`, and your reader settings (theme, pacer speed, Gatekeeper, daily target) in `vault/preferences.json`. A release build or a new PC opens the book you read last, at the paragraph where you stopped, with your own settings.
    - SQLite (`index.db`) is strictly an ephemeral query accelerator and search cache stored in OS AppData (`%APPDATA%\book-engine\app_cache\`).
    - If `index.db` is deleted, the system rebuilds the search index from the vault files and puts your card schedules, review history and reading time back from those log files at the next start. Nothing is lost, and moving to another PC takes your progress with the vault.
 

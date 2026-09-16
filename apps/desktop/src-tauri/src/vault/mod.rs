@@ -1,6 +1,8 @@
 pub mod models;
 pub mod json_store;
+pub mod bookmark;
 pub mod locate;
+pub mod preferences;
 pub mod safe_write;
 pub mod study_log;
 pub mod highlights;
@@ -17,6 +19,10 @@ mod reader_tests;
 mod highlights_tests;
 #[cfg(test)]
 mod locate_tests;
+#[cfg(test)]
+mod bookmark_tests;
+#[cfg(test)]
+mod preferences_tests;
 
 pub use models::*;
 pub use reader::*;
