@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use std::fs;
 use super::json_store::read_json_file;
 use super::models::VocabularyEntry;
 use super::reader::find_vault_root;
@@ -26,11 +25,6 @@ pub fn save_vocabulary_term(book_id: &str, entry: VocabularyEntry) -> Result<()>
 
     let mut entries: Vec<VocabularyEntry> = read_json_file(&vocab_file)?.unwrap_or_default();
 
-    if !notes_dir.exists() {
-        fs::create_dir_all(&notes_dir)
-            .with_context(|| format!("Failed to create notes dir: {}", notes_dir.display()))?;
-    }
-
     let target_key = entry.word.trim().to_lowercase();
     let mut updated = false;
 
@@ -51,15 +45,13 @@ pub fn save_vocabulary_term(book_id: &str, entry: VocabularyEntry) -> Result<()>
     let serialized = serde_json::to_string_pretty(&entries)
         .context("Failed to serialize vocabulary list to JSON")?;
 
-    fs::write(&vocab_file, serialized)
-        .with_context(|| format!("Failed to write vocabulary file: {}", vocab_file.display()))?;
-
-    Ok(())
+    super::safe_write::write_file(&vocab_file, &serialized)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
     use crate::test_support::Sandbox;
 
     const VOCAB_FILE: &str = "notes/sample/vocabulary.json";

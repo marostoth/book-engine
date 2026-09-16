@@ -119,10 +119,7 @@ pub fn save_syntopic_topic(topic: SyntopicTopic) -> Result<()> {
     let serialized = serde_json::to_string_pretty(&topic)
         .context("Failed to serialize SyntopicTopic to JSON")?;
 
-    fs::write(&file_path, serialized)
-        .with_context(|| format!("Failed to write syntopic topic file: {}", file_path.display()))?;
-
-    Ok(())
+    super::safe_write::write_file(&file_path, &serialized)
 }
 
 /// Compiles a dialectical synthesis report and persists it to `vault/syntopicon/reports/<topic-id>-synthesis.md`.
@@ -140,8 +137,7 @@ pub fn export_syntopic_report(topic_id: &str) -> Result<String> {
     let filename = format!("{}-synthesis.md", topic.id);
     let file_path = reports_dir.join(&filename);
 
-    fs::write(&file_path, markdown)
-        .with_context(|| format!("Failed to write syntopic report to {}", file_path.display()))?;
+    super::safe_write::write_file(&file_path, &markdown)?;
 
     Ok(format!("reports/{}", filename))
 }

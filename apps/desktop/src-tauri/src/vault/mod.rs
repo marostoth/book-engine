@@ -1,5 +1,6 @@
 pub mod models;
 pub mod json_store;
+pub mod safe_write;
 pub mod reader;
 pub mod notes;
 pub mod vocabulary;
@@ -7,6 +8,8 @@ pub mod analytical;
 pub mod syntopicon_models;
 pub mod syntopicon;
 pub mod syntopicon_compiler;
+#[cfg(test)]
+mod reader_tests;
 
 pub use models::*;
 pub use reader::*;

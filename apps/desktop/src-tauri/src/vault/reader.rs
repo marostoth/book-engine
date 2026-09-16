@@ -126,8 +126,14 @@ pub fn save_inspectional_exit_assessment(book_id: &str, assessment: ExitAssessme
 
     let updated_json = serde_json::to_string_pretty(&val)
         .with_context(|| "Failed to serialize updated _meta.json")?;
-    std::fs::write(&meta_path, updated_json)
-        .with_context(|| format!("Failed to write _meta.json: {}", meta_path.display()))?;
+    // Keep the key order and the line endings the file already had, so a rewrite of a file the
+    // reader may also edit by hand is a small change, not a change on every line (DS-03).
+    let updated_json = if content.contains("\r\n") {
+        updated_json.replace('\n', "\r\n")
+    } else {
+        updated_json
+    };
+    super::safe_write::write_file(&meta_path, &updated_json)?;
     Ok(())
 }
 
@@ -147,13 +153,8 @@ pub fn read_notes_file(book_id: &str, file_name: &str) -> Result<String> {
 /// Writes notes markdown file to vault/notes/<book-id>/<file-name>
 pub fn write_notes_file(book_id: &str, file_name: &str, content: &str) -> Result<()> {
     let vault = find_vault_root()?;
-    let notes_dir = vault.join("notes").join(book_id);
-    std::fs::create_dir_all(&notes_dir)
-        .with_context(|| format!("Failed to create notes dir: {}", notes_dir.display()))?;
-    let path = notes_dir.join(file_name);
-    std::fs::write(&path, content)
-        .with_context(|| format!("Failed to write notes file: {}", path.display()))?;
-    Ok(())
+    let path = vault.join("notes").join(book_id).join(file_name);
+    super::safe_write::write_file(&path, content)
 }
 
 /// Scans vault/books/ for all subdirectories containing a _meta.json and returns BookMetadata list.

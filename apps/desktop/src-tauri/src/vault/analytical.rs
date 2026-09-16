@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use std::fs;
 use super::json_store::read_json_file;
 use super::models::AnalyticalStore;
 use super::reader::find_vault_root;
@@ -25,23 +24,16 @@ pub fn save_analytical_store(book_id: &str, store: AnalyticalStore) -> Result<()
 
     read_json_file::<AnalyticalStore>(&analytical_file)?;
 
-    if !notes_dir.exists() {
-        fs::create_dir_all(&notes_dir)
-            .with_context(|| format!("Failed to create notes dir: {}", notes_dir.display()))?;
-    }
-
     let serialized = serde_json::to_string_pretty(&store)
         .context("Failed to serialize analytical store to JSON")?;
 
-    fs::write(&analytical_file, serialized)
-        .with_context(|| format!("Failed to write analytical file: {}", analytical_file.display()))?;
-
-    Ok(())
+    super::safe_write::write_file(&analytical_file, &serialized)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
     use crate::vault::models::{
         AnchoredCitation, ArgumentNode, AuthorInquiry, AuthorTerm, CritiqueItem, InquiryDomain,
         InquiryPriority, ResolutionStatus,
