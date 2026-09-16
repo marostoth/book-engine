@@ -29,6 +29,7 @@ from ingest.vector_figures import (
     replace_vector_diagram_streams,
 )
 from ingest.layout_stitcher import stitch_layout_blocks
+from ingest.reimport import check_book_can_be_imported
 
 
 __all__ = ["PDFParser", "generate_pdf_slug", "sanitize_pdf_markdown", "clean_author_metadata"]
@@ -50,8 +51,11 @@ class PDFParser:
         if not self.pdf_path.exists():
             raise FileNotFoundError(f"Source PDF not found: {self.pdf_path}")
 
-    def parse(self, target_chapters: Optional[List[int]] = None) -> BookMeta:
-        """Parses the PDF document into structured Markdown chapters, assets, and metadata."""
+    def parse(self, target_chapters: Optional[List[int]] = None, replace: bool = False) -> BookMeta:
+        """Parses the PDF document into structured Markdown chapters, assets, and metadata.
+
+        A book that the vault already has is replaced only when `replace` is true (see `ingest.reimport`).
+        """
         doc = pymupdf.open(str(self.pdf_path))
         total_pages = len(doc)
         if total_pages == 0:
@@ -65,6 +69,13 @@ class PDFParser:
         author = clean_author_metadata(raw_author)
 
         book_id = self.custom_book_id or generate_pdf_slug(self.pdf_path.name, title)
+
+        # Stop before anything is written when the vault already has this book (DS-09)
+        try:
+            check_book_can_be_imported(self.vault_dir, book_id, replace)
+        except Exception:
+            doc.close()
+            raise
 
         # Establish destination directories
         book_dir = self.vault_dir / "books" / book_id
@@ -269,7 +280,6 @@ class PDFParser:
             front_matter={"has_preface": False, "preface_path": None, "publisher_blurb": f"{title} by {author}"},
             pivotal_chapters=pivotal_chapters,
             synthetic_index_clusters=[],
-            exit_assessment=None,
         )
 
         book_meta = BookMeta(

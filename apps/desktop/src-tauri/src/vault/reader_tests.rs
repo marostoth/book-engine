@@ -1,35 +1,11 @@
-//! Tests for the vault writes in `reader.rs`: a save never leaves a half-written file behind,
-//! and rewriting `_meta.json` keeps the key order the file already had.
+//! Tests for the vault writes in `reader.rs`: a save never leaves a half-written file behind.
+//! The app no longer writes `_meta.json` at all; `inspectional_tests.rs` checks that (DS-09).
 
 use crate::test_support::Sandbox;
-use crate::vault::models::ExitAssessmentPayload;
-use crate::vault::{read_notes_file, save_inspectional_exit_assessment, write_notes_file};
+use crate::vault::{read_notes_file, write_notes_file};
 
 const BOOK: &str = "sample";
 const NOTES_FILE: &str = "ch-01-notes.md";
-
-/// A book file with the key order the real books use: `book_id` first, `created_at` last.
-const META: &str = r#"{
-  "book_id": "sample",
-  "title": "Sandbox Economics",
-  "author": "Test Author",
-  "language": "en",
-  "total_words": 22,
-  "total_chapters": 1,
-  "toc": [],
-  "spine": [],
-  "created_at": "2026-09-01T00:00:00Z"
-}"#;
-
-/// Top level keys of a pretty printed JSON object, in the order the text has them.
-/// The test reads the text, not a parsed value, because that is the order a person sees.
-fn top_level_keys(text: &str) -> Vec<String> {
-    text.lines()
-        .filter_map(|line| line.strip_prefix("  \""))
-        .filter_map(|rest| rest.split_once("\":"))
-        .map(|(key, _)| key.to_string())
-        .collect()
-}
 
 /// Names of the files next to the sample notes file.
 fn files_next_to_the_notes(sandbox: &Sandbox) -> Vec<String> {
@@ -41,59 +17,6 @@ fn files_next_to_the_notes(sandbox: &Sandbox) -> Vec<String> {
         .collect();
     names.sort();
     names
-}
-
-fn assessment() -> ExitAssessmentPayload {
-    ExitAssessmentPayload {
-        classification: "practical".to_string(),
-        unity_statement: "The book argues that specialization raises output.".to_string(),
-        parts_structure: vec!["Part 1: the pin factory".to_string()],
-        completed_at: "2026-09-16T00:00:00Z".to_string(),
-    }
-}
-
-#[test]
-fn a_saved_exit_assessment_keeps_the_meta_key_order() {
-    let sandbox = Sandbox::new();
-    sandbox.write("books/sample/_meta.json", META);
-
-    save_inspectional_exit_assessment(BOOK, assessment()).expect("save the exit assessment");
-
-    let written = std::fs::read_to_string(sandbox.vault().join("books").join(BOOK).join("_meta.json"))
-        .expect("read _meta.json");
-    assert_eq!(
-        top_level_keys(&written),
-        vec![
-            "book_id",
-            "title",
-            "author",
-            "language",
-            "total_words",
-            "total_chapters",
-            "toc",
-            "spine",
-            "created_at",
-            "inspectional_blueprint",
-        ],
-        "the keys the file already had must keep their order, and the new key is added at the end"
-    );
-    assert!(written.contains("The book argues that specialization raises output."), "the assessment must be saved");
-}
-
-#[test]
-fn a_saved_exit_assessment_leaves_no_temp_file_behind() {
-    let sandbox = Sandbox::new();
-    sandbox.write("books/sample/_meta.json", META);
-
-    save_inspectional_exit_assessment(BOOK, assessment()).expect("save the exit assessment");
-
-    let dir = sandbox.vault().join("books").join(BOOK);
-    let names: Vec<String> = std::fs::read_dir(&dir)
-        .expect("read book folder")
-        .flatten()
-        .map(|e| e.file_name().to_string_lossy().to_string())
-        .collect();
-    assert_eq!(names, vec!["_meta.json"], "a finished save must leave only the file itself");
 }
 
 #[test]
@@ -147,38 +70,4 @@ fn a_reader_never_sees_a_half_written_notes_file() {
         new_len,
         "the new notes must be there when the save finishes"
     );
-}
-
-/// Counts the line endings of a file: (whole CRLF pairs, LF that stand alone).
-fn line_endings(text: &str) -> (usize, usize) {
-    let pairs = text.matches("\r\n").count();
-    (pairs, text.matches('\n').count() - pairs)
-}
-
-#[test]
-fn a_saved_exit_assessment_keeps_windows_line_endings() {
-    let sandbox = Sandbox::new();
-    sandbox.write("books/sample/_meta.json", &META.replace('\n', "\r\n"));
-
-    save_inspectional_exit_assessment(BOOK, assessment()).expect("save the exit assessment");
-
-    let written = std::fs::read_to_string(sandbox.vault().join("books").join(BOOK).join("_meta.json"))
-        .expect("read _meta.json");
-    let (pairs, alone) = line_endings(&written);
-    assert!(pairs > 0, "the file must still use Windows line endings");
-    assert_eq!(alone, 0, "no line may be left with a bare newline");
-}
-
-#[test]
-fn a_saved_exit_assessment_keeps_plain_line_endings() {
-    let sandbox = Sandbox::new();
-    sandbox.write("books/sample/_meta.json", META);
-
-    save_inspectional_exit_assessment(BOOK, assessment()).expect("save the exit assessment");
-
-    let written = std::fs::read_to_string(sandbox.vault().join("books").join(BOOK).join("_meta.json"))
-        .expect("read _meta.json");
-    let (pairs, alone) = line_endings(&written);
-    assert_eq!(pairs, 0, "a file with plain newlines must not gain Windows line endings");
-    assert!(alone > 0, "the file must still have its lines");
 }

@@ -47,6 +47,14 @@ export async function getInspectionalBlueprint(bookId: string): Promise<Inspecti
   );
 }
 
+/** The reader's exit assessment of a book, or null when there is none (DS-09). */
+export async function getInspectionalExitAssessment(bookId: string): Promise<ExitAssessmentPayload | null> {
+  return callBackend<ExitAssessmentPayload | null>("get_inspectional_exit_assessment", { bookId }, (dev) =>
+    dev.getInspectionalExitAssessment(bookId)
+  );
+}
+
+/** Saves the reader's exit assessment next to the book's notes, never into the book file (DS-09). */
 export async function saveInspectionalExitAssessment(
   bookId: string,
   assessment: ExitAssessmentPayload

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use anyhow::{Context, Result};
-use super::models::{AppError, BookMetadata, BookSummary, ExitAssessmentPayload};
+use super::models::{AppError, BookMetadata, BookSummary};
 
 /// Test builds only resolve the vault inside the active `test_support::Sandbox`.
 #[cfg(test)]
@@ -25,7 +25,8 @@ pub fn read_chapter_file(book_id: &str, file_name: &str) -> Result<String> {
         .with_context(|| format!("Failed to read chapter file: {}", path.display()))
 }
 
-/// Reads the _meta.json file for a book
+/// Reads the _meta.json file for a book. The importer makes this file, so the app only reads it: the reader's own
+/// answers are kept in `vault/notes/<book-id>/` (DS-09).
 pub fn read_book_meta_json(book_id: &str) -> Result<String> {
     let vault = find_vault_root()?;
     let path = vault.join("books").join(book_id).join("_meta.json");
@@ -67,43 +68,7 @@ pub fn get_inspectional_blueprint(book_id: &str) -> Result<crate::vault::Inspect
         }),
         pivotal_chapters,
         synthetic_index_clusters: vec![],
-        exit_assessment: None,
     })
-}
-
-/// Saves an inspectional exit assessment to vault/books/<book-id>/_meta.json
-pub fn save_inspectional_exit_assessment(book_id: &str, assessment: ExitAssessmentPayload) -> Result<()> {
-    let vault = find_vault_root()?;
-    let meta_path = vault.join("books").join(book_id).join("_meta.json");
-    let content = std::fs::read_to_string(&meta_path)
-        .with_context(|| format!("Failed to read _meta.json: {}", meta_path.display()))?;
-    let mut val: serde_json::Value = serde_json::from_str(&content)
-        .with_context(|| format!("Failed to parse _meta.json for {}", book_id))?;
-
-    let assessment_json = serde_json::to_value(&assessment)
-        .with_context(|| "Failed to serialize exit assessment")?;
-
-    if let Some(obj) = val.as_object_mut() {
-        let bp = obj.entry("inspectional_blueprint").or_insert_with(|| serde_json::json!({
-            "front_matter": {},
-            "pivotal_chapters": [],
-            "synthetic_index_clusters": [],
-            "exit_assessment": null
-        }));
-        bp["exit_assessment"] = assessment_json;
-    }
-
-    let updated_json = serde_json::to_string_pretty(&val)
-        .with_context(|| "Failed to serialize updated _meta.json")?;
-    // Keep the key order and the line endings the file already had, so a rewrite of a file the
-    // reader may also edit by hand is a small change, not a change on every line (DS-03).
-    let updated_json = if content.contains("\r\n") {
-        updated_json.replace('\n', "\r\n")
-    } else {
-        updated_json
-    };
-    super::safe_write::write_file(&meta_path, &updated_json)?;
-    Ok(())
 }
 
 /// Reads notes markdown file from vault/notes/<book-id>/<file-name>

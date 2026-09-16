@@ -17,10 +17,19 @@ from ingest.elementary import compute_elementary_metrics
 from ingest.salience import generate_chapter_practice_cards, generate_chapter_scenario_cards, format_practice_deck_markdown
 from ingest.epub_parser import extract_metadata, parse_toc, html_to_markdown_blocks
 from ingest.pdf_parser import PDFParser
+from ingest.reimport import check_book_can_be_imported
 
 
-def ingest_epub(epub_path: Path, vault_dir: Path, custom_book_id: Optional[str] = None) -> BookMeta:
-    """Ingest an EPUB file into vault/books/<book-id>/ and vault/notes/<book-id>/."""
+def ingest_epub(
+    epub_path: Path,
+    vault_dir: Path,
+    custom_book_id: Optional[str] = None,
+    replace: bool = False,
+) -> BookMeta:
+    """Ingest an EPUB file into vault/books/<book-id>/ and vault/notes/<book-id>/.
+
+    A book that the vault already has is replaced only when `replace` is true (see `ingest.reimport`).
+    """
     if not epub_path.exists():
         raise FileNotFoundError(f"Source EPUB not found: {epub_path}")
 
@@ -31,6 +40,9 @@ def ingest_epub(epub_path: Path, vault_dir: Path, custom_book_id: Optional[str] 
     book_id, title, author, language = extract_metadata(book, fallback_id)
     if custom_book_id:
         book_id = custom_book_id
+
+    # Stop before anything is written when the vault already has this book (DS-09)
+    check_book_can_be_imported(vault_dir, book_id, replace)
 
     # Vault destinations
     book_dir = vault_dir / "books" / book_id
@@ -175,7 +187,6 @@ def ingest_epub(epub_path: Path, vault_dir: Path, custom_book_id: Optional[str] 
         },
         pivotal_chapters=pivotal_chapters,
         synthetic_index_clusters=[],
-        exit_assessment=None,
     )
 
     # 6. Save _meta.json
@@ -218,10 +229,11 @@ def ingest_pdf(
     vault_dir: Path,
     custom_book_id: Optional[str] = None,
     target_chapters: Optional[List[int]] = None,
+    replace: bool = False,
 ) -> BookMeta:
     """Ingest a PDF file into vault/books/<book-id>/ and vault/notes/<book-id>/."""
     parser = PDFParser(pdf_path, vault_dir, custom_book_id)
-    return parser.parse(target_chapters=target_chapters)
+    return parser.parse(target_chapters=target_chapters, replace=replace)
 
 
 def ingest_book(
@@ -229,13 +241,17 @@ def ingest_book(
     vault_dir: Path,
     book_id: Optional[str] = None,
     target_chapters: Optional[List[int]] = None,
+    replace: bool = False,
 ) -> BookMeta:
-    """Entry point dispatching to appropriate ingestion handler based on file suffix."""
+    """Entry point dispatching to appropriate ingestion handler based on file suffix.
+
+    A book that the vault already has is replaced only when `replace` is true (see `ingest.reimport`).
+    """
     suffix = file_path.suffix.lower()
     if suffix == ".epub":
-        return ingest_epub(file_path, vault_dir, book_id)
+        return ingest_epub(file_path, vault_dir, book_id, replace=replace)
     elif suffix == ".pdf":
-        return ingest_pdf(file_path, vault_dir, book_id, target_chapters=target_chapters)
+        return ingest_pdf(file_path, vault_dir, book_id, target_chapters=target_chapters, replace=replace)
     else:
         raise NotImplementedError(f"Unsupported file format '{suffix}'. Only .epub and .pdf are currently implemented.")
 

@@ -31,11 +31,14 @@ class InspectionalSampling(BaseModel):
 
 
 class InspectionalBlueprint(BaseModel):
-    """Structural blueprint and synthetic index for Level 2 Inspectional Reading."""
+    """Structural blueprint and synthetic index for Level 2 Inspectional Reading.
+
+    The reader's exit assessment is not part of it. An import writes `_meta.json` again, so the app keeps the
+    assessment in `vault/notes/<book-id>/inspectional.json` (DS-09).
+    """
     front_matter: Dict[str, Any] = Field(default_factory=dict)
     pivotal_chapters: List[str] = Field(default_factory=list)
     synthetic_index_clusters: List[Dict[str, Any]] = Field(default_factory=list)
-    exit_assessment: Optional[Dict[str, Any]] = None
 
 
 class ChapterMeta(BaseModel):

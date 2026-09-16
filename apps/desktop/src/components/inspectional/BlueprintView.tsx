@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   BookMeta,
   ChapterMeta,
+  ExitAssessmentPayload,
   InspectionalBlueprint,
 } from "../../lib/types";
 import { getInspectionalBlueprint } from "../../lib/api";
@@ -20,6 +21,8 @@ import {
 
 interface BlueprintViewProps {
   bookMeta: BookMeta | null;
+  /** The reader's exit assessment of this book (`useInspectionalSession`), or null when there is none. */
+  exitAssessment: ExitAssessmentPayload | null;
   onSelectChapter: (chapter: ChapterMeta) => void;
   onSwitchToDips: () => void;
   onOpenExitModal: () => void;
@@ -27,6 +30,7 @@ interface BlueprintViewProps {
 
 export const BlueprintView: React.FC<BlueprintViewProps> = ({
   bookMeta,
+  exitAssessment,
   onSelectChapter,
   onSwitchToDips,
   onOpenExitModal,
@@ -67,7 +71,6 @@ export const BlueprintView: React.FC<BlueprintViewProps> = ({
     (bookMeta as any)?.clusters ||
     (bookMeta as any)?.concept_clusters ||
     [];
-  const exitAssessment = blueprint?.exit_assessment;
 
   return (
     <div className="flex-1 h-full overflow-y-auto p-6 md:p-8 space-y-6 max-w-5xl mx-auto select-text">

@@ -5,7 +5,6 @@ import {
   PracticeCardItem,
   CardSchedule,
   ReaderPreferences,
-  ExitAssessmentPayload,
   ReadingLevelMode,
 } from "../lib/types";
 import { ReaderLocation } from "../lib/readerLocation";
@@ -161,21 +160,9 @@ export const AppModals: React.FC<AppModalsProps> = ({
       <InspectionalExitModal
         isOpen={inspectionalSession.isExitModalOpen}
         onClose={inspectionalSession.closeExitModal}
-        bookId={activeBookId}
         bookTitle={bookMeta?.title || "Book"}
-        initialAssessment={bookMeta?.inspectional_blueprint?.exit_assessment as ExitAssessmentPayload | null | undefined}
-        onSaved={(assessment) => {
-          if (bookMeta) {
-            if (!bookMeta.inspectional_blueprint) {
-              bookMeta.inspectional_blueprint = {
-                front_matter: {},
-                pivotal_chapters: [],
-                synthetic_index_clusters: [],
-              };
-            }
-            bookMeta.inspectional_blueprint.exit_assessment = assessment;
-          }
-        }}
+        initialAssessment={inspectionalSession.exitAssessment}
+        onSave={inspectionalSession.saveExitAssessment}
       />
 
       {analyticalSession && (

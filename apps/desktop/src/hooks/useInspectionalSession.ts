@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { InspectionalSubView, ReaderPreferences } from "../lib/types";
+import { ExitAssessmentPayload, InspectionalSubView, ReaderPreferences } from "../lib/types";
+import { getInspectionalExitAssessment, saveInspectionalExitAssessment } from "../lib/api";
+import { reportBackendError } from "../lib/backendErrors";
+import { createExitAssessmentKeeper, type ExitAssessmentState } from "../lib/exitAssessment";
 
 export interface InspectionalSessionState {
   activeSubView: InspectionalSubView;
@@ -7,6 +10,10 @@ export interface InspectionalSessionState {
   totalDurationSeconds: number;
   isRunning: boolean;
   isExitModalOpen: boolean;
+  /** The reader's exit assessment of the open book, or null when there is none or it could not be read. */
+  exitAssessment: ExitAssessmentPayload | null;
+  /** Saves the exit assessment of the open book, which then shows at once. Rejects when it was not saved. */
+  saveExitAssessment: (assessment: ExitAssessmentPayload) => Promise<void>;
   timeFormatted: string;
   setActiveSubView: (subView: InspectionalSubView) => void;
   startTimer: () => void;
@@ -29,6 +36,25 @@ export function useInspectionalSession(
   const [secondsRemaining, setSecondsRemaining] = useState<number>(initialDuration);
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isExitModalOpen, setIsExitModalOpen] = useState<boolean>(false);
+
+  // The exit assessment lives in vault/notes/<book-id>/inspectional.json, not in the book file an import writes (DS-09)
+  const [assessmentState, setAssessmentState] = useState<ExitAssessmentState | null>(null);
+  const [assessments] = useState(() =>
+    createExitAssessmentKeeper(
+      { getInspectionalExitAssessment, saveInspectionalExitAssessment },
+      setAssessmentState,
+      reportBackendError
+    )
+  );
+  useEffect(() => {
+    void assessments.bookOpened(activeBookId);
+  }, [activeBookId, assessments]);
+  const exitAssessment =
+    assessmentState?.bookId === activeBookId && assessmentState.status === "loaded" ? assessmentState.assessment : null;
+  const saveExitAssessment = useCallback(
+    (assessment: ExitAssessmentPayload) => assessments.save(activeBookId, assessment),
+    [activeBookId, assessments]
+  );
 
   // Keep a reference to latest preferences for interval callback
   const prefsRef = useRef(preferences);
@@ -116,6 +142,8 @@ export function useInspectionalSession(
     totalDurationSeconds,
     isRunning,
     isExitModalOpen,
+    exitAssessment,
+    saveExitAssessment,
     timeFormatted,
     setActiveSubView,
     startTimer,

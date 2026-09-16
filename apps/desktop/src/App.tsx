@@ -193,6 +193,7 @@ export const App: React.FC<AppProps> = ({ startingPreferences }) => {
             inspectionalSession.activeSubView === "blueprint" ? (
               <BlueprintView
                 bookMeta={bookMeta}
+                exitAssessment={inspectionalSession.exitAssessment}
                 onSelectChapter={openChapter}
                 onSwitchToDips={() => inspectionalSession.setActiveSubView("dips")}
                 onOpenExitModal={inspectionalSession.openExitModal}

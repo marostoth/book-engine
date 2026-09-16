@@ -1,25 +1,23 @@
 import React, { useState, useEffect } from "react";
 import { X, Check, BookCheck, Plus, Trash2, HelpCircle } from "lucide-react";
 import { ExitAssessmentPayload } from "../../lib/types";
-import { saveInspectionalExitAssessment } from "../../lib/api";
 import { reportBackendError } from "../../lib/backendErrors";
 
 interface InspectionalExitModalProps {
   isOpen: boolean;
   onClose: () => void;
-  bookId: string;
   bookTitle: string;
   initialAssessment?: ExitAssessmentPayload | null;
-  onSaved?: (assessment: ExitAssessmentPayload) => void;
+  /** Saves the assessment of the open book (`useInspectionalSession`). Rejects when it was not saved. */
+  onSave: (assessment: ExitAssessmentPayload) => Promise<void>;
 }
 
 export const InspectionalExitModal: React.FC<InspectionalExitModalProps> = ({
   isOpen,
   onClose,
-  bookId,
   bookTitle,
   initialAssessment,
-  onSaved,
+  onSave,
 }) => {
   const [kind, setKind] = useState<"Theoretical" | "Practical">("Theoretical");
   const [category, setCategory] = useState<string>("Science");
@@ -91,8 +89,7 @@ export const InspectionalExitModal: React.FC<InspectionalExitModalProps> = ({
     try {
       setIsSaving(true);
       setErrorMsg(null);
-      await saveInspectionalExitAssessment(bookId, payload);
-      if (onSaved) onSaved(payload);
+      await onSave(payload);
       onClose();
     } catch (err) {
       reportBackendError("Your exit assessment was not saved. Your answers are still in the form.", err);

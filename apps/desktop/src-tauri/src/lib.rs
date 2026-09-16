@@ -6,7 +6,8 @@ pub mod fsrs;
 mod test_support;
 
 use commands::{
-    get_library_books, list_books, load_book_meta, get_inspectional_blueprint, save_inspectional_exit_assessment,
+    get_library_books, list_books, load_book_meta, get_inspectional_blueprint,
+    get_inspectional_exit_assessment, save_inspectional_exit_assessment,
     load_chapter, load_notes, save_notes,
     index_vault, search_vault, sync_practice_deck, get_due_cards, get_chapter_due_cards, submit_review, get_deck_stats,
     get_review_heatmap, get_retention_metrics, get_reading_velocity, record_reading_progress,
@@ -82,6 +83,7 @@ pub fn run() {
             list_books,
             load_book_meta,
             get_inspectional_blueprint,
+            get_inspectional_exit_assessment,
             save_inspectional_exit_assessment,
             load_chapter,
             load_notes,

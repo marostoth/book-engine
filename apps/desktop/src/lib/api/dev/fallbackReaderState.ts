@@ -1,9 +1,23 @@
-import type { ReaderPreferences } from "../../types";
+import type { ExitAssessmentPayload, ReaderPreferences } from "../../types";
 import type { Bookmark, LastBookmark } from "../../readingPlace";
 import { PREFERENCES_STORAGE_KEY } from "../../preferences";
 
 /** Browser storage key prefix for the bookmark of one book. */
 const BOOKMARK_KEY = "bookmark_";
+
+/** Browser storage key prefix for the inspectional answers of one book, like `inspectional.json`. */
+const INSPECTIONAL_KEY = "inspectional_";
+
+/** Browser stand-in for `get_inspectional_exit_assessment`. */
+export function getInspectionalExitAssessment(bookId: string): ExitAssessmentPayload | null {
+  const saved = localStorage.getItem(INSPECTIONAL_KEY + bookId);
+  return saved ? ((JSON.parse(saved) as { exitAssessment?: ExitAssessmentPayload }).exitAssessment ?? null) : null;
+}
+
+/** Browser stand-in for `save_inspectional_exit_assessment`. */
+export function saveInspectionalExitAssessment(bookId: string, assessment: ExitAssessmentPayload): void {
+  localStorage.setItem(INSPECTIONAL_KEY + bookId, JSON.stringify({ exitAssessment: assessment }));
+}
 
 /** Browser stand-in for `get_preferences`. */
 export function fetchPreferences(): Record<string, unknown> | null {

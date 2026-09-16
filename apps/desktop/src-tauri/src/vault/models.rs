@@ -34,7 +34,8 @@ pub struct InspectionalSampling {
     pub tail_text_preview: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+/// The reader's exit assessment of a book, kept in `vault/notes/<book-id>/inspectional.json` (`vault/inspectional.rs`).
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ExitAssessmentPayload {
     pub classification: String,
@@ -43,6 +44,7 @@ pub struct ExitAssessmentPayload {
     pub completed_at: String,
 }
 
+/// The blueprint the importer makes. The reader's answers are not part of it: they live in `inspectional.json` (DS-09).
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct InspectionalBlueprint {
     #[serde(default)]
@@ -51,8 +53,6 @@ pub struct InspectionalBlueprint {
     pub pivotal_chapters: Vec<String>,
     #[serde(default)]
     pub synthetic_index_clusters: Vec<serde_json::Value>,
-    #[serde(default)]
-    pub exit_assessment: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]

@@ -8,3 +8,4 @@ Local-first, deterministic book ingestion pipeline for EPUB and PDF formats.
 - Embedded asset/image extraction to `vault/books/<book-id>/assets/`
 - Deterministic paragraph anchoring (`^p-001`)
 - Zero-hallucination salience scoring & extractive Cloze deck generation
+- A new import of a book that the vault already has stops before it writes anything, unless `--force` is given; the reader's own files in `vault/notes/<book-id>/` are never written over

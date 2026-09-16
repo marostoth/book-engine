@@ -12,6 +12,7 @@ Designed for deep reading of academic, technical, and dense literature with pers
    - The user's Markdown vault (`vault/`) is the sole permanent record.
    - Your study progress is part of that record. Every card review and every piece of reading time is written as one line to `vault/notes/<book-id>/reviews.jsonl` and `vault/notes/<book-id>/reading.jsonl`.
    - Where you stopped reading is kept per book in `vault/notes/<book-id>/bookmark.json`, and your reader settings (theme, pacer speed, Gatekeeper, daily target) in `vault/preferences.json`. A release build or a new PC opens the book you read last, at the paragraph where you stopped, with your own settings.
+   - Your exit assessment of a book is kept next to your notes, in `vault/notes/<book-id>/inspectional.json`. An import makes `vault/books/<book-id>/` again, so nothing you write is kept there.
    - SQLite (`index.db`) is strictly an ephemeral query accelerator and search cache stored in OS AppData (`%APPDATA%\book-engine\app_cache\`).
    - If `index.db` is deleted, the system rebuilds the search index from the vault files and puts your card schedules, review history and reading time back from those log files at the next start. Nothing is lost, and moving to another PC takes your progress with the vault.
 
@@ -47,7 +48,7 @@ book-engine/
 ├── scripts/                     # Reusable automation utilities (desktop shortcut generator)
 └── vault/                       # Local Markdown vault (Sole Permanent Record)
     ├── books/<book-id>/         # Chapter Markdown (`ch-XX.md`), `_meta.json`, and extracted assets
-    └── notes/<book-id>/         # Chapter notes, serialized highlights, and study decks
+    └── notes/<book-id>/         # Chapter notes, highlights, your exit assessment, and study decks
 ```
 
 ---
@@ -81,9 +82,14 @@ python -m ingest.cli path/to/book.epub --vault vault
 
 # Or use the installed CLI command directly
 book-ingest path/to/book.epub --vault vault --book-id my-book
+
+# Replace a book that the vault already has (your own files for it are kept)
+python -m ingest.cli path/to/book.epub --vault vault --force
 ```
 
 Ingestion relocates endnotes into chapter-level inline footnotes `[^n]`, tags every paragraph with persistent anchors `^p-xxx`, extracts diagrams into `assets/`, and generates `_meta.json`.
+
+An import stops, and changes nothing, when the vault already has the book, for example an annotated copy of a PDF you imported before. It names your own files for that book in `vault/notes/<book-id>/`. Run the import again with `--force` to replace the book: your own files are kept, but a paragraph they point to can be a different paragraph after the new import.
 
 ---
 

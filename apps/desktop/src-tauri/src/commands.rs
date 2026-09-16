@@ -35,15 +35,27 @@ pub async fn get_inspectional_blueprint(book_id: String) -> Result<crate::vault:
         .map_err(|e| format!("Failed to get inspectional blueprint: {}", e))
 }
 
+/// The reader's exit assessment of a book, from `vault/notes/<book_id>/inspectional.json`, or `None` (DS-09).
+#[command]
+pub async fn get_inspectional_exit_assessment(
+    book_id: String,
+) -> Result<Option<crate::vault::ExitAssessmentPayload>, String> {
+    tokio::task::spawn_blocking(move || crate::vault::inspectional::load_exit_assessment(&book_id))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+        .map_err(|e| format!("{:#}", e))
+}
+
+/// Saves the reader's exit assessment next to the book's notes, never into `_meta.json` (DS-09).
 #[command]
 pub async fn save_inspectional_exit_assessment(
     book_id: String,
     assessment: crate::vault::ExitAssessmentPayload,
 ) -> Result<(), String> {
-    tokio::task::spawn_blocking(move || crate::vault::save_inspectional_exit_assessment(&book_id, assessment))
+    tokio::task::spawn_blocking(move || crate::vault::inspectional::save_exit_assessment(&book_id, assessment))
         .await
         .map_err(|e| format!("Task join error: {}", e))?
-        .map_err(|e| format!("Failed to save inspectional exit assessment: {}", e))
+        .map_err(|e| format!("{:#}", e))
 }
 
 #[command]
