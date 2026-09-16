@@ -136,7 +136,7 @@ book-engine/
 │       │   ├── hooks/           # Modular application custom hooks
 │       │   │   ├── useAnalyticalModals.ts    # Level 3 modal open/close & staged target coordinator
 │       │   │   ├── useAnalyticalSession.ts   # Analytical reading store, cascading integrity & persistence hook
-│       │   │   ├── useBookSession.ts         # Book loading, reading progress, session timing & chapter jumping (every in-book chapter change goes through openChapter; only the newest load lands; a book opens where the reader stopped); "Rescan library" reads the library again and updates search
+│       │   │   ├── useBookSession.ts         # Book loading, reading progress, session timing & chapter jumping (every in-book chapter change goes through openChapter; only the newest load lands; a book opens where the reader stopped); "Rescan library" reads the library again and updates search; search is updated when the app opens
 │       │   │   ├── useChapterGate.ts         # Chapter Gatekeeper (soft gate): tests the due cards of the chapter the reader leaves
 │       │   │   ├── useInspectionalSession.ts # Inspectional countdown timer, sub-view, exit prompt & the exit assessment of the open book
 │       │   │   ├── usePracticeDeck.ts        # Practice deck state, mode/ratio filtering & daily target limits
@@ -182,7 +182,7 @@ book-engine/
 │       │   │   ├── exitAssessment.test.ts # Exit assessment tests: a save shows with no reload, an unreadable assessment is not saved over, a late answer changes nothing
 │       │   │   ├── highlights.ts        # W3C Text Quote Selector reader, paragraph placement & old-comment parser (finds the JSON list, not the first `-->`)
 │       │   │   ├── highlights.test.ts   # Highlight tests: a saved anchor brings each highlight back to its own paragraph
-│       │   │   ├── libraryRescan.ts     # "Rescan library": reads the library again, then updates search; the note names the new books
+│       │   │   ├── libraryRescan.ts     # "Rescan library": reads the library again, then updates search; the note names the new books and counts the files that search could not read
 │       │   │   ├── libraryRescan.test.ts # Rescan tests: a book imported while the app is open shows in the list, and search is updated
 │       │   │   ├── levelGuideData.ts    # Mortimer Adler levels static cheatsheet & hotkeys registry
 │       │   │   ├── markdown.ts          # Chapter Markdown preprocessor & anchor normalizer
@@ -207,6 +207,8 @@ book-engine/
 │       │   │   ├── readerShortcuts.test.ts # Shortcut tests: one Alt+P press toggles the pacer once at every reading level
 │       │   │   ├── readingPlace.ts      # Where you stopped: the chapter a book opens at, the book the app opens with, and when a place is saved
 │       │   │   ├── readingPlace.test.ts # Place tests: a book opens where you stopped, and closing and opening it never creeps up or down
+│       │   │   ├── searchIndex.ts       # Search update when the app opens and on Rescan: the files the index could not read share one line in the error bar
+│       │   │   ├── searchIndex.test.ts  # Search update tests: a file the index could not read shows in the error bar with its name and the reason
 │       │   │   ├── searchQuery.ts       # Search box minimum length (2 characters), the same as the backend
 │       │   │   ├── searchQuery.test.ts  # Search length tests: 1 character does not search, spaces at the ends do not count
 │       │   │   └── types.ts             # Canonical TypeScript interfaces & data contracts
@@ -235,7 +237,8 @@ book-engine/
 │           │   │   ├── fsrs_parser.rs       # Practice card markdown extraction & verbatim validator
 │           │   │   ├── fsrs_store.rs        # FSRS deck statistics & review submission (card update and review log row in one transaction)
 │           │   │   ├── fsrs_store_tests.rs  # Review saving tests: failed log row, card without a book id, double click
-│           │   │   ├── indexer.rs           # Background vault indexing & FTS5 full-text search
+│           │   │   ├── indexer.rs           # Vault indexing, each book on its own (a file it cannot read is named; deleted books & removed chapters leave search) & FTS5 full-text search
+│           │   │   ├── indexer_tests.rs     # Index tests: a broken book or chapter stops nothing, and deleted books & removed chapters leave search
 │           │   │   ├── models.rs            # SQLite row models and analytics transfer structs
 │           │   │   ├── reading_velocity.rs  # Chapter reading session recording & velocity calculations
 │           │   │   ├── restore.rs           # Puts the study progress back into the cache from the vault study log
@@ -568,8 +571,10 @@ All SQLite queries, FTS5 matches, and disk indexing execute exclusively inside `
 
 | Command | Signature | Description |
 | :--- | :--- | :--- |
-| `index_vault` | `() -> Result<IndexSummary, String>` | Reads the chapters in the spine of every `vault/books/*/_meta.json`, splits them into paragraphs, and indexes a chapter into SQLite FTS5 when its text changed (a content hash) or it has no rows yet. So a chapter with no paragraphs, such as a part title, is read again on every run. Returns the chapters and paragraphs indexed and the time taken. Runs on startup in a detached background thread, and again when the reader clicks "Rescan library" in the book list (DS-13). |
+| `index_vault` | `() -> Result<IndexSummary, String>` | Reads the chapters in the spine of every `vault/books/*/_meta.json`, splits them into paragraphs, and indexes a chapter into SQLite FTS5 when its text changed (a content hash) or it has no rows yet. So a chapter with no paragraphs, such as a part title, is read again on every run. Each book is written in a transaction of its own, and the rows of books and chapters that left the vault are removed. Returns the chapters and paragraphs indexed, the files it could not read (`problems`, each with the file and the reason), and the time taken. The window runs it when the app opens and when the reader clicks "Rescan library" in the book list (`updateSearch`, `src/lib/searchIndex.ts`; DS-13, SI-02). |
 | `search_vault` | `(query: String) -> Result<Vec<SearchResult>, String>` | Queries `search_index` using BM25 ranking and SQLite `snippet()` syntax with `<mark>` tags. `db/search_query.rs` turns the typed search into a valid FTS5 expression, and a search shorter than 2 characters returns no results. Returns up to 40 matches. |
+
+**One Broken Book Stops Nothing (SI-02):** `index_vault_blocking` (`db/indexer.rs`) reads and writes each book on its own. A `_meta.json` or a chapter that cannot be used (not valid JSON, no `spine`, a chapter with no `id` or `file_path`, text that is not UTF-8, a locked file) is left out and named in `IndexSummary.problems`, and its book or chapter keeps the rows that search read last, because a file in OneDrive can be locked or offline for a moment. Before this, the whole run was one transaction that stopped at the first file it could not read. The edits in every other book stayed out of search, and the error went only to the console, without the name of the file. The rows of a book folder that is gone or has no `_meta.json`, of a chapter that `_meta.json` no longer lists, and of a listed chapter whose file is missing are removed, so a deleted book no longer shows in search. When an entry of the books folder cannot be read, the run removes no book. Only one run goes at a time, so a run that read the vault before an import cannot remove the rows that a newer run wrote for the new book. The files that a run could not read share one line in the error bar.
 
 **Search Result Contract (`SearchResult`):**
 ```rust
@@ -662,7 +667,7 @@ The backend scans `vault/books/` dynamically on startup and command invocation, 
 ### Book Selector Dropdown & State Persistence
 - Interactive `BookSelector.tsx` popover in the Sidebar header with library icon, book title, author, and animated chevron.
 - Also available in compact mode in `TopNav.tsx` when the sidebar is collapsed.
-- **Rescan library:** The button under the book list reads the library again, shows it, and then updates search (`rescanLibrary`, `src/lib/libraryRescan.ts`). A book imported while the app is open used to stay out of the list and out of search until the next start (DS-13). The list does not wait for search. The note under the button names the new books and says that search is updated. It does not count chapters, because the index reads a chapter with no paragraphs again on every run. A failed read or index shows in the error bar, and the other half still runs.
+- **Rescan library:** The button under the book list reads the library again, shows it, and then updates search (`rescanLibrary`, `src/lib/libraryRescan.ts`). A book imported while the app is open used to stay out of the list and out of search until the next start (DS-13). The list does not wait for search. The note under the button names the new books, says that search is updated, and counts the files that search could not read, which the error bar names (SI-02). It does not count chapters, because the index reads a chapter with no paragraphs again on every run. A failed read or index shows in the error bar, and the other half still runs.
 - At startup the app opens the book of the newest `vault/notes/<book-id>/bookmark.json` (DS-11). The browser storage key `book_engine_active_book_id` is only read, for a reader who has no bookmark yet.
 - Switching books cleanly dismounts the current chapter, loads the new manifest, reloads the hierarchical Table of Contents, and opens the chapter and paragraph where the reader stopped in that book (chapter 1 for a book not read yet).
 

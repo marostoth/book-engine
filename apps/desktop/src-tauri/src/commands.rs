@@ -87,7 +87,7 @@ pub async fn index_vault() -> Result<crate::db::IndexSummary, String> {
     tokio::task::spawn_blocking(crate::db::index_vault_blocking)
         .await
         .map_err(|e| format!("Task join error: {}", e))?
-        .map_err(|e| format!("Failed to index vault: {}", e))
+        .map_err(|e| format!("Failed to index vault: {:#}", e))
 }
 
 #[command]

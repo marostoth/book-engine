@@ -21,6 +21,8 @@ mod restore_tests;
 #[cfg(test)]
 mod fsrs_store_tests;
 #[cfg(test)]
+mod indexer_tests;
+#[cfg(test)]
 mod search_tests;
 
 pub use models::*;

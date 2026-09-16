@@ -94,6 +94,8 @@ An import stops, and changes nothing, when the vault already has the book, for e
 
 A book you import while the app is open shows after you click **Rescan library** at the bottom of the book list. The app reads the library again and updates search.
 
+If search cannot read a file of a book, such as a damaged `_meta.json` or a chapter that is not UTF-8 text, the error bar names the file, and the other books are still updated. A book you delete from the vault leaves search when the app opens again or after a rescan.
+
 ---
 
 ### 2. Desktop Application (`apps/desktop`)

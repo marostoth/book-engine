@@ -88,12 +88,8 @@ pub fn run() {
                 }
             }
 
-            // Asynchronously build / update FTS5 search index on startup without blocking UI
-            std::thread::spawn(|| {
-                if let Err(e) = db::index_vault_blocking() {
-                    eprintln!("Warning: Initial background indexing encountered error: {}", e);
-                }
-            });
+            // Search is brought up to date by the window when it opens (`updateSearch` in src/lib/searchIndex.ts), so
+            // a file it cannot read shows in the error bar, and a vault picked after the start is indexed too (SI-02).
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

@@ -1,4 +1,5 @@
-import type { BookMetadata } from "./types.ts";
+import type { BookMetadata, IndexSummary } from "./types.ts";
+import { updateSearch } from "./searchIndex.ts";
 
 /**
  * "Rescan library": books you import while the app is open.
@@ -11,7 +12,7 @@ import type { BookMetadata } from "./types.ts";
 /** The backend calls that a rescan makes. */
 export interface LibraryBackend {
   fetchLibraryBooks(): Promise<BookMetadata[]>;
-  indexVault(): Promise<{ chapters_indexed: number; paragraphs_indexed: number }>;
+  indexVault(): Promise<IndexSummary>;
 }
 
 /** What one rescan found. */
@@ -22,6 +23,8 @@ export interface LibraryRescan {
   newTitles: string[];
   /** False when search could not be updated. */
   searchUpdated: boolean;
+  /** How many files search could not read. The error bar names them (SI-02). */
+  unreadFiles: number;
 }
 
 /** The "Rescan library" button of the book list: what it runs and what it shows. */
@@ -53,21 +56,16 @@ export async function rescanLibrary(
     reportError("Could not read your library again, so the book list did not change.", error);
   }
 
-  let searchUpdated = false;
-  try {
-    await backend.indexVault();
-    searchUpdated = true;
-  } catch (error) {
-    reportError("Search was not updated, so a new book may not show in search results.", error);
-  }
+  const search = await updateSearch(() => backend.indexVault(), reportError);
 
   const shownIds = new Set(shownBooks.map((book) => book.id));
   const newTitles = (books ?? []).filter((book) => !shownIds.has(book.id)).map((book) => book.title);
-  return { books, newTitles, searchUpdated };
+  return { books, newTitles, searchUpdated: search !== null, unreadFiles: search?.problems.length ?? 0 };
 }
 
 /**
- * One short line for the book list: the new books, and that search is updated. A part that failed is left out.
+ * One short line for the book list: the new books, and that search is updated. A part that failed is left out, and the
+ * files that search could not read are counted, because the error bar names them (SI-02).
  *
  * The line does not count chapters. The index reads a chapter with no paragraphs again on every run, such as a part
  * title, so a count would name a chapter when nothing changed.
@@ -81,7 +79,10 @@ export function rescanSummary(result: LibraryRescan): string {
     );
   }
   if (result.searchUpdated) {
-    parts.push("Search updated.");
+    const unread = result.unreadFiles;
+    parts.push(
+      unread === 0 ? "Search updated." : `Search updated, but it could not read ${unread} ${unread === 1 ? "file" : "files"}.`
+    );
   }
   return parts.join(" ");
 }

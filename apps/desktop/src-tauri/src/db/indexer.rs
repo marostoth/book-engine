@@ -1,150 +1,285 @@
-use rusqlite::params;
-use anyhow::Result;
+use std::collections::{HashMap, HashSet};
+use std::io::ErrorKind;
+use std::path::Path;
+use std::sync::{Mutex, PoisonError};
+
+use anyhow::{Context, Result};
+use rusqlite::{params, Connection, TransactionBehavior};
 use crate::vault::find_vault_root;
-use super::models::{IndexSummary, SearchResult};
+use super::models::{IndexProblem, IndexSummary, SearchResult};
 use super::schema::open_or_create_db;
 use super::search_query::fts5_match_expression;
 
-/// Background indexing pass: scans vault/books/, parses paragraphs, and updates FTS5 table.
+/// One index run at a time. A run that read the vault before an import could otherwise remove the rows that a newer
+/// run has just written for the new book.
+static INDEX_RUN: Mutex<()> = Mutex::new(());
+
+/// The search rows of a book that stay after an index run.
+enum RowsToKeep {
+    /// `_meta.json` could not be read, so the run does not know the chapters of the book: every row stays.
+    All,
+    /// The chapters that `_meta.json` lists now, except a chapter whose file is missing.
+    Chapters(HashSet<String>),
+}
+
+/// Brings the FTS5 search index up to date with vault/books/.
+///
+/// Each book is read and written in a transaction of its own, so a broken book or chapter never stops the other books
+/// (SI-02). A file that cannot be read is left out and named in `IndexSummary::problems`, and its book or chapter keeps
+/// the rows that search read last: a file in OneDrive can be locked or offline for a moment. The rows of a book or a
+/// chapter that is no longer in the vault are removed.
 pub fn index_vault_blocking() -> Result<IndexSummary> {
+    let _one_run = INDEX_RUN.lock().unwrap_or_else(PoisonError::into_inner);
     let start_time = std::time::Instant::now();
     let mut conn = open_or_create_db()?;
-    let vault_root = find_vault_root()?;
-    let books_dir = vault_root.join("books");
+    let books_dir = find_vault_root()?.join("books");
+    let mut summary = IndexSummary::default();
 
-    let mut total_chapters = 0;
-    let mut total_paragraphs = 0;
+    // Every book folder with a `_meta.json`, and the rows of that book that stay.
+    let mut books = HashMap::new();
+    // False when an entry of the books folder could not be read: a book that the run did not see can still be there.
+    let mut saw_every_book = true;
 
-    if !books_dir.exists() {
-        return Ok(IndexSummary {
-            chapters_indexed: 0,
-            paragraphs_indexed: 0,
-            duration_ms: start_time.elapsed().as_millis(),
-        });
-    }
-
-    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-
-    for book_entry in std::fs::read_dir(&books_dir)? {
-        let book_entry = book_entry?;
-        let book_path = book_entry.path();
+    let listing = match std::fs::read_dir(&books_dir) {
+        Ok(listing) => Some(listing),
+        // A vault with no books folder has no books.
+        Err(e) if e.kind() == ErrorKind::NotFound => None,
+        Err(e) => return Err(e).with_context(|| format!("Failed to read {}", books_dir.display())),
+    };
+    for entry in listing.into_iter().flatten() {
+        let book_path = match entry {
+            Ok(entry) => entry.path(),
+            Err(e) => {
+                saw_every_book = false;
+                summary.problems.push(problem("books".to_string(), format!("has a folder that could not be read ({e})")));
+                continue;
+            }
+        };
         if !book_path.is_dir() {
             continue;
         }
 
         let book_id = book_path.file_name().unwrap_or_default().to_string_lossy().to_string();
-        let meta_file = book_path.join("_meta.json");
-        if !meta_file.exists() {
-            continue;
-        }
-
-        // Read metadata
-        let meta_str = std::fs::read_to_string(&meta_file)?;
-        let meta_val: serde_json::Value = serde_json::from_str(&meta_str)?;
-        let spine = meta_val["spine"].as_array();
-
-        if let Some(chapters) = spine {
-            for ch in chapters {
-                let ch_id = ch["id"].as_str().unwrap_or("").to_string();
-                let ch_title = ch["title"].as_str().unwrap_or("").to_string();
-                let ch_file = ch["file_path"].as_str().unwrap_or("").to_string();
-
-                if ch_id.is_empty() || ch_file.is_empty() {
-                    continue;
-                }
-
-                let ch_path = book_path.join(&ch_file);
-                if !ch_path.exists() {
-                    continue;
-                }
-
-                let raw_content = std::fs::read_to_string(&ch_path)?;
-                let content = raw_content.replace("\r\n", "\n");
-
-                // Simple hash to detect updates
-                let content_hash = format!("{:x}", md5_hash(&content));
-
-                // Check if already indexed with same hash and has indexed rows
-                let mut check_stmt = tx.prepare_cached(
-                    "SELECT content_hash FROM indexed_chapters WHERE book_id = ? AND chapter_id = ?"
-                )?;
-                let existing_hash: Option<String> = check_stmt
-                    .query_row(params![&book_id, &ch_id], |row| row.get(0))
-                    .ok();
-
-                let existing_count: i64 = tx.query_row(
-                    "SELECT COUNT(*) FROM search_index WHERE book_id = ? AND chapter_id = ?",
-                    params![&book_id, &ch_id],
-                    |row| row.get(0),
-                ).unwrap_or(0);
-
-                if let Some(ref h) = existing_hash {
-                    if h == &content_hash && existing_count > 0 {
-                        // Already up to date
-                        continue;
-                    }
-                }
-
-                // Delete old FTS5 rows for this chapter if re-indexing
-                tx.execute(
-                    "DELETE FROM search_index WHERE book_id = ? AND chapter_id = ?",
-                    params![&book_id, &ch_id]
-                )?;
-
-                // Parse paragraphs and anchors
-                let blocks = content.split("\n\n");
-                for block in blocks {
-                    let trimmed = block.trim();
-                    if trimmed.is_empty() || trimmed.starts_with('#') {
-                        continue;
-                    }
-
-                    // Extract anchor: ^p-xxx
-                    let mut anchor = String::new();
-                    let mut para_text = trimmed.to_string();
-
-                    if let Some(pos) = trimmed.rfind("^p-") {
-                        anchor = trimmed[pos..].trim().to_string();
-                        para_text = trimmed[..pos].trim().to_string();
-                    }
-
-                    if para_text.is_empty() {
-                        continue;
-                    }
-
-                    // Insert into search_index
-                    tx.execute(
-                        "INSERT INTO search_index (book_id, chapter_id, chapter_title, chapter_file, anchor, content)
-                         VALUES (?, ?, ?, ?, ?, ?)",
-                        params![&book_id, &ch_id, &ch_title, &ch_file, &anchor, &para_text]
-                    )?;
-                    total_paragraphs += 1;
-                }
-
-                // Record indexed chapter
-                tx.execute(
-                    "INSERT INTO indexed_chapters (book_id, chapter_id, file_path, title, content_hash)
-                     VALUES (?, ?, ?, ?, ?)
-                     ON CONFLICT(book_id, chapter_id) DO UPDATE SET
-                         title = excluded.title,
-                         file_path = excluded.file_path,
-                         content_hash = excluded.content_hash,
-                         indexed_at = CURRENT_TIMESTAMP",
-                    params![&book_id, &ch_id, &ch_file, &ch_title, &content_hash]
-                )?;
-
-                total_chapters += 1;
+        let rows_to_keep = match std::fs::read_to_string(book_path.join("_meta.json")) {
+            Ok(meta) => index_book(&mut conn, &book_path, &book_id, &meta, &mut summary)?,
+            // Not a book, or an import that has not written `_meta.json` yet. The library does not list it either.
+            Err(e) if e.kind() == ErrorKind::NotFound => continue,
+            Err(e) => {
+                summary.problems.push(problem(format!("books/{book_id}/_meta.json"), unreadable(&e)));
+                RowsToKeep::All
             }
+        };
+        books.insert(book_id, rows_to_keep);
+    }
+
+    remove_rows_that_left_the_vault(&mut conn, &books, saw_every_book)?;
+
+    summary.problems.sort_by(|a, b| a.file.cmp(&b.file));
+    summary.duration_ms = start_time.elapsed().as_millis();
+    Ok(summary)
+}
+
+/// Reads the chapters that the `_meta.json` text `meta` lists, and writes the rows of every new or changed chapter in one
+/// transaction for the book. Gives the rows of the book that stay. A file that cannot be used goes to `summary.problems`.
+fn index_book(
+    conn: &mut Connection,
+    book_path: &Path,
+    book_id: &str,
+    meta: &str,
+    summary: &mut IndexSummary,
+) -> Result<RowsToKeep> {
+    let meta_file = format!("books/{book_id}/_meta.json");
+    let chapters = match chapter_list(meta) {
+        Ok(chapters) => chapters,
+        Err(reason) => {
+            summary.problems.push(problem(meta_file, reason));
+            return Ok(RowsToKeep::All);
+        }
+    };
+
+    let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let mut kept = HashSet::new();
+    for (index, chapter) in chapters.iter().enumerate() {
+        let (Some(ch_id), Some(ch_file)) = (text_field(chapter, "id"), text_field(chapter, "file_path")) else {
+            summary.problems.push(problem(
+                meta_file.clone(),
+                format!("lists a chapter with no \"id\" or no \"file_path\" (number {} in \"spine\")", index + 1),
+            ));
+            continue;
+        };
+        let ch_title = chapter["title"].as_str().unwrap_or("");
+
+        let content = match std::fs::read_to_string(book_path.join(ch_file)) {
+            Ok(content) => content,
+            Err(e) => {
+                let missing = e.kind() == ErrorKind::NotFound;
+                if !missing {
+                    // The rows keep the text that search read last.
+                    kept.insert(ch_id.to_string());
+                }
+                let reason = if missing { "is missing, but _meta.json lists it".to_string() } else { unreadable(&e) };
+                summary.problems.push(problem(format!("books/{book_id}/{ch_file}"), reason));
+                continue;
+            }
+        };
+        kept.insert(ch_id.to_string());
+
+        if let Some(paragraphs) = index_chapter(&tx, book_id, ch_id, ch_title, ch_file, &content)? {
+            summary.chapters_indexed += 1;
+            summary.paragraphs_indexed += paragraphs;
+        }
+    }
+    tx.commit()?;
+    Ok(RowsToKeep::Chapters(kept))
+}
+
+/// Writes the search rows of one chapter, unless its rows already hold this text. Gives the number of paragraphs
+/// written, or None when the chapter was up to date.
+fn index_chapter(
+    conn: &Connection,
+    book_id: &str,
+    ch_id: &str,
+    ch_title: &str,
+    ch_file: &str,
+    raw_content: &str,
+) -> Result<Option<usize>> {
+    let content = raw_content.replace("\r\n", "\n");
+
+    // Simple hash to detect updates
+    let content_hash = format!("{:x}", md5_hash(&content));
+
+    // Check if already indexed with same hash and has indexed rows
+    let mut check_stmt = conn.prepare_cached(
+        "SELECT content_hash FROM indexed_chapters WHERE book_id = ? AND chapter_id = ?"
+    )?;
+    let existing_hash: Option<String> = check_stmt
+        .query_row(params![book_id, ch_id], |row| row.get(0))
+        .ok();
+
+    let existing_count: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM search_index WHERE book_id = ? AND chapter_id = ?",
+        params![book_id, ch_id],
+        |row| row.get(0),
+    ).unwrap_or(0);
+
+    if let Some(ref h) = existing_hash {
+        if h == &content_hash && existing_count > 0 {
+            // Already up to date
+            return Ok(None);
         }
     }
 
-    tx.commit()?;
+    // Delete old FTS5 rows for this chapter if re-indexing
+    conn.execute(
+        "DELETE FROM search_index WHERE book_id = ? AND chapter_id = ?",
+        params![book_id, ch_id]
+    )?;
 
-    Ok(IndexSummary {
-        chapters_indexed: total_chapters,
-        paragraphs_indexed: total_paragraphs,
-        duration_ms: start_time.elapsed().as_millis(),
-    })
+    // Parse paragraphs and anchors
+    let mut paragraphs = 0;
+    for block in content.split("\n\n") {
+        let trimmed = block.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+
+        // Extract anchor: ^p-xxx
+        let mut anchor = String::new();
+        let mut para_text = trimmed.to_string();
+
+        if let Some(pos) = trimmed.rfind("^p-") {
+            anchor = trimmed[pos..].trim().to_string();
+            para_text = trimmed[..pos].trim().to_string();
+        }
+
+        if para_text.is_empty() {
+            continue;
+        }
+
+        // Insert into search_index
+        conn.execute(
+            "INSERT INTO search_index (book_id, chapter_id, chapter_title, chapter_file, anchor, content)
+             VALUES (?, ?, ?, ?, ?, ?)",
+            params![book_id, ch_id, ch_title, ch_file, &anchor, &para_text]
+        )?;
+        paragraphs += 1;
+    }
+
+    // Record indexed chapter
+    conn.execute(
+        "INSERT INTO indexed_chapters (book_id, chapter_id, file_path, title, content_hash)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(book_id, chapter_id) DO UPDATE SET
+             title = excluded.title,
+             file_path = excluded.file_path,
+             content_hash = excluded.content_hash,
+             indexed_at = CURRENT_TIMESTAMP",
+        params![book_id, ch_id, ch_file, ch_title, &content_hash]
+    )?;
+
+    Ok(Some(paragraphs))
+}
+
+/// Removes the rows of the books and chapters that left the vault. `books` holds every book folder with a `_meta.json`
+/// that the run saw. When `saw_every_book` is false, a book that is not in `books` can still be there, so its rows stay.
+fn remove_rows_that_left_the_vault(
+    conn: &mut Connection,
+    books: &HashMap<String, RowsToKeep>,
+    saw_every_book: bool,
+) -> Result<()> {
+    let indexed: Vec<(String, String)> = {
+        let mut statement = conn.prepare(
+            "SELECT book_id, chapter_id FROM indexed_chapters UNION SELECT book_id, chapter_id FROM search_index",
+        )?;
+        let rows = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        rows.collect::<rusqlite::Result<_>>()?
+    };
+    let left: Vec<(String, String)> = indexed
+        .into_iter()
+        .filter(|(book_id, chapter_id)| match books.get(book_id) {
+            None => saw_every_book,
+            Some(RowsToKeep::All) => false,
+            Some(RowsToKeep::Chapters(kept)) => !kept.contains(chapter_id),
+        })
+        .collect();
+    if left.is_empty() {
+        return Ok(());
+    }
+
+    let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    for (book_id, chapter_id) in &left {
+        tx.execute("DELETE FROM search_index WHERE book_id = ? AND chapter_id = ?", params![book_id, chapter_id])?;
+        tx.execute("DELETE FROM indexed_chapters WHERE book_id = ? AND chapter_id = ?", params![book_id, chapter_id])?;
+    }
+    tx.commit()?;
+    Ok(())
+}
+
+/// The chapter list ("spine") of a `_meta.json` text, or why the text has none.
+fn chapter_list(meta: &str) -> std::result::Result<Vec<serde_json::Value>, String> {
+    let mut meta: serde_json::Value = serde_json::from_str(meta).map_err(|e| format!("is not valid JSON ({e})"))?;
+    match meta.get_mut("spine").map(serde_json::Value::take) {
+        Some(serde_json::Value::Array(chapters)) => Ok(chapters),
+        _ => Err("has no chapter list (\"spine\")".to_string()),
+    }
+}
+
+/// A text field of a chapter in the spine, or None when it is missing or empty.
+fn text_field<'a>(chapter: &'a serde_json::Value, name: &str) -> Option<&'a str> {
+    chapter[name].as_str().filter(|text| !text.is_empty())
+}
+
+/// Why a file could not be read, in words that follow the file name.
+fn unreadable(error: &std::io::Error) -> String {
+    if error.kind() == ErrorKind::InvalidData {
+        "is not UTF-8 text".to_string()
+    } else {
+        format!("could not be read ({error})")
+    }
+}
+
+fn problem(file: String, reason: impl Into<String>) -> IndexProblem {
+    IndexProblem { file, reason: reason.into() }
 }
 
 /// Executes an FTS5 search query returning snippets with <mark> tags.

@@ -11,11 +11,23 @@ pub struct SearchResult {
     pub rank: f64,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+/// What one run of the search index did (`index_vault`). Must match `IndexSummary` in src/lib/types.ts.
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct IndexSummary {
     pub chapters_indexed: usize,
     pub paragraphs_indexed: usize,
+    /// The files that the run could not read. Every other book and chapter was still indexed (SI-02).
+    pub problems: Vec<IndexProblem>,
     pub duration_ms: u128,
+}
+
+/// A file in the vault that the search index could not read.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct IndexProblem {
+    /// The file, from the vault folder: `books/<book-id>/_meta.json` or `books/<book-id>/<chapter file>`.
+    pub file: String,
+    /// Why, in words that follow the file name, such as "is not UTF-8 text".
+    pub reason: String,
 }
 
 /// Field names must match `ScenarioOption` in src/lib/practiceTypes.ts (see src/lib/practiceContract.json).
