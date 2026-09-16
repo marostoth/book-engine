@@ -4,6 +4,9 @@ import { toAnchorAttribute } from "./anchors.ts";
 
 const PREFIX_SUFFIX_LEN = 32;
 
+/** Start of the comment older chapters keep their highlights in. */
+const COMMENT_START = "<!-- highlights-json";
+
 /**
  * Extracts a W3C Text Quote Selector from the current window selection.
  */
@@ -57,16 +60,52 @@ export function createW3CHighlight(
  * own file now (DS-05); this only reads a chapter that was not moved over yet.
  */
 export function parseHighlightsFromNotes(notesContent: string): HighlightItem[] {
-  const match = notesContent.match(/<!--\s*highlights-json\s*([\s\S]*?)\s*-->/);
-  if (!match) return [];
+  const marker = notesContent.indexOf(COMMENT_START);
+  if (marker === -1) return [];
+
+  // Read from the `[` that opens the list to the `]` that closes it, not to the first `-->`.
+  // A saved quote may hold `-->`, and stopping there lost every highlight of the chapter (DS-06).
+  const body = notesContent.slice(marker + COMMENT_START.length);
+  const open = body.length - body.trimStart().length;
+  if (body[open] !== "[") return [];
+  const close = jsonArrayEnd(body.slice(open));
+  if (close === -1) return [];
 
   try {
-    const parsed = JSON.parse(match[1]);
+    const parsed = JSON.parse(body.slice(open, open + close + 1));
     return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
     console.warn("Failed to parse highlights-json block:", e);
     return [];
   }
+}
+
+/**
+ * The index of the `]` that closes the JSON list at the start of `text`, or -1.
+ * Brackets inside a quoted string, and a character after a backslash, do not count.
+ */
+function jsonArrayEnd(text: string): number {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < text.length; index++) {
+    const ch = text[index];
+    if (escaped) {
+      escaped = false;
+    } else if (inString && ch === "\\") {
+      escaped = true;
+    } else if (ch === '"') {
+      inString = !inString;
+    } else if (!inString && ch === "[") {
+      depth++;
+    } else if (!inString && ch === "]") {
+      depth--;
+      if (depth === 0) return index;
+      if (depth < 0) return -1;
+    }
+  }
+  return -1;
 }
 
 /** Text of one rendered paragraph and the `data-anchor` of the nearest element at or above it. */

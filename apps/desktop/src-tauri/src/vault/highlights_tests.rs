@@ -191,3 +191,103 @@ fn a_quote_holding_an_end_of_comment_marker_is_saved_and_read_back() {
     assert_eq!(saved.len(), 1, "a quote with --> must not break the file");
     assert_eq!(saved[0].exact, tricky);
 }
+
+/// A quote may hold `-->`, which is also the end of an HTML comment. The old notes comment then
+/// looked cut off to a reader that stopped at the first `-->`, and every highlight in that chapter
+/// was lost (DS-06).
+#[test]
+fn old_highlights_move_over_even_when_a_quote_holds_an_end_of_comment_marker() {
+    let sandbox = Sandbox::new();
+    sandbox.write(NOTES_FILE, &old_notes("the arrow --> points right"));
+
+    let moved = load_chapter_highlights(BOOK, CHAPTER).expect("a quote with an arrow must still move");
+
+    assert_eq!(moved.len(), 1, "the highlight must come across");
+    assert_eq!(moved[0].exact, "the arrow --> points right");
+
+    let notes = read_notes_file(BOOK, "ch-01-notes.md").expect("read the notes");
+    assert!(!notes.contains("highlights-json"), "the machine comment must be gone:\n{notes}");
+    assert!(notes.contains("## Key Takeaways"), "the reader's text must stay:\n{notes}");
+}
+
+#[test]
+fn old_highlights_move_over_when_a_later_quote_holds_the_marker() {
+    let sandbox = Sandbox::new();
+    let two = "[{\"id\":\"hl-1\",\"exact\":\"plain quote\",\"prefix\":\"\",\"suffix\":\"\",\"anchor\":\"^p-001\",\"createdAt\":\"2026-09-11T12:00:00Z\"},{\"id\":\"hl-2\",\"exact\":\"and --> here\",\"prefix\":\"\",\"suffix\":\"\",\"anchor\":\"^p-002\",\"createdAt\":\"2026-09-11T12:01:00Z\"}]";
+    sandbox.write(
+        NOTES_FILE,
+        &format!("# Reflections\n\n## Highlights\n\n<!-- highlights-json {two} -->\n\n## Key Takeaways\n\n- my own line\n"),
+    );
+
+    let moved = load_chapter_highlights(BOOK, CHAPTER).expect("both highlights must move");
+
+    assert_eq!(moved.len(), 2, "no highlight may be dropped");
+    assert_eq!(moved[1].exact, "and --> here");
+    let notes = read_notes_file(BOOK, "ch-01-notes.md").expect("read the notes");
+    assert!(!notes.contains("highlights-json"), "the machine comment must be gone:\n{notes}");
+    assert!(notes.contains("- my own line"), "the reader's text must stay:\n{notes}");
+}
+
+#[test]
+fn text_after_the_old_comment_is_never_swallowed() {
+    let sandbox = Sandbox::new();
+    sandbox.write(
+        NOTES_FILE,
+        "# Reflections\n\n## Highlights\n\n<!-- highlights-json [] -->\n\n## Key Takeaways\n\n- a line with [ and ] in it\n",
+    );
+
+    assert!(load_chapter_highlights(BOOK, CHAPTER).expect("an empty list is fine").is_empty());
+
+    let notes = read_notes_file(BOOK, "ch-01-notes.md").expect("read the notes");
+    assert!(notes.contains("- a line with [ and ] in it"), "the reader's text must stay:\n{notes}");
+}
+
+#[test]
+fn old_highlights_move_over_when_the_stored_context_holds_the_marker() {
+    let sandbox = Sandbox::new();
+    let one = "[{\"id\":\"hl-1\",\"exact\":\"plain quote\",\"prefix\":\"\",\"suffix\":\" and then --> onwards\",\"anchor\":\"^p-001\",\"createdAt\":\"2026-09-11T12:00:00Z\"}]";
+    sandbox.write(
+        NOTES_FILE,
+        &format!("# Reflections\n\n<!-- highlights-json {one} -->\n\n## Key Takeaways\n\n- my own line\n"),
+    );
+
+    let moved = load_chapter_highlights(BOOK, CHAPTER).expect("an arrow in the context must still move");
+
+    assert_eq!(moved.len(), 1, "the highlight must come across");
+    assert_eq!(moved[0].suffix, " and then --> onwards");
+    let notes = read_notes_file(BOOK, "ch-01-notes.md").expect("read the notes");
+    assert!(!notes.contains("highlights-json"), "the machine comment must be gone:\n{notes}");
+    assert!(notes.contains("- my own line"), "the reader's text must stay:\n{notes}");
+}
+
+#[test]
+fn a_heading_of_the_readers_own_that_starts_with_the_same_word_is_kept() {
+    let sandbox = Sandbox::new();
+    let notes = old_notes("atomically").replace(
+        "## Key Takeaways",
+        "## Highlights and lowlights\n\n- what worked and what did not\n\n## Key Takeaways",
+    );
+    sandbox.write(NOTES_FILE, &notes);
+
+    load_chapter_highlights(BOOK, CHAPTER).expect("move the old highlights");
+
+    let after = read_notes_file(BOOK, "ch-01-notes.md").expect("read the notes");
+    assert!(after.contains("## Highlights and lowlights"), "the reader's own heading must stay:\n{after}");
+    assert!(after.contains("- what worked and what did not"), "the text under it must stay:\n{after}");
+    assert!(!after.contains("highlights-json"), "the machine comment must go:\n{after}");
+}
+
+#[test]
+fn a_hand_edit_that_breaks_the_list_moves_nothing_and_changes_nothing() {
+    let sandbox = Sandbox::new();
+    // The comma between the two entries was deleted by hand.
+    let broken = "[{\"id\":\"hl-1\",\"exact\":\"one\",\"createdAt\":\"\"}{\"id\":\"hl-2\",\"exact\":\"two\",\"createdAt\":\"\"}]";
+    let notes = format!("# Reflections\n\n<!-- highlights-json {broken} -->\n\n- my own line\n");
+    sandbox.write(NOTES_FILE, &notes);
+
+    let error = load_chapter_highlights(BOOK, CHAPTER).expect_err("a broken list must not be moved");
+
+    assert!(error.to_string().contains("ch-01-notes.md"), "the error must name the file: {error}");
+    assert_eq!(read_notes_file(BOOK, "ch-01-notes.md").expect("read back"), notes, "the notes must be untouched");
+    assert_eq!(names_in_notes_folder(&sandbox), vec!["ch-01-notes.md"], "no highlights file may be made");
+}

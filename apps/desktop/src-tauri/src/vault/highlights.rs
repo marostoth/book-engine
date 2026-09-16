@@ -9,7 +9,7 @@
 //! module owns the highlights file. A chapter that still keeps its highlights in the old comment
 //! is moved over the first time it is read, and the reader's own text is left alone.
 
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 
 use super::json_store::read_json_file;
 use super::models::HighlightItem;
@@ -92,21 +92,82 @@ fn read_old_comment(book_id: &str, chapter_file: &str) -> Result<Option<Vec<High
     }
 
     let notes = super::reader::read_notes_file(book_id, &notes_file)?;
-    let Some(json) = comment_json(&notes) else {
+    let context = || {
+        format!("The saved highlights in {book_id}/{notes_file} could not be read, so they were left as they are")
+    };
+    let Some(json) = comment_json(&notes).with_context(context)? else {
         return Ok(None);
     };
 
-    let parsed: Vec<HighlightItem> = serde_json::from_str(json).with_context(|| {
-        format!("The saved highlights in {book_id}/{notes_file} could not be read, so they were left as they are")
-    })?;
+    let parsed: Vec<HighlightItem> = serde_json::from_str(json).with_context(context)?;
     Ok(Some(parsed))
 }
 
-/// The JSON between `<!-- highlights-json` and the first `-->` after it.
-fn comment_json(notes: &str) -> Option<&str> {
-    let start = notes.find(COMMENT_START)? + COMMENT_START.len();
-    let end = start + notes[start..].find(COMMENT_END)?;
-    Some(notes[start..end].trim())
+/// The JSON list inside the `<!-- highlights-json ... -->` comment, or `None` when the notes have
+/// no such comment.
+///
+/// It reads from the `[` that opens the list to the `]` that closes it, not to the first `-->`.
+/// A saved quote may hold `-->`, and stopping there cut the list in half and lost every highlight
+/// of the chapter (DS-06). A comment whose list cannot be found gives an error, never an empty
+/// list, so nothing is moved and nothing is removed.
+fn comment_json(notes: &str) -> Result<Option<&str>> {
+    let Some(marker) = notes.find(COMMENT_START) else {
+        return Ok(None);
+    };
+    let body = &notes[marker + COMMENT_START.len()..];
+    let open = list_start(body).ok_or_else(|| anyhow!("the saved highlights do not start with a list"))?;
+    let close = open
+        + json_array_end(&body[open..]).ok_or_else(|| anyhow!("the list of saved highlights is not closed"))?;
+    Ok(Some(&body[open..=close]))
+}
+
+/// The byte offset of the `[` that opens the list, when the text starts with one.
+fn list_start(body: &str) -> Option<usize> {
+    let offset = body.len() - body.trim_start().len();
+    body[offset..].starts_with('[').then_some(offset)
+}
+
+/// The byte offset of the `]` that closes the JSON list at the start of `text`.
+/// Brackets inside a quoted string, and a character after a backslash, do not count.
+fn json_array_end(text: &str) -> Option<usize> {
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut escaped = false;
+    for (index, ch) in text.char_indices() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        match ch {
+            '\\' if in_string => escaped = true,
+            '"' => in_string = !in_string,
+            '[' if !in_string => depth += 1,
+            ']' if !in_string => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// The byte range of the whole comment in `notes`, including its `-->`. The end marker is looked
+/// for after the list, so a `-->` inside a quote does not cut the comment short.
+fn comment_range(notes: &str) -> Option<std::ops::Range<usize>> {
+    let marker = notes.find(COMMENT_START)?;
+    let body_at = marker + COMMENT_START.len();
+    let body = &notes[body_at..];
+    let after_list = list_start(body)
+        .and_then(|open| json_array_end(&body[open..]).map(|close| open + close + 1))
+        .unwrap_or(0);
+    let end = body[after_list..]
+        .find(COMMENT_END)
+        .map(|pos| body_at + after_list + pos + COMMENT_END.len())
+        .unwrap_or(body_at + after_list);
+    Some(marker..end)
 }
 
 /// The notes text without the machine comment and without the quote lines the app wrote for the
@@ -114,10 +175,8 @@ fn comment_json(notes: &str) -> Option<&str> {
 /// so a heading the reader writes under, and any text of their own, stays.
 fn without_highlights_section(notes: &str, moved: &[HighlightItem]) -> String {
     let mut text = notes.to_string();
-    if let Some(start) = text.find(COMMENT_START) {
-        if let Some(end) = text[start..].find(COMMENT_END) {
-            text.replace_range(start..start + end + COMMENT_END.len(), "");
-        }
+    if let Some(range) = comment_range(&text) {
+        text.replace_range(range, "");
     }
 
     let quoted: Vec<String> = moved.iter().map(|h| format!("\"{}\"", h.exact)).collect();
