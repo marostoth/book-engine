@@ -12,6 +12,7 @@ use commands::{
     get_review_heatmap, get_retention_metrics, get_reading_velocity, record_reading_progress,
     get_all_book_notes, export_book_summary, get_study_analytics, get_vault_path,
     lookup_dictionary_term, save_book_vocabulary, get_analytical_data, save_analytical_data,
+    get_chapter_highlights, save_chapter_highlights,
     get_syntopic_topics, get_syntopic_topic, save_syntopic_topic, export_syntopic_report,
 };
 
@@ -68,6 +69,8 @@ pub fn run() {
             get_vault_path,
             lookup_dictionary_term,
             save_book_vocabulary,
+            get_chapter_highlights,
+            save_chapter_highlights,
             get_analytical_data,
             save_analytical_data,
             get_syntopic_topics,

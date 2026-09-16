@@ -84,33 +84,27 @@ pub fn parse_all_book_notes(book_id: &str) -> Result<Vec<AggregatedNoteItem>> {
             (fallback_title, 999)
         });
 
-        // 1. Parse embedded W3C highlights JSON comment block: <!-- highlights-json [...] -->
-        if let Some(start_idx) = file.content.find("<!-- highlights-json") {
-            if let Some(end_rel) = file.content[start_idx..].find("-->") {
-                let json_slice = &file.content[start_idx + "<!-- highlights-json".len()..start_idx + end_rel].trim();
-                if let Ok(highlights) = serde_json::from_str::<Vec<serde_json::Value>>(json_slice) {
-                    for hl in highlights {
-                        let id = hl["id"].as_str().unwrap_or("").to_string();
-                        let exact = hl["exact"].as_str().unwrap_or("").to_string();
-                        let anchor = hl["anchor"].as_str().map(|s| s.to_string());
-                        let color = hl["color"].as_str().map(|s| s.to_string());
-                        let created_at = hl["createdAt"].as_str().map(|s| s.to_string());
-
-                        if !exact.is_empty() {
-                            items.push(AggregatedNoteItem {
-                                id: if id.is_empty() { format!("hl-{}", items.len()) } else { id },
-                                item_type: "highlight".to_string(),
-                                chapter_file: file.chapter_file.clone(),
-                                chapter_title: ch_title.clone(),
-                                chapter_order: ch_order,
-                                anchor,
-                                text: exact,
-                                color,
-                                section_heading: None,
-                                created_at,
-                            });
-                        }
+        // 1. Highlights live in their own file (vault/highlights.rs). A chapter that was not moved
+        // over yet still keeps them in the old comment, and reading here never changes a file.
+        match super::highlights::read_chapter_highlights(book_id, &file.chapter_file) {
+            Err(err) => eprintln!("Warning: {err:#}"),
+            Ok(highlights) => {
+                for (index, hl) in highlights.into_iter().enumerate() {
+                    if hl.exact.is_empty() {
+                        continue;
                     }
+                    items.push(AggregatedNoteItem {
+                        id: if hl.id.is_empty() { format!("hl-{index}") } else { hl.id },
+                        item_type: "highlight".to_string(),
+                        chapter_file: file.chapter_file.clone(),
+                        chapter_title: ch_title.clone(),
+                        chapter_order: ch_order,
+                        anchor: hl.anchor,
+                        text: hl.exact,
+                        color: hl.color,
+                        section_heading: None,
+                        created_at: Some(hl.created_at),
+                    });
                 }
             }
         }

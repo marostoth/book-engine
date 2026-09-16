@@ -119,6 +119,24 @@ pub struct AggregatedNoteItem {
     pub created_at: Option<String>,
 }
 
+/// One saved highlight, stored in `vault/notes/<book-id>/<chapter>-highlights.json`.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct HighlightItem {
+    pub id: String,
+    pub exact: String,
+    #[serde(default)]
+    pub prefix: String,
+    #[serde(default)]
+    pub suffix: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+    #[serde(default, alias = "created_at")]
+    pub created_at: String,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct VocabularyEntry {

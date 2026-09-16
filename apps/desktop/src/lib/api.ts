@@ -10,6 +10,7 @@ import { callBackend, isTauri } from "./api/clientBase.ts";
 
 export * from "./api/practiceApi.ts";
 export * from "./api/notesApi.ts";
+export * from "./api/highlightsApi.ts";
 export * from "./api/analyticsApi.ts";
 export * from "./api/lexiconApi.ts";
 export * from "./api/analyticalApi.ts";

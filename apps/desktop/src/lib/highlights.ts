@@ -53,7 +53,8 @@ export function createW3CHighlight(
 }
 
 /**
- * Parses embedded W3C highlights from a chapter notes markdown file.
+ * Parses highlights from the old comment in a chapter notes file. Highlights are saved in their
+ * own file now (DS-05); this only reads a chapter that was not moved over yet.
  */
 export function parseHighlightsFromNotes(notesContent: string): HighlightItem[] {
   const match = notesContent.match(/<!--\s*highlights-json\s*([\s\S]*?)\s*-->/);
@@ -66,33 +67,6 @@ export function parseHighlightsFromNotes(notesContent: string): HighlightItem[] 
     console.warn("Failed to parse highlights-json block:", e);
     return [];
   }
-}
-
-/**
- * Serializes highlights into chapter notes markdown, preserving notes and adding
- * a human-readable list and embedded JSON for hydration.
- */
-export function serializeHighlightsToNotes(
-  existingNotes: string,
-  highlights: HighlightItem[]
-): string {
-  // Strip existing highlights section if present
-  let baseNotes = existingNotes.replace(/\n*## Highlights[\s\S]*?(?=\n##|$)/g, "").trim();
-
-  if (highlights.length === 0) {
-    return baseNotes + "\n";
-  }
-
-  const jsonBlock = `<!-- highlights-json\n${JSON.stringify(highlights, null, 2)}\n-->`;
-  const readableList = highlights
-    .map((h) => {
-      const anchorRef = h.anchor ? ` (${h.anchor})` : "";
-      return `- > "${h.exact}"${anchorRef}`;
-    })
-    .join("\n");
-
-  const highlightsSection = `\n\n## Highlights\n\n${jsonBlock}\n\n${readableList}\n`;
-  return baseNotes + highlightsSection;
 }
 
 /** Text of one rendered paragraph and the `data-anchor` of the nearest element at or above it. */

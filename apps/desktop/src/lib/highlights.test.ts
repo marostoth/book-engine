@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { HighlightItem } from "./types.ts";
 import { toAnchorAttribute, toSavedAnchor } from "./anchors.ts";
-import { findHighlightParagraph, parseHighlightsFromNotes, serializeHighlightsToNotes } from "./highlights.ts";
+import { findHighlightParagraph, parseHighlightsFromNotes } from "./highlights.ts";
 
 const PHRASE = "the division of labour";
 
@@ -39,10 +39,26 @@ test("the saved anchor ^p-001 and the HTML attribute p-001 name the same paragra
 
 test("select, save, reload: each highlight comes back on the paragraph where it was selected", () => {
   const selected = chapter.map((_, index) => selectInParagraph(index, PHRASE));
-  const reloaded = parseHighlightsFromNotes(serializeHighlightsToNotes("# Chapter 1 notes\n", selected));
+  // The highlights file holds exactly this list (DS-05), so a save and a load is a JSON round trip.
+  const reloaded: HighlightItem[] = JSON.parse(JSON.stringify(selected));
 
   assert.deepEqual(reloaded.map((highlight) => highlight.anchor), ["^p-001", "^p-002", "^p-003"]);
   assert.deepEqual(reloaded.map((highlight) => findHighlightParagraph(chapter, highlight)), [0, 1, 2]);
+});
+
+test("a chapter still holding its highlights in the old notes comment is read back in full", () => {
+  const notes = [
+    "# Chapter 1 notes",
+    "",
+    "## Highlights",
+    "",
+    `<!-- highlights-json ${JSON.stringify([selectInParagraph(0, PHRASE), selectInParagraph(2, PHRASE)])} -->`,
+  ].join("\n");
+
+  assert.deepEqual(
+    parseHighlightsFromNotes(notes).map((highlight) => highlight.anchor),
+    ["^p-001", "^p-003"]
+  );
 });
 
 test("a highlight stored with anchor ^p-003 goes on paragraph 3, not on the first paragraph with the same words", () => {
