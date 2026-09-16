@@ -248,7 +248,7 @@ book-engine/
 │           │   ├── fsrs.rs              # Local FSRS-5 spaced repetition scheduling engine
 │           │   ├── lib.rs               # Application builder, plugin setup, and invoke router
 │           │   ├── main.rs              # Tauri binary executable entrypoint
-│           │   ├── test_support.rs      # Test-only sandbox: temporary vault & cache database per unit test, also for its test threads (Sandbox::spawn)
+│           │   ├── test_support.rs      # Test-only sandbox: temporary vault & cache database per unit test, also for its test threads (Sandbox::spawn); the vault search finds nothing outside it
 │           │   ├── vault/               # Modular vault file I/O & notes aggregation
 │           │   │   ├── analytical.rs        # Level 3 analytical store loader, saver & unit tests; a damaged file stops the load and the save
 │           │   │   ├── bookmark.rs          # Where you stopped reading: `vault/notes/<book-id>/bookmark.json`; the newest bookmark names the book to open
@@ -259,7 +259,7 @@ book-engine/
 │           │   │   ├── inspectional_tests.rs # Exit assessment tests: an import keeps it, `_meta.json` is never written, a damaged file is never saved over
 │           │   │   ├── json_store.rs        # Safe JSON read for vault files: byte order mark removed, a damaged file errors and is copied to <name>.corrupt-<time>
 │           │   │   ├── locate.rs            # Finds the vault folder, and remembers the one the reader picked
-│           │   │   ├── locate_tests.rs      # Find tests: a folder with no books inside is refused, and nothing is remembered
+│           │   │   ├── locate_tests.rs      # Find tests: a folder with no books inside is refused, nothing is remembered, and a test never finds the real vault
 │           │   │   ├── models.rs            # Vault metadata, analytical and note structures
 │           │   │   ├── notes.rs             # Chapter reflection notes loader, saver & summary export
 │           │   │   ├── preferences.rs       # Reader settings in `vault/preferences.json`, kept key for key; a damaged file stops the load and the save
@@ -535,7 +535,7 @@ The reader pairs an editorial serif with a clean sans-serif UI, constrained to `
 ### Ephemeral SQLite FTS5 Database (`index.db`)
 Strictly isolated within OS Application Data (`%APPDATA%\book-engine\app_cache\index.db` on Windows, `~/.config/book-engine/app_cache/index.db` on Linux, `~/Library/Application Support/book-engine/app_cache/index.db` on macOS). The database is ephemeral and completely decoupled from `vault/`. If deleted, it is recreated on next launch: the search index is built again from the vault Markdown files, and the study progress is put back from `vault/notes/<book-id>/reviews.jsonl` and `reading.jsonl`.
 
-Unit tests never open this database or the real vault: in test builds, `get_db_path()` and `find_vault_root()` resolve only inside a per-test temporary sandbox (`apps/desktop/src-tauri/src/test_support.rs`) and return an error when no sandbox is active.
+Unit tests never open this database or the real vault: in test builds, `get_db_path()` and `find_vault_root()` resolve only inside a per-test temporary sandbox (`apps/desktop/src-tauri/src/test_support.rs`) and return an error when no sandbox is active. The vault search (`locate_vault()`) takes only a folder inside that sandbox, so a test run from the repository never finds the real vault above its working folder (DS-10).
 
 **SQLite Schema & FTS5 Configuration (`apps/desktop/src-tauri/src/db.rs`):**
 ```sql
