@@ -3,6 +3,7 @@ import { Check, Edit3, Eye, FileText, Lock, RotateCcw, Save, TriangleAlert } fro
 import { fetchNotes, persistNotes } from "../lib/api";
 import { reportBackendError } from "../lib/backendErrors";
 import { createNotesAutosave } from "../lib/notesAutosave";
+import { addQuoteToNotes, type NotesLoadState } from "../lib/notesQuote";
 
 /**
  * App.tsx gives this pane a key of book and chapter, so every chapter gets its own pane. A pane that keeps
@@ -18,8 +19,6 @@ interface NotesPaneProps {
 /** The typing waits this long for the next keystroke before the notes are saved. */
 const AUTOSAVE_DELAY_MS = 800;
 
-/** The chapter notes: still loading, loaded, or failed to load. Only loaded notes can be edited and saved. */
-type LoadState = "loading" | "ready" | "failed";
 /** The newest text: saved, not saved yet, or failed to save. */
 type SaveState = "saved" | "pending" | "failed";
 
@@ -30,7 +29,7 @@ const STATUS_TONES = {
 };
 
 /** The save status button. "Saved" shows only after a save that worked. */
-function saveStatus(loadState: LoadState, saveState: SaveState) {
+function saveStatus(loadState: NotesLoadState, saveState: SaveState) {
   if (loadState === "failed") {
     return { label: "Locked", title: "Your notes did not load, so editing is locked", tone: "failed", Icon: Lock, iconClass: "" } as const;
   }
@@ -53,7 +52,7 @@ export const NotesPane: React.FC<NotesPaneProps> = ({
   onClearInsertedQuote,
 }) => {
   const [content, setContent] = useState<string>("");
-  const [loadState, setLoadState] = useState<LoadState>("loading");
+  const [loadState, setLoadState] = useState<NotesLoadState>("loading");
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [loadAttempt, setLoadAttempt] = useState<number>(0);
   const [mode, setMode] = useState<"edit" | "preview">("edit");
@@ -115,26 +114,17 @@ export const NotesPane: React.FC<NotesPaneProps> = ({
     };
   }, [bookId, notesFileName, loadAttempt]);
 
-  // Insert quote if triggered from selection menu. The quote is saved like a keystroke: it used to wait for
-  // the next one, so a quote added just before a chapter change was lost.
+  // A quote sent from the selection menu. While the notes load it waits, and this effect runs again when
+  // they are ready. A quote that is added is saved at once (DS-08).
   useEffect(() => {
-    if (!insertedQuote) return;
-    // While the notes load, the quote waits: this effect runs again when they are ready.
-    if (loadState === "loading") return;
-    if (loadState === "failed") {
-      reportBackendError(
-        "The quote was not added to your notes.",
-        "Your notes for this chapter did not load, and adding to text that is not in the file would overwrite it."
-      );
-      onClearInsertedQuote();
-      return;
-    }
-    const anchorSuffix = insertedQuote.anchorId ? ` (#${insertedQuote.anchorId})` : "";
-    const quoteBlock = `\n\n> "${insertedQuote.quote}"${anchorSuffix}\n\n- Reflection: \n`;
-    const withQuote = content + quoteBlock;
-    setContent(withQuote);
-    setSaveState("pending");
-    autosave.change({ bookId, notesFile: notesFileName }, withQuote);
+    if (!insertedQuote || loadState === "loading") return;
+    addQuoteToNotes(loadState, content, insertedQuote, { bookId, notesFile: notesFileName }, autosave, {
+      show: (withQuote) => {
+        setContent(withQuote);
+        setSaveState("pending");
+      },
+      refuse: reportBackendError,
+    });
     onClearInsertedQuote();
   }, [insertedQuote, onClearInsertedQuote, loadState, content, autosave, bookId, notesFileName]);
 
