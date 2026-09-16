@@ -1,5 +1,7 @@
 //! Tests for `book_pictures.rs`: the window may load the pictures of each book, and no other folder (SEC-02).
 
+#[cfg(windows)]
+use crate::test_support::junction;
 use crate::test_support::Sandbox;
 use crate::vault::book_pictures::book_picture_folders;
 
@@ -22,18 +24,6 @@ fn only_the_picture_folder_of_each_book_is_opened() {
         book_picture_folders(&sandbox.vault()).expect("list the picture folders"),
         vec![books.join("economics").join("assets"), books.join("marketing").join("assets")]
     );
-}
-
-/// Makes `link` a junction to `target`. A junction is the folder link that Windows lets a user make without admin rights.
-#[cfg(windows)]
-fn junction(link: &std::path::Path, target: &std::path::Path) {
-    let output = std::process::Command::new("cmd")
-        .args(["/C", "mklink", "/J"])
-        .arg(link)
-        .arg(target)
-        .output()
-        .expect("run mklink");
-    assert!(output.status.success(), "mklink /J failed: {}", String::from_utf8_lossy(&output.stdout));
 }
 
 /// Tauri follows a link when it allows a folder. So a book folder or a picture folder that is a link to another place

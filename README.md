@@ -92,6 +92,8 @@ Ingestion relocates endnotes into chapter-level inline footnotes `[^n]`, tags ev
 
 An import stops, and changes nothing, when the vault already has the book, for example an annotated copy of a PDF you imported before. It names your own files for that book in `vault/notes/<book-id>/`. Run the import again with `--force` to replace the book: your own files are kept, but a paragraph they point to can be a different paragraph after the new import.
 
+A book id names the folders of the book, so it has 1 to 255 characters from a-z, 0-9, `-` and `_`, and it does not start with `-`. An import with another `--book-id`, such as `../my-book` or `My Book`, stops before it writes anything. The app uses the same rule: a book folder that you rename by hand to another name does not open, and no name that the app page sends can reach a file outside the vault.
+
 A book you import while the app is open shows after you click **Rescan library** at the bottom of the book list. The app reads the library again and updates search.
 
 If search cannot read a file of a book, such as a damaged `_meta.json` or a chapter that is not UTF-8 text, the error bar names the file, and the other books are still updated. A book you delete from the vault leaves search when the app opens again or after a rescan.

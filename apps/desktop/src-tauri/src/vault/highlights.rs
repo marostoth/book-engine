@@ -13,18 +13,17 @@ use anyhow::{anyhow, Context, Result};
 
 use super::json_store::read_json_file;
 use super::models::HighlightItem;
-use super::reader::{find_vault_root, write_notes_file};
+use super::reader::write_notes_file;
 use super::safe_write::write_file;
 use std::path::PathBuf;
 
 const COMMENT_START: &str = "<!-- highlights-json";
 const COMMENT_END: &str = "-->";
 
-/// `vault/notes/<book-id>/<chapter>-highlights.json` for a chapter file such as `ch-01.md`.
+/// `vault/notes/<book-id>/<chapter>-highlights.json` for a chapter file such as `ch-01.md`. The page sends both names,
+/// so they are checked first (SEC-03).
 fn highlights_path(book_id: &str, chapter_file: &str) -> Result<PathBuf> {
-    let vault = find_vault_root()?;
-    let stem = chapter_file.strip_suffix(".md").unwrap_or(chapter_file);
-    Ok(vault.join("notes").join(book_id).join(format!("{stem}-highlights.json")))
+    super::paths::chapter_highlights_path(book_id, chapter_file)
 }
 
 /// `<chapter>-notes.md` for a chapter file such as `ch-01.md`.
@@ -86,8 +85,7 @@ fn write_highlights(path: &std::path::Path, highlights: &[HighlightItem]) -> Res
 /// nothing is moved and nothing is removed (DS-06 keeps the rest).
 fn read_old_comment(book_id: &str, chapter_file: &str) -> Result<Option<Vec<HighlightItem>>> {
     let notes_file = notes_file_name(chapter_file);
-    let vault = find_vault_root()?;
-    if !vault.join("notes").join(book_id).join(&notes_file).exists() {
+    if !super::paths::chapter_notes_path(book_id, &notes_file)?.exists() {
         return Ok(None);
     }
 

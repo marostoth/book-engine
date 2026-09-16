@@ -1,6 +1,9 @@
 use anyhow::{Context, Result};
 use super::models::{AggregatedNoteItem, ChapterNoteFile};
-use super::reader::{find_vault_root, read_book_meta_json, write_notes_file};
+use super::reader::read_book_meta_json;
+
+/// The summary that the app exports, in `vault/notes/<book-id>/`.
+const SUMMARY_EXPORT_FILE: &str = "summary-export.md";
 
 /// Helper: extracts numeric index from paragraph anchor like "^p-042" -> 42
 pub fn extract_anchor_index(anchor_opt: Option<&str>) -> usize {
@@ -14,8 +17,7 @@ pub fn extract_anchor_index(anchor_opt: Option<&str>) -> usize {
 
 /// Scans vault/notes/<book-id>/ for all ch-*-notes.md files in read-only mode and returns their contents.
 pub fn scan_all_notes(book_id: &str) -> Result<Vec<ChapterNoteFile>> {
-    let vault = find_vault_root()?;
-    let notes_dir = vault.join("notes").join(book_id);
+    let notes_dir = super::paths::notes_folder(book_id)?;
     let mut entries = Vec::new();
 
     if !notes_dir.exists() {
@@ -267,16 +269,14 @@ pub fn compile_and_export_book_summary(book_id: &str) -> Result<String> {
 
     md.push_str("*Generated deterministically by Book Engine*\n");
 
-    write_notes_file(book_id, "summary-export.md", &md)?;
-    let vault = find_vault_root()?;
-    let exported_path = vault.join("notes").join(book_id).join("summary-export.md");
+    let exported_path = super::paths::notes_file(book_id, SUMMARY_EXPORT_FILE)?;
+    super::safe_write::write_file(&exported_path, &md)?;
     Ok(exported_path.to_string_lossy().to_string())
 }
 
 /// Exports a single compiled summary markdown file to vault/notes/<book-id>/summary-export.md
 pub fn export_summary_file(book_id: &str, content: &str) -> Result<String> {
-    write_notes_file(book_id, "summary-export.md", content)?;
-    let vault = find_vault_root()?;
-    let path = vault.join("notes").join(book_id).join("summary-export.md");
+    let path = super::paths::notes_file(book_id, SUMMARY_EXPORT_FILE)?;
+    super::safe_write::write_file(&path, content)?;
     Ok(path.to_string_lossy().to_string())
 }

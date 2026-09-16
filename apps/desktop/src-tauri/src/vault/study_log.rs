@@ -88,8 +88,8 @@ pub struct BookStudyLog {
     pub damaged: Vec<String>,
 }
 
-fn log_path(book_id: &str, file: &str) -> Result<PathBuf> {
-    Ok(find_vault_root()?.join("notes").join(book_id).join(file))
+fn log_path(book_id: &str, file: &'static str) -> Result<PathBuf> {
+    super::paths::notes_file(book_id, file)
 }
 
 /// Adds one line to a log file, and makes sure it reached the disk before returning.
@@ -159,7 +159,8 @@ pub fn read_book_log(book_id: &str) -> Result<BookStudyLog> {
     })
 }
 
-/// The books that have a folder under `vault/notes/`, in name order.
+/// The books that have a folder under `vault/notes/`, in name order. A folder whose name is no book id, or that is a
+/// link, is no book: the app does not read or write it (SEC-03), so it cannot stop a job that reads every book.
 pub fn books_with_notes() -> Result<Vec<String>> {
     let notes = find_vault_root()?.join("notes");
     if !notes.exists() {
@@ -168,8 +169,10 @@ pub fn books_with_notes() -> Result<Vec<String>> {
     let mut books: Vec<String> = std::fs::read_dir(&notes)
         .with_context(|| format!("Failed to read {}", notes.display()))?
         .filter_map(Result::ok)
-        .filter(|entry| entry.path().is_dir())
+        // `file_type` does not follow a link, so a folder that is a link is not a folder here.
+        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
         .filter_map(|entry| entry.file_name().into_string().ok())
+        .filter(|name| super::paths::check_book_id(name).is_ok())
         .collect();
     books.sort();
     Ok(books)

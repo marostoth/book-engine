@@ -94,8 +94,8 @@ pub fn list_syntopic_topics() -> Result<Vec<SyntopicTopicSummary>> {
 
 /// Loads a single syntopic topic from `vault/syntopicon/topics/<topic-id>.json`.
 pub fn load_syntopic_topic(topic_id: &str) -> Result<SyntopicTopic> {
-    let topics_dir = ensure_syntopicon_dirs()?;
-    let file_path = topics_dir.join(format!("{}.json", topic_id));
+    let file_path = super::paths::topic_path(topic_id)?;
+    ensure_syntopicon_dirs()?;
 
     if !file_path.exists() {
         return Ok(SyntopicTopic {
@@ -198,8 +198,8 @@ fn first_free_numbered_id(topics_dir: &Path) -> Result<String> {
 
 /// Persists a syntopic topic to `vault/syntopicon/topics/<topic-id>.json`.
 pub fn save_syntopic_topic(topic: SyntopicTopic) -> Result<()> {
-    let topics_dir = ensure_syntopicon_dirs()?;
-    let file_path = topics_dir.join(format!("{}.json", topic.id));
+    let file_path = super::paths::topic_path(&topic.id)?;
+    ensure_syntopicon_dirs()?;
 
     let serialized = serde_json::to_string_pretty(&topic)
         .context("Failed to serialize SyntopicTopic to JSON")?;
@@ -207,24 +207,16 @@ pub fn save_syntopic_topic(topic: SyntopicTopic) -> Result<()> {
     super::safe_write::write_file(&file_path, &serialized)
 }
 
-/// Compiles a dialectical synthesis report and persists it to `vault/syntopicon/reports/<topic-id>-synthesis.md`.
+/// Compiles a dialectical synthesis report and persists it to `vault/syntopicon/reports/<topic-id>-synthesis.md`. The id
+/// in the topic file names the report, so that id is checked too (SEC-03). Loading the topic makes the reports folder.
 pub fn export_syntopic_report(topic_id: &str) -> Result<String> {
-    let vault = find_vault_root()?;
-    let reports_dir = vault.join("syntopicon").join("reports");
-    if !reports_dir.exists() {
-        fs::create_dir_all(&reports_dir)
-            .with_context(|| format!("Failed to create syntopicon reports dir: {}", reports_dir.display()))?;
-    }
-
     let topic = load_syntopic_topic(topic_id)?;
+    let file_path = super::paths::topic_report_path(&topic.id)?;
     let markdown = super::syntopicon_compiler::compile_dialectical_dossier(&topic);
-
-    let filename = format!("{}-synthesis.md", topic.id);
-    let file_path = reports_dir.join(&filename);
 
     super::safe_write::write_file(&file_path, &markdown)?;
 
-    Ok(format!("reports/{}", filename))
+    Ok(format!("reports/{}-synthesis.md", topic.id))
 }
 
 #[cfg(test)]

@@ -145,6 +145,18 @@ pub(crate) fn is_inside_sandbox(path: &Path) -> bool {
     })
 }
 
+/// Makes `link` a junction to `target`. A junction is the folder link that Windows lets a user make without admin rights.
+#[cfg(windows)]
+pub(crate) fn junction(link: &Path, target: &Path) {
+    let output = std::process::Command::new("cmd")
+        .args(["/C", "mklink", "/J"])
+        .arg(link)
+        .arg(target)
+        .output()
+        .expect("run mklink");
+    assert!(output.status.success(), "mklink /J failed: {}", String::from_utf8_lossy(&output.stdout));
+}
+
 /// Settings file path in test builds.
 pub(crate) fn settings_path() -> Result<PathBuf> {
     Ok(active_root()?.join("settings.json"))

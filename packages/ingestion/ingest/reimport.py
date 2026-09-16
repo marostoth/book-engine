@@ -12,6 +12,8 @@ import sys
 from pathlib import Path
 from typing import List
 
+from ingest.book_id import check_book_id
+
 #: The files in `vault/notes/<book-id>/` that an import makes. Every other file there is the reader's own.
 IMPORTED_NOTES_FILES = frozenset({"practice-deck.md"})
 
@@ -47,10 +49,13 @@ def reader_files(vault_dir: Path, book_id: str) -> List[str]:
 def check_book_can_be_imported(vault_dir: Path, book_id: str, replace: bool) -> None:
     """Stops the import of a book that the vault already has, unless `replace` is true.
 
-    Call it before the import writes anything. The vault has the book when `books/<book-id>/_meta.json` exists, or
-    when `notes/<book-id>/` holds files of the reader. A book folder that a failed first import left with no
-    `_meta.json`, and no files of the reader, does not stop the import. A replacing import names the files it keeps.
+    Call it before the import writes anything. A book id that does not follow the rule of `ingest.book_id` stops the
+    import first, because the id names the folders of the book (SEC-03). The vault has the book when
+    `books/<book-id>/_meta.json` exists, or when `notes/<book-id>/` holds files of the reader. A book folder that a
+    failed first import left with no `_meta.json`, and no files of the reader, does not stop the import. A replacing
+    import names the files it keeps.
     """
+    check_book_id(book_id)
     files = reader_files(vault_dir, book_id)
     in_vault = (Path(vault_dir) / "books" / book_id / "_meta.json").exists() or bool(files)
     if not in_vault:

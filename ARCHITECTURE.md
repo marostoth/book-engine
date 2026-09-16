@@ -269,13 +269,14 @@ book-engine/
 │           │   ├── lib.rs               # Application builder, plugin setup, and invoke router; only one copy of the app runs (single-instance plugin, registered first)
 │           │   ├── main.rs              # Tauri binary executable entrypoint
 │           │   ├── security_config_tests.rs # Window security tests: only the scripts of the app run, pictures come only from the app & the book picture folders, the asset protocol opens no file on its own (SEC-02)
-│           │   ├── test_support.rs      # Test-only sandbox: temporary vault & cache database per unit test, also for its test threads (Sandbox::spawn); the vault search finds nothing outside it
+│           │   ├── test_support.rs      # Test-only sandbox: temporary vault & cache database per unit test, also for its test threads (Sandbox::spawn); the vault search finds nothing outside it; folder links for tests on Windows (`junction`)
 │           │   ├── vault/               # Modular vault file I/O & notes aggregation
 │           │   │   ├── analytical.rs        # Level 3 analytical store loader, saver & unit tests; a damaged file stops the load and the save
 │           │   │   ├── book_pictures.rs     # The picture folder of each book (`books/<book>/assets`), the only files the window may load through the asset protocol; links are left out (SEC-02)
 │           │   │   ├── book_pictures_tests.rs # Picture folder tests: only the `assets` folder of each book counts, and a book folder or picture folder that is a link is left out
 │           │   │   ├── bookmark.rs          # Where you stopped reading: `vault/notes/<book-id>/bookmark.json`; the newest bookmark names the book to open
 │           │   │   ├── bookmark_tests.rs    # Bookmark tests: the newest moment wins, a damaged bookmark is never saved over
+│           │   │   ├── escape_tests.rs      # Tests that no name the page sends reads or writes a file outside the vault: `..` parts, absolute paths & linked folders, for every command that takes a name (SEC-03)
 │           │   │   ├── highlights.rs        # Chapter highlights file: load, save, and the one-time move out of the old notes comment (quotes may hold `-->`)
 │           │   │   ├── highlights_tests.rs  # Highlight tests: a notes save cannot erase a highlight, and the move keeps the reader's text
 │           │   │   ├── inspectional.rs      # Your exit assessment in `vault/notes/<book-id>/inspectional.json`, never in the `_meta.json` an import writes again
@@ -285,12 +286,14 @@ book-engine/
 │           │   │   ├── locate_tests.rs      # Find tests: a folder with no books inside is refused, nothing is remembered, and a test never finds the real vault
 │           │   │   ├── models.rs            # Vault metadata, analytical and note structures
 │           │   │   ├── notes.rs             # Chapter reflection notes loader, saver & summary export
+│           │   │   ├── paths.rs             # The only way from a name the page sends to a vault path: rules for book ids, chapter files, notes files & topic ids, and a path that leads out of the vault through a link is refused (SEC-03)
+│           │   │   ├── paths_tests.rs       # Name rule tests: every name the importer & the app make passes, a name that could leave its folder is refused, and a notes folder that is no book cannot stop the jobs that read every book
 │           │   │   ├── preferences.rs       # Reader settings in `vault/preferences.json`, kept key for key; a damaged file stops the load and the save
 │           │   │   ├── preferences_tests.rs # Settings tests: a setting this build does not know is kept, a damaged file is never saved over
 │           │   │   ├── reader.rs            # Book discovery & chapter I/O; `_meta.json` is only read, because the importer makes it (the vault folder comes from locate.rs); a book's id is its folder name
 │           │   │   ├── reader_tests.rs      # Vault write tests: no half-written notes file while a save runs; a renamed book folder opens under its folder name
 │           │   │   ├── safe_write.rs        # The one vault write: temporary file in the same folder, flushed, then renamed over the target, so a save is never half done
-│           │   │   ├── study_log.rs         # The permanent record of your study: reviews & reading time, one line each
+│           │   │   ├── study_log.rs         # The permanent record of your study: reviews & reading time, one line each; a notes folder whose name is no book id, or that is a link, is no book (SEC-03)
 │           │   │   ├── syntopicon.rs        # Level 4 Syntopicon topic file I/O & report exporter; a new topic never replaces a topic file that is there
 │           │   │   ├── syntopicon_compiler.rs # Level 4 Dialectical dossier compiler producing Markdown reports
 │           │   │   ├── syntopicon_models.rs # Level 4 Syntopicon neutral terms & controversy structs
@@ -312,7 +315,8 @@ book-engine/
 │       │   ├── anchors.py               # Deterministic paragraph anchor (^p-xxx) injector
 │       │   ├── assets.py                # Asset extraction, micro-asset filtering & page-level image suppression
 │       │   ├── batch.py                 # Batch document intake utility (.epub & .pdf)
-│       │   ├── cli.py                   # Command-line entrypoint (`book-ingest`); a book the vault already has is replaced only with --force
+│       │   ├── book_id.py               # The rule for a book id, which names the folders of a book: an import with another id stops before it writes anything (SEC-03)
+│       │   ├── cli.py                   # Command-line entrypoint (`book-ingest`); a book the vault already has is replaced only with --force; a --book-id that breaks the rule stops the import (SEC-03)
 │       │   ├── elementary.py            # Deterministic Flesch-Kincaid & reading time metrics
 │       │   ├── endnotes.py              # Backmatter endnote relocation to inline footnotes
 │       │   ├── epub_parser.py           # XHTML chapter extractor & typography normalizer; book text that looks like HTML is written as text (SEC-01)
@@ -330,6 +334,8 @@ book-engine/
 │       ├── tests/               # Pytest verification suite for anchors, schemas, TOC, and pipeline
 │       │   ├── test_analytical_audit.py # Vector 9 analytical logic & citation parity test suite
 │       │   ├── test_anchors.py          # Deterministic paragraph anchor injection test suite
+│       │   ├── test_book_id.py          # Import tests: an EPUB, a PDF or the command line with a book id that could lead out of the vault writes nothing (SEC-03)
+│       │   ├── test_book_id_rule.py     # Book id rule tests: every id the importer makes passes, an id that could leave its folder is refused
 │       │   ├── test_endnotes.py         # Endnote relocation & inline footnote syntax test suite
 │       │   ├── test_figure_cards.py     # Figure extraction, full-width dimensions & table suppression tests
 │       │   ├── test_markdown_text.py    # Book text tests: a tag the book shows as text is written as text in every kind of block, and reads back as the book has it
@@ -399,6 +405,12 @@ Multi-column textbook pages frequently include full-width conceptual matrices, m
 - **A Quote Is Saved at Once:** "Add note" on a selection puts the quote at the end of the chapter notes and saves them right away (`addQuoteToNotes`, `src/lib/notesQuote.ts`), because a quote is a click, not typing. It used to change the text on screen only, so it reached the vault after the next keystroke and was lost at the next chapter change without one (DS-08). A quote waits while the notes are read from the disk, on screen as well, so the notes that arrive cannot wipe it; notes that failed to load never take a quote, and the reader is told.
 - **One Writer per File:** The chapter notes `ch-XX-notes.md` hold only what the reader writes, and the notes pane is their only writer. Nothing parses a highlight out of Markdown any more, so no character in a quote can break the saved list (DS-06). Highlights live in `ch-XX-highlights.json`, and `vault/highlights.rs` is their only writer. Before this, both parts saved the same Markdown file, so a keystroke in the notes pane erased a highlight that had just been added (DS-05). A chapter that still keeps its highlights in the old `<!-- highlights-json ... -->` comment is moved over the first time it is read: the highlights and the quote lines the app wrote leave the notes file, and the reader's own headings and text stay.
 - **Safe Vault Write:** Every write into the vault goes through `write_file` (`apps/desktop/src-tauri/src/vault/safe_write.rs`): the bytes go to a temporary file in the same folder, are flushed to the disk, and are then renamed over the target. A rename is one step, so a crash or a power cut leaves the whole old file or the whole new file, never an empty or cut-off one. A rename that fails because another program holds the file, such as the OneDrive client, is tried a few times before the save reports an error, and the temporary file is removed. `serde_json` is built with `preserve_order`, so a JSON object that the app reads and writes back, such as the settings, keeps its key order.
+- **Names From the Page Stay in the Vault (SEC-03):** The commands made vault paths from the book id, the chapter file, the notes file and the topic id that the page sends, as they came. `Path::join` with an absolute path gives that path, and `..` climbs out of a folder, so code in the page could read and write any file on the computer, and `book-ingest --book-id ../../x` wrote a book outside the vault. Now `apps/desktop/src-tauri/src/vault/paths.rs` makes every such path, and it refuses a name that does not follow its rule:
+  - A book id or a topic id has 1 to 255 characters from `a-z`, `0-9`, `-` and `_`, and does not start with `-`.
+  - A chapter file is `ch-`, 2 or more digits and `.md`, such as `ch-01.md`.
+  - A notes file is `ch-`, 2 or more digits and `-notes.md`, such as `ch-01-notes.md`.
+
+  The id inside a topic file names its report, so it is checked too. A path must also still be in the vault when the links on the way to it are followed, so a book folder or a notes folder that is a link to another place is not used. Every name that the importer and the app make follows the rules; a book folder that was renamed by hand to another name does not open. The jobs that read every book (the copy of an older cache, the restore at startup and the newest bookmark) leave out a notes folder whose name is no book id or that is a link, so one such folder cannot stop them. The importer checks a book id with the same rule before it writes anything (`packages/ingestion/ingest/book_id.py`). `vault/escape_tests.rs` gives every command that takes a name `..` parts, absolute paths and linked folders, and checks that no file outside the vault is read or written.
 - **Damaged Vault File:** A vault JSON file that cannot be parsed is never read as empty data, because the next save would write that empty data back. `read_json_file` (`apps/desktop/src-tauri/src/vault/json_store.rs`) removes a leading byte order mark, and a file it still cannot parse gives an error that names the file and is copied to `<file name>.corrupt-<time>`. `vocabulary.rs` and `analytical.rs` read through it, so both the load and the save fail and the file on disk is left exactly as it is.
 - **One Copy of the App:** Only one copy of the app runs (`one_copy_only` in `apps/desktop/src-tauri/src/lib.rs`: the single-instance plugin, registered before every other plugin). A second start tells the open copy, which brings its window to the front, and the second copy ends before it opens a window or reads the vault or the cache. Before this, two copies could run at once. Analytical and syntopicon saves write the whole object that a copy holds in memory, so the copy that saved last wrote over the work of the other (DS-13). The desktop shortcut starts the program of the open app again, which brings it to the front, instead of stopping its dev server. Two starts less than about 2 ms apart can both run, because the first has not made its message window yet.
 - **No Hidden Fallback:** Inside the app, every frontend call to the backend goes through `callBackend` (`apps/desktop/src/lib/api/clientBase.ts`). A failed load or save rejects with the backend error and shows in the error bar (`BackendErrorBar.tsx`). Nothing falls back to sample data, and no vault data goes to browser storage. Data that did not load is not saved over: the notes pane stays locked, a new highlight is not saved, and analytical changes for that book are not saved.
@@ -485,7 +497,7 @@ All deck synchronization and review calculations are executed on background thre
 ## 5. Desktop Reader Core: As-Built Implementation (Phase 2)
 
 ### Tauri v2 IPC Interface (`apps/desktop/src-tauri/`)
-All disk I/O operations are offloaded from the Tauri main thread using `tokio::task::spawn_blocking` to preserve unblocked UI responsiveness:
+All disk I/O operations are offloaded from the Tauri main thread using `tokio::task::spawn_blocking` to preserve unblocked UI responsiveness. A book id, chapter file, notes file or topic id that a command gets must follow the rules of `vault/paths.rs` before it is part of a path (SEC-03):
 
 | Command | Signature | Description |
 | :--- | :--- | :--- |
@@ -495,8 +507,8 @@ All disk I/O operations are offloaded from the Tauri main thread using `tokio::t
 | `list_books` | `() -> Result<Vec<BookSummary>, String>` | Scans `vault/books/` and parses available `_meta.json` records. |
 | `load_book_meta` | `(book_id: String) -> Result<String, String>` | Reads `vault/books/<book_id>/_meta.json` as JSON string. |
 | `load_chapter` | `(book_id: String, chapter_file: String) -> Result<String, String>` | Reads chapter Markdown text (`ch-XX.md`) from the vault. It also lets the window load the pictures in the `assets` folder of each book, because the asset protocol opens no file on its own (`vault/book_pictures.rs`, SEC-02). |
-| `load_notes` | `(book_id: String, notes_file: String) -> Result<String, String>` | Reads `vault/notes/<book_id>/<notes_file>` (auto-scaffolds starter template if missing). |
-| `save_notes` | `(book_id: String, notes_file: String, content: String) -> Result<(), String>` | Persists user reflection notes to `vault/notes/<book_id>/<notes_file>`. |
+| `load_notes` | `(book_id: String, notes_file: String) -> Result<String, String>` | Reads `vault/notes/<book_id>/<notes_file>` (auto-scaffolds starter template if missing). The notes file is the notes of a chapter, such as `ch-01-notes.md` (SEC-03). |
+| `save_notes` | `(book_id: String, notes_file: String, content: String) -> Result<(), String>` | Persists user reflection notes to `vault/notes/<book_id>/<notes_file>`. The notes file is the notes of a chapter, such as `ch-01-notes.md` (SEC-03). |
 | `get_chapter_highlights` | `(book_id: String, chapter_file: String) -> Result<Vec<HighlightItem>, String>` | Reads `vault/notes/<book_id>/<chapter>-highlights.json`. A chapter that still keeps its highlights in the old notes comment is moved over once, keeping the reader's own text. |
 | `save_chapter_highlights` | `(book_id: String, chapter_file: String, highlights: Vec<HighlightItem>) -> Result<(), String>` | Writes `vault/notes/<book_id>/<chapter>-highlights.json`. It never touches the chapter notes, and a damaged highlights file stops the save. |
 | `get_bookmark` | `(book_id: String) -> Result<Option<Bookmark>, String>` | Reads `vault/notes/<book_id>/bookmark.json`: the chapter file, the paragraph in the middle of the screen (`^p-xxx`), and when it was saved. `None` for a book the reader has not read; a damaged file is an error and is copied. |
