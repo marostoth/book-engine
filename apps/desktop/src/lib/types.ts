@@ -115,6 +115,10 @@ export interface SearchResult {
   chapter_title: string;
   chapter_file: string;
   anchor: string;
+  /**
+   * A piece of the paragraph as plain text, with `HIT_START` and `HIT_END` (`lib/searchSnippet.ts`) around each hit.
+   * It holds no HTML: show it with `snippetNodes` (SEC-01).
+   */
   snippet: string;
   rank: number;
 }

@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup, NavigableString, Tag
 import ebooklib
 from ebooklib import epub
 
+from ingest.markdown_text import escape_markdown_text
 from ingest.models import TOCItem
 
 
@@ -162,14 +163,14 @@ def html_to_markdown_blocks(soup: BeautifulSoup) -> List[str]:
         if isinstance(node, NavigableString):
             text = str(node).strip()
             if text:
-                blocks.append(text)
+                blocks.append(escape_markdown_text(text))
             return
 
         for child in node.children:
             if isinstance(child, NavigableString):
                 text = str(child).strip()
                 if text:
-                    blocks.append(text)
+                    blocks.append(escape_markdown_text(text))
                 continue
 
             if not isinstance(child, Tag):
@@ -231,7 +232,7 @@ def html_to_markdown_blocks(soup: BeautifulSoup) -> List[str]:
 
             # Standalone Images
             elif tag_name == "img":
-                alt = child.get("alt", "")
+                alt = escape_markdown_text(str(child.get("alt", "")))
                 src = child.get("src", "")
                 if src:
                     blocks.append(f"![{alt}]({src})")
@@ -241,14 +242,14 @@ def html_to_markdown_blocks(soup: BeautifulSoup) -> List[str]:
 
 
 def _render_inline(element: Tag | NavigableString) -> str:
-    """Render inline HTML tags to Markdown formatting."""
+    """Render inline HTML tags to Markdown formatting. Text that looks like HTML is written as text (SEC-01)."""
     if isinstance(element, NavigableString):
-        return str(element)
+        return escape_markdown_text(str(element))
 
     out: List[str] = []
     for child in element.children:
         if isinstance(child, NavigableString):
-            out.append(str(child))
+            out.append(escape_markdown_text(str(child)))
         elif isinstance(child, Tag):
             name = child.name.lower()
             inner = _render_inline(child)
@@ -259,7 +260,7 @@ def _render_inline(element: Tag | NavigableString) -> str:
             elif name == "code":
                 out.append(f"`{inner.strip()}`" if inner.strip() else "")
             elif name == "img":
-                alt = child.get("alt", "")
+                alt = escape_markdown_text(str(child.get("alt", "")))
                 src = child.get("src", "")
                 out.append(f"![{alt}]({src})" if src else "")
             else:

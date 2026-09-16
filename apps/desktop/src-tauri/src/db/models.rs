@@ -7,6 +7,8 @@ pub struct SearchResult {
     pub chapter_title: String,
     pub chapter_file: String,
     pub anchor: String,
+    /// A piece of the paragraph as plain text, with `HIT_START` and `HIT_END` (`db/search_text.rs`) around each hit.
+    /// It holds no HTML, and the window shows it as text (SEC-01).
     pub snippet: String,
     pub rank: f64,
 }

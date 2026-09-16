@@ -5,6 +5,7 @@ import type {
   SearchResult,
   InspectionalBlueprint,
 } from "../../types";
+import { HIT_END, HIT_START } from "../../searchSnippet.ts";
 
 export const FALLBACK_META: BookMeta = {
   book_id: "sample",
@@ -225,8 +226,9 @@ export function fallbackSearchVault(query: string): SearchResult[] {
           text = block.slice(0, idx).trim();
         }
 
+        // Plain text with the characters that mark a hit, as the Rust search sends it (SEC-01).
         const regex = new RegExp(`(${qLower})`, "gi");
-        const highlighted = text.replace(regex, "<mark>$1</mark>");
+        const highlighted = text.replace(regex, `${HIT_START}$1${HIT_END}`);
 
         results.push({
           book_id: "sample",

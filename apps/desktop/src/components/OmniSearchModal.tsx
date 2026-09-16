@@ -5,6 +5,7 @@ import { searchVault } from "../lib/api";
 import { ReaderLocation, searchResultBookTitle, searchResultLocation } from "../lib/readerLocation";
 import { MIN_SEARCH_CHARACTERS, isSearchable } from "../lib/searchQuery";
 import { reportBackendError } from "../lib/backendErrors";
+import { snippetNodes } from "../lib/searchSnippet";
 
 interface OmniSearchModalProps {
   isOpen: boolean;
@@ -183,10 +184,10 @@ export const OmniSearchModal: React.FC<OmniSearchModalProps> = ({
                   )}
                 </div>
 
-                <div
-                  className="font-serif text-xs leading-relaxed text-[var(--theme-muted)] line-clamp-2 select-none [&_mark]:bg-[var(--theme-accent)]/30 [&_mark]:text-[var(--theme-text)] [&_mark]:rounded [&_mark]:px-0.5 font-normal"
-                  dangerouslySetInnerHTML={{ __html: res.snippet }}
-                />
+                <div className="font-serif text-xs leading-relaxed text-[var(--theme-muted)] line-clamp-2 select-none [&_mark]:bg-[var(--theme-accent)]/30 [&_mark]:text-[var(--theme-text)] [&_mark]:rounded [&_mark]:px-0.5 font-normal">
+                  {/* Plain text with a mark around each hit: book text never becomes HTML here (SEC-01). */}
+                  {snippetNodes(res.snippet)}
+                </div>
               </div>
             );
           })}

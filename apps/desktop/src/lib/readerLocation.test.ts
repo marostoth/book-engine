@@ -25,7 +25,7 @@ const library: Record<string, BookMeta> = { [sample.book_id]: sample, [wealth.bo
 
 // A search hit as `search_vault` returns it.
 function hit(bookId: string, chapterFile: string, anchor = "^p-001"): SearchResult {
-  return { book_id: bookId, chapter_id: chapterFile.replace(".md", ""), chapter_title: "", chapter_file: chapterFile, anchor, snippet: "<mark>labour</mark>", rank: -1 };
+  return { book_id: bookId, chapter_id: chapterFile.replace(".md", ""), chapter_title: "", chapter_file: chapterFile, anchor, snippet: "\uE000labour\uE001", rank: -1 };
 }
 
 // Opens a hit the way the search window does and records which books had to be loaded.

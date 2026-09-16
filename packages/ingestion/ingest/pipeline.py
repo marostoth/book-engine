@@ -16,6 +16,7 @@ from ingest.anchors import inject_paragraph_anchors, extract_anchors, extract_in
 from ingest.elementary import compute_elementary_metrics
 from ingest.salience import generate_chapter_practice_cards, generate_chapter_scenario_cards, format_practice_deck_markdown
 from ingest.epub_parser import extract_metadata, parse_toc, html_to_markdown_blocks
+from ingest.markdown_text import unescape_markdown_text
 from ingest.pdf_parser import PDFParser
 from ingest.reimport import check_book_can_be_imported
 
@@ -125,9 +126,9 @@ def ingest_epub(
         words = len(re.findall(r"\b\w+\b", anchored_md))
         total_words += words
 
-        # Determine chapter title from heading or metadata
+        # Determine chapter title from heading or metadata. _meta.json holds the title as text (SEC-01).
         ch_title_match = re.search(r"^#{1,3}\s+(.+)$", anchored_md, re.MULTILINE)
-        ch_title = ch_title_match.group(1).strip() if ch_title_match else f"Chapter {chapter_index}"
+        ch_title = unescape_markdown_text(ch_title_match.group(1).strip()) if ch_title_match else f"Chapter {chapter_index}"
 
         # Write chapter file: ch-01.md, ch-02.md, ...
         ch_id = f"ch-{chapter_index:02d}"
