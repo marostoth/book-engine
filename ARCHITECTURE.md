@@ -171,7 +171,7 @@ book-engine/
 │       │   │   ├── chapterGate.test.ts  # Gate tests: later chapters only, every level but syntopical, wrong answers never pass
 │       │   │   ├── elementaryPacer.ts      # Pure pacer timing, chunking, and contrast opacity functions
 │       │   │   ├── elementaryPacer.test.ts # Unit tests for pacer timing, chunking, and contrast math
-│       │   │   ├── highlights.ts        # W3C Text Quote Selector reader, paragraph placement & old-comment parser
+│       │   │   ├── highlights.ts        # W3C Text Quote Selector reader, paragraph placement & old-comment parser (finds the JSON list, not the first `-->`)
 │       │   │   ├── highlights.test.ts   # Highlight tests: a saved anchor brings each highlight back to its own paragraph
 │       │   │   ├── levelGuideData.ts    # Mortimer Adler levels static cheatsheet & hotkeys registry
 │       │   │   ├── markdown.ts          # Chapter Markdown preprocessor & anchor normalizer
@@ -229,7 +229,7 @@ book-engine/
 │           │   ├── test_support.rs      # Test-only sandbox: temporary vault & cache database per unit test, also for its test threads (Sandbox::spawn)
 │           │   ├── vault/               # Modular vault file I/O & notes aggregation
 │           │   │   ├── analytical.rs        # Level 3 analytical store loader, saver & unit tests; a damaged file stops the load and the save
-│           │   │   ├── highlights.rs        # Chapter highlights file: load, save, and the one-time move out of the old notes comment
+│           │   │   ├── highlights.rs        # Chapter highlights file: load, save, and the one-time move out of the old notes comment (quotes may hold `-->`)
 │           │   │   ├── highlights_tests.rs  # Highlight tests: a notes save cannot erase a highlight, and the move keeps the reader's text
 │           │   │   ├── json_store.rs        # Safe JSON read for vault files: byte order mark removed, a damaged file errors and is copied to <name>.corrupt-<time>
 │           │   │   ├── models.rs            # Vault metadata, analytical and note structures
@@ -326,7 +326,7 @@ Multi-column textbook pages frequently include full-width conceptual matrices, m
 
 - **Vault (`vault/`):** Human-readable plain-text Markdown files and images. Can be edited externally (Obsidian, Neovim, VS Code).
 - **Ephemeral Cache (`index.db`):** Stored strictly in the OS application data folder (`%APPDATA%\book-engine\`). Never checked into version control.
-- **One Writer per File:** The chapter notes `ch-XX-notes.md` hold only what the reader writes, and the notes pane is their only writer. Highlights live in `ch-XX-highlights.json`, and `vault/highlights.rs` is their only writer. Before this, both parts saved the same Markdown file, so a keystroke in the notes pane erased a highlight that had just been added (DS-05). A chapter that still keeps its highlights in the old `<!-- highlights-json ... -->` comment is moved over the first time it is read: the highlights and the quote lines the app wrote leave the notes file, and the reader's own headings and text stay.
+- **One Writer per File:** The chapter notes `ch-XX-notes.md` hold only what the reader writes, and the notes pane is their only writer. Nothing parses a highlight out of Markdown any more, so no character in a quote can break the saved list (DS-06). Highlights live in `ch-XX-highlights.json`, and `vault/highlights.rs` is their only writer. Before this, both parts saved the same Markdown file, so a keystroke in the notes pane erased a highlight that had just been added (DS-05). A chapter that still keeps its highlights in the old `<!-- highlights-json ... -->` comment is moved over the first time it is read: the highlights and the quote lines the app wrote leave the notes file, and the reader's own headings and text stay.
 - **Safe Vault Write:** Every write into the vault goes through `write_file` (`apps/desktop/src-tauri/src/vault/safe_write.rs`): the bytes go to a temporary file in the same folder, are flushed to the disk, and are then renamed over the target. A rename is one step, so a crash or a power cut leaves the whole old file or the whole new file, never an empty or cut-off one. A rename that fails because another program holds the file, such as the OneDrive client, is tried a few times before the save reports an error, and the temporary file is removed. `serde_json` is built with `preserve_order`, so a rewritten `_meta.json` keeps the key order it had, and `save_inspectional_exit_assessment` writes back the line endings the file had.
 - **Damaged Vault File:** A vault JSON file that cannot be parsed is never read as empty data, because the next save would write that empty data back. `read_json_file` (`apps/desktop/src-tauri/src/vault/json_store.rs`) removes a leading byte order mark, and a file it still cannot parse gives an error that names the file and is copied to `<file name>.corrupt-<time>`. `vocabulary.rs` and `analytical.rs` read through it, so both the load and the save fail and the file on disk is left exactly as it is.
 - **No Hidden Fallback:** Inside the app, every frontend call to the backend goes through `callBackend` (`apps/desktop/src/lib/api/clientBase.ts`). A failed load or save rejects with the backend error and shows in the error bar (`BackendErrorBar.tsx`). Nothing falls back to sample data, and no vault data goes to browser storage. Data that did not load is not saved over: the notes pane stays locked, a new highlight is not saved, and analytical changes for that book are not saved.
@@ -552,7 +552,9 @@ Highlights are saved as a JSON list in `vault/notes/<book-id>/<chapter>-highligh
 ]
 ```
 
-Older chapters kept the same list inside a `<!-- highlights-json ... -->` comment in the notes Markdown. `load_chapter_highlights` moves such a chapter over the first time it is read and leaves the reader's own text in place. A comment that cannot be parsed is left alone and gives an error, so nothing is lost.
+Older chapters kept the same list inside a `<!-- highlights-json ... -->` comment in the notes Markdown. `load_chapter_highlights` moves such a chapter over the first time it is read and leaves the reader's own text in place.
+
+The list is read from the `[` that opens it to the `]` that closes it, counting brackets but not those inside a quoted string, and never to the first `-->`. A saved quote may itself hold `-->`, and stopping there cut the list in half, so every highlight of that chapter read as none and the next save wrote only the new one (DS-06). The same scan finds where the comment really ends, so the clean-up removes all of it. A comment whose list still cannot be read, for example after a hand edit that deletes a comma, is left alone and gives an error: nothing is moved, nothing is removed.
 
 **Fuzzy Hydration & TreeWalker Injection Algorithm (`applyHighlightsToHtml`):**
 When a chapter HTML payload is prepared for mounting into TipTap:

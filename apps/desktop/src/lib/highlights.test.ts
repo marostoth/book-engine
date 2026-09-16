@@ -71,3 +71,25 @@ test("without a usable anchor, a highlight goes on the first paragraph with its 
   assert.equal(findHighlightParagraph(chapter, { exact: "pin factory", anchor: "^p-003" }), 0, "paragraph was edited");
   assert.equal(findHighlightParagraph(chapter, { exact: "not in this chapter", anchor: "^p-001" }), -1, "quote not found");
 });
+
+test("a quote holding --> is still read from a chapter that was not moved over yet", () => {
+  const withArrow: HighlightItem = { ...selectInParagraph(0, "the arrow --> points right") };
+  const notes = `# Chapter 1 notes\n\n## Highlights\n\n<!-- highlights-json ${JSON.stringify([withArrow])} -->\n`;
+
+  const parsed = parseHighlightsFromNotes(notes);
+
+  assert.equal(parsed.length, 1, "a quote with an arrow must not hide the whole list");
+  assert.equal(parsed[0].exact, "the arrow --> points right");
+});
+
+test("text after the old comment is never read as part of the list", () => {
+  const notes = "# Chapter 1 notes\n\n<!-- highlights-json [] -->\n\n- a line with [ and ] in it\n";
+
+  assert.deepEqual(parseHighlightsFromNotes(notes), []);
+});
+
+test("a list that is really damaged reads as no highlights, and nothing else", () => {
+  const notes = '# Chapter 1 notes\n\n<!-- highlights-json [{"id":"hl-1","exact":"cut off -->\n\n- my own line\n';
+
+  assert.deepEqual(parseHighlightsFromNotes(notes), []);
+});
