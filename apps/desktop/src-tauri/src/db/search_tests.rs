@@ -2,6 +2,7 @@
 
 use crate::db::{index_vault_blocking, search_vault_blocking};
 use crate::test_support::Sandbox;
+use crate::vault::scan_library_books;
 
 const SEARCH_META: &str = r#"{
   "book_id": "search",
@@ -37,6 +38,25 @@ The division of labour raises output. ^p-009
 Send the email today. ^p-010
 
 Ask Don Taylor first. ^p-011
+";
+
+/// A book imported after the first index. None of its words is in `SEARCH_CHAPTER`.
+const IMPORTED_META: &str = r#"{
+  "book_id": "imported",
+  "title": "Imported While Open",
+  "author": "Test Author",
+  "total_words": 12,
+  "total_chapters": 1,
+  "spine": [
+    { "id": "ch-01", "title": "Chapter 1: Coasts", "file_path": "ch-01.md", "order": 1 }
+  ]
+}"#;
+
+const IMPORTED_CHAPTER: &str = "# Chapter 1: Coasts
+
+Glaciers carved deep fjords along the coast. ^p-001
+
+Sheep graze on green hills. ^p-002
 ";
 
 /// A new sandbox with the one-chapter book `search` in the search index.
@@ -126,6 +146,25 @@ fn unusual_search_returns_no_error() {
     }
     // An operator with no word after it is left out while the search is still being typed.
     assert_eq!(found("war AND"), ["^p-001", "^p-003"]);
+}
+
+/// DS-13: "Rescan library" runs the index again. A book imported while the app is open is in the library at once,
+/// and search finds it after that next index, which reads only the new chapter.
+#[test]
+fn a_book_imported_after_the_first_index_is_found_by_the_next_index() {
+    let sandbox = indexed_sandbox();
+    sandbox.write("books/imported/_meta.json", IMPORTED_META);
+    sandbox.write("books/imported/ch-01.md", IMPORTED_CHAPTER);
+
+    let library: Vec<String> = scan_library_books().expect("read the library").into_iter().map(|book| book.id).collect();
+    assert!(library.contains(&"imported".to_string()), "the library lists the new book at once: {library:?}");
+    assert_eq!(found("glaciers"), Vec::<String>::new(), "search does not know the book before the next index");
+
+    let summary = index_vault_blocking().expect("index the vault again");
+    assert_eq!(summary.chapters_indexed, 1, "only the new chapter is read, not the book that was there");
+    assert_eq!(summary.paragraphs_indexed, 2);
+    assert_eq!(found("glaciers"), ["^p-001"]);
+    assert_eq!(found("war"), ["^p-001", "^p-003"], "the book that was there is still found");
 }
 
 #[test]

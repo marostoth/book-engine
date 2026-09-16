@@ -5,6 +5,7 @@ pub mod fsrs;
 #[cfg(test)]
 mod test_support;
 
+use tauri::{AppHandle, Manager, Runtime};
 use commands::{
     get_library_books, list_books, load_book_meta, get_inspectional_blueprint,
     get_inspectional_exit_assessment, save_inspectional_exit_assessment,
@@ -19,20 +20,37 @@ use commands::{
     get_syntopic_topics, get_syntopic_topic, create_syntopic_topic, save_syntopic_topic, export_syntopic_report,
 };
 
+/// Only one copy of the app runs, so two copies never save over each other's work (DS-13).
+///
+/// A second start tells the open copy, which brings its window to the front, and then ends. It ends while the plugins
+/// start: before it opens a window, and before the setup in `run` reads or writes the vault or the cache. So register
+/// it before every other plugin.
+#[cfg(desktop)]
+fn one_copy_only<R: Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    tauri_plugin_single_instance::init(|app, _args, _cwd| show_main_window(app))
+}
+
+/// Brings the main window to the front, also when it is minimized or hidden.
+fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // First, so that a second copy ends before anything else starts (DS-13).
+    #[cfg(desktop)]
+    let builder = builder.plugin(one_copy_only());
+    builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
-            use tauri::Manager;
-
             // Explicitly ensure the main window is unminimized, visible, and focused on startup
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.unminimize();
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
+            show_main_window(app.handle());
 
             // Ensure syntopicon directories exist on startup
             if let Err(e) = vault::ensure_syntopicon_dirs() {

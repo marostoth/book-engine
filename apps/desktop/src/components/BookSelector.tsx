@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Library, ChevronDown, Check, BookOpen, Layers } from "lucide-react";
+import { Library, ChevronDown, Check, BookOpen, Layers, RefreshCw } from "lucide-react";
 import { BookMetadata } from "../lib/types";
+import type { LibraryRescanControl } from "../lib/libraryRescan";
 
 interface BookSelectorProps {
   currentBookId: string;
@@ -8,6 +9,8 @@ interface BookSelectorProps {
   currentAuthor: string;
   books: BookMetadata[];
   onSelectBook: (bookId: string) => void;
+  /** The "Rescan library" button under the list, for books imported while the app is open (DS-13). */
+  libraryRescan?: LibraryRescanControl;
   compact?: boolean;
 }
 
@@ -17,6 +20,7 @@ export const BookSelector: React.FC<BookSelectorProps> = ({
   currentAuthor,
   books,
   onSelectBook,
+  libraryRescan,
   compact = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -154,6 +158,32 @@ export const BookSelector: React.FC<BookSelectorProps> = ({
               })
             )}
           </div>
+
+          {/* Rescan: books imported while the app is open, in the list and in search (DS-13) */}
+          {libraryRescan && (
+            <div className="mt-2 pt-2 px-1 border-t border-[var(--theme-border)]">
+              <button
+                type="button"
+                onClick={libraryRescan.run}
+                disabled={libraryRescan.running}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border border-[var(--theme-border)] bg-[var(--theme-bg)]/60 hover:bg-[var(--theme-bg)] text-[var(--theme-text)] transition-colors disabled:opacity-60 disabled:cursor-wait"
+                title="Find books you imported while the app was open, and add them to search"
+              >
+                <RefreshCw
+                  className={`w-3.5 h-3.5 text-[var(--theme-accent)] ${libraryRescan.running ? "animate-spin" : ""}`}
+                />
+                {libraryRescan.running ? "Rescanning…" : "Rescan library"}
+              </button>
+              <p
+                role="status"
+                className={`px-2 text-center text-[10.5px] leading-snug text-[var(--theme-muted)] ${
+                  libraryRescan.note && !libraryRescan.running ? "mt-1.5" : ""
+                }`}
+              >
+                {libraryRescan.running ? "" : libraryRescan.note}
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>
