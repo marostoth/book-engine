@@ -10,6 +10,7 @@ import {
 import {
   getSyntopicTopics,
   getSyntopicTopic,
+  createSyntopicTopic,
   saveSyntopicTopic,
   exportSyntopicReport,
 } from "../lib/api/syntopiconApi";
@@ -78,32 +79,19 @@ export function useSyntopiconSession() {
     return () => { isCurrent = false; };
   }, [activeTopicId]);
 
-  // Create new syntopical topic. Gives null when the topic was not saved.
+  // Create new syntopical topic. Gives null when the topic was not created. The backend names the topic's file and
+  // refuses a title whose file a topic already uses, so a new topic never replaces one (DS-12).
   const createTopic = useCallback(
     async (title: string, description: string) => {
-      const id = title
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "") || `topic-${Date.now()}`;
-
-      const newTopic: SyntopicTopic = {
-        id,
-        title,
-        description,
-        neutralTerms: [],
-        questions: [],
-        controversies: [],
-        createdAt: new Date().toISOString(),
-      };
-
+      let newTopic: SyntopicTopic;
       try {
-        await saveSyntopicTopic(newTopic);
+        newTopic = await createSyntopicTopic(title, description);
       } catch (err) {
         reportBackendError(`The topic "${title}" was not created.`, err);
         return null;
       }
       await refreshTopics();
-      setActiveTopicId(id);
+      setActiveTopicId(newTopic.id);
       setActiveTopic(newTopic);
       return newTopic;
     },

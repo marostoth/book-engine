@@ -440,6 +440,15 @@ pub async fn get_syntopic_topic(topic_id: String) -> Result<crate::vault::Syntop
         .map_err(|e| format!("Failed to get syntopic topic: {}", e))
 }
 
+/// Creates an empty topic named after `title`. A title whose file a topic already uses is refused (DS-12).
+#[command]
+pub async fn create_syntopic_topic(title: String, description: String) -> Result<crate::vault::SyntopicTopic, String> {
+    tokio::task::spawn_blocking(move || crate::vault::create_syntopic_topic(&title, &description))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+        .map_err(|e| format!("{:#}", e))
+}
+
 #[command]
 pub async fn save_syntopic_topic(topic: crate::vault::SyntopicTopic) -> Result<(), String> {
     tokio::task::spawn_blocking(move || crate::vault::save_syntopic_topic(topic))

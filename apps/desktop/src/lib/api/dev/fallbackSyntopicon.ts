@@ -136,13 +136,49 @@ export function getSyntopicTopic(topicId: string): SyntopicTopic {
   };
 }
 
+/** Browser stand-in for `topic_id_from_title` in `vault/syntopicon.rs`: the file name of a new topic. */
+function topicIdFromTitle(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+/** Browser stand-in for `create_syntopic_topic`: the same file names, and the same refusal of a taken one. */
+export function createSyntopicTopic(title: string, description: string): SyntopicTopic {
+  const taken = new Set(getSyntopicTopics().map((summary) => summary.id));
+  let id = topicIdFromTitle(title);
+  if (id && taken.has(id)) {
+    throw new Error(
+      `This title needs the file ${id}.json, and the topic "${getSyntopicTopic(id).title}" already uses it. ` +
+        "Open that topic, or choose another title."
+    );
+  }
+  if (!id) {
+    let n = 1;
+    while (taken.has(`topic-${n}`)) n += 1;
+    id = `topic-${n}`;
+  }
+
+  const topic: SyntopicTopic = {
+    id,
+    title,
+    description,
+    neutralTerms: [],
+    questions: [],
+    controversies: [],
+    createdAt: new Date().toISOString(),
+  };
+  saveSyntopicTopic(topic);
+  return topic;
+}
+
 /** Browser stand-in for `save_syntopic_topic`: browser storage. */
 export function saveSyntopicTopic(topic: SyntopicTopic): void {
   localStorage.setItem(`syntopic_topic_${topic.id}`, JSON.stringify(topic));
 
-  const raw = localStorage.getItem("syntopic_topics_registry");
-  let list: SyntopicTopicSummary[] = raw ? JSON.parse(raw) : [];
-  list = list.filter((s) => s.id !== topic.id);
+  // Start from the list the page sees, so the sample topic stays in the list after the first save.
+  const list = getSyntopicTopics().filter((s) => s.id !== topic.id);
 
   const books = Array.from(
     new Set([
