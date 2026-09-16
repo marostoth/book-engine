@@ -75,7 +75,7 @@ const backendCalls: [name: string, call: () => Promise<unknown>][] = [
   ["fetchReviewHeatmap", () => api.fetchReviewHeatmap("sample")],
   ["fetchRetentionMetrics", () => api.fetchRetentionMetrics("sample")],
   ["fetchReadingVelocity", () => api.fetchReadingVelocity("sample")],
-  ["recordReadingProgress", () => api.recordReadingProgress("sample", "ch-01.md", 15, 261, false)],
+  ["recordReadingProgress", () => api.recordReadingProgress("sample", "ch-01.md", 15, false)],
   ["lookupDictionaryTerm", () => api.lookupDictionaryTerm("elementary")],
   ["saveBookVocabulary", () => api.saveBookVocabulary("sample", vocabularyEntry)],
   ["getAnalyticalData", () => api.getAnalyticalData("sample")],

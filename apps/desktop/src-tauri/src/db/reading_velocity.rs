@@ -3,15 +3,18 @@ use anyhow::{Context, Result};
 use super::models::{ChapterReadingStatItem, ReadingVelocityStats};
 use super::schema::open_or_create_db;
 
-/// Records reading time and completion progress for a chapter.
+/// Records reading time for a chapter, and whether the reader has finished it.
 ///
 /// The time goes into the vault first (`vault/study_log.rs`), because the vault is the permanent record
 /// and the database is only a cache (DS-01).
+///
+/// No word count is saved. The app sees how long a chapter is on screen and how far down it you scrolled,
+/// but not how many words you read. It used to save the word count of the whole chapter with every piece
+/// of reading time, so the analytics showed speeds like 21,357 words a minute (AN-01).
 pub fn record_reading_session_blocking(
     book_id: &str,
     chapter_file: &str,
     seconds_spent: u64,
-    words_read: usize,
     completed: bool,
 ) -> Result<()> {
     let conn = open_or_create_db()?;
@@ -24,25 +27,22 @@ pub fn record_reading_session_blocking(
         book_id: book_id.to_string(),
         chapter_file: chapter_file.to_string(),
         seconds_spent: seconds_spent as i64,
-        words_read: words_read as i64,
         completed,
         read_at: now,
     })
     .context("Failed to save your reading time in the vault, so it was not saved at all")?;
 
     conn.execute(
-        "INSERT INTO reading_sessions (book_id, chapter_file, seconds_spent, words_read, completed, last_read_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+        "INSERT INTO reading_sessions (book_id, chapter_file, seconds_spent, completed, last_read_at)
+         VALUES (?1, ?2, ?3, ?4, ?5)
          ON CONFLICT(book_id, chapter_file) DO UPDATE SET
              seconds_spent = seconds_spent + ?3,
-             words_read = MAX(words_read, ?4),
-             completed = MAX(completed, ?5),
-             last_read_at = ?6",
+             completed = MAX(completed, ?4),
+             last_read_at = ?5",
         params![
             book_id,
             chapter_file,
             seconds_spent as i64,
-            words_read as i64,
             if completed { 1 } else { 0 },
             now,
         ],
@@ -51,7 +51,7 @@ pub fn record_reading_session_blocking(
     Ok(())
 }
 
-/// Calculates reading velocity and time across chapters.
+/// Adds up the reading time and the finished chapters. There is no word count and no reading speed (AN-01).
 pub fn get_reading_velocity_blocking(book_id: Option<&str>) -> Result<ReadingVelocityStats> {
     let conn = open_or_create_db()?;
 
@@ -61,7 +61,7 @@ pub fn get_reading_velocity_blocking(book_id: Option<&str>) -> Result<ReadingVel
     };
 
     let sql = format!(
-        "SELECT chapter_file, seconds_spent, words_read, completed, last_read_at
+        "SELECT chapter_file, seconds_spent, completed, last_read_at
          FROM reading_sessions
          {}
          ORDER BY chapter_file ASC",
@@ -74,24 +74,13 @@ pub fn get_reading_velocity_blocking(book_id: Option<&str>) -> Result<ReadingVel
         |r| {
             let chapter_file: String = r.get(0)?;
             let seconds_spent: i64 = r.get(1)?;
-            let words_read: i64 = r.get(2)?;
-            let completed_int: i64 = r.get(3)?;
-            let last_read_at: i64 = r.get(4)?;
-
-            let secs = seconds_spent.max(0) as u64;
-            let words = words_read.max(0) as usize;
-            let wpm = if secs > 0 {
-                ((words as f64) / (secs as f64 / 60.0)).round()
-            } else {
-                0.0
-            };
+            let completed_int: i64 = r.get(2)?;
+            let last_read_at: i64 = r.get(3)?;
 
             Ok(ChapterReadingStatItem {
                 chapter_file,
-                seconds_spent: secs,
-                words_read: words,
+                seconds_spent: seconds_spent.max(0) as u64,
                 completed: completed_int == 1,
-                wpm,
                 last_read_at,
             })
         }
@@ -100,28 +89,18 @@ pub fn get_reading_velocity_blocking(book_id: Option<&str>) -> Result<ReadingVel
     let chapter_stats: Vec<ChapterReadingStatItem> = rows.filter_map(|r| r.ok()).collect();
 
     let mut total_seconds = 0u64;
-    let mut total_words_read = 0usize;
     let mut completed_chapters = 0usize;
 
     for item in &chapter_stats {
         total_seconds += item.seconds_spent;
-        total_words_read += item.words_read;
         if item.completed {
             completed_chapters += 1;
         }
     }
 
-    let average_wpm = if total_seconds > 0 {
-        ((total_words_read as f64) / (total_seconds as f64 / 60.0)).round()
-    } else {
-        0.0
-    };
-
     Ok(ReadingVelocityStats {
         total_seconds,
         completed_chapters,
-        total_words_read,
-        average_wpm,
         chapter_stats,
     })
 }

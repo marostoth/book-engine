@@ -105,8 +105,8 @@ fn a_deleted_book_leaves_all_books_analytics_and_practice() {
     write_hume(&sandbox);
     practice_one_card("sample");
     practice_one_card("hume");
-    record_reading_session_blocking("sample", "ch-01.md", 60, 22, true).expect("read sample");
-    record_reading_session_blocking("hume", "ch-01.md", 90, 9, true).expect("read hume");
+    record_reading_session_blocking("sample", "ch-01.md", 60, true).expect("read sample");
+    record_reading_session_blocking("hume", "ch-01.md", 90, true).expect("read hume");
     index();
     assert_eq!(all_books(), (4, 2, 150), "both books count");
     assert_eq!(books_in_practice(), ["hume", "sample"]);
@@ -130,7 +130,7 @@ fn a_book_that_comes_back_gets_its_cards_review_history_and_reading_time_back() 
     let sandbox = Sandbox::new();
     write_hume(&sandbox);
     practice_one_card("hume");
-    record_reading_session_blocking("hume", "ch-01.md", 90, 9, true).expect("read hume");
+    record_reading_session_blocking("hume", "ch-01.md", 90, true).expect("read hume");
     index();
     let studied = cards_of("hume");
     assert_eq!(all_books(), (2, 1, 90));

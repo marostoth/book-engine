@@ -24,6 +24,7 @@ import { createLoadGuard, loadBookOnto, loadChapterOnto } from "../lib/readerLoa
 import { rescanLibrary, rescanSummary, type LibraryRescanControl } from "../lib/libraryRescan";
 import { updateSearch } from "../lib/searchIndex";
 import { createBookmarkKeeper, readBrowserBookId, startingBookId, type ChapterRef } from "../lib/readingPlace";
+import { createReadingTimer, READING_TICK_MS } from "../lib/readingTime";
 import { ChapterMoveRequest } from "./useChapterGate";
 
 interface BookSessionOptions {
@@ -174,41 +175,35 @@ export function useBookSession({ onCardsRefreshNeeded, requestChapterMove }: Boo
     );
   }, [bookMeta, activeChapter, loads]);
 
-  // Track active reading time and record progress to SQLite backend
+  // Reading time counts while the words of a chapter are on screen and the window has focus. A scroll only tells the
+  // timer how far down the chapter you are, so it never starts the count again. The app cannot see how many words you
+  // read, so no word count is saved (AN-01).
+  const [readingTimer] = useState(() =>
+    createReadingTimer((chapter, piece) =>
+      recordReadingProgress(chapter.bookId, chapter.chapterFile, piece.seconds, piece.completed).catch(
+        reportReadingTimeError
+      )
+    )
+  );
   useEffect(() => {
-    if (!activeBookId || !activeChapter) return;
-
-    let elapsedSecs = 0;
-    const interval = setInterval(() => {
-      if (document.hasFocus()) {
-        elapsedSecs += 5;
-        if (elapsedSecs % 15 === 0) {
-          const isCompleted = progressPercent >= 90;
-          recordReadingProgress(
-            activeBookId,
-            activeChapter.file_path,
-            15,
-            activeChapter.word_count,
-            isCompleted
-          ).catch(reportReadingTimeError);
-        }
-      }
-    }, 5000);
-
+    readingTimer.show(markdownSource, Date.now(), document.hasFocus());
+  }, [readingTimer, markdownSource]);
+  useEffect(() => {
+    const ticks = setInterval(() => readingTimer.tick(Date.now(), document.hasFocus()), READING_TICK_MS);
     return () => {
-      clearInterval(interval);
-      const remainder = elapsedSecs % 15;
-      if (remainder > 0 && activeBookId && activeChapter) {
-        recordReadingProgress(
-          activeBookId,
-          activeChapter.file_path,
-          remainder,
-          activeChapter.word_count,
-          progressPercent >= 90
-        ).catch(reportReadingTimeError);
-      }
+      clearInterval(ticks);
+      readingTimer.show(null, Date.now(), document.hasFocus());
     };
-  }, [activeBookId, activeChapter, progressPercent]);
+  }, [readingTimer]);
+
+  /** The reader scrolled: the progress bar moves, and the reading timer learns how far down the chapter on screen you are. */
+  const handleProgressChange = useCallback(
+    (percent: number, chapter: ChapterRef | null) => {
+      setProgressPercent(percent);
+      readingTimer.scrolled(chapter, percent);
+    },
+    [readingTimer]
+  );
 
   const handleAddHighlight = (newHighlight: HighlightItem) => {
     if (!bookMeta || !activeChapter) return;
@@ -314,7 +309,7 @@ export function useBookSession({ onCardsRefreshNeeded, requestChapterMove }: Boo
     markdownSource,
     handlePlaceSettled,
     progressPercent,
-    setProgressPercent,
+    handleProgressChange,
     highlights,
     targetAnchor,
     handleSelectBook,

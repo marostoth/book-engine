@@ -26,6 +26,8 @@ mod indexer_tests;
 #[cfg(test)]
 mod removed_books_tests;
 #[cfg(test)]
+mod reading_velocity_tests;
+#[cfg(test)]
 mod search_tests;
 
 pub use models::*;
@@ -144,13 +146,12 @@ mod tests {
         let retention = get_retention_metrics_blocking(Some("sample")).expect("Failed to get retention");
         assert!(retention.retention_rate >= 0.0 && retention.retention_rate <= 100.0);
 
-        record_reading_session_blocking("sample", "ch-01.md", 120, 250, true)
+        record_reading_session_blocking("sample", "ch-01.md", 120, true)
             .expect("Failed to record reading session");
 
         let velocity = get_reading_velocity_blocking(Some("sample")).expect("Failed to get reading velocity");
         assert_eq!(velocity.total_seconds, 120);
         assert_eq!(velocity.completed_chapters, 1);
-        assert!(velocity.average_wpm > 0.0);
 
         // Test Phase 5 IPC endpoints: get_study_analytics_blocking
         let analytics = get_study_analytics_blocking(Some("sample")).expect("Failed to get study analytics");

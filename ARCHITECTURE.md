@@ -58,7 +58,7 @@ book-engine/
 │       │   ├── components/      # UI components (Reader, Sidebar, TopNav, Modals, Popovers)
 │       │   │   ├── analytics/       # Modular analytics subcomponents
 │       │   │   │   ├── HeatmapGrid.tsx      # GitHub-style annual FSRS study activity heatmap
-│       │   │   │   └── VelocityTable.tsx    # Chapter reading velocity, completion & WPM table
+│       │   │   │   └── VelocityTable.tsx    # Chapter reading time & completion table (no word count or WPM, AN-01)
 │       │   │   ├── analytical/      # Level 3 Analytical reading & interpretive workbench (Rules 4–12)
 │       │   │   │   ├── AnalyticalWorkbenchPane.tsx # Mortimer Adler companion pane (Terms, Args, Inquiries, Critique)
 │       │   │   │   ├── ArgumentBuilderModal.tsx    # Premise-to-conclusion argument graph assembler (Rules 6–7)
@@ -114,7 +114,7 @@ book-engine/
 │       │   │   │   ├── SynthesisTab.tsx     # Rule 5 dialectical synthesis editor & Markdown dossier compiler tab
 │       │   │   │   ├── SyntopiconPane.tsx   # Level IV Syntopicon registry, topic manager & tab shell
 │       │   │   │   └── SyntopicTermsTab.tsx # Rule 2 neutral terminology directory & citation mapper tab
-│       │   │   ├── AnalyticsModal.tsx   # FSRS retention heatmap & reading velocity dashboard modal
+│       │   │   ├── AnalyticsModal.tsx   # FSRS retention heatmap & reading time dashboard modal
 │       │   │   ├── AppModals.tsx        # Modular modal dialog coordinator & container
 │       │   │   ├── BackendErrorBar.tsx  # Error bar: every failed backend load or save, with a count and Dismiss
 │       │   │   ├── BookSelector.tsx     # Dynamic vault library switcher popover; "Rescan library" finds books imported while the app is open
@@ -128,7 +128,7 @@ book-engine/
 │       │   │   ├── OmniSearchModal.tsx  # Ctrl+K global full-text search palette
 │       │   │   ├── PracticeModal.tsx    # Extractive practice suite (Cloze, Scenario MCQ & Scramble drills)
 │       │   │   ├── PreferencesGate.tsx  # Holds the app back until the reader settings are read from vault/preferences.json
-│       │   │   ├── Reader.tsx           # Virtualized TipTap chapter canvas with margin anchors; saves where you stopped once the scrolling stops
+│       │   │   ├── Reader.tsx           # Virtualized TipTap chapter canvas with margin anchors; saves where you stopped once the scrolling stops; a chapter opens at its top
 │       │   │   ├── SelectionMenu.tsx    # Floating UI selection toolbar (Highlight, Note, Link)
 │       │   │   ├── SettingsPopover.tsx  # Reader preferences & Gatekeeper settings popover
 │       │   │   ├── Sidebar.tsx          # Hierarchical TOC & linear chapter navigation drawer
@@ -136,7 +136,7 @@ book-engine/
 │       │   ├── hooks/           # Modular application custom hooks
 │       │   │   ├── useAnalyticalModals.ts    # Level 3 modal open/close & staged target coordinator
 │       │   │   ├── useAnalyticalSession.ts   # Analytical reading store, cascading integrity & persistence hook
-│       │   │   ├── useBookSession.ts         # Book loading, reading progress, session timing & chapter jumping (every in-book chapter change goes through openChapter; only the newest load lands; a book opens where the reader stopped); "Rescan library" reads the library again and updates search; search is updated when the app opens
+│       │   │   ├── useBookSession.ts         # Book loading, reading progress, session timing & chapter jumping (every in-book chapter change goes through openChapter; only the newest load lands; a book opens where the reader stopped); "Rescan library" reads the library again and updates search; search is updated when the app opens; reading time counts on one timer that a scroll never starts again
 │       │   │   ├── useChapterGate.ts         # Chapter Gatekeeper (soft gate): tests the due cards of the chapter the reader leaves
 │       │   │   ├── useInspectionalSession.ts # Inspectional countdown timer, sub-view, exit prompt & the exit assessment of the open book
 │       │   │   ├── usePracticeDeck.ts        # Practice deck state, mode/ratio filtering & daily target limits
@@ -156,7 +156,7 @@ book-engine/
 │       │   │   │   │   ├── fallbackSyntopicon.ts # Sample syntopicon topic & localStorage topic registry; refuses a taken topic file, as the backend does
 │       │   │   │   │   └── mockData.ts          # Default mock book catalogs & sample chapters
 │       │   │   │   ├── analyticalApi.ts     # Analytical reading store load/save IPC
-│       │   │   │   ├── analyticsApi.ts      # Study analytics, reading session & velocity IPC client
+│       │   │   │   ├── analyticsApi.ts      # Study analytics & reading time IPC client
 │       │   │   │   ├── bookmarkApi.ts       # Where you stopped reading IPC: `bookmark.json` per book, and the newest bookmark of all books
 │       │   │   │   ├── clientBase.ts        # Tauri detection & callBackend: inside the app a failed command rejects
 │       │   │   │   ├── highlightsApi.ts     # Chapter highlights IPC: the only writer of `<chapter>-highlights.json`
@@ -207,6 +207,8 @@ book-engine/
 │       │   │   ├── readerShortcuts.test.ts # Shortcut tests: one Alt+P press toggles the pacer once at every reading level
 │       │   │   ├── readingPlace.ts      # Where you stopped: the chapter a book opens at, the book the app opens with, and when a place is saved
 │       │   │   ├── readingPlace.test.ts # Place tests: a book opens where you stopped, and closing and opening it never creeps up or down
+│       │   │   ├── readingTime.ts       # Reading time: the focused seconds a chapter is on screen, and the Completed mark from its own scroll position
+│       │   │   ├── readingTime.test.ts  # Reading time tests: a scroll never starts the count again, and a chapter is completed only by its own scroll
 │       │   │   ├── searchIndex.ts       # Search update when the app opens and on Rescan: the files the index could not read share one line in the error bar; renamed book folders share another line
 │       │   │   ├── searchIndex.test.ts  # Search update tests: a file the index could not read shows in the error bar with its name and the reason, and a renamed book folder shows with the name to give it back
 │       │   │   ├── searchQuery.ts       # Search box minimum length (2 characters), the same as the backend
@@ -240,7 +242,8 @@ book-engine/
 │           │   │   ├── indexer.rs           # Vault indexing, each book on its own (a file it cannot read is named; deleted books & removed chapters leave search) & FTS5 full-text search; a book is known by its folder name, and a renamed book folder is named
 │           │   │   ├── indexer_tests.rs     # Index tests: a broken book or chapter stops nothing, and deleted books & removed chapters leave search; search and the library know a book by its folder name
 │           │   │   ├── models.rs            # SQLite row models and analytics transfer structs
-│           │   │   ├── reading_velocity.rs  # Chapter reading session recording & velocity calculations
+│           │   │   ├── reading_velocity.rs  # Chapter reading time & completed chapters, with no word count or speed (AN-01)
+│           │   │   ├── reading_velocity_tests.rs # Reading time tests: the analytics show time & completed chapters, and no word count
 │           │   │   ├── removed_books.rs     # A book that left the vault: its cards move to the archive, its review history & reading time leave the cache
 │           │   │   ├── removed_books_tests.rs # Removed book tests: a deleted book leaves All Books analytics & practice, and gets its progress back when it returns
 │           │   │   ├── restore.rs           # Puts the study progress back into the cache from the vault study log; a book that left the vault gets nothing back
@@ -510,6 +513,7 @@ App.tsx (Global state: reader settings with the theme, viewMode, activeBook, act
 - `src/lib/anchors.ts`: Converts paragraph anchors between the saved form (`^p-xxx`) and the HTML attribute form (`p-xxx`) with `toSavedAnchor` and `toAnchorAttribute`.
 - `src/lib/readerLoads.ts`: Loads a book at the place where the reader stopped (`loadBookOnto`) or a chapter (`loadChapterOnto`) onto the reader. Every load takes a ticket from `createLoadGuard`, and only the newest ticket may show its answer, report its failure, or name the chapter a new highlight belongs to. The reader is emptied the moment a chapter opens.
 - `src/lib/readingPlace.ts`: Where the reader stopped. `openingPlace` gives the chapter and paragraph a book opens at (its first chapter when the saved chapter is gone), `startingBookId` the book the app opens with (the newest bookmark, then the book an older version kept in browser storage, then the first book), `paragraphAtMiddle` the paragraph a place is saved at, `createPlaceWatcher` reports the place a second after the scrolling stops, for the chapter whose words are on screen, and `createBookmarkKeeper` never saves over a bookmark that could not be read. A jump into a chapter that has just opened lands at once; a jump inside the open chapter scrolls there.
+- `src/lib/readingTime.ts`: Reading time. `createReadingTimer` counts the seconds the words of a chapter are on screen while the window has focus, in ticks of 1 second (a longer gap, as when the PC sleeps, counts 5 seconds at most). It saves the time in pieces of 15 seconds, and the rest when the next chapter shows. A scroll only tells it how far down the chapter on screen you are: 90% completes the chapter, and a scroll reported for the chapter you left does not count (AN-01).
 - `src/lib/preferences.ts`: The reader settings. `loadPreferences` reads them from the vault and copies the settings browser storage still holds into the vault once; `createPreferencesSaver` saves 400 ms after the last change, one save at a time with the newest settings last; `themeOf` and `withTheme` keep the reading theme among the saved settings.
 - `src/lib/notesAutosave.ts`: The chapter notes autosave. `change` holds the text together with the notes file it was typed in and saves it when the typing stops; `flush` saves what is waiting right now, which the notes pane does when the chapter closes and for a quote.
 - `src/lib/notesQuote.ts`: `addQuoteToNotes` puts a quote from the selection menu at the end of the chapter notes and saves them at once. `quoteBlock` is the text it adds: a blank line, the quote with its paragraph anchor, and an empty `- Reflection:` line.
@@ -579,6 +583,8 @@ All SQLite queries, FTS5 matches, and disk indexing execute exclusively inside `
 **One Broken Book Stops Nothing (SI-02):** `index_vault_blocking` (`db/indexer.rs`) reads and writes each book on its own. A `_meta.json` or a chapter that cannot be used (not valid JSON, no `spine`, a chapter with no `id` or `file_path`, text that is not UTF-8, a locked file) is left out and named in `IndexSummary.problems`, and its book or chapter keeps the rows that search read last, because a file in OneDrive can be locked or offline for a moment. Before this, the whole run was one transaction that stopped at the first file it could not read. The edits in every other book stayed out of search, and the error went only to the console, without the name of the file. The rows of a book folder that is gone or has no `_meta.json`, of a chapter that `_meta.json` no longer lists, and of a listed chapter whose file is missing are removed, so a deleted book no longer shows in search. When an entry of the books folder cannot be read, the run removes no book. Only one run goes at a time, so a run that read the vault before an import cannot remove the rows that a newer run wrote for the new book. The files that a run could not read share one line in the error bar.
 
 **A Book Is Its Folder (LC-02):** The app knows a book by the name of its folder in `vault/books/`, the name that every file read uses: `books/<id>/` for the book and `notes/<id>/` for the notes and study progress of the reader (`book_id_of`, `vault/reader.rs`). The library used to take the `book_id` in `_meta.json` while the index took the folder name. So after a folder was renamed, the library listed a book that no chapter load could find, and search hits named a book that the library did not list. A renamed folder now opens as a new book. The notes and study progress under its old name stay in the vault and do not show, so the index run names the folder in the error bar, with the name to give it back (`renamed_books`): a folder whose `_meta.json` names a book that has a notes folder and no book folder. A book whose folder is gone or has no `_meta.json` has left the vault, and the index run takes its study rows out of the cache (`db/removed_books.rs`): its cards move to `fsrs_cards_archive` as `book_not_in_vault`, and its review history and reading time leave the cache. So "All Books" analytics and practice no longer count it. Before this, no study row was ever removed. The vault is not changed. When the book returns, its cards come back with their progress when its deck syncs, and the next start puts back its review history and reading time; until the book returns, a start puts nothing back for it. The study rows stay when the books folder itself is missing, or when an entry of it cannot be read.
+
+**Reading Time, Not Reading Speed (AN-01):** The app sees how long the words of a chapter are on screen and how far down it you scrolled. It cannot see how many words you read. It used to save the word count of the whole chapter with every piece of reading time, so a chapter that was open for 20 seconds showed 21,357 words a minute. The analytics now show the reading time and the completed chapters, with no word count and no reading speed. An older line of `reading.jsonl` still holds a `wordsRead`, which is not read back, and the `words_read` column of the cache is no longer used. The old timer counted in steps of 5 seconds and started again at every scroll, so with a scroll every 3 seconds it kept 5 of 48 seconds. One timer now counts every focused second while the words of a chapter are on screen (`src/lib/readingTime.ts`). A chapter also kept the scroll position of the chapter before it, so it could open near its end and get the "Completed" mark of the chapter you left. A chapter now opens at its top, and only a scroll of the chapter on screen can complete it.
 
 **Search Result Contract (`SearchResult`):**
 ```rust
@@ -699,10 +705,10 @@ A study analytics modal accessible from `TopNav.tsx` or `SettingsPopover.tsx`:
   - **Cards Due Today:** Number of reviews scheduled for the current day.
   - **Mastered Cards:** Cards that have graduated to mature stability ($\ge 21$ days).
   - **FSRS Retention Rate Percentage:** Calculated using the canonical power-law retrievability formula $R(t, S) = (1 + 19/81 \cdot t/S)^{-0.5}$ over reviewed cards.
-- **Reading Velocity & Time:**
-  - Active reading timer tracks focused reading session seconds.
-  - Calculates average words-per-minute (WPM) across completed chapters ($\ge 90\%$ read).
-  - Detailed chapter-by-chapter breakdown table (words, time spent, velocity in WPM, completion status).
+- **Reading Time & Progress:**
+  - The reading timer counts the seconds the words of a chapter are on screen while the window has focus (`src/lib/readingTime.ts`). A scroll never starts the count again.
+  - A chapter is completed once you scroll $\ge 90\%$ down it while its words are on screen. A chapter opens at its top, so it never takes the scroll position of the chapter before.
+  - Chapter-by-chapter table (time spent, completion status). There is no word count and no WPM: the app cannot see how many words you read (AN-01).
 
 ### Ephemeral SQLite Schema Extensions (`apps/desktop/src-tauri/src/db.rs`)
 Stored strictly in OS AppData (`%APPDATA%\book-engine\app_cache\index.db`):
@@ -720,7 +726,7 @@ CREATE TABLE IF NOT EXISTS reading_sessions (
     book_id TEXT NOT NULL,
     chapter_file TEXT NOT NULL,
     seconds_spent INTEGER NOT NULL DEFAULT 0,
-    words_read INTEGER NOT NULL DEFAULT 0,
+    words_read INTEGER NOT NULL DEFAULT 0, -- not used since AN-01
     completed INTEGER NOT NULL DEFAULT 0,
     last_read_at INTEGER NOT NULL,
     PRIMARY KEY (book_id, chapter_file)
@@ -738,8 +744,8 @@ CREATE TABLE IF NOT EXISTS reading_sessions (
 | `export_summary` | `(book_id: String, content: String) -> Result<String, String>` | Writes arbitrary compiled executive summary string directly to `vault/notes/<book_id>/summary-export.md`. |
 | `get_review_heatmap` | `(book_id: Option<String>) -> Result<Vec<DayReviewActivity>, String>` | Queries `review_logs` table in `index.db` to return daily card review counts for the heatmap. |
 | `get_retention_metrics` | `(book_id: Option<String>) -> Result<RetentionMetrics, String>` | Computes due today, mastered cards, and FSRS power-law retrievability $R(t, S)$ retention %. |
-| `get_reading_velocity` | `(book_id: Option<String>) -> Result<ReadingVelocityStats, String>` | Aggregates reading time, words read, completed chapters, and WPM across chapters. |
-| `record_reading_progress`| `(book_id: String, chapter_file: String, seconds_spent: u64, words_read: usize, completed: bool) -> Result<(), String>` | Commits active reading session time and completion status to `index.db`. |
+| `get_reading_velocity` | `(book_id: Option<String>) -> Result<ReadingVelocityStats, String>` | Aggregates reading time and completed chapters across chapters. There is no word count and no WPM: the app cannot see how many words you read (AN-01). |
+| `record_reading_progress`| `(book_id: String, chapter_file: String, seconds_spent: u64, completed: bool) -> Result<(), String>` | Writes a piece of reading time and whether the chapter is completed to the vault study log, then to `index.db`. No word count (AN-01). |
 
 ### Retention Rate Formula Standard
 Retention rate is computed as:

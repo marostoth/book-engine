@@ -142,7 +142,7 @@ export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
                 Study & Reading Analytics
               </h1>
               <p className="text-xs text-[var(--theme-muted)]">
-                FSRS spaced repetition memory retention, activity grid, and reading velocity
+                FSRS spaced repetition memory retention, activity grid, and reading time
               </p>
             </div>
           </div>
@@ -290,7 +290,7 @@ export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
         {/* Section 2: FSRS Retention Activity Grid (GitHub-style Heatmap) */}
         <HeatmapGrid heatmapData={heatmapData} />
 
-        {/* Section 3: Reading Velocity & Completed Chapters */}
+        {/* Section 3: Reading Time & Completed Chapters */}
         <VelocityTable velocityStats={velocityStats} bookMeta={bookMeta} />
       </div>
     </div>

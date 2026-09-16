@@ -26,16 +26,16 @@ export async function fetchReadingVelocity(bookId?: string): Promise<ReadingVelo
   );
 }
 
+/** Saves a piece of reading time. There is no word count: the app cannot see how many words you read (AN-01). */
 export async function recordReadingProgress(
   bookId: string,
   chapterFile: string,
   secondsSpent: number,
-  wordsRead: number,
   completed: boolean
 ): Promise<void> {
   return callBackend<void>(
     "record_reading_progress",
-    { bookId, chapterFile, secondsSpent, wordsRead, completed },
-    (dev) => dev.recordReadingProgress(bookId, chapterFile, secondsSpent, wordsRead, completed)
+    { bookId, chapterFile, secondsSpent, completed },
+    (dev) => dev.recordReadingProgress(bookId, chapterFile, secondsSpent, completed)
   );
 }

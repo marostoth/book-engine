@@ -68,6 +68,12 @@ fn a_cache_from_before_is_copied_into_the_vault() {
     assert_eq!(log.reading.len(), 1);
     assert_eq!(log.reading[0].seconds_spent, 3600);
     assert!(log.reading[0].completed);
+    let reading_file = std::fs::read_to_string(sandbox.vault().join("notes").join(BOOK).join("reading.jsonl"))
+        .expect("read the reading log");
+    assert!(
+        !reading_file.contains("wordsRead"),
+        "the word count in the old cache is the length of the chapter, not the words read (AN-01): {reading_file}"
+    );
 }
 
 #[test]

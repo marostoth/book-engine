@@ -27,12 +27,11 @@ fn review(card_id: &str, reviewed_at: i64, rating: u8, due: i64, reps: i64) -> R
     }
 }
 
-fn reading(seconds: i64, words: i64, completed: bool, read_at: i64) -> ReadingLine {
+fn reading(seconds: i64, completed: bool, read_at: i64) -> ReadingLine {
     ReadingLine {
         book_id: BOOK.to_string(),
         chapter_file: CHAPTER.to_string(),
         seconds_spent: seconds,
-        words_read: words,
         completed,
         read_at,
     }
@@ -90,7 +89,7 @@ fn running_it_again_changes_nothing() {
     sandbox.write_sample_book();
     add_card(CARD);
     append_review(&review(CARD, 1_758_000_000, 3, 1_759_000_000, 1)).expect("write the review");
-    append_reading(&reading(900, 1200, false, 1_758_000_000)).expect("write the reading time");
+    append_reading(&reading(900, false, 1_758_000_000)).expect("write the reading time");
 
     restore_progress_blocking().expect("first run");
     let second = restore_progress_blocking().expect("second run");
@@ -175,23 +174,22 @@ fn a_review_the_cache_already_has_is_not_added_again() {
 fn reading_time_comes_back_as_the_sum_of_its_lines() {
     let sandbox = Sandbox::new();
     sandbox.write_sample_book();
-    append_reading(&reading(15, 400, false, 1_758_000_000)).expect("first");
-    append_reading(&reading(15, 900, false, 1_758_000_100)).expect("second");
-    append_reading(&reading(30, 1200, true, 1_758_000_200)).expect("third");
+    append_reading(&reading(15, false, 1_758_000_000)).expect("first");
+    append_reading(&reading(15, false, 1_758_000_100)).expect("second");
+    append_reading(&reading(30, true, 1_758_000_200)).expect("third");
 
     let report = restore_progress_blocking().expect("put the progress back");
 
     assert_eq!(report.chapters_restored, 1);
     let conn = open_or_create_db().expect("open the cache");
-    let (seconds, words, completed, last): (i64, i64, i64, i64) = conn
+    let (seconds, completed, last): (i64, i64, i64) = conn
         .query_row(
-            "SELECT seconds_spent, words_read, completed, last_read_at FROM reading_sessions",
+            "SELECT seconds_spent, completed, last_read_at FROM reading_sessions",
             [],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
         .expect("read the row");
     assert_eq!(seconds, 60, "the seconds add up");
-    assert_eq!(words, 1200, "the words read are the furthest point");
     assert_eq!(completed, 1, "finished once is finished");
     assert_eq!(last, 1_758_000_200);
 }
@@ -203,13 +201,13 @@ fn reading_time_the_cache_already_counts_is_left_alone() {
     {
         let conn = open_or_create_db().expect("open the cache");
         conn.execute(
-            "INSERT INTO reading_sessions (book_id, chapter_file, seconds_spent, words_read, completed, last_read_at)
-             VALUES (?1, ?2, 60, 1200, 1, ?3)",
+            "INSERT INTO reading_sessions (book_id, chapter_file, seconds_spent, completed, last_read_at)
+             VALUES (?1, ?2, 60, 1, ?3)",
             params![BOOK, CHAPTER, 1_758_000_200i64],
         )
         .expect("the row the app already keeps");
     }
-    append_reading(&reading(15, 400, false, 1_758_000_000)).expect("a line for the same chapter");
+    append_reading(&reading(15, false, 1_758_000_000)).expect("a line for the same chapter");
 
     let report = restore_progress_blocking().expect("put the progress back");
 
@@ -351,13 +349,12 @@ fn reading_time_recorded_in_the_app_is_written_to_the_vault() {
     let sandbox = Sandbox::new();
     sandbox.write_sample_book();
 
-    super::reading_velocity::record_reading_session_blocking(BOOK, CHAPTER, 15, 1200, false)
+    super::reading_velocity::record_reading_session_blocking(BOOK, CHAPTER, 15, false)
         .expect("record the reading time");
 
     let log = read_book_log(BOOK).expect("read the study log");
     assert_eq!(log.reading.len(), 1, "the reading time must be in the vault");
     assert_eq!(log.reading[0].seconds_spent, 15);
-    assert_eq!(log.reading[0].words_read, 1200);
 }
 
 #[test]
@@ -368,8 +365,8 @@ fn throwing_away_the_cache_loses_no_study_progress() {
     let card_id = sandbox.cloze_card_id(1);
 
     let schedule = super::fsrs_store::submit_card_review_blocking(&card_id, 4).expect("review the card");
-    super::reading_velocity::record_reading_session_blocking(BOOK, CHAPTER, 15, 900, false).expect("read a while");
-    super::reading_velocity::record_reading_session_blocking(BOOK, CHAPTER, 45, 1200, true).expect("finish it");
+    super::reading_velocity::record_reading_session_blocking(BOOK, CHAPTER, 15, false).expect("read a while");
+    super::reading_velocity::record_reading_session_blocking(BOOK, CHAPTER, 45, true).expect("finish it");
 
     throw_away_the_cache();
     assert_eq!(count("SELECT COUNT(*) FROM review_logs"), 0, "the cache really is gone");
@@ -397,7 +394,7 @@ fn a_book_that_left_the_vault_gets_nothing_back_at_the_start() {
     let sandbox = Sandbox::new();
     sandbox.write_sample_book();
     append_review(&review(CARD, 1_758_000_000, 3, 1_759_000_000, 1)).expect("write the review");
-    append_reading(&reading(900, 1200, false, 1_758_000_000)).expect("write the reading time");
+    append_reading(&reading(900, false, 1_758_000_000)).expect("write the reading time");
     std::fs::remove_dir_all(sandbox.vault().join("books").join(BOOK)).expect("delete the book");
 
     let report = restore_progress_blocking().expect("start the app");

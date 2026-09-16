@@ -203,11 +203,10 @@ pub async fn record_reading_progress(
     book_id: String,
     chapter_file: String,
     seconds_spent: u64,
-    words_read: usize,
     completed: bool,
 ) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
-        crate::db::record_reading_session_blocking(&book_id, &chapter_file, seconds_spent, words_read, completed)
+        crate::db::record_reading_session_blocking(&book_id, &chapter_file, seconds_spent, completed)
     })
     .await
     .map_err(|e| format!("Task join error: {}", e))?

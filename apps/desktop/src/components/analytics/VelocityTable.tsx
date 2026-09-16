@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { Zap, TrendingUp, CheckCircle, Clock } from "lucide-react";
+import { CheckCircle, Clock } from "lucide-react";
 import { ReadingVelocityStats, BookMeta } from "../../lib/types";
 
 interface VelocityTableProps {
@@ -7,6 +7,10 @@ interface VelocityTableProps {
   bookMeta: BookMeta | null;
 }
 
+/**
+ * Reading time and finished chapters. The app sees how long a chapter is on screen, but not how many words you read, so
+ * this shows no word count and no reading speed (AN-01).
+ */
 export const VelocityTable: React.FC<VelocityTableProps> = ({
   velocityStats,
   bookMeta,
@@ -21,42 +25,15 @@ export const VelocityTable: React.FC<VelocityTableProps> = ({
 
   return (
     <div className="p-5 rounded-3xl border border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Zap className="w-4 h-4 text-amber-600 dark:text-nord-accent" />
-          <span className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">
-            Reading Velocity & Progress
-          </span>
-        </div>
-        <div className="flex items-center gap-3 text-xs font-mono">
-          <span className="text-neutral-500">
-            Total Words:{" "}
-            <strong className="text-neutral-800 dark:text-neutral-200">
-              {velocityStats?.total_words_read.toLocaleString() ?? 0}
-            </strong>
-          </span>
-          <span className="text-neutral-500">
-            Time:{" "}
-            <strong className="text-neutral-800 dark:text-neutral-200">
-              {formattedReadingTime}
-            </strong>
-          </span>
-        </div>
+      <div className="flex items-center gap-2">
+        <Clock className="w-4 h-4 text-amber-600 dark:text-nord-accent" />
+        <span className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">
+          Reading Time & Progress
+        </span>
       </div>
 
-      {/* Velocity Highlights Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="p-3.5 rounded-xl border border-black/5 dark:border-white/5 bg-white/60 dark:bg-black/20 flex items-center justify-between">
-          <div>
-            <span className="text-[11px] text-neutral-400">Average Velocity</span>
-            <div className="text-xl font-bold font-mono text-neutral-900 dark:text-neutral-100 flex items-baseline gap-1">
-              {velocityStats?.average_wpm ? Math.round(velocityStats.average_wpm) : 250}
-              <span className="text-xs font-normal text-neutral-400">WPM</span>
-            </div>
-          </div>
-          <TrendingUp className="w-5 h-5 text-emerald-500" />
-        </div>
-
+      {/* Reading Time Highlights Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="p-3.5 rounded-xl border border-black/5 dark:border-white/5 bg-white/60 dark:bg-black/20 flex items-center justify-between">
           <div>
             <span className="text-[11px] text-neutral-400">Completed Chapters</span>
@@ -78,16 +55,14 @@ export const VelocityTable: React.FC<VelocityTableProps> = ({
         </div>
       </div>
 
-      {/* Chapter-by-Chapter Velocity Breakdown Table */}
+      {/* Chapter-by-Chapter Reading Time Table */}
       {velocityStats && velocityStats.chapter_stats.length > 0 && (
         <div className="rounded-xl border border-black/10 dark:border-white/10 overflow-hidden bg-white/40 dark:bg-black/20">
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] text-neutral-500 text-[11px]">
                 <th className="py-2.5 px-3.5 font-semibold">Chapter</th>
-                <th className="py-2.5 px-3 font-semibold text-right">Words</th>
                 <th className="py-2.5 px-3 font-semibold text-right">Time Spent</th>
-                <th className="py-2.5 px-3 font-semibold text-right">Velocity</th>
                 <th className="py-2.5 px-3.5 font-semibold text-right">Status</th>
               </tr>
             </thead>
@@ -101,13 +76,7 @@ export const VelocityTable: React.FC<VelocityTableProps> = ({
                       {stat.chapter_title || stat.chapter_file}
                     </td>
                     <td className="py-2 px-3 text-right text-neutral-600 dark:text-neutral-400">
-                      {stat.words_read.toLocaleString()}
-                    </td>
-                    <td className="py-2 px-3 text-right text-neutral-600 dark:text-neutral-400">
                       {mins}m {secs}s
-                    </td>
-                    <td className="py-2 px-3 text-right text-emerald-600 dark:text-emerald-400 font-bold">
-                      {stat.wpm > 0 ? `${Math.round(stat.wpm)} WPM` : "-"}
                     </td>
                     <td className="py-2 px-3.5 text-right font-sans">
                       {stat.completed ? (
