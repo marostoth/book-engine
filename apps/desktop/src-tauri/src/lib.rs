@@ -3,6 +3,8 @@ pub mod db;
 pub mod commands;
 pub mod fsrs;
 #[cfg(test)]
+mod security_config_tests;
+#[cfg(test)]
 mod test_support;
 
 use tauri::{AppHandle, Manager, Runtime};

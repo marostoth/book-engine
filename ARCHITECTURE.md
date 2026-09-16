@@ -268,9 +268,12 @@ book-engine/
 │           │   ├── fsrs.rs              # Local FSRS-5 spaced repetition scheduling engine
 │           │   ├── lib.rs               # Application builder, plugin setup, and invoke router; only one copy of the app runs (single-instance plugin, registered first)
 │           │   ├── main.rs              # Tauri binary executable entrypoint
+│           │   ├── security_config_tests.rs # Window security tests: only the scripts of the app run, pictures come only from the app & the book picture folders, the asset protocol opens no file on its own (SEC-02)
 │           │   ├── test_support.rs      # Test-only sandbox: temporary vault & cache database per unit test, also for its test threads (Sandbox::spawn); the vault search finds nothing outside it
 │           │   ├── vault/               # Modular vault file I/O & notes aggregation
 │           │   │   ├── analytical.rs        # Level 3 analytical store loader, saver & unit tests; a damaged file stops the load and the save
+│           │   │   ├── book_pictures.rs     # The picture folder of each book (`books/<book>/assets`), the only files the window may load through the asset protocol; links are left out (SEC-02)
+│           │   │   ├── book_pictures_tests.rs # Picture folder tests: only the `assets` folder of each book counts, and a book folder or picture folder that is a link is left out
 │           │   │   ├── bookmark.rs          # Where you stopped reading: `vault/notes/<book-id>/bookmark.json`; the newest bookmark names the book to open
 │           │   │   ├── bookmark_tests.rs    # Bookmark tests: the newest moment wins, a damaged bookmark is never saved over
 │           │   │   ├── highlights.rs        # Chapter highlights file: load, save, and the one-time move out of the old notes comment (quotes may hold `-->`)
@@ -295,7 +298,7 @@ book-engine/
 │           │   │   ├── vocabulary.rs        # Vault vocabulary persistence with case-insensitive deduplication; a damaged file stops the load and the save
 │           │   │   └── mod.rs               # Vault module facade
 │           ├── Cargo.toml       # Rust dependency manifest (rusqlite, tokio, tauri v2, single-instance plugin)
-│           └── tauri.conf.json  # Tauri v2 window, security, and bundle configuration
+│           └── tauri.conf.json  # Tauri v2 window, security, and bundle configuration; content security policy & an asset protocol that opens no file on its own (SEC-02)
 │ 
 ├── docs/
 │   └── review/                  # Code review registers: verified findings, evidence & fix order
@@ -491,7 +494,7 @@ All disk I/O operations are offloaded from the Tauri main thread using `tokio::t
 | `get_library_books` | `() -> Result<Vec<BookMetadata>, AppError>` | Scans `vault/books/*/` for `_meta.json`, returning dynamic library manifest with `id` (the name of the book folder, LC-02), `title`, `author`, `chapter_count`, and `total_words`. |
 | `list_books` | `() -> Result<Vec<BookSummary>, String>` | Scans `vault/books/` and parses available `_meta.json` records. |
 | `load_book_meta` | `(book_id: String) -> Result<String, String>` | Reads `vault/books/<book_id>/_meta.json` as JSON string. |
-| `load_chapter` | `(book_id: String, chapter_file: String) -> Result<String, String>` | Reads chapter Markdown text (`ch-XX.md`) from the vault. |
+| `load_chapter` | `(book_id: String, chapter_file: String) -> Result<String, String>` | Reads chapter Markdown text (`ch-XX.md`) from the vault. It also lets the window load the pictures in the `assets` folder of each book, because the asset protocol opens no file on its own (`vault/book_pictures.rs`, SEC-02). |
 | `load_notes` | `(book_id: String, notes_file: String) -> Result<String, String>` | Reads `vault/notes/<book_id>/<notes_file>` (auto-scaffolds starter template if missing). |
 | `save_notes` | `(book_id: String, notes_file: String, content: String) -> Result<(), String>` | Persists user reflection notes to `vault/notes/<book_id>/<notes_file>`. |
 | `get_chapter_highlights` | `(book_id: String, chapter_file: String) -> Result<Vec<HighlightItem>, String>` | Reads `vault/notes/<book_id>/<chapter>-highlights.json`. A chapter that still keeps its highlights in the old notes comment is moved over once, keeping the reader's own text. |
@@ -810,6 +813,14 @@ with fallback to the aggregate FSRS power-law retrievability $R(t, S) = (1 + 19/
   }
   ```
   `installMode: "currentUser"` eliminates elevation prompts and installs cleanly into the user's profile directory.
+- **Content Security Policy & Asset Scope (SEC-02):** The app window had no content security policy (`"csp": null`), and the asset protocol could open every file on the computer (`"scope": ["**"]`). So a tag that a book put into the page could run a script, and that script could read any file. Now `app.security.csp` holds these rules:
+  - `default-src 'self'` and `script-src 'self'`: only the script files of the app run. An inline script, an event attribute such as `onerror`, a `data:` script and code in a string (`setTimeout("...")`) are blocked.
+  - `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com` and `font-src 'self' https://fonts.gstatic.com`: the stylesheet of the app, the style element that TipTap adds to the page, and the two fonts from Google Fonts that `index.html` loads.
+  - `img-src 'self' asset: http://asset.localhost`: pictures come from the app and from the asset protocol, never from the internet or a `data:` address.
+  - `connect-src 'self' ipc: http://ipc.localhost`: the calls to the app backend.
+  - `object-src 'none'`, `base-uri 'none'` and `form-action 'none'`.
+
+  `assetProtocol.scope` is empty, so on its own the asset protocol opens no file. `load_chapter` lets it open the picture folder of each book in the vault, `books/<book>/assets` (`src-tauri/src/vault/book_pictures.rs`). A book folder or a picture folder that is a link is left out, because Tauri follows the link when it allows a folder. Tauri applies the policy only in the built app: `tauri dev` loads the page from the Vite server, which sends no policy. `index.html` must not hold a `<style>` element, because Tauri would give it a nonce, and a browser ignores `'unsafe-inline'` next to a nonce. `src-tauri/src/security_config_tests.rs` checks the policy, the empty scope and `index.html`.
 
 ### Production Build Outputs & Release Artifacts
 Compiled via `npm run tauri build`:
