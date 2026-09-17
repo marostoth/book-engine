@@ -5,6 +5,7 @@ import { Editor, getSchema, mergeAttributes } from "@tiptap/core";
 import { DOMSerializer, Schema, type Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { EditorState } from "@tiptap/pm/state";
 import { readerExtensions } from "../components/reader/readerExtensions.ts";
+import { readerEditorOptions, type ChapterClick } from "../components/reader/readerEditorOptions.ts";
 import { parseChapterMarkdown } from "./markdown.ts";
 
 /**
@@ -219,4 +220,84 @@ test("the plugins of the reader add nothing to a chapter, such as an empty parag
   } finally {
     editor.destroy();
   }
+});
+
+/**
+ * How TipTap decides, after every render of the reader, whether to set the options on the editor again: it walks the
+ * keys of the options the component gives it and compares each one by identity, and it compares the extensions one by
+ * one (`EditorInstanceManager.compareOptions` in `@tiptap/react`). One object that was built again therefore makes
+ * the editor give ProseMirror the whole chapter state again (RD-06).
+ */
+function tiptapSetsOptionsAgain(ours: Record<string, unknown>, editors: Record<string, unknown>): boolean {
+  const same = Object.keys(ours).every((key) => {
+    if (key === "extensions") {
+      const a = ours[key] as unknown[];
+      const b = editors[key] as unknown[];
+      return a.length === b.length && a.every((part, index) => part === b[index]);
+    }
+    return ours[key] === editors[key];
+  });
+  return !same;
+}
+
+const readSource = (file: string): string => fs.readFileSync(new URL(file, import.meta.url), "utf8");
+
+test("the options of the reader's editor hold only the chapter's nodes, its look and its click handler", () => {
+  const click: ChapterClick = () => false;
+  const options = readerEditorOptions(click);
+
+  assert.deepEqual(Object.keys(options).sort(), ["editable", "editorProps", "extensions"]);
+  // The one list of nodes and marks, not a copy, so TipTap finds the extensions unchanged.
+  assert.equal(options.extensions, readerExtensions);
+  assert.equal(options.editable, false);
+  assert.equal(options.editorProps?.handleClick, click);
+  const attributes = options.editorProps?.attributes;
+  assert.ok(attributes && typeof attributes === "object", "the chapter must have page attributes");
+  assert.match(attributes.class, /select-text/);
+});
+
+test("TipTap sets no options again while the reader keeps one options object (RD-06)", () => {
+  const click: ChapterClick = () => false;
+  const options = readerEditorOptions(click);
+
+  // What the reader does: it holds the options in a `useMemo`, so every render gives TipTap the same object.
+  assert.equal(tiptapSetsOptionsAgain({ ...options }, { ...options, editable: false }), false);
+
+  // What the reader did before: it built the options during the render, so `editorProps` was a new object each time.
+  const built = readerEditorOptions(click);
+  assert.equal(tiptapSetsOptionsAgain({ ...built }, { ...options }), true);
+});
+
+test("the reader builds the options of its editor once, and keeps no options of its own", () => {
+  const reader = readSource("../components/Reader.tsx");
+
+  assert.match(reader, /useMemo\(\(\) => readerEditorOptions\(handleChapterClick\), \[handleChapterClick\]\)/);
+  assert.match(reader, /useEditor\(editorOptions\)/);
+  for (const own of ["editorProps:", "extensions:", "editable:"]) {
+    assert.ok(!reader.includes(own), `Reader.tsx holds \`${own}\` of its own, which TipTap sees as a change (RD-06)`);
+  }
+});
+
+test("the reader is drawn again only for new props of its own, and gets no handler made during a render", () => {
+  const reader = readSource("../components/Reader.tsx");
+  assert.match(reader, /export const Reader = React\.memo\(ReaderView\);/);
+
+  // A handler written inside the element would be a new function on every render of the app, and `React.memo` would
+  // then never hold the chapter still.
+  const app = readSource("../App.tsx");
+  // The element itself, not a type such as `useState<ReaderPreferences>`.
+  const start = /<Reader[\s>]/.exec(app)?.index ?? -1;
+  assert.ok(start > 0, "App.tsx must show the reader");
+  const element = app.slice(start, app.indexOf("/>", start));
+  assert.ok(!element.includes("=>"), `App.tsx gives the reader a handler made during a render:\n${element}`);
+});
+
+test("the reader counts how far down a chapter it is through the progress ticker, not on its own", () => {
+  const reader = readSource("../components/Reader.tsx");
+
+  assert.match(reader, /progress\.changed\(container, chapter\)/);
+  assert.ok(
+    !reader.includes("Math.round"),
+    "Reader.tsx counts a percent of its own, so every scroll event renders the app again (RD-06)"
+  );
 });

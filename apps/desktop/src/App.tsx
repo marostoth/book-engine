@@ -45,10 +45,14 @@ export const App: React.FC<AppProps> = ({ startingPreferences }) => {
   );
   useEffect(() => () => preferencesSaver.flush(), [preferencesSaver]);
 
-  const handlePreferencesChange = (newPrefs: ReaderPreferences) => {
-    setPreferences(newPrefs);
-    preferencesSaver.change(newPrefs);
-  };
+  // Made once, because the reader is only drawn again for new props of its own (RD-06).
+  const handlePreferencesChange = useCallback(
+    (newPrefs: ReaderPreferences) => {
+      setPreferences(newPrefs);
+      preferencesSaver.change(newPrefs);
+    },
+    [preferencesSaver]
+  );
 
   // The reading theme is one of the saved settings, so the app starts with the theme the reader chose (DS-11).
   const theme = themeOf(preferences);
@@ -136,8 +140,57 @@ export const App: React.FC<AppProps> = ({ startingPreferences }) => {
    * Where a passage of the open chapter is, for a citation that the reader stages. The reader gives the anchor of the
    * block that holds the passage and stages nothing without one, so no citation gets an anchor of the app's own (RD-04).
    */
-  const citation = (quote: string, anchor: string): AnchoredCitation | null =>
-    activeChapter ? { chapterFile: activeChapter.file_path, anchor, quote } : null;
+  const citation = useCallback(
+    (quote: string, anchor: string): AnchoredCitation | null =>
+      activeChapter ? { chapterFile: activeChapter.file_path, anchor, quote } : null,
+    [activeChapter]
+  );
+
+  // Every handler of the reader is made once, so a render of the app leaves the chapter on screen alone (RD-06).
+  // The modal openers come one by one, because each session hook gives back a new object on every render.
+  const { openTermModal, openArgumentModal, openCritiqueModal, openInquiryModal } = analyticalSession;
+  const { stageCitation } = syntopiconSession;
+
+  const handleNoteFromSelection = useCallback((quote: string, anchorId?: string) => {
+    setInsertedQuote({ quote, anchorId });
+    setViewMode((mode) => (mode === "dual" ? mode : "dual"));
+  }, []);
+  const handleOpenInSplit = useCallback(() => setViewMode((mode) => (mode === "dual" ? mode : "dual")), []);
+  const handleAddTerm = useCallback(
+    (quote: string, anchor: string) => {
+      const cite = citation(quote, anchor);
+      if (cite) openTermModal(cite);
+    },
+    [citation, openTermModal]
+  );
+  const handleAddArgument = useCallback(
+    (quote: string, anchor: string) => {
+      const cite = citation(quote, anchor);
+      if (cite) openArgumentModal(cite);
+    },
+    [citation, openArgumentModal]
+  );
+  const handleAddCritique = useCallback(
+    (quote: string, anchor: string) => {
+      const cite = citation(quote, anchor);
+      if (cite) openCritiqueModal(undefined, cite);
+    },
+    [citation, openCritiqueModal]
+  );
+  const handleAddInquiry = useCallback(
+    (quote: string, anchor: string) => {
+      const cite = citation(quote, anchor);
+      if (cite) openInquiryModal(cite);
+    },
+    [citation, openInquiryModal]
+  );
+  const handleAddSyntopic = useCallback(
+    (quote: string, anchor: string) => {
+      const cite = citation(quote, anchor);
+      if (cite) stageCitation({ bookId: activeBookId, ...cite });
+    },
+    [citation, stageCitation, activeBookId]
+  );
 
   // Sync theme and dark mode class to root / body
   useEffect(() => {
@@ -237,20 +290,15 @@ export const App: React.FC<AppProps> = ({ startingPreferences }) => {
                 markdownSource={markdownSource} onPlaceSettled={handleSettled}
                 highlights={highlights} targetAnchor={targetAnchor}
                 onProgressChange={handleProgressChange} onAddHighlight={handleAddHighlight}
-                onAddNoteFromSelection={(quote, anchorId) => {
-                  setInsertedQuote({ quote, anchorId });
-                  if (viewMode !== "dual") setViewMode("dual");
-                }}
-                onAddTerm={(quote, anchor) => { const cite = citation(quote, anchor); if (cite) analyticalSession.openTermModal(cite); }}
-                onAddArgument={(quote, anchor) => { const cite = citation(quote, anchor); if (cite) analyticalSession.openArgumentModal(cite); }}
-                onAddCritique={(quote, anchor) => { const cite = citation(quote, anchor); if (cite) analyticalSession.openCritiqueModal(undefined, cite); }}
-                onAddInquiry={(quote, anchor) => { const cite = citation(quote, anchor); if (cite) analyticalSession.openInquiryModal(cite); }}
-                onAddSyntopic={(quote, anchor) => { const cite = citation(quote, anchor); if (cite) syntopiconSession.stageCitation({ bookId: activeBookId, ...cite }); }}
+                onAddNoteFromSelection={handleNoteFromSelection}
+                onAddTerm={handleAddTerm} onAddArgument={handleAddArgument}
+                onAddCritique={handleAddCritique} onAddInquiry={handleAddInquiry}
+                onAddSyntopic={handleAddSyntopic}
                 analyticalStore={analyticalSession.analyticalStore}
                 currentChapterFile={activeChapter?.file_path}
                 preferences={preferences} onPreferencesChange={handlePreferencesChange}
                 activeLevel={activeLevel}
-                onOpenInSplit={() => { if (viewMode !== "dual") setViewMode("dual"); }}
+                onOpenInSplit={handleOpenInSplit}
                 isPacingRunning={isPacingRunning} onTogglePacer={handleTogglePacer}
               />
 

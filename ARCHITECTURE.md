@@ -99,6 +99,7 @@ book-engine/
 │       │   │   │   ├── ReaderHighlights.ts  # Draws the saved highlights over the chapter text, so they show over marks, blocks & Bionic reading (RD-02)
 │       │   │   │   ├── TableExtensions.ts   # Table, row, header cell & cell nodes; a cell keeps the alignment of its column (RD-03)
 │       │   │   │   ├── TipTapExtensions.ts  # BlockAnchors on every anchored block, the superscript mark & the FootnoteRef node
+│       │   │   │   ├── readerEditorOptions.ts # The options the reader gives TipTap, built once so a render sets none again (RD-06)
 │       │   │   │   ├── readerExtensions.ts  # The reader's nodes & marks: every chapter document is made of these (RD-03)
 │       │   │   │   └── useReaderSelection.ts # Text selection, highlights from the words of the chapter document, anchor detection & lexicon de-confliction
 │       │   │   ├── settings/        # Modular reader settings tabs
@@ -131,7 +132,7 @@ book-engine/
 │       │   │   ├── OmniSearchModal.tsx  # Ctrl+K global full-text search palette; each result shows as text with its hits marked (SEC-01)
 │       │   │   ├── PracticeModal.tsx    # Extractive practice suite (Cloze, Scenario MCQ & Scramble drills)
 │       │   │   ├── PreferencesGate.tsx  # Holds the app back until the reader settings are read from vault/preferences.json
-│       │   │   ├── Reader.tsx           # Virtualized TipTap chapter canvas with margin anchors; saves where you stopped once the scrolling stops; a chapter opens at its top
+│       │   │   ├── Reader.tsx           # Virtualized TipTap chapter canvas with margin anchors; saves where you stopped once the scrolling stops; a chapter opens at its top; drawn again only for its own new props (RD-06)
 │       │   │   ├── SelectionMenu.tsx    # Floating UI selection toolbar (Highlight, Note, Link)
 │       │   │   ├── SettingsPopover.tsx  # Reader preferences & Gatekeeper settings popover
 │       │   │   ├── Sidebar.tsx          # Hierarchical TOC & linear chapter navigation drawer; a book whose contents open no chapter file shows its chapter list (CQ-01)
@@ -211,11 +212,13 @@ book-engine/
 │       │   │   ├── practiceTypes.ts     # FSRS practice models (ScenarioOption, ScenarioPayload, PracticeCardItem)
 │       │   │   ├── preferences.ts       # Reader settings: defaults, migration, load from the vault (one copy from browser storage) & an ordered saver
 │       │   │   ├── preferences.test.ts  # Settings tests: the vault keeps them, the theme is one of them, a late save never undoes a newer one
-│       │   │   ├── readerEditor.test.ts # Editor tests: TipTap is 3.30.4 or later, a `__proto__` key draws no attribute, the reader loads only its own nodes, marks & plugins (SEC-05)
+│       │   │   ├── readerEditor.test.ts # Editor tests: TipTap is 3.30.4 or later, a `__proto__` key draws no attribute, the reader loads only its own nodes, marks & plugins (SEC-05), and one options object leaves the chapter state alone (RD-06)
 │       │   │   ├── readerLoads.ts       # Book & chapter loading: only the newest load may change the reader
 │       │   │   ├── readerLoads.test.ts  # Load tests: a slow chapter that answers late changes nothing
 │       │   │   ├── readerLocation.ts    # Book + chapter file + anchor locations: search hits open their own book
 │       │   │   ├── readerLocation.test.ts # Location tests: a hit in another book's ch-01.md opens that book, not the open one
+│       │   │   ├── readerProgress.ts    # How far down a chapter the reader is: each whole percent is reported once, not each scroll event (RD-06)
+│       │   │   ├── readerProgress.test.ts # Progress tests: 201 scroll events make 101 reports, and another chapter reports its own percent
 │       │   │   ├── readerShortcuts.ts   # Keyboard shortcut owners: App listener (Ctrl+K, Alt+P, ? / F1) or elementary canvas ([ and ])
 │       │   │   ├── readerShortcuts.test.ts # Shortcut tests: one Alt+P press toggles the pacer once at every reading level
 │       │   │   ├── readerText.ts        # The text of a chapter document as the reader shows it, with the document position of each character (RD-02)
@@ -784,6 +787,14 @@ A highlight was a mark in the chapter document, on the first text node that held
 - **No New Parse:** `Reader.tsx` gives the list to the plugin (`showHighlights`) and sets the chapter only when its text or Bionic reading changes. A new highlight shows at once, and the plugin draws the highlights again for each new document.
 - **Colors:** yellow, amber, emerald, blue and purple (`index.css`). Any other color shows in yellow, and the text keeps the color of the theme.
 - **The Same Words With the Same Text Around Them:** two such copies in one block, or where there is no anchor, cannot be told apart, so the highlight shows on the first. On 72 real chapters, 10,798 of 10,800 random selections came back on the same characters, with Bionic reading off and on; the other 2 were such copies in a heading.
+
+### What One Scroll Costs (RD-06)
+- **One report for each whole percent:** the page sends a scroll event for every few pixels it moves, and each report of the progress changes a state of the app, which draws the app again. `createProgressTicker` (`src/lib/readerProgress.ts`) keeps the percent it reported last, so 201 scroll events down a chapter make 101 reports, one for each whole percent. Another chapter reports its own percent again, even the same number.
+- **One options object for the editor:** TipTap looks at the options after every render of the reader and compares each one by identity (`EditorInstanceManager.compareOptions`, `@tiptap/react`). The reader used to build `editorProps` inside its render, so TipTap set the options again and the editor gave ProseMirror the whole chapter state again. `readerEditorOptions` (`components/reader/readerEditorOptions.ts`) builds them once, from a click handler that `useCallback` makes once, and `Reader.tsx` holds them in a `useMemo`.
+- **The footnotes of the chapter are a ref:** only a click in the chapter reads them, so a new chapter needs no render for them, and the click handler stays the same one.
+- **The reader is memoized:** `React.memo` draws the reader again only for new props of its own. Every handler that the app gives it is made once (`useCallback` in `App.tsx` and `hooks/useBookSession.ts`), because one handler built during a render would undo the memo.
+- **Measured (dev build, the sample chapter, 201 scroll events):** the reader was drawn 101 times and is now drawn once, a second after the scroll, when the place settles; TipTap set the options 101 times and now never; ProseMirror took the chapter state again 101 times and now never. The progress on screen is the same: 100 changes, ending at 100%. The scroll took 1,342 ms and now takes 1,114 ms.
+- **Still parsed once:** a chapter switch and a Bionic toggle parse the chapter and give the editor a new document. That parse takes 12-31 ms for the chapters of the vault, whose biggest chapter holds 51,086 words in 255 blocks and whose deepest holds 800 blocks and 2,665 nodes. A new highlight parses nothing (RD-02).
 
 ### Omni-Search Command Palette (`apps/desktop/src/components/OmniSearchModal.tsx`)
 - **Keyboard-Driven Interaction:** Global listener toggles modal via `Ctrl + K` (Windows/Linux) or `Cmd + K` (macOS), with Arrow keys for selection, `Enter` to navigate, and `Escape` to dismiss.

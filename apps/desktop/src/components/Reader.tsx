@@ -1,14 +1,15 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { parseChapterMarkdown } from "../lib/markdown";
 import { resolveAssetUrl } from "../lib/api";
 import { applyBionicReading } from "../lib/bionic";
 import { toAnchorAttribute } from "../lib/anchors";
 import { createPlaceWatcher, paragraphAtMiddle, type ChapterRef } from "../lib/readingPlace";
+import { createProgressTicker } from "../lib/readerProgress";
 import { FootnoteItem, HighlightItem, ReaderPreferences } from "../lib/types";
 import { FootnotePopover } from "./FootnotePopover";
 import { SelectionMenu } from "./SelectionMenu";
-import { readerExtensions } from "./reader/readerExtensions";
+import { readerEditorOptions, type ChapterClick } from "./reader/readerEditorOptions";
 import { showHighlights } from "./reader/ReaderHighlights";
 import { ElementaryCanvas } from "./elementary/ElementaryCanvas";
 import { LexiconPopover } from "./elementary/LexiconPopover";
@@ -62,7 +63,7 @@ interface ReaderProps {
   onTogglePacer?: () => void;
 }
 
-export const Reader: React.FC<ReaderProps> = ({
+const ReaderView: React.FC<ReaderProps> = ({
   bookId, vaultPath, markdown, markdownSource, onPlaceSettled, isBionic, highlights, targetAnchor,
   onProgressChange, onAddHighlight, onAddNoteFromSelection,
   onAddTerm, onAddArgument, onAddCritique, onAddInquiry, onAddSyntopic,
@@ -88,52 +89,48 @@ export const Reader: React.FC<ReaderProps> = ({
   // the inspectional level saves the place that was still waiting.
   useLayoutEffect(() => () => placeWatcher.flush(), [placeWatcher]);
 
-  const [footnotes, setFootnotes] = useState<Record<string, FootnoteItem>>({});
+  // The footnotes of the chapter on screen. A ref, not a state: only a click in the chapter reads them, so a new
+  // chapter needs no render for them, and the click handler below stays the same one (RD-06).
+  const footnotes = useRef<Record<string, FootnoteItem>>({});
   const [activeFootnote, setActiveFootnote] = useState<FootnoteItem | null>(null);
   const [footnotePos, setFootnotePos] = useState<{ x: number; y: number } | null>(null);
   const [activeLightboxImage, setActiveLightboxImage] = useState<{ src: string; alt: string } | null>(null);
 
-  // Single-Chapter Virtualization: Mounts TipTap for only the current chapter
-  const editor = useEditor({
-    extensions: readerExtensions,
-    editorProps: {
-      attributes: {
-        // The app turns off text selection everywhere, so the chapter turns it on again: a highlight, a note and a
-        // lookup all start from a selection (RD-02).
-        class:
-          "reader-prose prose max-w-none select-text focus:outline-none font-serif text-lg leading-relaxed antialiased",
-      },
-      handleClick: (_view, _pos, event) => {
-        const target = event.target as HTMLElement;
-        const callout = target.closest(".footnote-callout");
-        if (callout) {
-          event.preventDefault();
-          const fnId = callout.getAttribute("data-fn");
-          if (fnId && footnotes[fnId]) {
-            const rect = callout.getBoundingClientRect();
-            setFootnotePos({
-              x: rect.left + rect.width / 2,
-              y: rect.top,
-            });
-            setActiveFootnote(footnotes[fnId]);
-          }
-          return true;
-        }
+  // A click on a footnote mark opens the note, and a click on a figure opens it big. The handler is made once, so
+  // TipTap finds the options of the editor unchanged after a render (RD-06).
+  const handleChapterClick = useCallback<ChapterClick>((_view, _pos, event) => {
+    const target = event.target as HTMLElement;
+    const callout = target.closest(".footnote-callout");
+    if (callout) {
+      event.preventDefault();
+      const fnId = callout.getAttribute("data-fn");
+      const note = fnId ? footnotes.current[fnId] : undefined;
+      if (note) {
+        const rect = callout.getBoundingClientRect();
+        setFootnotePos({
+          x: rect.left + rect.width / 2,
+          y: rect.top,
+        });
+        setActiveFootnote(note);
+      }
+      return true;
+    }
 
-        const img = target.closest("img") as HTMLImageElement | null;
-        if (img && img.src) {
-          event.preventDefault();
-          setActiveLightboxImage({
-            src: img.src,
-            alt: img.alt || "Figure Diagram",
-          });
-          return true;
-        }
-        return false;
-      },
-    },
-    editable: false,
-  });
+    const img = target.closest("img") as HTMLImageElement | null;
+    if (img && img.src) {
+      event.preventDefault();
+      setActiveLightboxImage({
+        src: img.src,
+        alt: img.alt || "Figure Diagram",
+      });
+      return true;
+    }
+    return false;
+  }, []);
+
+  // Single-Chapter Virtualization: Mounts TipTap for only the current chapter
+  const editorOptions = useMemo(() => readerEditorOptions(handleChapterClick), [handleChapterClick]);
+  const editor = useEditor(editorOptions);
 
   // Selection, highlight, and lexicon popover coordination hook
   const {
@@ -178,7 +175,7 @@ export const Reader: React.FC<ReaderProps> = ({
     if (!editor || !markdown) return;
 
     const parsed = parseChapterMarkdown(markdown, (src) => (bookId ? resolveAssetUrl(bookId, src, vaultPath) : src));
-    setFootnotes(parsed.footnotes);
+    footnotes.current = parsed.footnotes;
 
     editor.commands.setContent(isBionic ? applyBionicReading(parsed.doc) : parsed.doc);
     placeWatcher.shown(markdownSource ?? null);
@@ -227,19 +224,18 @@ export const Reader: React.FC<ReaderProps> = ({
     return () => clearTimeout(timer);
   }, [targetAnchor, markdown, markdownSource, placeWatcher]);
 
+  // How far down the chapter the reader is. Every report renders the app, so each whole percent is reported once
+  // and the many scroll events of one wheel turn do no more work than that (RD-06).
+  const [progress] = useState(createProgressTicker);
+
   // Handle scroll progress tracking
   const handleScroll = () => {
-    if (!containerRef.current) return;
+    const container = containerRef.current;
+    if (!container) return;
     placeWatcher.moved();
     const chapter = markdownSource ?? null;
-    const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
-    const total = scrollHeight - clientHeight;
-    if (total <= 0) {
-      onProgressChange(100, chapter);
-    } else {
-      const pct = Math.min(100, Math.max(0, Math.round((scrollTop / total) * 100)));
-      onProgressChange(pct, chapter);
-    }
+    const percent = progress.changed(container, chapter);
+    if (percent !== undefined) onProgressChange(percent, chapter);
   };
 
   return (
@@ -327,3 +323,10 @@ export const Reader: React.FC<ReaderProps> = ({
     </div>
   );
 };
+
+/**
+ * The chapter on screen. It is drawn again only for its own new props: a scroll moves the bar in the top navigation
+ * and renders the app, and the chapter, its highlights and its ProseMirror state are then left alone (RD-06). Every
+ * handler the app gives the reader must therefore be made once, with `useCallback`, and a test checks that.
+ */
+export const Reader = React.memo(ReaderView);

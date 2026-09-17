@@ -205,25 +205,29 @@ export function useBookSession({ onCardsRefreshNeeded, requestChapterMove }: Boo
     [readingTimer]
   );
 
-  const handleAddHighlight = (newHighlight: HighlightItem) => {
-    if (!bookMeta || !activeChapter) return;
+  // Made once for the chapter on screen, because the reader is drawn again only for new props of its own (RD-06).
+  const handleAddHighlight = useCallback(
+    (newHighlight: HighlightItem) => {
+      if (!bookMeta || !activeChapter) return;
 
-    const chapterFile = activeChapter.file_path;
-    if (highlightsChapter !== `${bookMeta.book_id}/${chapterFile}`) {
-      reportBackendError(
-        "The highlight was not saved.",
-        "The saved highlights of this chapter did not load, and a save now would erase them. Open the chapter again."
+      const chapterFile = activeChapter.file_path;
+      if (highlightsChapter !== `${bookMeta.book_id}/${chapterFile}`) {
+        reportBackendError(
+          "The highlight was not saved.",
+          "The saved highlights of this chapter did not load, and a save now would erase them. Open the chapter again."
+        );
+        return;
+      }
+
+      const updated = [...highlights, newHighlight];
+      setHighlights(updated);
+
+      saveChapterHighlights(bookMeta.book_id, chapterFile, updated).catch((err) =>
+        reportBackendError("The highlight was not saved.", err)
       );
-      return;
-    }
-
-    const updated = [...highlights, newHighlight];
-    setHighlights(updated);
-
-    saveChapterHighlights(bookMeta.book_id, chapterFile, updated).catch((err) =>
-      reportBackendError("The highlight was not saved.", err)
-    );
-  };
+    },
+    [bookMeta, activeChapter, highlightsChapter, highlights]
+  );
 
   /**
    * Opens a chapter of the open book, at `anchor` when given. Every chapter change inside the open book comes here

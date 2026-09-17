@@ -30,6 +30,12 @@ export interface ChapterRef {
   chapterFile: string;
 }
 
+/** True when both names name the same chapter of the same book, or when both are empty. */
+export function sameChapter(a: ChapterRef | null, b: ChapterRef | null): boolean {
+  if (!a || !b) return a === b;
+  return a.bookId === b.bookId && a.chapterFile === b.chapterFile;
+}
+
 /** The chapter a book opens at, and the paragraph to show there. */
 export interface OpeningPlace {
   /** Null when the book has no chapters. */
