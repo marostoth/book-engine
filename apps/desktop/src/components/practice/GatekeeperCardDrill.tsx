@@ -50,7 +50,7 @@ export const GatekeeperCardDrill: React.FC<GatekeeperCardDrillProps> = ({
         <div className="p-3 rounded-xl bg-[var(--theme-surface)] border border-[var(--theme-border)] space-y-1">
           <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[var(--theme-accent)] text-[10px]">
             <HelpCircle className="w-3.5 h-3.5" />
-            <span>Scenario Analysis Challenge</span>
+            <span>What comes next</span>
           </div>
           <p className="font-medium text-[var(--theme-text)] leading-relaxed whitespace-pre-line">
             {payload?.scenario || card.prompt}
@@ -102,9 +102,9 @@ export const GatekeeperCardDrill: React.FC<GatekeeperCardDrillProps> = ({
         {revealed && payload?.rationale && (
           <div className="p-2.5 rounded-xl bg-[var(--theme-accent)]/10 border border-[var(--theme-accent)]/20 text-[11px] text-[var(--theme-text)] space-y-1 animate-in fade-in duration-150">
             <span className="font-bold uppercase tracking-wider text-[var(--theme-accent)] text-[9px] block">
-              Extractive Grounding:
+              From the book:
             </span>
-            <p className="italic leading-relaxed">"{payload.rationale}"</p>
+            <p className="italic leading-relaxed">{payload.rationale}</p>
           </div>
         )}
       </div>
