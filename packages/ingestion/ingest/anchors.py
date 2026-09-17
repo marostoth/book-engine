@@ -126,8 +126,14 @@ def extract_inspectional_sampling(markdown_content: str, depth: int = 2) -> Insp
     if not candidate_blocks:
         return InspectionalSampling()
 
-    head_candidates = candidate_blocks[:depth]
-    tail_candidates = candidate_blocks[-depth:] if len(candidate_blocks) >= depth else candidate_blocks
+    if 2 <= len(candidate_blocks) < 2 * depth:
+        # A short chapter, such as the cover of a PDF book (IN-01): the head and the tail share no paragraph
+        middle = (len(candidate_blocks) + 1) // 2
+        head_candidates = candidate_blocks[:middle]
+        tail_candidates = candidate_blocks[middle:]
+    else:
+        head_candidates = candidate_blocks[:depth]
+        tail_candidates = candidate_blocks[-depth:]
 
     head_anchors: List[str] = []
     for b in head_candidates:

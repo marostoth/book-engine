@@ -312,7 +312,7 @@ book-engine/
 ├── packages/
 │   └── ingestion/               # Python CLI & deterministic parsing pipeline
 │       ├── ingest/              # Ingestion library modules
-│       │   ├── anchors.py               # Deterministic paragraph anchor (^p-xxx) injector
+│       │   ├── anchors.py               # Deterministic paragraph anchor (^p-xxx) injector; a chapter with 2 or 3 paragraphs gets head and tail samples that share no paragraph (IN-01)
 │       │   ├── assets.py                # Asset extraction, micro-asset filtering & page-level image suppression
 │       │   ├── batch.py                 # Batch document intake utility (.epub & .pdf)
 │       │   ├── book_id.py               # The rule for a book id, which names the folders of a book: an import with another id stops before it writes anything (SEC-03)
@@ -324,7 +324,8 @@ book-engine/
 │       │   ├── layout_stitcher.py       # Narrative sentence healing, layout reconciliation & callout hoisting
 │       │   ├── markdown_text.py         # Book text in chapter Markdown: a < or & that could be read as HTML is written as &lt; or &amp;, and read back (SEC-01)
 │       │   ├── models.py                # Pydantic schema validation for metadata and cards
-│       │   ├── pdf_parser.py            # Sequential chapter-by-chapter PDF parser & asset coordinator
+│       │   ├── pdf_outline.py           # The parts of a PDF book from its outline: every part from the cover to the index, and its kind (front matter, chapter, body, appendix, back matter) (IN-01)
+│       │   ├── pdf_parser.py            # Sequential part-by-part PDF parser & asset coordinator; only chapters, body parts and appendices make practice cards (IN-01)
 │       │   ├── pdf_sanitizer.py         # PDF slug normalization, drop-cap healing, heading & author sanitization
 │       │   ├── pipeline.py              # End-to-end ingestion pipeline coordinator
 │       │   ├── reimport.py              # Stops an import of a book the vault already has before it writes anything, and names the reader's own files
@@ -334,7 +335,7 @@ book-engine/
 │       │   └── vector_figures.py        # Vector diagram rasterization, boundary stops & full-width section bounds
 │       ├── tests/               # Pytest verification suite for anchors, schemas, TOC, and pipeline
 │       │   ├── test_analytical_audit.py # Vector 9 analytical logic & citation parity test suite
-│       │   ├── test_anchors.py          # Deterministic paragraph anchor injection test suite
+│       │   ├── test_anchors.py          # Deterministic paragraph anchor injection test suite; the samples of a short chapter share no paragraph (IN-01)
 │       │   ├── test_book_id.py          # Import tests: an EPUB, a PDF or the command line with a book id that could lead out of the vault writes nothing (SEC-03)
 │       │   ├── test_book_id_rule.py     # Book id rule tests: every id the importer makes passes, an id that could leave its folder is refused
 │       │   ├── test_cloze_cards.py      # Cloze card tests: no small-word, number or label answer, no marks or second answer in the prompt, no card from a table or HTML, one card for a repeated term, and the audit refuses the old cards (LE-07)
@@ -344,6 +345,8 @@ book-engine/
 │       │   ├── test_meta_schema.py      # Book metadata, hierarchical TOC & schema validation tests
 │       │   ├── test_next_sentence_quiz.py # Quiz card tests: the card asks what comes right after its passage, the right option spreads over A to D, no near-copy or next-paragraph wrong option, and the audit refuses the old cards (LE-06)
 │       │   ├── test_pdf.py              # PDF parsing, chapter splitting & text preservation tests
+│       │   ├── test_pdf_book_parts.py   # PDF import tests: the preface, the part pages, the appendices and the index are imported, the last chapter keeps its sections, the pages no part covers are named, only chapters and appendices make cards, and the audits pass on the imported book (IN-01)
+│       │   ├── test_pdf_outline.py      # Outline part tests: the Kotler and Dalton outline shapes cover every page and keep the chapter pages, and each part gets its kind (IN-01)
 │       │   ├── test_pipeline.py         # End-to-end ingestion pipeline integration test suite
 │       │   ├── test_practice_deck.py    # Zero-hallucination verbatim practice card validation tests
 │       │   ├── test_reimport.py         # Import stop tests: nothing changes, --force keeps the reader's files, the inbox keeps a stopped copy
@@ -381,6 +384,14 @@ Anchors follow the format `^p-[0-9]{3,}` and are preserved across re-indexes.
 
 ### Hierarchical Spine Contract (_meta.json)
 The manifest models multi-level books (Parts -> Chapters -> Sections) with word counts, paths, and anchors. The importer makes this file and writes it again on every import, so it holds nothing the reader writes, and the app only reads it (DS-09).
+
+### Every Part of a PDF Book (`packages/ingestion/ingest/pdf_outline.py`)
+The PDF import used to keep only the pages from the first "Chapter N" entry of the PDF outline to the last one. A preface, an appendix, a glossary, a reference list and an index were never imported, a part with no chapter number such as "Conclusion" was lost, and a last chapter with sections in the outline was cut at its first section (IN-01: Kotler lost 155 of 769 pages, Dalton 40 of 370). Now `outline_parts` makes a part of every outline entry at the level of the chapters, and of every entry above that level that holds no chapter, with the sections inside it. An entry that holds chapters, such as "Part 1" or the book title, is not a part itself, but its pages before its first inner entry are. A part runs until the next part starts. The pages before the first part are not imported, and the import prints them (`Not imported: pages 1-2.`). Outline entries that start on the same page share one part, because a page cannot be split. The parts are `ch-01.md`, `ch-02.md` and so on in page order, as in an EPUB book, because the app opens only chapter files with these names (SEC-03).
+- **Chapter Level:** the outline level that holds the most chapter titles: "Chapter 3", "Chapter IV" or "Chapter One", or else titles that start with a number, such as "3. Pricing". When no title looks like a chapter, the chapters are one level below the entries named "Part", "Book" or "Volume" with a number, or else on the first level with more than one entry.
+- **Kinds:** a part with a chapter title is a chapter. The parts before the first chapter are front matter, and the parts after the last chapter are back matter. A part between two chapters, such as the title page of "Part 2" or an interlude, is body, and so is the title page of "Part 1". A part whose title starts with "Appendix" is an appendix. When no title looks like a chapter, every part is a chapter.
+- **Cards:** only chapters, body parts and appendices make practice cards and count for the reading metrics, as the owner chose. In the real PDFs, the other parts made mostly weak cards, from copyright text, reference lists, author pages and index lines.
+- **Blueprint:** the pivotal chapters are the first and the last chapter, not the cover or the index. `has_preface` and `preface_path` point at a front matter part named "Preface". The notes template goes with the first chapter. A part with 2 or 3 paragraphs, such as a cover, gets head and tail samples that share no paragraph (`extract_inspectional_sampling`), as the inspectional check of `audit-system.py` requires; before, only a chapter that short could fail it, and no real chapter was.
+- **No Outline:** a PDF with no usable outline is still cut into parts of 35 pages.
 
 ### Vector Figure Extraction & Full-Width Section Bounding (`packages/ingestion/ingest/vector_figures.py`)
 Multi-column textbook pages frequently include full-width conceptual matrices, multi-step process models, and leader callout boxes. To guarantee unclipped, high-resolution rendering:
