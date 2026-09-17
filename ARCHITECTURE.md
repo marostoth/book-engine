@@ -44,7 +44,7 @@ book-engine/
 ├── .agent/
 │   └── skills/                  # Autonomous verification harnesses
 │       ├── audit-anchors.py         # Verifies paragraph anchor & footnote definition integrity
-│       ├── audit-practice.py        # Audits zero-hallucination verbatim extractive study cards; every quiz option is chapter text and the right one comes right after the passage (LE-06)
+│       ├── audit-practice.py        # Audits zero-hallucination verbatim extractive study cards; every quiz option is chapter text and the right one comes right after the passage (LE-06); every cloze answer is a term that is text of the chapter, and its prompt shows the exact source with no marks and no second answer (LE-07)
 │       ├── audit-system.py          # Universal dynamic health orchestrator (12 vectors: Ledger, Anchors, Cards, Rust, TS, FTS5, GUI smoke test, Inspectional, Analytical, Syntopical, Elementary, Modularity & Isolation)
 │       ├── benchmark-fts.py         # Benchmarks SQLite FTS5 query latency (<15ms target)
 │       ├── process-inbox.py         # Automated fail-safe batch book intake pipeline & ledger manager; a book the vault already has stops unless --force
@@ -317,6 +317,7 @@ book-engine/
 │       │   ├── batch.py                 # Batch document intake utility (.epub & .pdf)
 │       │   ├── book_id.py               # The rule for a book id, which names the folders of a book: an import with another id stops before it writes anything (SEC-03)
 │       │   ├── cli.py                   # Command-line entrypoint (`book-ingest`); a book the vault already has is replaced only with --force; a --book-id that breaks the rule stops the import (SEC-03)
+│       │   ├── cloze.py                 # Cloze (fill-in) cards: a marked term of a plain sentence, no small-word, number or label answers, prompts without marks or a second answer, and one card for a repeated term in a chapter without a marked term (LE-07)
 │       │   ├── elementary.py            # Deterministic Flesch-Kincaid & reading time metrics
 │       │   ├── endnotes.py              # Backmatter endnote relocation to inline footnotes
 │       │   ├── epub_parser.py           # XHTML chapter extractor & typography normalizer; book text that looks like HTML is written as text (SEC-01)
@@ -327,7 +328,7 @@ book-engine/
 │       │   ├── pdf_sanitizer.py         # PDF slug normalization, drop-cap healing, heading & author sanitization
 │       │   ├── pipeline.py              # End-to-end ingestion pipeline coordinator
 │       │   ├── reimport.py              # Stops an import of a book the vault already has before it writes anything, and names the reader's own files
-│       │   ├── salience.py              # Deterministic salience scorer & Cloze deck generator
+│       │   ├── salience.py              # Deterministic salience scorer & practice deck writer; re-exports the cloze and quiz card generators
 │       │   ├── sample_generator.py      # Starter sample generator for development
 │       │   ├── scenarios.py             # Quiz cards that ask which sentence comes right after a passage: wrong options from other paragraphs of the chapter, no near-copies, the right option spread over A to D (LE-06)
 │       │   └── vector_figures.py        # Vector diagram rasterization, boundary stops & full-width section bounds
@@ -336,6 +337,7 @@ book-engine/
 │       │   ├── test_anchors.py          # Deterministic paragraph anchor injection test suite
 │       │   ├── test_book_id.py          # Import tests: an EPUB, a PDF or the command line with a book id that could lead out of the vault writes nothing (SEC-03)
 │       │   ├── test_book_id_rule.py     # Book id rule tests: every id the importer makes passes, an id that could leave its folder is refused
+│       │   ├── test_cloze_cards.py      # Cloze card tests: no small-word, number or label answer, no marks or second answer in the prompt, no card from a table or HTML, one card for a repeated term, and the audit refuses the old cards (LE-07)
 │       │   ├── test_endnotes.py         # Endnote relocation & inline footnote syntax test suite
 │       │   ├── test_figure_cards.py     # Figure extraction, full-width dimensions & table suppression tests
 │       │   ├── test_markdown_text.py    # Book text tests: a tag the book shows as text is written as text in every kind of block, and reads back as the book has it
@@ -470,6 +472,15 @@ When a book mounts, `sync_practice_deck` reads `vault/notes/<book-id>/practice-d
 - **Upsert:** a stored card takes the deck's text, chapter, anchor, and payload and keeps its schedule. A new question starts as a new card, due now.
 - **Archive, Never Delete:** a stored card whose question is no longer in the deck moves to `fsrs_cards_archive` with its progress, and it comes back with that progress when the question returns. A deck without any valid card changes nothing. The cards of a book that left the vault are archived as `book_not_in_vault` (`db/removed_books.rs`), and they come back with their progress when the book returns and its deck syncs (LC-02).
 - **Older Rows:** rows with position-based ids from older builds get their question id on the next sync. When two rows hold the same question, the row with more reviews (then the later review) stays, the other row is archived as `duplicate`, and `review_logs` rows follow the question id.
+
+### Cloze Card Generation (`packages/ingestion/ingest/cloze.py`)
+The importer makes up to 8 cloze (fill-in) cards per chapter with `generate_chapter_practice_cards` (LE-07). The old rules also left out small words ("It is by", from "by means of"), bare numbers and labels ("9-1"), and terms that the rest of the sentence still showed. They made cards from tables and HTML, showed Markdown and footnote marks, and made no card for most chapters of a book without bold terms.
+- **Sentences:** a card comes from a sentence of plain text: a paragraph, a list item, or a quote line. Tables, code, HTML blocks, images, and footnote texts give none, and neither does a sentence with an HTML tag, a link, a brace, a broken character, no small letter (a heading), or no sentence end. `exact_sentences` splits as `split_sentences` does, but keeps every sentence exactly as the chapter has it.
+- **Answers:** a marked term, searched in this order: bold, "X is defined as / refers to / means / denotes / is characterized by / is considered", a quoted term, and "the purpose / principle / concept / role of X is". A leading "the", "a", or "an" stays outside the blank. The answer has 3 to 50 characters, holds a letter and no marks, does not end with a digit (a label such as "Table 13.2"), and neither starts nor ends with a small word (`STOPWORDS`).
+- **Prompt:** the sentence as the reader shows it: no Markdown marks `*` `_` `` ` ``, no footnote marks `[^n]`, the book's `<` and `&`, and single spaces. It has one blank, and the answer shows nowhere else in it.
+- **Every Chapter:** a chapter that has such sentences but no marked term gets one card for its most repeated term of 2 or 3 words, with no small word and no common word (`COMMON_WORDS`, for example number words and "chapter"). One word alone is too plain to be a key term. The card comes from the sentence with the best salience score that holds the term once.
+- **Byte for Byte:** the answer is text of the chapter after Windows line endings become `\n`. The exact source is too, where a line break inside a paragraph counts as a space, as the reader shows it. The generator checks both before it uses a card, and the app checks the answer again when it syncs the deck.
+- **Audit:** `audit-practice.py` checks every cloze card with the same rules: one blank that holds the answer key, an answer that is a term and text of the chapter, an exact source that is text of the chapter, and a prompt that shows the exact source with no marks and no second answer. A test keeps the rules of the audit and the importer the same.
 
 ### Tauri v2 IPC Interface (`apps/desktop/src-tauri/`)
 All deck synchronization and review calculations are executed on background threads (`tokio::task::spawn_blocking`) without blocking the UI:
@@ -1102,7 +1113,7 @@ The system health orchestrator in `.agent/skills/audit-system.py` dynamically va
 
 1. **Vector 1 (Dynamic Ledger & Vault Parity):** Verifies all books in `vault/books/` and binaries in `inbox/processed/` are cataloged in `vault/_ledger.json` with matching SHA-256 digests.
 2. **Vector 2 (Anchor & Asset Integrity):** Validates persistent paragraph anchors (`^p-NNN`), unreferenced asset cleanup, and image markdown reference existence.
-3. **Vector 3 (Zero-Hallucination & Dual-Modality Guardrail):** Confirms that every answer key and rationale quote is an exact character substring in the cited chapter, and that every quiz option is text of the cited chapter without its Markdown marks (LE-06); enforces that library practice items feature both Cloze recall and deductive Scenario MCQ cards.
+3. **Vector 3 (Zero-Hallucination & Dual-Modality Guardrail):** Confirms that every answer key and rationale quote is an exact character substring in the cited chapter, and that every quiz option is text of the cited chapter without its Markdown marks (LE-06), and that every cloze answer is a term and its prompt shows the exact source with no marks and no second answer (LE-07); enforces that library practice items feature both Cloze recall and deductive Scenario MCQ cards.
 4. **Vector 4 (Backend Safety):** `cargo check` and `cargo test` in `apps/desktop/src-tauri` with zero errors and zero failing unit tests. Unit tests run inside a temporary sandbox vault and database (`src/test_support.rs`), never the real ones.
 5. **Vector 5 (Frontend Safety):** TypeScript strict typecheck in `apps/desktop` with zero errors.
 6. **Vector 6 (FTS5 Search Latency Benchmark):** SQLite FTS5 query latency average strictly $< 15.0\text{ms}$.

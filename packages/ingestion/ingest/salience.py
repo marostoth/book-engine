@@ -1,15 +1,14 @@
-"""Autonomous salience scoring and deterministic Cloze deck generator.
+"""Autonomous salience scoring and the practice deck writer.
 
-Extracts top 5-8 high-signal sentences per chapter.
-Strictly zero-hallucination and extractive: every answer key is verified as
+Scores sentences for the cloze cards of `ingest/cloze.py` and the quiz cards of `ingest/scenarios.py`, and writes both
+kinds of card into `practice-deck.md`. Strictly zero-hallucination and extractive: every answer key is verified as
 an exact character substring of the source chapter text.
 """
 
 from __future__ import annotations
 import re
-from typing import List, Optional, Tuple
-from ingest.models import PracticeCard, ScenarioCard, ScenarioOptionModel
-from ingest.anchors import extract_anchors
+from typing import List, Optional
+from ingest.models import PracticeCard, ScenarioCard
 
 # Definitional syntax patterns
 DEFINITIONAL_REGEX = re.compile(
@@ -85,129 +84,8 @@ def score_sentence(sentence: str, is_first_sentence: bool = False, is_last_sente
     return score
 
 
-def extract_cloze_target(sentence: str) -> Optional[Tuple[str, str]]:
-    """Deterministically find the best target phrase to mask for a Cloze item.
-
-    Returns:
-        (cloze_sentence, answer_key) or None
-    """
-    # 1. Highest priority: Bolded phrase in sentence
-    for bold_match in BOLD_REGEX.finditer(sentence):
-        raw_key = bold_match.group(1)
-        answer_key = raw_key.strip().strip("_*")
-        if len(answer_key) >= 3 and not answer_key.endswith("."):
-            cloze = sentence.replace(bold_match.group(0), f"{{{{c1::{answer_key}}}}}")
-            if "{{c1::" in cloze and answer_key in sentence:
-                return cloze, answer_key
-
-    # 2. Definitional pattern: "X is defined as Y" -> mask X
-    def_match = re.search(
-        r"^([A-Z][a-zA-Z0-9_\s'-]{2,40}?)\s+(?:is defined as|refers to|means|denotes|is characterized by|is considered)\b",
-        sentence
-    )
-    if def_match:
-        answer_key = def_match.group(1).strip()
-        if len(answer_key) >= 3 and answer_key in sentence:
-            cloze = sentence.replace(answer_key, f"{{{{c1::{answer_key}}}}}", 1)
-            if "{{c1::" in cloze:
-                return cloze, answer_key
-
-    # 3. Quoted term or capitalized domain phrase
-    quoted_match = re.search(r'"([a-zA-Z0-9_\s\'-]{3,40})"', sentence)
-    if quoted_match:
-        answer_key = quoted_match.group(1).strip()
-        if answer_key in sentence:
-            cloze = sentence.replace(f'"{answer_key}"', f'"{{{{c1::{answer_key}}}}}"', 1)
-            if "{{c1::" in cloze:
-                return cloze, answer_key
-
-    # 4. Pattern: "The fundamental principle of X is..." -> mask X
-    key_phrase_match = re.search(
-        r"\b(?:purpose of|principle of|concept of|role of)\s+([a-zA-Z0-9_\s'-]{3,35})\s+(?:is|are)\b",
-        sentence,
-        re.IGNORECASE
-    )
-    if key_phrase_match:
-        answer_key = key_phrase_match.group(1).strip()
-        if answer_key in sentence:
-            cloze = sentence.replace(answer_key, f"{{{{c1::{answer_key}}}}}", 1)
-            if "{{c1::" in cloze:
-                return cloze, answer_key
-
-    return None
-
-
-def generate_chapter_practice_cards(
-    chapter_id: str,
-    chapter_markdown: str,
-    min_items: int = 5,
-    max_items: int = 8
-) -> List[PracticeCard]:
-    """Autonomous salience scoring and deterministic Cloze generation for a single chapter.
-
-    Every answer key is strictly validated as an exact character substring
-    of the source chapter text.
-    """
-    anchored_paragraphs = extract_anchors(chapter_markdown)
-    candidates: List[Tuple[float, str, str, str, str]] = []  # (score, cloze, answer, source, anchor)
-    seen_answers = set()
-
-    for anchor_id, para_text in anchored_paragraphs:
-        # Skip footnote definitions
-        if para_text.startswith("[^"):
-            continue
-
-        sentences = split_sentences(para_text)
-        for i, sentence in enumerate(sentences):
-            is_first = (i == 0)
-            is_last = (i == len(sentences) - 1)
-            score = score_sentence(sentence, is_first, is_last)
-
-            cloze_data = extract_cloze_target(sentence)
-            if not cloze_data:
-                continue
-
-            cloze_text, answer_key = cloze_data
-
-            # Programmatic Verbatim Validation:
-            # 1. Answer key must be exact substring of source sentence (ignoring bold markers)
-            clean_sentence = sentence.replace("**", "")
-            if answer_key not in clean_sentence:
-                continue
-            # 2. Answer key must exist in chapter markdown
-            if answer_key not in chapter_markdown:
-                continue
-            # 3. Deduplicate answers
-            answer_lower = answer_key.lower()
-            if answer_lower in seen_answers:
-                continue
-
-            candidates.append((score, cloze_text, answer_key, sentence, anchor_id))
-            seen_answers.add(answer_lower)
-
-    # Sort descending by salience score
-    candidates.sort(key=lambda c: c[0], reverse=True)
-
-    # Select top items (up to max_items)
-    selected = candidates[:max_items]
-
-    cards: List[PracticeCard] = []
-    for idx, (score, cloze_text, answer_key, sentence, anchor_id) in enumerate(selected, start=1):
-        card = PracticeCard(
-            card_id=f"card-{chapter_id}-{idx:03d}",
-            chapter_id=chapter_id,
-            anchor_id=anchor_id,
-            cloze_text=cloze_text,
-            answer_key=answer_key,
-            exact_source=sentence,
-            score=round(score, 2)
-        )
-        cards.append(card)
-
-    return cards
-
-
-# Re-export scenario generator from modular engine
+# Re-export the cloze and scenario generators from their modules
+from ingest.cloze import extract_cloze_target, generate_chapter_practice_cards  # noqa: E402
 from ingest.scenarios import generate_chapter_scenario_cards  # noqa: E402
 
 
