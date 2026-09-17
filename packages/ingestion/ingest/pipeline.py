@@ -6,7 +6,6 @@ import posixpath
 import re
 from pathlib import Path
 from typing import Dict, List, Optional
-from bs4 import BeautifulSoup
 import ebooklib
 from ebooklib import epub
 
@@ -17,6 +16,7 @@ from ingest.anchors import inject_paragraph_anchors, extract_anchors, extract_in
 from ingest.elementary import compute_elementary_metrics
 from ingest.salience import generate_chapter_practice_cards, generate_chapter_scenario_cards, format_practice_deck_markdown
 from ingest.epub_parser import extract_metadata, parse_toc, html_to_markdown_blocks
+from ingest.line_endings import read_html, write_text_file
 from ingest.markdown_text import unescape_markdown_text
 from ingest.pdf_parser import PDFParser
 from ingest.reimport import book_to_import
@@ -94,7 +94,8 @@ def ingest_epub(
             continue
 
         html_bytes = item.get_content()
-        soup = BeautifulSoup(html_bytes, "html.parser")
+        # The text of the document with \n line endings only, also from a book made on Windows (IN-06)
+        soup = read_html(html_bytes)
 
         # Skip empty / purely whitespace pages
         text_preview = soup.get_text(strip=True)
@@ -137,7 +138,7 @@ def ingest_epub(
         ch_id = f"ch-{chapter_index:02d}"
         ch_filename = f"{ch_id}.md"
         ch_path = book_dir / ch_filename
-        ch_path.write_text(anchored_md, encoding="utf-8")
+        write_text_file(ch_path, anchored_md)
         imported_documents[posixpath.normpath(item_name)] = ImportedDocument(
             chapter_file=ch_filename,
             element_anchors=element_anchors(normalized_blocks[: len(blocks)], element_blocks, anchored_md),
@@ -215,12 +216,12 @@ def ingest_epub(
         inspectional_blueprint=inspectional_blueprint,
     )
     meta_path = book_dir / "_meta.json"
-    meta_path.write_text(book_meta.model_dump_json(indent=2), encoding="utf-8")
+    write_text_file(meta_path, book_meta.model_dump_json(indent=2))
 
     # 7. Save vault/notes/<book-id>/practice-deck.md
     practice_deck_md = format_practice_deck_markdown(title, all_practice_cards, all_scenarios)
     practice_deck_path = notes_dir / "practice-deck.md"
-    practice_deck_path.write_text(practice_deck_md, encoding="utf-8")
+    write_text_file(practice_deck_path, practice_deck_md)
 
     # 8. Create user note template for first chapter if not existing
     first_ch_notes = notes_dir / "ch-01-notes.md"
@@ -231,7 +232,7 @@ def ingest_epub(
             f"## Key Takeaways\n\n- \n\n"
             f"## Open Inquiries\n\n- \n"
         )
-        first_ch_notes.write_text(notes_template, encoding="utf-8")
+        write_text_file(first_ch_notes, notes_template)
 
     return book_meta
 

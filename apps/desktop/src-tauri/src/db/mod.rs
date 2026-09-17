@@ -25,6 +25,8 @@ mod deck_sync_tests;
 #[cfg(test)]
 mod restore_tests;
 #[cfg(test)]
+mod fsrs_parser_tests;
+#[cfg(test)]
 mod fsrs_store_tests;
 #[cfg(test)]
 mod indexer_tests;

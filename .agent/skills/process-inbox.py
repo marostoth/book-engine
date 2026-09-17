@@ -17,6 +17,7 @@ SKILL_DIR = Path(__file__).resolve().parent
 ROOT_DIR = SKILL_DIR.parent.parent
 sys.path.insert(0, str(ROOT_DIR / "packages" / "ingestion"))
 
+from ingest.line_endings import write_text_file
 from ingest.pipeline import ingest_book
 from ingest.reimport import BookAlreadyInVaultError, BookIdTakenError
 
@@ -58,7 +59,7 @@ def save_ledger(ledger_path: Path, entries: List[Dict[str, Any]]) -> None:
     """Atomically writes ledger entries to vault/_ledger.json."""
     ledger_path.parent.mkdir(parents=True, exist_ok=True)
     temp_file = ledger_path.with_suffix(".tmp")
-    temp_file.write_text(json.dumps(entries, indent=2), encoding="utf-8")
+    write_text_file(temp_file, json.dumps(entries, indent=2))
     temp_file.replace(ledger_path)
 
 

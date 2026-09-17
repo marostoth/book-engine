@@ -93,3 +93,20 @@ fn a_renamed_book_folder_opens_under_its_folder_name() {
     assert!(chapter.contains("division of labour"));
     read_book_meta_json(ids[0]).expect("and so does its _meta.json");
 }
+
+/// On Windows the importer wrote chapters and notes with `\r\n` line endings. The reader finds paragraphs and footnotes
+/// at `\n`, so it lost footnotes of such a chapter, and the notes preview showed the notes as one heading (IN-06).
+#[test]
+fn a_chapter_and_its_notes_are_read_with_unix_line_endings() {
+    let sandbox = Sandbox::new();
+    sandbox.write_sample_book();
+    let chapter = "# Chapter 1\n\nThe tide turns at noon.[^1] ^p-001\n\n[^1]: The port office prints the tide tables. ^p-002\n";
+    let notes = "# Reflections: Chapter 1\n\n## Key Takeaways\n\n- \n";
+    for (name, line_ending) in [("windows", "\r\n"), ("old mac", "\r")] {
+        sandbox.write("books/sample/ch-01.md", &chapter.replace('\n', line_ending));
+        sandbox.write("notes/sample/ch-01-notes.md", &notes.replace('\n', line_ending));
+
+        assert_eq!(read_chapter_file(BOOK, "ch-01.md").expect("read the chapter"), chapter, "{name} line endings");
+        assert_eq!(read_notes_file(BOOK, NOTES_FILE).expect("read the notes"), notes, "{name} line endings");
+    }
+}

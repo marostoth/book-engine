@@ -30,11 +30,13 @@ You are acting as a Principal Systems & Frontend Engineer specializing in local-
 - **Tooling:** Tauri v2, `sqlx` (or `rusqlite`), `notify` crate for file watching.
 - **Safety:** Explicit error handling via `thiserror` and `anyhow`. Do not use `.unwrap()` or `.expect()` in non-test paths.
 - **Concurrency:** Execute disk I/O, SQLite FTS5 queries, and hashing on background threads (`tokio::task::spawn_blocking`). Keep the IPC message loop unblocked.
+- **Line Endings:** Read a chapter or notes file with `read_text_file` (`vault/text_file.rs`) before you split it into paragraphs or lines. It gives `\n` line endings only (IN-06).
 
 ### Python (Ingestion Pipeline)
 - **Tooling:** Python 3.11+, `mypy` strict mode, `pytest`.
 - **Parsing:** `ebooklib` + `beautifulsoup4` for EPUBs, `pymupdf4llm` for PDFs, `pydantic` for schema validation.
 - **Determinism:** Normalization must be idempotent. Re-running ingestion on the same file must generate identical Markdown and paragraph anchors.
+- **Line Endings:** Parse an EPUB document with `read_html` and write every vault text file with `write_text_file` (`ingest/line_endings.py`), so vault files have `\n` line endings on every system (IN-06).
 
 ### TypeScript / Frontend
 - **Tooling:** React 18+, TipTap/ProseMirror, Tailwind CSS, Floating UI.

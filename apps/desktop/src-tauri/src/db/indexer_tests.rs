@@ -237,3 +237,30 @@ fn a_renamed_book_folder_is_named_with_its_old_name() {
     );
     assert!(summary.problems.is_empty(), "{:?}", summary.problems);
 }
+
+/// Search finds the paragraphs of a chapter at the same line breaks as the reader: `\r\n` and a lone `\r` are line
+/// breaks, as `\n` is. A chapter with `\r` line endings was one block that starts with its heading, so search had none of
+/// its words (IN-06).
+#[test]
+fn search_finds_each_paragraph_of_a_chapter_with_any_line_ending() {
+    let sandbox = Sandbox::new();
+    let chapter = "# Chapter 1\n\nMarmots whistle at dawn. ^p-001\n\nBeavers build dams at dusk. ^p-002\n";
+    let spine = r#"{ "id": "ch-01", "title": "Chapter 1", "file_path": "ch-01.md", "order": 1 }"#;
+    for (id, line_ending) in [("unix", "\n"), ("windows", "\r\n"), ("old-mac", "\r")] {
+        sandbox.write(&format!("books/{id}/_meta.json"), &book_meta(id, spine));
+        sandbox.write(&format!("books/{id}/ch-01.md"), &chapter.replace('\n', line_ending));
+    }
+    index();
+
+    for (word, anchor) in [("marmots", "^p-001"), ("beavers", "^p-002")] {
+        let mut hits: Vec<(String, String)> = search_vault_blocking(word)
+            .unwrap_or_else(|e| panic!("search {word:?} returned an error: {e:#}"))
+            .into_iter()
+            .map(|hit| (hit.book_id, hit.anchor))
+            .collect();
+        hits.sort();
+        let expected: Vec<(String, String)> =
+            ["old-mac", "unix", "windows"].iter().map(|id| (id.to_string(), anchor.to_string())).collect();
+        assert_eq!(hits, expected, "every book finds {word:?} in its own paragraph");
+    }
+}

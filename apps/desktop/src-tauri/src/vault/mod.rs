@@ -7,6 +7,7 @@ pub mod locate;
 pub mod paths;
 pub mod preferences;
 pub mod safe_write;
+pub mod text_file;
 pub mod study_log;
 pub mod highlights;
 pub mod reader;
