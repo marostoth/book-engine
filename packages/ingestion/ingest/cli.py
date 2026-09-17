@@ -5,6 +5,8 @@ import argparse
 import sys
 from pathlib import Path
 
+from ingest.book_build import BookLeftAsideError
+from ingest.book_check import BookCheckError
 from ingest.book_id import InvalidBookIdError
 from ingest.pipeline import ingest_book
 from ingest.reimport import BookAlreadyInVaultError, BookIdTakenError
@@ -54,6 +56,10 @@ def main() -> None:
         sys.exit(1)
     except InvalidBookIdError as e:
         # Not a crash: the import stopped before it wrote anything (SEC-03)
+        print(f"[-] {e}", file=sys.stderr)
+        sys.exit(1)
+    except (BookCheckError, BookLeftAsideError) as e:
+        # Not a crash: the import stopped before it changed the vault (IN-05)
         print(f"[-] {e}", file=sys.stderr)
         sys.exit(1)
     except Exception as e:

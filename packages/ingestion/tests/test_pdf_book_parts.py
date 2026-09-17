@@ -253,7 +253,5 @@ def test_importing_one_part_again_writes_the_same_book_and_deck(tmp_path: Path) 
 
     again = import_pdf(tmp_path, HARBOUR_PAGES, HARBOUR_OUTLINE, target_chapters=[3], replace=True)
     meta_after = json.loads((again.book_dir / "_meta.json").read_text(encoding="utf-8"))
-    for meta in (meta_before, meta_after):
-        meta.pop("created_at")
     assert meta_after == meta_before
     assert again.deck() == deck_before

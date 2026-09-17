@@ -68,12 +68,17 @@ Ensure the following runtimes are installed on your workstation:
 
 ### 1. Ingestion Pipeline (`packages/ingestion`)
 
-Install the ingestion package in editable mode:
+Install the packages with the versions of the lock file, then the ingestion package in editable mode:
 
 ```bash
-# Install dependencies and CLI tool
-python -m pip install -e packages/ingestion
+# Install the dependencies with the exact versions that the import is tested with
+python -m pip install -r packages/ingestion/requirements.lock
+
+# Install the CLI tool
+python -m pip install --no-deps -e packages/ingestion
 ```
+
+Keep the versions of the lock file: a new version of a package, such as pymupdf4llm, can change the text of a book that you import again. `pytest packages/ingestion/tests` fails when an installed version is not the version of the lock file.
 
 Ingest an EPUB or PDF into the local vault:
 
@@ -90,13 +95,15 @@ python -m ingest.cli path/to/book.epub --vault vault --force
 
 Ingestion relocates endnotes into chapter-level inline footnotes `[^n]`, tags every paragraph with persistent anchors `^p-xxx`, extracts diagrams into `assets/`, and generates `_meta.json`.
 
-A PDF import keeps every part that the PDF outline names, not only the chapters: the contents, the preface, the appendices, the glossary, the references and the index. Each part is a chapter file, `ch-01.md`, `ch-02.md` and so on, in page order. Only the chapters, the pages between them (such as the title page of a part) and the appendices make practice cards. The import prints the pages that no part of the outline covers, which it does not import. A PDF book that you import again with `--force` gets new chapter numbers, so your notes and reading time for a chapter can then point at another part.
+A PDF import keeps every part that the PDF outline names, not only the chapters: the contents, the preface, the appendices, the glossary, the references and the index. Each part is a chapter file, `ch-01.md`, `ch-02.md` and so on, in page order. Only the chapters, the pages between them (such as the title page of a part) and the appendices make practice cards. The import prints the pages that no part of the outline covers, which it does not import. A PDF book that you import again with `--force` can get new chapter numbers, and your notes and reading time move with their chapters.
 
-An EPUB import keeps every text that the book shows: code with its lines and spaces, figures and their captions, boxes beside the text, definition lists and line breaks. A link in the text keeps its words, and only a link to a note becomes a footnote. The header and the license that Project Gutenberg adds to its books are left out. To get text that an older import lost, import the book again with `--force`, but your notes can then point at other paragraphs.
+An EPUB import keeps every text that the book shows: code with its lines and spaces, figures and their captions, boxes beside the text, definition lists and line breaks. A link in the text keeps its words, and only a link to a note becomes a footnote. The header and the license that Project Gutenberg adds to its books are left out. To get text that an older import lost, import the book again with `--force`. Your notes move with their paragraphs.
 
 Each entry of the contents names the chapter file that holds it and the paragraph where it starts, so the sidebar opens the right place even when chapters share a title, such as "CHAPTER I." in every book of The Wealth of Nations. An EPUB book imported before this change shows its chapter list in the sidebar until you import it again.
 
 An import stops, and changes nothing, when the vault already has the book, for example an annotated copy of a PDF you imported before. It names your own files for that book in `vault/notes/<book-id>/`. Run the import again with `--force` to replace the book. Your own files are kept, and they follow their text when a chapter or a paragraph gets another number: your bookmark, reading time, notes, highlights and citations. For example, a new import of a PDF book keeps its front matter as parts of their own, so chapter 7 can move from `ch-07.md` to `ch-11.md`. When the new book does not have the text of a place, that place points to the nearest paragraph, and the import names it. Close the app before you import a book again.
+
+An import builds the book in `vault/.import/<book-id>/` and checks it there: every paragraph must have its anchor, and every footnote link must have its note. Only a whole book that passes the check goes into the vault, together with its practice deck and your moved files. When an import fails or stops, for example on an error in chapter 2, the vault stays as it was, and the error names the problem. A new import writes the whole book folder again, so no chapter file or picture of the older import stays. Two imports of the same file write the same bytes.
 
 A book id comes from the file name. Letters with marks become plain letters, and a name in another script, such as "Война и мир", gets a short code, such as `book-74b780f4`. Two files can still get the same book id, such as "Principles of Marketing 2020.pdf" and "Principles of Marketing 2023.pdf". The import of the second file then stops, even with `--force`, and names the file of the other book. To import it as a different book, run it again with the `--book-id` that the stop gives. To replace the other book with it, run it again with `--book-id <that book id> --force`. Each import records its file in `_meta.json`, so a new import finds the book that the same file made, also after you rename the file.
 

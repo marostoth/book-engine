@@ -5,9 +5,9 @@ A chapter file is numbered by its place in the book (`ch-01.md`), and a paragrap
 paragraph another number. A new import of the Dalton PDF, for example, keeps the front matter as parts of their own
 since IN-01, so every chapter moves up by 4. The reader's own files kept the old numbers, so they pointed at other text.
 
-So a replacing import reads the chapters of the book before it writes anything (`read_book_text`). When it has written
+So a replacing import reads the chapters of the book before it writes anything (`read_book_text`). When it has built
 the new chapters, it finds each old paragraph in the new text (`NewPlaces`), and it moves what the reader's files point
-to (`move_reader_files`):
+to (`reader_moves`). The moves go into the vault together with the new book, or not at all (`ingest.book_build`, IN-05):
 
 - `bookmark.json`: the chapter file and the paragraph;
 - `reading.jsonl`: the chapter file of each line;
@@ -27,7 +27,6 @@ from __future__ import annotations
 
 import copy
 import json
-import os
 import re
 import sys
 from collections import Counter
@@ -38,6 +37,7 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from ingest.anchors import ANCHOR_REGEX, clean_preview_text
 from ingest.line_endings import normalize_line_endings
+from ingest.vault_changes import VaultChanges
 
 #: How much alike the words of an old and a new paragraph must be for one paragraph that a fix or an edition changed.
 SIMILAR = 0.6
@@ -284,7 +284,7 @@ def _chapter_order(path: Path) -> Tuple[int, str]:
     return (int(number.group(1)) if number else 0, path.name)
 
 
-class _Moves:
+class ReaderMoves:
     """The new text of each file of the reader that changes, and what the import tells the reader about it."""
 
     def __init__(self, vault_dir: Path, book_id: str, places: NewPlaces) -> None:
@@ -481,25 +481,14 @@ class _Moves:
         if moved != data:
             self._change(path, text, json.dumps(moved, indent=2, ensure_ascii=False))
 
-    def carry_out(self) -> None:
-        """Writes every new text to a temporary file first, then puts each one in place, and only then removes the files
-        whose text went to another file. A stop in between can leave a text twice, but never lose it."""
-        temporary: List[Tuple[Path, Path]] = []
-        try:
-            for path, text in self.writes.items():
-                temporary.append((path.with_name(f".{path.name}.moving-{os.getpid()}"), path))
-                with open(temporary[-1][0], "w", encoding="utf-8", newline="") as file:
-                    file.write(text)
-                    file.flush()
-                    os.fsync(file.fileno())
-        except BaseException:
-            for temp, _ in temporary:
-                temp.unlink(missing_ok=True)
-            raise
-        for temp, path in temporary:
-            os.replace(temp, path)
+    def add_to(self, changes: VaultChanges) -> None:
+        """Gives every new text, and every file whose text went to another file, to `changes`. The texts go into the
+        vault all together, and a moved file is removed only after that: a stop can leave a text twice, but never lose
+        it."""
+        for path, text in self.writes.items():
+            changes.write(path, text)
         for path in self.removals:
-            path.unlink(missing_ok=True)
+            changes.remove(path)
 
     def tell(self) -> None:
         said = [
@@ -544,16 +533,19 @@ def _objects(value: Any) -> Iterator[dict]:
             yield from _objects(child)
 
 
-def move_reader_files(vault_dir: Path, book_id: str, old: Optional[BookText]) -> None:
-    """Moves what the reader's files for a book point to, from the chapters and paragraphs of `old` to the same text in
-    the book that the import has written.
+def reader_moves(
+    vault_dir: Path, book_id: str, old: Optional[BookText], new_book_dir: Optional[Path] = None
+) -> Optional[ReaderMoves]:
+    """What moves in the reader's files for a book, from the chapters and paragraphs of `old` to the same text in the
+    new book, or None when nothing moves.
 
-    Call it after the import wrote the chapters and `_meta.json`, and before it writes a notes template. `old` is
-    `read_book_text` of the book before the import wrote anything: None for a new book.
+    `old` is `read_book_text` of the book before the import wrote anything: None for a new book. `new_book_dir` is the
+    folder that holds the chapters and `_meta.json` of the new book: the build folder of the import, or else the book
+    folder.
     """
-    new = read_book_text(Path(vault_dir) / "books" / book_id) if old is not None else None
+    new = read_book_text(new_book_dir or Path(vault_dir) / "books" / book_id) if old is not None else None
     if old is None or new is None:
-        return
+        return None
     places = NewPlaces(old, new)
     if not places.found_text:
         print(
@@ -562,11 +554,11 @@ def move_reader_files(vault_dir: Path, book_id: str, old: Optional[BookText]) ->
             file=sys.stderr,
             flush=True,
         )
-        return
+        return None
     if places.moves_nothing():
-        return
+        return None
 
-    moves = _Moves(vault_dir, book_id, places)
+    moves = ReaderMoves(vault_dir, book_id, places)
     if moves.notes_dir.is_dir():
         moves.bookmark()
         moves.reading_log()
@@ -575,5 +567,15 @@ def move_reader_files(vault_dir: Path, book_id: str, old: Optional[BookText]) ->
     if moves.topics_dir.is_dir():
         for topic in sorted(moves.topics_dir.glob("*.json")):
             moves.citations(topic, book_id)
-    moves.carry_out()
-    moves.tell()
+    return moves
+
+
+def move_reader_files(vault_dir: Path, book_id: str, old: Optional[BookText]) -> None:
+    """Moves what the reader's files for a book point to, from `old` to the same text in the book folder, and tells the
+    reader about it. An import calls `reader_moves` in `ingest.book_build` instead, so the moves go in with the book."""
+    moves = reader_moves(vault_dir, book_id, old)
+    if moves is not None:
+        changes = VaultChanges()
+        moves.add_to(changes)
+        changes.carry_out()
+        moves.tell()

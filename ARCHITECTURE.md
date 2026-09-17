@@ -43,11 +43,11 @@ TAURI V2 DESKTOP APPLICATION
 book-engine/
 ├── .agent/
 │   └── skills/                  # Autonomous verification harnesses
-│       ├── audit-anchors.py         # Verifies paragraph anchor & footnote definition integrity
+│       ├── audit-anchors.py         # Verifies paragraph anchor & footnote definition integrity; an import runs the same check before a book goes into the vault (IN-05)
 │       ├── audit-practice.py        # Audits zero-hallucination verbatim extractive study cards; every quiz option is chapter text and the right one comes right after the passage (LE-06); every cloze answer is a term that is text of the chapter, and its prompt shows the exact source with no marks and no second answer (LE-07)
 │       ├── audit-system.py          # Universal dynamic health orchestrator (12 vectors: Ledger, Anchors, Cards, Rust, TS, FTS5, GUI smoke test, Inspectional, Analytical, Syntopical, Elementary, Modularity & Isolation)
 │       ├── benchmark-fts.py         # Benchmarks SQLite FTS5 query latency (<15ms target)
-│       ├── process-inbox.py         # Automated fail-safe batch book intake pipeline & ledger manager; a book the vault already has stops unless --force; a file whose book id a book from another file has stops even with --force, and --book-id gives it its own id (IN-03)
+│       ├── process-inbox.py         # Automated fail-safe batch book intake pipeline & ledger manager; a book the vault already has stops unless --force; a file whose book id a book from another file has stops even with --force, and --book-id gives it its own id (IN-03); a book that fails the anchor and footnote check is `Failed`, stays out of the vault, and its file stays where it is (IN-05)
 │       └── test-index-rebuild.py    # Verifies self-healing FTS5 index reconstruction from vault
 ├── AGENTS.md                    # Canonical agent directives, operational guardrails & technology standards
 ├── CLAUDE.md                    # Claude agent pointer referencing canonical AGENTS.md
@@ -319,6 +319,8 @@ book-engine/
 │       │   ├── anchors.py               # Deterministic paragraph anchor (^p-xxx) injector; a chapter with 2 or 3 paragraphs gets head and tail samples that share no paragraph (IN-01)
 │       │   ├── assets.py                # Asset extraction, micro-asset filtering & page-level image suppression
 │       │   ├── batch.py                 # Batch document intake utility (.epub & .pdf)
+│       │   ├── book_build.py            # An import builds a book in `vault/.import/<book-id>/`, checks it there, and puts it in the vault with its deck and the reader's moved files, all together or not at all (IN-05)
+│       │   ├── book_check.py            # The check of a book before it goes into the vault: every paragraph has its anchor, and every footnote link has its note (IN-05)
 │       │   ├── book_id.py               # The rule for a book id, which names the folders of a book: an import with another id stops before it writes anything (SEC-03); the id of a file name: letters with marks become plain letters, and a name in another script gets a code (IN-03)
 │       │   ├── book_source.py           # The file each book came from (`source` in `_meta.json`): an import finds the book of a file by its bytes or else its name (IN-03)
 │       │   ├── cli.py                   # Command-line entrypoint (`book-ingest`); a book the vault already has is replaced only with --force; a --book-id that breaks the rule stops the import (SEC-03); --force alone never replaces a book from another file, and the stop gives the two ways on (IN-03)
@@ -329,30 +331,34 @@ book-engine/
 │       │   ├── layout_stitcher.py       # Narrative sentence healing, layout reconciliation & callout hoisting
 │       │   ├── line_endings.py          # One line ending: the text of an EPUB book is read with `\n` line endings, and every file that the import writes has `\n` line endings, also on Windows (IN-06)
 │       │   ├── markdown_text.py         # Book text in chapter Markdown: a < or & that could be read as HTML is written as &lt; or &amp;, and read back (SEC-01)
-│       │   ├── models.py                # Pydantic schema validation for metadata and cards; `_meta.json` records the file of the book (`source`, IN-03)
+│       │   ├── models.py                # Pydantic schema validation for metadata and cards; `_meta.json` records the file of the book (`source`, IN-03); no time of the import, so two imports of the same file write the same bytes (IN-05)
 │       │   ├── pdf_outline.py           # The parts of a PDF book from its outline: every part from the cover to the index, and its kind (front matter, chapter, body, appendix, back matter) (IN-01)
-│       │   ├── pdf_parser.py            # Sequential part-by-part PDF parser & asset coordinator; only chapters, body parts and appendices make practice cards (IN-01)
+│       │   ├── pdf_parser.py            # Sequential part-by-part PDF parser & asset coordinator; only chapters, body parts and appendices make practice cards (IN-01); the book is built in its build folder, and an import of some parts starts from a copy of the book (IN-05)
 │       │   ├── pdf_sanitizer.py         # PDF slug normalization, drop-cap healing, heading & author sanitization; the slug of a name in another script gets a code (IN-03)
-│       │   ├── pipeline.py              # End-to-end ingestion pipeline coordinator
-│       │   ├── places.py                # A new import finds each old chapter and paragraph in the new text, and moves what the reader's files point to: the bookmark, reading time, notes, highlights and citations (IN-04)
+│       │   ├── pipeline.py              # End-to-end ingestion pipeline coordinator; the book is built in its build folder, and goes into the vault only when it is whole and checked (IN-05)
+│       │   ├── places.py                # A new import finds each old chapter and paragraph in the new text, and moves what the reader's files point to: the bookmark, reading time, notes, highlights and citations (IN-04); the moves go into the vault together with the new book (IN-05)
 │       │   ├── reimport.py              # Stops an import of a book the vault already has before it writes anything, and names the reader's own files; picks the book id of a file, and stops a file whose book id a book from another file has (IN-03)
 │       │   ├── salience.py              # Deterministic salience scorer & practice deck writer; re-exports the cloze and quiz card generators
 │       │   ├── sample_generator.py      # Starter sample generator for development
 │       │   ├── scenarios.py             # Quiz cards that ask which sentence comes right after a passage: wrong options from other paragraphs of the chapter, no near-copies, the right option spread over A to D (LE-06)
 │       │   ├── toc_links.py             # Links the EPUB contents to the import: each entry gets the chapter file that holds it & the paragraph where it starts (CQ-01)
+│       │   ├── vault_changes.py         # Puts a new book folder and changed vault files in place all together, or puts each change back; tries again while Windows holds a file, and removes folders that Windows marks read-only (IN-05)
 │       │   └── vector_figures.py        # Vector diagram rasterization, boundary stops & full-width section bounds
 │       ├── tests/               # Pytest verification suite for anchors, schemas, TOC, and pipeline
 │       │   ├── test_analytical_audit.py # Vector 9 analytical logic & citation parity test suite
 │       │   ├── test_anchors.py          # Deterministic paragraph anchor injection test suite; the samples of a short chapter share no paragraph (IN-01)
+│       │   ├── test_book_build.py       # Build folder tests: what a killed import left does not stop the next import, also in read-only folders, a book folder that Windows marks read-only is replaced, a book left aside stops the next import, and the check names each problem (IN-05)
 │       │   ├── test_book_id.py          # Import tests: an EPUB, a PDF or the command line with a book id that could lead out of the vault writes nothing (SEC-03)
 │       │   ├── test_book_id_names.py    # Book id name tests: names in other scripts get ids of their own, also long names, letters with marks become plain letters, plain names keep their ids, and the sample book stays (IN-03)
 │       │   ├── test_book_id_rule.py     # Book id rule tests: every id the importer makes passes, an id that could leave its folder is refused
 │       │   ├── test_book_source.py      # Same book id tests: a book from another file is never replaced, even with --force; the command line & the inbox give the two ways on; a file finds its own book by its bytes or its name (IN-03)
 │       │   ├── test_cloze_cards.py      # Cloze card tests: no small-word, number or label answer, no marks or second answer in the prompt, no card from a table or HTML, one card for a repeated term, and the audit refuses the old cards (LE-07)
+│       │   ├── test_dependencies.py     # Lock tests: each dependency, and each package that one needs, has one exact version in requirements.lock, and the installed versions are those versions (IN-05)
 │       │   ├── test_endnotes.py         # Endnote relocation & inline footnote syntax test suite
 │       │   ├── test_epub_contents.py    # EPUB contents tests: full chapter titles, and each entry names the chapter file & paragraph where it starts, as in The Wealth of Nations (CQ-01)
 │       │   ├── test_epub_text.py        # EPUB text tests: every kind of block in any layout, preformatted text as the book has it, no words run together, and only a link to a note becomes a footnote (IN-02)
 │       │   ├── test_figure_cards.py     # Figure extraction, full-width dimensions & table suppression tests
+│       │   ├── test_import_changes.py   # Import tests: a failed EPUB or PDF import changes nothing, a new import leaves no old chapter or picture, a book that fails the check stays out of the vault, and two imports of a file write the same bytes (IN-05)
 │       │   ├── test_import_moves.py     # New import tests: when chapters and paragraphs get other numbers, the bookmark, reading time, notes, highlights and citations stay on their text, in an EPUB and a PDF book (IN-04)
 │       │   ├── test_line_endings.py     # Line ending tests: an EPUB book with Windows or old Mac line endings imports as the same book, a note is one footnote line, and every file an import writes has `\n` line endings (IN-06)
 │       │   ├── test_markdown_text.py    # Book text tests: a tag the book shows as text is written as text in every kind of block, and reads back as the book has it
@@ -368,11 +374,14 @@ book-engine/
 │       │   ├── test_salience.py         # Salience scoring & extractive cloze extraction tests
 │       │   ├── test_syntopicon_audit.py # Vector 10 syntopical cross-vault referential parity test suite
 │       │   ├── test_toc.py              # Table of contents extraction & hierarchy tests
-│       │   └── test_toc_links.py        # Contents link tests: the block & paragraph of each element, encoded and NCX-relative links, no guessed document (CQ-01)
-│       └── pyproject.toml       # Python package configuration and CLI entrypoints
+│       │   ├── test_toc_links.py        # Contents link tests: the block & paragraph of each element, encoded and NCX-relative links, no guessed document (CQ-01)
+│       │   └── test_vault_changes.py    # Vault change tests: every change goes in, a change that fails puts each change back, a file that Windows holds for a moment still goes in, and a read-only old book folder is removed (IN-05)
+│       ├── pyproject.toml       # Python package configuration and CLI entrypoints
+│       └── requirements.lock    # The exact version of every package that the import needs (IN-05)
 ├── scripts/
 │   └── create_desktop_shortcut.ps1 # One-click Windows desktop shortcut generator; an open app comes to the front, and no second copy starts
 ├── vault/                       # SOLE PERMANENT RECORD: User Markdown vault (Versioned / Syncable)
+│   ├── .import/                 # Where an import builds a book before it goes into `books/`; there only while an import runs (IN-05)
 │   ├── books/<book-id>/         # Chapter Markdown (`ch-XX.md`), `_meta.json`, and extracted assets
 │   ├── notes/<book-id>/         # Chapter notes (`ch-XX-notes.md`), highlights (`ch-XX-highlights.json`), study decks, the study log (`reviews.jsonl`, `reading.jsonl`), your exit assessment (`inspectional.json`), and where you stopped reading (`bookmark.json`)
 │   ├── preferences.json         # Reader settings: theme, pacer speed, Gatekeeper, daily target
@@ -410,15 +419,23 @@ Anchors follow the format `^p-[0-9]{3,}` and are preserved across re-indexes. A 
 
 ### Your Files Follow a New Import (`packages/ingestion/ingest/places.py`)
 A chapter file is numbered by its place in the book, and a paragraph anchor by its place in its chapter. A new import of a changed book, or of the same book after a fix of the import, can give them other numbers: a new import of the Dalton PDF keeps the front matter as parts of their own (IN-01), so `ch-07.md` becomes `ch-11.md`. The bookmark, notes, highlights, citations and reading time of the reader kept the old numbers, so they pointed at other text (IN-04). The numbers stay as they are, so notes still sort by paragraph and every import of a file gives the same files, and a replacing import moves what the reader's files point to, as the owner chose:
-- **Finding the Text:** before it writes anything, the import reads the chapters of the book that the vault has (`read_book_text`). When it has written the new chapters, it pairs the old and the new paragraphs in book order by their letters and digits, so a space or a mark that a fix changed does not count (`NewPlaces`). A changed paragraph pairs with a new paragraph that has much the same words, or that holds its words or is held in them: a paragraph that the new import joins with the next one, or cuts in two. A paragraph in another part of the book is found by its words. A chapter goes to the new chapter that holds most of its paragraphs, or that has its title.
+- **Finding the Text:** before it writes anything, the import reads the chapters of the book that the vault has (`read_book_text`). When it has built the new chapters, it pairs the old and the new paragraphs in book order by their letters and digits, so a space or a mark that a fix changed does not count (`NewPlaces`). A changed paragraph pairs with a new paragraph that has much the same words, or that holds its words or is held in them: a paragraph that the new import joins with the next one, or cuts in two. A paragraph in another part of the book is found by its words. A chapter goes to the new chapter that holds most of its paragraphs, or that has its title.
 - **Text That Is Gone:** a place whose text the new import does not have goes to the nearest paragraph before it in its chapter, or else after it, and the import names it. A chapter whose text is all gone goes with the chapter before it.
 - **What Moves:** `bookmark.json` (the chapter file and the paragraph), `reading.jsonl` (the chapter file of each line; every other field and the line endings stay), `<chapter>-notes.md` and `<chapter>-highlights.json` (the file name, and each `^p-` anchor in them; a highlight goes to the file of the chapter that has its paragraph now), `analytical.json`, and the citations of the book in `vault/syntopicon/topics/*.json`. `vocabulary.json` names no chapter, so it stays, and a report is made again when it is exported. An anchor in notes whose paragraph is in another chapter now stays as it is, and the import names it.
-- **No Text Is Lost:** every new file text goes to a temporary file first, then each one is put in place, and only then is a moved file removed (`move_reader_files`). A file at a new name that no chapter of the old book names keeps its own text first, and when such a file cannot be read, no notes or highlights move. A new import of the same text changes no file of the reader.
+- **No Text Is Lost:** every new file text goes to a temporary file first, then all of them go in place together with the new book, and only then is a moved file removed (`reader_moves`, `ingest/vault_changes.py`, IN-05). A file at a new name that no chapter of the old book names keeps its own text first, and when such a file cannot be read, no notes or highlights move. A new import of the same text changes no file of the reader.
 - **The Cache Follows the Log:** the app keeps a copy of the reading time in `index.db`, by chapter file. At the start, `db/backfill.rs` copies reading time only for a book whose log has none, so an old chapter name never goes back into the log. `db/restore.rs` then gives each chapter in the cache the sum of its lines, and takes out a chapter that no line names. When a line of the reading log is damaged, or the cache counts more seconds than the log, the cache keeps its rows and only gets the chapters that it has no row for. Card progress needs no move: a card is known by its question (LE-05), and the next deck sync gives it its new chapter and paragraph.
 - **Close the App First:** the app writes the bookmark and the reading time while you read, with the chapter files that it loaded, so close the app before you import a book again.
 
+### An Import Changes the Vault All Together or Not at All (`packages/ingestion/ingest/book_build.py`)
+An import wrote each file of a book into the vault as soon as it had made it. An import that failed in chapter 2 left a new `ch-01.md` next to the old `_meta.json` and practice deck, a new import with fewer chapters left the old `ch-03.md` and its pictures, and `process-inbox.py` reported "Success" for a book that failed the anchor audit, and moved its file to `inbox/processed/` (IN-05). Now:
+- **Build Folder:** an import builds the chapters, the pictures and `_meta.json` of a book in `vault/.import/<book-id>/`, where the app does not look for books (`BookBuild`). A new import writes the whole book folder again, so no chapter file or picture of an older import stays. An import of some parts (`--chapter`) starts from a copy of the book folder, and it leaves out a part that the book does not have now.
+- **Check:** every paragraph of a chapter file must end with its anchor, and every footnote link must have its note (`ingest/book_check.py`). A book that fails stops the import with each problem, and the vault keeps the book that it had. `audit-anchors.py` uses the same check. `process-inbox.py` reports such a book as `Failed`, writes no ledger line, and leaves its file where it is.
+- **All Together:** `VaultChanges` (`ingest/vault_changes.py`) first writes each new text to a temporary file next to its file: the practice deck, and the reader's files that follow their text (IN-04). Then it moves the old book folder aside to `vault/.import/<book-id>.replaced`, the new book folder into its place, and each temporary file into the place of its file. When a step fails, it puts back each change, and the error stops the import. Only when every change is in does it remove the old book folder, and each file whose text went to another file. Windows can hold a file for a moment, for example while OneDrive or a virus scanner reads it, so each move tries again for up to 5 seconds. OneDrive marks the folders of the vault read-only: Windows moves such a folder, but does not remove it, so the import takes the mark away before it removes a folder (`remove_folder`).
+- **After a Stop:** a stopped import removes its build folder, and the next import removes a build folder that a killed import left. When a power cut comes between the two folder moves, the old book is in `vault/.import/<book-id>.replaced`: the next import stops, changes nothing, and says to move that folder back.
+- **Same Bytes:** `_meta.json` holds no time of the import, so two imports of the same file write the same bytes. `packages/ingestion/requirements.lock` gives the exact version of every package that the import needs, and of every package that those packages need, because a new version of pymupdf4llm or pymupdf-layout can change the Markdown of a book. `tests/test_dependencies.py` fails when an installed version is not the version of the lock.
+
 ### Hierarchical Spine Contract (_meta.json)
-The manifest models multi-level books (Parts -> Chapters -> Sections) with word counts, paths, and anchors. The importer makes this file and writes it again on every import, so it holds nothing the reader writes, and the app only reads it (DS-09). It records the file that the book came from (`source`: the file name and the SHA-256 of its bytes), so a new import can tell a new copy of the book from another book (IN-03).
+The manifest models multi-level books (Parts -> Chapters -> Sections) with word counts, paths, and anchors. The importer makes this file and writes it again on every import, so it holds nothing the reader writes, and the app only reads it (DS-09). It records the file that the book came from (`source`: the file name and the SHA-256 of its bytes), so a new import can tell a new copy of the book from another book (IN-03). It holds no time of the import, so two imports of the same file write the same bytes (IN-05).
 
 ### Contents Open Files, Not Titles (`packages/ingestion/ingest/toc_links.py`)
 The contents of an EPUB book link to source documents and element ids, such as `part-2.xhtml#chapter-7`, which the vault does not have. The sidebar found the chapter of an entry by its title, and the import cut each chapter title at a line break in its heading. Every book of The Wealth of Nations starts again at "CHAPTER I.", so 21 of the 42 entries in the sidebar opened a chapter of Book I, and 2 opened nothing (CQ-01).
@@ -764,7 +781,7 @@ When a chapter HTML payload is prepared for mounting into TipTap:
 - **Original Page Split-View Integration:** Readers can click **"View in Split View"** directly inside the Lightbox modal to switch the application to dual-pane mode, displaying the pristine publisher PDF page side-by-side with the Markdown text canvas.
 
 ### Verification & Performance Benchmark Standard
-- **Anchor Integrity:** Verified via `python .agent/skills/audit-anchors.py`.
+- **Anchor Integrity:** Verified via `python .agent/skills/audit-anchors.py`. An import runs the same check before a book goes into the vault (IN-05).
 - **FTS Query Benchmark:** Verified via `python .agent/skills/benchmark-fts.py`.
   - Average Query Latency: **0.075 ms** (Strict requirement: < 15.0 ms).
   - p95 Latency: **0.105 ms**.

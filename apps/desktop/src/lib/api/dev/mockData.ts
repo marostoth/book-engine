@@ -62,7 +62,6 @@ export const FALLBACK_META: BookMeta = {
       },
     },
   ],
-  created_at: new Date().toISOString(),
   elementary_metrics: {
     flesch_kincaid_grade: 14.85,
     avg_sentence_length_words: 22.4,

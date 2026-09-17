@@ -6,7 +6,6 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
-import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,6 +16,8 @@ SKILL_DIR = Path(__file__).resolve().parent
 ROOT_DIR = SKILL_DIR.parent.parent
 sys.path.insert(0, str(ROOT_DIR / "packages" / "ingestion"))
 
+from ingest.book_build import BookLeftAsideError
+from ingest.book_check import BookCheckError
 from ingest.line_endings import write_text_file
 from ingest.pipeline import ingest_book
 from ingest.reimport import BookAlreadyInVaultError, BookIdTakenError
@@ -25,7 +26,6 @@ INBOX_DIR = ROOT_DIR / "inbox"
 PROCESSED_DIR = INBOX_DIR / "processed"
 VAULT_DIR = ROOT_DIR / "vault"
 LEDGER_FILE = VAULT_DIR / "_ledger.json"
-AUDIT_SCRIPT = SKILL_DIR / "audit-anchors.py"
 
 SUPPORTED_EXTENSIONS = {".epub", ".pdf"}
 
@@ -96,25 +96,6 @@ def print_status_table(rows: List[Dict[str, str]]) -> None:
         print("|" + "|".join(row_cells) + "|", flush=True)
 
     print(sep + "\n", flush=True)
-
-
-def run_anchor_audit(book_id: str) -> str:
-    """Runs audit-anchors.py on the ingested book and returns PASS or FAIL."""
-    book_path = VAULT_DIR / "books" / book_id
-    if not book_path.exists():
-        return "FAIL"
-
-    try:
-        res = subprocess.run(
-            [sys.executable, str(AUDIT_SCRIPT), str(book_path)],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        return "PASS" if res.returncode == 0 else "FAIL"
-    except Exception as e:
-        print(f"[WARN] Failed to run anchor audit: {e}", file=sys.stderr, flush=True)
-        return "FAIL"
 
 
 def main() -> int:
@@ -206,11 +187,10 @@ def main() -> int:
 
             print(f"[*] Processing '{filename}' (SHA-256: {file_hash[:12]}...)...", flush=True)
 
-            # Ingest book into vault. A book that the vault already has is replaced only with --force (DS-09).
+            # Ingest book into vault. A book that the vault already has is replaced only with --force (DS-09). The import
+            # checks the anchors and the footnotes of the book before it puts the book in the vault (IN-05).
             meta = ingest_book(file_path, VAULT_DIR, book_id=args.book_id, replace=args.force)
-
-            # Run anchor integrity check
-            anchors_verified = run_anchor_audit(meta.book_id)
+            anchors_verified = "PASS"
 
             # Update or append record to ledger
             ledger_record: Dict[str, Any] = {
@@ -267,6 +247,19 @@ def main() -> int:
                 "chapters": "-",
                 "anchors": "-",
                 "status": "Stopped",
+            })
+        except (BookCheckError, BookLeftAsideError) as e:
+            # The book that the import made fails its check, or an import that did not end left the book aside. The
+            # vault did not change (IN-05).
+            sys.stdout.flush()
+            print(f"[FAIL] '{filename}': {e}", file=sys.stderr, flush=True)
+            print("[FAIL] The file stays where it is.", file=sys.stderr, flush=True)
+            report_rows.append({
+                "book_id": e.book_id,
+                "title": file_path.stem,
+                "chapters": "-",
+                "anchors": "FAIL" if isinstance(e, BookCheckError) else "-",
+                "status": "Failed",
             })
         except Exception as e:
             sys.stdout.flush()

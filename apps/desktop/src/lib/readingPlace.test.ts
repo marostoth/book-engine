@@ -42,7 +42,6 @@ function book(bookId: string, chapters: number): BookMeta {
     total_chapters: spine.length,
     toc: [],
     spine,
-    created_at: "2026-09-16T00:00:00Z",
   };
 }
 

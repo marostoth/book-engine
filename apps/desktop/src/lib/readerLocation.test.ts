@@ -8,7 +8,7 @@ function chapter(id: string, title: string): ChapterMeta {
 }
 
 function book(book_id: string, title: string, spine: ChapterMeta[]): BookMeta {
-  return { book_id, title, author: "", language: "en", total_words: 0, total_chapters: spine.length, toc: [], spine, created_at: "2026-09-15T00:00:00Z" };
+  return { book_id, title, author: "", language: "en", total_words: 0, total_chapters: spine.length, toc: [], spine };
 }
 
 // Two books with the same chapter file names, as every imported book has.
