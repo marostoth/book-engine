@@ -99,14 +99,14 @@ def import_book(folder: Path, line_ending: str) -> Path:
 
 
 def vault_files(vault: Path) -> dict:
-    """The bytes of every file in `vault`, and `_meta.json` without the time and the file of the import."""
+    """The bytes of every file in `vault`, and `_meta.json` without the file of the import."""
     files: dict = {}
     for path in sorted(vault.rglob("*")):
         if path.is_file():
             files[path.relative_to(vault).as_posix()] = path.read_bytes()
             if path.name == "_meta.json":
                 meta = json.loads(path.read_bytes())
-                del meta["created_at"], meta["source"]
+                del meta["source"]
                 files[path.relative_to(vault).as_posix()] = meta
     return files
 

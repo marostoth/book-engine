@@ -5,13 +5,14 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import pymupdf
 import pymupdf4llm
 
 from ingest.anchors import extract_anchors, inject_paragraph_anchors, extract_inspectional_sampling, clean_preview_text
-from ingest.models import BookMeta, ChapterMeta, PracticeCard, TOCItem, InspectionalBlueprint, ScenarioCard
+from ingest.book_build import BookBuild
+from ingest.models import BookMeta, BookSource, ChapterMeta, PracticeCard, TOCItem, InspectionalBlueprint, ScenarioCard
 from ingest.elementary import compute_elementary_metrics
 from ingest.salience import (
     format_practice_deck_markdown,
@@ -31,7 +32,7 @@ from ingest.vector_figures import (
 from ingest.layout_stitcher import stitch_layout_blocks
 from ingest.line_endings import write_text_file
 from ingest.pdf_outline import CHAPTER, describe_pages, outline_parts
-from ingest.places import move_reader_files, read_book_text
+from ingest.places import read_book_text
 from ingest.reimport import book_to_import
 
 
@@ -82,14 +83,45 @@ class PDFParser:
         # (IN-04)
         old_text = read_book_text(self.vault_dir / "books" / book_id)
 
-        # Establish destination directories
-        book_dir = self.vault_dir / "books" / book_id
-        assets_dir = book_dir / "assets"
-        notes_dir = self.vault_dir / "notes" / book_id
+        # The book is built in a folder of its own. It goes into the vault with its practice deck, and the reader's
+        # files follow its text, only when it is whole and checked. An import of some parts starts from a copy (IN-05).
+        try:
+            build = BookBuild(self.vault_dir, book_id, from_book=bool(target_chapters))
+            try:
+                book_meta, practice_deck_md, first_chapter = self._build_book(
+                    doc, build.folder, book_id, title, author, source, target_chapters
+                )
+                build.put_in_vault(book_meta, practice_deck_md, old_text)
+            finally:
+                build.remove()
+        finally:
+            if not doc.is_closed:
+                doc.close()
 
-        book_dir.mkdir(parents=True, exist_ok=True)
+        # The notes template goes with the first chapter, not with the cover
+        notes_file = f"{first_chapter.id}-notes.md" if first_chapter else "ch-01-notes.md"
+        first_ch_notes = self.vault_dir / "notes" / book_id / notes_file
+        if not first_ch_notes.exists():
+            first_title = first_chapter.title if first_chapter else "Chapter 1"
+            write_text_file(first_ch_notes, f"# Reflections: {title} - {first_title}\n\n## Key Takeaways\n\n- \n\n## Open Inquiries\n\n- \n")
+
+        return book_meta
+
+    def _build_book(
+        self,
+        doc: Any,
+        book_dir: Path,
+        book_id: str,
+        title: str,
+        author: str,
+        source: BookSource,
+        target_chapters: Optional[List[int]],
+    ) -> Tuple[BookMeta, str, Optional[ChapterMeta]]:
+        """Builds the parts, the pictures and `_meta.json` of the book in `book_dir`. Gives the practice deck and the
+        first chapter."""
+        total_pages = len(doc)
+        assets_dir = book_dir / "assets"
         assets_dir.mkdir(parents=True, exist_ok=True)
-        notes_dir.mkdir(parents=True, exist_ok=True)
 
         # 1. The parts of the book: every part that the PDF outline names, not only the chapters (IN-01)
         parts, pages_left_out = outline_parts(doc.get_toc(), total_pages)
@@ -276,16 +308,5 @@ class PDFParser:
         write_text_file(book_dir / "_meta.json", book_meta.model_dump_json(indent=2))
 
         practice_deck_md = format_practice_deck_markdown(title, all_practice_cards, all_scenarios)
-        write_text_file(notes_dir / "practice-deck.md", practice_deck_md)
-
-        # The reader's files point to the same text in the new chapter files and paragraphs (IN-04)
-        move_reader_files(self.vault_dir, book_id, old_text)
-
-        # The notes template goes with the first chapter, not with the cover
-        first_ch_notes = notes_dir / (f"{chapter_metas[0].id}-notes.md" if chapter_metas else "ch-01-notes.md")
-        if not first_ch_notes.exists():
-            first_title = chapter_metas[0].title if chapter_metas else "Chapter 1"
-            write_text_file(first_ch_notes, f"# Reflections: {title} - {first_title}\n\n## Key Takeaways\n\n- \n\n## Open Inquiries\n\n- \n")
-
-        return book_meta
+        return book_meta, practice_deck_md, (chapter_metas[0] if chapter_metas else None)
 

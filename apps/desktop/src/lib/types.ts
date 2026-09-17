@@ -70,7 +70,6 @@ export interface BookMeta {
   total_chapters: number;
   toc: TOCItem[];
   spine: ChapterMeta[];
-  created_at: string;
   elementary_metrics?: ElementaryMetrics;
   inspectional_blueprint?: InspectionalBlueprint;
 }

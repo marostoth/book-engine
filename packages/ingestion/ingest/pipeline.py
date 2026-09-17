@@ -5,12 +5,13 @@ import json
 import posixpath
 import re
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 import ebooklib
 from ebooklib import epub
 
-from ingest.models import BookMeta, ChapterMeta, PracticeCard, TOCItem, InspectionalBlueprint, ScenarioCard
+from ingest.models import BookMeta, BookSource, ChapterMeta, PracticeCard, TOCItem, InspectionalBlueprint, ScenarioCard
 from ingest.assets import extract_epub_assets, normalize_image_markdown
+from ingest.book_build import BookBuild
 from ingest.endnotes import EndnoteRegistry, relocate_chapter_footnotes
 from ingest.anchors import inject_paragraph_anchors, extract_anchors, extract_inspectional_sampling, clean_preview_text
 from ingest.elementary import compute_elementary_metrics
@@ -19,7 +20,7 @@ from ingest.epub_parser import extract_metadata, parse_toc, html_to_markdown_blo
 from ingest.line_endings import read_html, write_text_file
 from ingest.markdown_text import unescape_markdown_text
 from ingest.pdf_parser import PDFParser
-from ingest.places import move_reader_files, read_book_text
+from ingest.places import read_book_text
 from ingest.reimport import book_to_import
 from ingest.toc_links import ImportedDocument, element_anchors, link_toc_to_chapters
 
@@ -48,14 +49,35 @@ def ingest_epub(
     # The chapters and paragraphs of the book before this import, so the reader's files can follow their text (IN-04)
     old_text = read_book_text(vault_dir / "books" / book_id)
 
-    # Vault destinations
-    book_dir = vault_dir / "books" / book_id
-    assets_dir = book_dir / "assets"
-    notes_dir = vault_dir / "notes" / book_id
+    # 8. The book is built in a folder of its own. It goes into the vault with its practice deck, and the reader's files
+    # follow its text, only when it is whole and checked (IN-05).
+    build = BookBuild(vault_dir, book_id)
+    try:
+        book_meta, practice_deck_md = _build_epub_book(book, build.folder, book_id, title, author, language, source)
+        build.put_in_vault(book_meta, practice_deck_md, old_text)
+    finally:
+        build.remove()
 
-    book_dir.mkdir(parents=True, exist_ok=True)
+    # 9. Create user note template for first chapter if not existing
+    first_ch_notes = vault_dir / "notes" / book_id / "ch-01-notes.md"
+    if not first_ch_notes.exists():
+        first_title = book_meta.spine[0].title if book_meta.spine else "Chapter 1"
+        notes_template = (
+            f"# Reflections: {title} - {first_title}\n\n"
+            f"## Key Takeaways\n\n- \n\n"
+            f"## Open Inquiries\n\n- \n"
+        )
+        write_text_file(first_ch_notes, notes_template)
+
+    return book_meta
+
+
+def _build_epub_book(
+    book: epub.EpubBook, book_dir: Path, book_id: str, title: str, author: str, language: str, source: BookSource
+) -> Tuple[BookMeta, str]:
+    """Builds the chapters, the pictures and `_meta.json` of an EPUB book in `book_dir`, and gives its practice deck."""
+    assets_dir = book_dir / "assets"
     assets_dir.mkdir(parents=True, exist_ok=True)
-    notes_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Asset Extraction
     asset_map = extract_epub_assets(book, assets_dir)
@@ -221,26 +243,9 @@ def ingest_epub(
     meta_path = book_dir / "_meta.json"
     write_text_file(meta_path, book_meta.model_dump_json(indent=2))
 
-    # 7. Save vault/notes/<book-id>/practice-deck.md
+    # 7. The practice deck, which goes to vault/notes/<book-id>/practice-deck.md together with the book
     practice_deck_md = format_practice_deck_markdown(title, all_practice_cards, all_scenarios)
-    practice_deck_path = notes_dir / "practice-deck.md"
-    write_text_file(practice_deck_path, practice_deck_md)
-
-    # 8. The reader's files point to the same text in the new chapter files and paragraphs (IN-04)
-    move_reader_files(vault_dir, book_id, old_text)
-
-    # 9. Create user note template for first chapter if not existing
-    first_ch_notes = notes_dir / "ch-01-notes.md"
-    if not first_ch_notes.exists():
-        first_title = spine_metas[0].title if spine_metas else "Chapter 1"
-        notes_template = (
-            f"# Reflections: {title} - {first_title}\n\n"
-            f"## Key Takeaways\n\n- \n\n"
-            f"## Open Inquiries\n\n- \n"
-        )
-        write_text_file(first_ch_notes, notes_template)
-
-    return book_meta
+    return book_meta, practice_deck_md
 
 
 def ingest_pdf(

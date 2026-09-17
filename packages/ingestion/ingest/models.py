@@ -1,7 +1,6 @@
 """Pydantic schemas and contracts for vault metadata, TOC, and practice decks."""
 
 from __future__ import annotations
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
@@ -67,7 +66,10 @@ class BookSource(BaseModel):
 
 
 class BookMeta(BaseModel):
-    """Schema for vault/books/<book-id>/_meta.json."""
+    """Schema for vault/books/<book-id>/_meta.json.
+
+    It holds no time of the import, so two imports of the same file write the same bytes (IN-05).
+    """
     book_id: str
     title: str
     author: str
@@ -76,7 +78,6 @@ class BookMeta(BaseModel):
     total_chapters: int = 0
     toc: List[TOCItem] = Field(default_factory=list)
     spine: List[ChapterMeta] = Field(default_factory=list)
-    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     source: Optional[BookSource] = None
     elementary_metrics: Optional[ElementaryMetrics] = None
     inspectional_blueprint: Optional[InspectionalBlueprint] = None
