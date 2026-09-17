@@ -5,14 +5,17 @@ from __future__ import annotations
 import re
 from typing import List, Optional
 
+from ingest.book_id import book_id_of_name, plain_letters
+
 
 def generate_pdf_slug(filename: str, title: Optional[str] = None) -> str:
     """Derives a clean, normalized book identifier slug from filename and document metadata.
 
     Strips release tags (e.g. [MKTG]), 4-digit years (e.g. 2023), edition abbreviations,
-    and author prefixes to generate clean slugs like 'principles-of-marketing-19ed'.
+    and author prefixes to generate clean slugs like 'principles-of-marketing-19ed'. Letters with marks become plain
+    letters, and a name in another script gets a code (`book_id_of_name`, IN-03).
     """
-    stem = re.sub(r"\.pdf$", "", filename, flags=re.IGNORECASE)
+    stem = re.sub(r"\.pdf$", "", plain_letters(filename), flags=re.IGNORECASE)
     # Strip bracketed tags like [MKTG], [CS]
     stem = re.sub(r"\[.*?\]", "", stem).strip()
     # Strip standalone release years like 2023, 1999
@@ -20,7 +23,7 @@ def generate_pdf_slug(filename: str, title: Optional[str] = None) -> str:
 
     # If title exists and overlaps with stem, isolate title portion
     if title:
-        clean_t = re.sub(r"[^a-zA-Z0-9\s]", "", title).lower()
+        clean_t = re.sub(r"[^a-zA-Z0-9\s]", "", plain_letters(title)).lower()
         words = clean_t.split()
         if len(words) >= 2:
             lead = " ".join(words[:2])
@@ -34,7 +37,7 @@ def generate_pdf_slug(filename: str, title: Optional[str] = None) -> str:
             stem = stem[m.end() :]
 
     slug = re.sub(r"[^a-zA-Z0-9]+", "-", stem).strip("-").lower()
-    return slug or "unnamed-book"
+    return book_id_of_name(slug, stem)
 
 
 def heal_drop_caps(text: str) -> str:

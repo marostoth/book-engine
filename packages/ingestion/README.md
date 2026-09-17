@@ -10,3 +10,4 @@ Local-first, deterministic book ingestion pipeline for EPUB and PDF formats.
 - Zero-hallucination salience scoring & extractive Cloze deck generation
 - A new import of a book that the vault already has stops before it writes anything, unless `--force` is given; the reader's own files in `vault/notes/<book-id>/` are never written over
 - A book id (`--book-id`) has 1 to 255 characters from a-z, 0-9, `-` and `_`, and does not start with `-`; an import with another id stops before it writes anything, so a book never lands outside the vault (SEC-03)
+- A book id comes from the file name: letters with marks become plain letters, and a name in another script gets a short code; a file whose book id belongs to a book from another file stops, even with `--force`, and the stop names the two ways on (IN-03)

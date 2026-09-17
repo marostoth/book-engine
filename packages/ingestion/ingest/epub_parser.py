@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup, NavigableString, Tag
 import ebooklib
 from ebooklib import epub
 
+from ingest.book_id import book_id_of_name, plain_letters
 from ingest.markdown_text import escape_markdown_text
 from ingest.models import TOCItem
 
@@ -25,12 +26,9 @@ def extract_metadata(book: epub.EpubBook, fallback_id: str) -> Tuple[str, str, s
 
     id_meta = book.get_metadata("DC", "identifier")
     book_id = fallback_id or (id_meta[0][0] if id_meta else "book")
-    # Sanitize book_id
-    safe_book_id = re.sub(r"[^a-zA-Z0-9_-]", "-", book_id).strip("-").lower()
-    if not safe_book_id:
-        safe_book_id = "sample"
-
-    return safe_book_id, title, author, language
+    # Sanitize book_id: letters with marks become plain letters, and a name in another script gets a code (IN-03)
+    safe_book_id = re.sub(r"[^a-zA-Z0-9_-]", "-", plain_letters(book_id)).strip("-").lower()
+    return book_id_of_name(safe_book_id, book_id), title, author, language
 
 
 def normalize_toc_hierarchy(items: List[TOCItem]) -> List[TOCItem]:

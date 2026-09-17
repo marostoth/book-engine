@@ -18,7 +18,7 @@ ROOT_DIR = SKILL_DIR.parent.parent
 sys.path.insert(0, str(ROOT_DIR / "packages" / "ingestion"))
 
 from ingest.pipeline import ingest_book
-from ingest.reimport import BookAlreadyInVaultError
+from ingest.reimport import BookAlreadyInVaultError, BookIdTakenError
 
 INBOX_DIR = ROOT_DIR / "inbox"
 PROCESSED_DIR = INBOX_DIR / "processed"
@@ -127,7 +127,16 @@ def main() -> int:
         "Your own files for it in vault/notes/<book-id>/ are kept.",
     )
     parser.add_argument("--book", type=str, default=None, help="Process or re-process a specific file from inbox/ or inbox/processed/.")
+    parser.add_argument(
+        "--book-id",
+        type=str,
+        default=None,
+        help="The book id for the file of --book, such as the id that a stopped import names. With --force, it also "
+        "replaces a book that came from another file.",
+    )
     args = parser.parse_args()
+    if args.book_id is not None and not args.book:
+        parser.error("--book-id needs --book, because a book id names one book")
 
     INBOX_DIR.mkdir(parents=True, exist_ok=True)
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
@@ -197,7 +206,7 @@ def main() -> int:
             print(f"[*] Processing '{filename}' (SHA-256: {file_hash[:12]}...)...", flush=True)
 
             # Ingest book into vault. A book that the vault already has is replaced only with --force (DS-09).
-            meta = ingest_book(file_path, VAULT_DIR, replace=args.force)
+            meta = ingest_book(file_path, VAULT_DIR, book_id=args.book_id, replace=args.force)
 
             # Run anchor integrity check
             anchors_verified = run_anchor_audit(meta.book_id)
@@ -236,16 +245,21 @@ def main() -> int:
                 "status": "Success",
             })
 
-        except BookAlreadyInVaultError as e:
-            # A new copy of a book the vault has, such as an annotated PDF. Nothing was written (DS-09).
+        except (BookAlreadyInVaultError, BookIdTakenError) as e:
+            # A new copy of a book the vault has, such as an annotated PDF (DS-09), or a file whose book id a book from
+            # another file has, such as another edition (IN-03). Nothing was written.
             sys.stdout.flush()
+            script = "python .agent/skills/process-inbox.py"
             print(f"[STOP] '{filename}': {e}", file=sys.stderr, flush=True)
-            print(
-                "[STOP] The file stays in inbox/. To replace the book, run: "
-                f'python .agent/skills/process-inbox.py --force --book "{filename}"',
-                file=sys.stderr,
-                flush=True,
-            )
+            if isinstance(e, BookIdTakenError):
+                ways = (
+                    f'If it is a different book, import it with its own book id: {script} --book "{filename}" '
+                    f"--book-id {e.own_book_id}\n[STOP] If it is a new copy of that book, replace that book: "
+                    f'{script} --force --book "{filename}" --book-id {e.book_id}'
+                )
+            else:
+                ways = f'To replace the book, run: {script} --force --book "{filename}"'
+            print(f"[STOP] The file stays in inbox/. {ways}", file=sys.stderr, flush=True)
             report_rows.append({
                 "book_id": e.book_id,
                 "title": file_path.stem,

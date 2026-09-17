@@ -19,7 +19,7 @@ from ingest.salience import generate_chapter_practice_cards, generate_chapter_sc
 from ingest.epub_parser import extract_metadata, parse_toc, html_to_markdown_blocks
 from ingest.markdown_text import unescape_markdown_text
 from ingest.pdf_parser import PDFParser
-from ingest.reimport import check_book_can_be_imported
+from ingest.reimport import book_to_import
 from ingest.toc_links import ImportedDocument, element_anchors, link_toc_to_chapters
 
 
@@ -40,12 +40,10 @@ def ingest_epub(
     book = epub.read_epub(str(epub_path))
 
     fallback_id = custom_book_id or epub_path.stem
-    book_id, title, author, language = extract_metadata(book, fallback_id)
-    if custom_book_id:
-        book_id = custom_book_id
+    name_id, title, author, language = extract_metadata(book, fallback_id)
 
-    # Stop before anything is written when the vault already has this book (DS-09)
-    check_book_can_be_imported(vault_dir, book_id, replace)
+    # Stop before anything is written when the vault already has this book (DS-09), or another book has its id (IN-03)
+    book_id, source = book_to_import(vault_dir, epub_path, name_id, custom_book_id or None, replace)
 
     # Vault destinations
     book_dir = vault_dir / "books" / book_id
@@ -212,6 +210,7 @@ def ingest_epub(
         total_chapters=len(spine_metas),
         toc=toc_items,
         spine=spine_metas,
+        source=source,
         elementary_metrics=elementary_metrics,
         inspectional_blueprint=inspectional_blueprint,
     )
