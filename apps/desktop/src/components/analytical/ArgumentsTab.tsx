@@ -4,6 +4,7 @@ import {
   InferenceType,
   AnchoredCitation,
 } from "../../lib/types/analytical";
+import { citationPlace } from "../../lib/citations";
 
 interface ArgumentsTabProps {
   argumentsList: ArgumentNode[];
@@ -105,7 +106,7 @@ export const ArgumentsTab: React.FC<ArgumentsTabProps> = ({
                 }
                 className="font-mono hover:underline text-sky-300"
               >
-                {arg.conclusion.chapterFile}#{arg.conclusion.anchor}
+                {citationPlace(arg.conclusion.chapterFile, arg.conclusion.anchor)}
               </button>
             </div>
             <p className="text-zinc-200 italic">"{arg.conclusion.quote}"</p>
@@ -127,7 +128,7 @@ export const ArgumentsTab: React.FC<ArgumentsTabProps> = ({
                     onClick={() => onNavigateCitation(p.chapterFile, p.anchor)}
                     className="font-mono hover:underline text-indigo-300"
                   >
-                    {p.chapterFile}#{p.anchor}
+                    {citationPlace(p.chapterFile, p.anchor)}
                   </button>
                 </div>
                 <p className="text-zinc-300 text-[10px]">"{p.quote}"</p>

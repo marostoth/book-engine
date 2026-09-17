@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Theme, ViewMode, ReaderPreferences, ReadingLevelMode } from "./lib/types";
+import type { AnchoredCitation } from "./lib/types/analytical";
+import type { ChapterRef } from "./lib/readingPlace";
 import { createPreferencesSaver, themeOf, withTheme, type LoadedPreferences } from "./lib/preferences";
 import { persistPreferences } from "./lib/api";
 import { reportBackendError } from "./lib/backendErrors";
@@ -71,6 +73,9 @@ export const App: React.FC<AppProps> = ({ startingPreferences }) => {
   // Quote passed from SelectionMenu to NotesPane
   const [insertedQuote, setInsertedQuote] = useState<{ quote: string; anchorId?: string } | null>(null);
 
+  // The paragraph the reader is on. A citation that opens from a button names it, so none names a made-up one (RD-04).
+  const [readingAnchor, setReadingAnchor] = useState<string | undefined>();
+
   // Chapter Gatekeeper: every chapter change inside the open book asks it first
   const { chapterGate, requestChapterMove, completeChapterGate, closeChapterGate } = useChapterGate(
     preferences,
@@ -99,6 +104,15 @@ export const App: React.FC<AppProps> = ({ startingPreferences }) => {
     navigateToCrossBookCitation,
   } = useBookSession({ requestChapterMove });
 
+  /** Keeps where the reader stopped, and remembers the paragraph for a citation that opens from a button (RD-04). */
+  const handleSettled = useCallback(
+    (place: ChapterRef, anchor: string | undefined) => {
+      setReadingAnchor(anchor);
+      handlePlaceSettled(place, anchor);
+    },
+    [handlePlaceSettled]
+  );
+
   // Practice deck state hook
   const {
     dueCards,
@@ -114,8 +128,16 @@ export const App: React.FC<AppProps> = ({ startingPreferences }) => {
   const analyticalSession = useAnalyticalSession({
     bookId: activeBookId,
     currentChapterFile: activeChapter?.file_path,
+    currentAnchor: readingAnchor,
   });
   const syntopiconSession = useSyntopiconSession();
+
+  /**
+   * Where a passage of the open chapter is, for a citation that the reader stages. The reader gives the anchor of the
+   * block that holds the passage and stages nothing without one, so no citation gets an anchor of the app's own (RD-04).
+   */
+  const citation = (quote: string, anchor: string): AnchoredCitation | null =>
+    activeChapter ? { chapterFile: activeChapter.file_path, anchor, quote } : null;
 
   // Sync theme and dark mode class to root / body
   useEffect(() => {
@@ -212,18 +234,18 @@ export const App: React.FC<AppProps> = ({ startingPreferences }) => {
               <Reader
                 bookId={bookMeta?.book_id || activeBookId}
                 vaultPath={vaultPath} markdown={chapterMarkdown} isBionic={isBionic}
-                markdownSource={markdownSource} onPlaceSettled={handlePlaceSettled}
+                markdownSource={markdownSource} onPlaceSettled={handleSettled}
                 highlights={highlights} targetAnchor={targetAnchor}
                 onProgressChange={handleProgressChange} onAddHighlight={handleAddHighlight}
                 onAddNoteFromSelection={(quote, anchorId) => {
                   setInsertedQuote({ quote, anchorId });
                   if (viewMode !== "dual") setViewMode("dual");
                 }}
-                onAddTerm={(quote, anchor) => analyticalSession.openTermModal({ chapterFile: activeChapter?.file_path || "ch-01.md", anchor: anchor || "^p-001", quote })}
-                onAddArgument={(quote, anchor) => analyticalSession.openArgumentModal({ chapterFile: activeChapter?.file_path || "ch-01.md", anchor: anchor || "^p-001", quote })}
-                onAddCritique={(quote, anchor) => analyticalSession.openCritiqueModal(undefined, { chapterFile: activeChapter?.file_path || "ch-01.md", anchor: anchor || "^p-001", quote })}
-                onAddInquiry={(quote, anchor) => analyticalSession.openInquiryModal({ quote, anchor: anchor || "^p-001", chapterFile: activeChapter?.file_path || "ch-01.md" })}
-                onAddSyntopic={(quote, anchor) => syntopiconSession.stageCitation({ bookId: activeBookId, chapterFile: activeChapter?.file_path || "ch-01.md", anchor: anchor || "^p-001", quote })}
+                onAddTerm={(quote, anchor) => { const cite = citation(quote, anchor); if (cite) analyticalSession.openTermModal(cite); }}
+                onAddArgument={(quote, anchor) => { const cite = citation(quote, anchor); if (cite) analyticalSession.openArgumentModal(cite); }}
+                onAddCritique={(quote, anchor) => { const cite = citation(quote, anchor); if (cite) analyticalSession.openCritiqueModal(undefined, cite); }}
+                onAddInquiry={(quote, anchor) => { const cite = citation(quote, anchor); if (cite) analyticalSession.openInquiryModal(cite); }}
+                onAddSyntopic={(quote, anchor) => { const cite = citation(quote, anchor); if (cite) syntopiconSession.stageCitation({ bookId: activeBookId, ...cite }); }}
                 analyticalStore={analyticalSession.analyticalStore}
                 currentChapterFile={activeChapter?.file_path}
                 preferences={preferences} onPreferencesChange={handlePreferencesChange}

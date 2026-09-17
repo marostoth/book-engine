@@ -334,6 +334,9 @@ export interface DictionaryEntry {
 export interface VocabularyEntry {
   word: string;
   definition: string;
+  /** The chapter where the word was read. Empty when the app does not know it (RD-04). */
+  chapterFile: string;
+  /** The anchor of the block that holds the word. Empty when the chapter holds no anchor (RD-04). */
   anchor: string;
   savedAt: string;
 }

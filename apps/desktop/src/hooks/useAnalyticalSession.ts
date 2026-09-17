@@ -13,11 +13,14 @@ import { useAnalyticalModals } from "./useAnalyticalModals";
 export interface UseAnalyticalSessionProps {
   bookId?: string | null;
   currentChapterFile?: string;
+  /** The anchor of the paragraph on screen, which a citation that is not made from a selection names (RD-04). */
+  currentAnchor?: string;
 }
 
 export function useAnalyticalSession({
   bookId,
   currentChapterFile,
+  currentAnchor,
 }: UseAnalyticalSessionProps) {
   const [analyticalStore, setAnalyticalStore] = useState<AnalyticalStore>({
     terms: [],
@@ -30,7 +33,7 @@ export function useAnalyticalSession({
   // would replace the analytical.json of the book with it.
   const [loadedBookId, setLoadedBookId] = useState<string | null>(null);
 
-  const modals = useAnalyticalModals({ currentChapterFile });
+  const modals = useAnalyticalModals({ currentChapterFile, currentAnchor });
 
   // Load analytical data whenever active book changes
   useEffect(() => {

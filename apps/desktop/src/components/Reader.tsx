@@ -46,11 +46,12 @@ interface ReaderProps {
   onProgressChange: (progressPercent: number, chapter: ChapterRef | null) => void;
   onAddHighlight: (highlight: HighlightItem) => void;
   onAddNoteFromSelection: (quote: string, anchorId?: string) => void;
-  onAddTerm?: (quote: string, anchorId?: string) => void;
-  onAddArgument?: (quote: string, anchorId?: string) => void;
-  onAddCritique?: (quote: string, anchorId?: string) => void;
-  onAddInquiry?: (quote: string, anchorId?: string) => void;
-  onAddSyntopic?: (quote: string, anchorId?: string) => void;
+  // Each citation names the anchor of the block of the selection. The reader stages none without one (RD-04).
+  onAddTerm?: (quote: string, anchor: string) => void;
+  onAddArgument?: (quote: string, anchor: string) => void;
+  onAddCritique?: (quote: string, anchor: string) => void;
+  onAddInquiry?: (quote: string, anchor: string) => void;
+  onAddSyntopic?: (quote: string, anchor: string) => void;
   analyticalStore?: AnalyticalStore;
   currentChapterFile?: string;
   preferences?: ReaderPreferences;
@@ -155,7 +156,6 @@ export const Reader: React.FC<ReaderProps> = ({
     handleDefine,
     handleDoubleClick,
   } = useReaderSelection({
-    containerRef,
     editor,
     onAddHighlight,
     onAddNoteFromSelection,
@@ -291,7 +291,7 @@ export const Reader: React.FC<ReaderProps> = ({
       {/* Offline Lexicon Definition Popover */}
       {lexiconWord && lexiconPos && (
         <LexiconPopover
-          word={lexiconWord} anchor={lexiconAnchor} bookId={bookId}
+          word={lexiconWord} anchor={lexiconAnchor} bookId={bookId} chapterFile={currentChapterFile}
           position={lexiconPos} onClose={() => setLexiconWord(null)}
         />
       )}

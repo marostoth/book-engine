@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { AuthorTerm, AnchoredCitation } from "../../lib/types/analytical";
+import { citationPlace } from "../../lib/citations";
 
 interface TermModalProps {
   isOpen: boolean;
@@ -42,7 +43,7 @@ export const TermModal: React.FC<TermModalProps> = ({
       setTerm("");
       setDefinition("");
       setChapterFile(currentChapterFile || "");
-      setAnchor("^p-001");
+      setAnchor("");
       setQuote("");
     }
     setError(null);
@@ -67,7 +68,7 @@ export const TermModal: React.FC<TermModalProps> = ({
       authorDefinition: definition.trim(),
       citation: {
         chapterFile: chapterFile.trim() || currentChapterFile || "unknown.md",
-        anchor: anchor.trim() || "^p-001",
+        anchor: anchor.trim(),
         quote: quote.trim(),
       },
     };
@@ -136,7 +137,7 @@ export const TermModal: React.FC<TermModalProps> = ({
               <span className="font-semibold uppercase tracking-wider text-amber-400/90">
                 Source Citation Anchor
               </span>
-              <span>{chapterFile} #{anchor}</span>
+              <span>{citationPlace(chapterFile, anchor)}</span>
             </div>
 
             <div>

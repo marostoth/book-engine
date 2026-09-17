@@ -1,5 +1,6 @@
 import React from "react";
 import { AuthorTerm } from "../../lib/types/analytical";
+import { citationPlace } from "../../lib/citations";
 
 interface TermsTabProps {
   terms: AuthorTerm[];
@@ -61,7 +62,7 @@ export const TermsTab: React.FC<TermsTabProps> = ({
               }
               className="flex items-center gap-1 font-mono text-amber-400/90 hover:text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30 text-[10px]"
             >
-              § {term.citation.chapterFile}#{term.citation.anchor}
+              § {citationPlace(term.citation.chapterFile, term.citation.anchor)}
             </button>
             {term.citation.quote && (
               <span className="text-zinc-500 truncate max-w-[130px] text-[10px]">

@@ -6,6 +6,7 @@ import {
   AnchoredCitation,
   ArgumentNode,
 } from "../../lib/types/analytical";
+import { citationPlace } from "../../lib/citations";
 
 interface CritiqueModalProps {
   isOpen: boolean;
@@ -60,7 +61,7 @@ export const CritiqueModal: React.FC<CritiqueModalProps> = ({
       setCitation(
         targetCitation ||
           (currentChapterFile
-            ? { chapterFile: currentChapterFile, anchor: "^p-001", quote: "" }
+            ? { chapterFile: currentChapterFile, anchor: "", quote: "" }
             : null)
       );
     }
@@ -140,7 +141,7 @@ export const CritiqueModal: React.FC<CritiqueModalProps> = ({
             {targetArg ? (
               <p className="text-zinc-200 font-medium">Argument: "{targetArg.title}"</p>
             ) : citation ? (
-              <p className="text-zinc-300 italic truncate">Passage: "{citation.quote}" ({citation.chapterFile}#{citation.anchor})</p>
+              <p className="text-zinc-300 italic truncate">Passage: "{citation.quote}" ({citationPlace(citation.chapterFile, citation.anchor)})</p>
             ) : (
               <p className="text-zinc-500 italic">No specific target linked (select chapter anchor or argument below)</p>
             )}

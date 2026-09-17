@@ -45,6 +45,7 @@ You are acting as a Principal Systems & Frontend Engineer specializing in local-
 
 ### TypeScript / Frontend
 - **Tooling:** React 18+, TipTap 3 / ProseMirror, Tailwind CSS, Floating UI.
+- **Anchors:** Never write a paragraph anchor that the app does not have. A citation, a topic citation and a vocabulary word keep the anchor of the block of the passage (`citationAnchorAt`, `src/lib/citations.ts`), an empty anchor when the app does not know one, and never a default such as `^p-001` (RD-04). `src/lib/citations.test.ts` fails when a file that saves such data holds an anchor of its own.
 - **Editor Library:** Keep every `@tiptap/*` package at the same version, 3.30.4 or later, the first version without the `__proto__` hole of `mergeAttributes` (GHSA-cp6q-959q-f8rh, SEC-05). After a change, `cd apps/desktop && npm audit` must find nothing. The reader takes from the starter kit only the parts that a chapter file uses, so `readerExtensions.ts` turns off a new part of a newer kit; `src/lib/readerEditor.test.ts` fails when the reader gets another node, mark or part.
 - **Typing:** Strict mode enabled (`noImplicitAny: true`, `strictNullChecks: true`).
 - **Editor:** Markdown AST transformations must occur through headless custom nodes.

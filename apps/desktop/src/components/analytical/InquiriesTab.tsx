@@ -4,6 +4,7 @@ import {
   ArgumentNode,
   ResolutionStatus,
 } from "../../lib/types/analytical";
+import { citationPlace } from "../../lib/citations";
 
 interface InquiriesTabProps {
   inquiries: AuthorInquiry[];
@@ -196,7 +197,7 @@ export const InquiriesTab: React.FC<InquiriesTabProps> = ({
                     className="flex items-center gap-1 font-mono text-amber-400/90 hover:text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30"
                     title="Jump to question anchor in reader"
                   >
-                    § Question: {inq.citation.chapterFile}#{inq.citation.anchor}
+                    § Question: {citationPlace(inq.citation.chapterFile, inq.citation.anchor)}
                   </button>
                 ) : (
                   <span />
@@ -213,8 +214,7 @@ export const InquiriesTab: React.FC<InquiriesTabProps> = ({
                     className="flex items-center gap-1 font-mono text-emerald-400/90 hover:text-emerald-300 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30"
                     title="Jump to solution anchor in reader"
                   >
-                    § Solution: {inq.solutionCitation.chapterFile}#
-                    {inq.solutionCitation.anchor}
+                    § Solution: {citationPlace(inq.solutionCitation.chapterFile, inq.solutionCitation.anchor)}
                   </button>
                 )}
               </div>

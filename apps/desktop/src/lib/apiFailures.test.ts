@@ -33,6 +33,7 @@ const assessment: ExitAssessmentPayload = {
 const vocabularyEntry: VocabularyEntry = {
   word: "quorum",
   definition: "A set of nodes that overlaps every other set.",
+  chapterFile: "ch-02.md",
   anchor: "^p-005",
   savedAt: "2026-09-15T10:00:00Z",
 };

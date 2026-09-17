@@ -59,7 +59,7 @@ export const ControversyModal: React.FC<ControversyModalProps> = ({
     } else {
       setPBookId(currentBookId || "");
       setPChapter(currentChapterFile || "ch-01.md");
-      setPAnchor("^p-001");
+      setPAnchor("");
       setPQuote("");
     }
     setError(null);
