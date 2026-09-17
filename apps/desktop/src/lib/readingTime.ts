@@ -1,4 +1,4 @@
-import type { ChapterRef } from "./readingPlace.ts";
+import { sameChapter, type ChapterRef } from "./readingPlace.ts";
 
 /**
  * Reading time.
@@ -47,11 +47,6 @@ export interface ReadingTimer {
    * you left stay on screen until the words of the next chapter arrive.
    */
   scrolled(chapter: ChapterRef | null, percent: number): void;
-}
-
-function sameChapter(a: ChapterRef | null, b: ChapterRef | null): boolean {
-  if (!a || !b) return a === b;
-  return a.bookId === b.bookId && a.chapterFile === b.chapterFile;
 }
 
 /** Counts reading time, and gives each piece to `save` with the chapter it was read in. */
