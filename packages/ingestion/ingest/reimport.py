@@ -52,7 +52,7 @@ def kept_files_note(book_id: str, reader_files: List[str]) -> str:
     """Tells the reader which of their files a new import keeps, and what can change for them."""
     return (
         f"Your own files for it are in notes/{book_id}: {', '.join(reader_files)}. "
-        "An import keeps them, but a paragraph they point to can be a different paragraph after it."
+        "An import keeps them, and they follow their text when a chapter or a paragraph gets another number."
     )
 
 

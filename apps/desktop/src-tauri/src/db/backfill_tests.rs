@@ -6,7 +6,7 @@ use super::backfill::backfill_vault_blocking;
 use super::restore::restore_progress_blocking;
 use super::schema::open_or_create_db;
 use crate::test_support::Sandbox;
-use crate::vault::study_log::read_book_log;
+use crate::vault::study_log::{append_reading, read_book_log, ReadingLine};
 
 const BOOK: &str = "sample";
 const CHAPTER: &str = "ch-01.md";
@@ -175,4 +175,91 @@ fn a_book_already_written_by_the_app_is_not_copied_again() {
     );
     let log = read_book_log(BOOK).expect("read the study log");
     assert_eq!(log.reviews.len(), 1, "one review, one line");
+}
+
+/// Puts the reading time of one chapter into the cache, the way the app keeps it.
+fn cache_reading(chapter_file: &str, seconds: i64, completed: bool, read_at: i64) {
+    let conn = open_or_create_db().expect("open the cache");
+    conn.execute(
+        "INSERT INTO reading_sessions (book_id, chapter_file, seconds_spent, completed, last_read_at)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![BOOK, chapter_file, seconds, i64::from(completed), read_at],
+    )
+    .expect("the reading time the app keeps");
+}
+
+fn log_reading(chapter_file: &str, seconds: i64, completed: bool, read_at: i64) {
+    append_reading(&ReadingLine {
+        book_id: BOOK.to_string(),
+        chapter_file: chapter_file.to_string(),
+        seconds_spent: seconds,
+        completed,
+        read_at,
+    })
+    .expect("write a line of the reading log");
+}
+
+/// A new import can give a chapter another file name, and it moves the reading time in the vault log with its chapter
+/// (IN-04). Until the next start the cache still has the old name, so the copy must not write that time back under
+/// the old name: the chapter that has the name now would get time that nobody read in it.
+#[test]
+fn reading_time_the_vault_keeps_is_not_copied_back_under_an_old_chapter_name() {
+    let sandbox = Sandbox::new();
+    sandbox.write_sample_book();
+    cache_reading("ch-01.md", 300, true, 1_758_000_100);
+    log_reading("ch-02.md", 300, true, 1_758_000_100);
+
+    let report = backfill_vault_blocking().expect("copy the cache into the vault");
+
+    assert!(report.changed_nothing(), "{report:?}");
+    let log = read_book_log(BOOK).expect("read the study log");
+    let chapters: Vec<&str> = log.reading.iter().map(|line| line.chapter_file.as_str()).collect();
+    assert_eq!(chapters, vec!["ch-02.md"]);
+}
+
+/// A log whose only reading line cannot be read may hold the time of the cache already, so nothing is copied: the
+/// cache keeps its reading time, and no second may be counted twice when the line is mended.
+#[test]
+fn a_reading_log_with_a_damaged_line_gets_no_copy_of_the_cache() {
+    let sandbox = Sandbox::new();
+    sandbox.write_sample_book();
+    cache_reading("ch-01.md", 300, true, 1_758_000_100);
+    let path = sandbox.vault().join("notes").join(BOOK).join("reading.jsonl");
+    std::fs::write(&path, "{\"bookId\":\"sample\",\"chapterFile\":\"ch-01.md\",\"secondsSp\n")
+        .expect("a damaged reading line");
+
+    let report = backfill_vault_blocking().expect("copy the cache into the vault");
+
+    assert!(report.changed_nothing(), "{report:?}");
+}
+
+/// The start of the app after such an import: first the copy into the vault, then the cache from the vault.
+#[test]
+fn a_start_after_a_new_import_that_renamed_chapters_counts_every_second_once() {
+    let sandbox = Sandbox::new();
+    sandbox.write_sample_book();
+    cache_reading("ch-01.md", 300, true, 1_758_000_100);
+    cache_reading("ch-02.md", 120, false, 1_758_000_200);
+    log_reading("ch-02.md", 300, true, 1_758_000_100);
+    log_reading("ch-03.md", 120, false, 1_758_000_200);
+    let log_path = sandbox.vault().join("notes").join(BOOK).join("reading.jsonl");
+    let log_before = std::fs::read_to_string(&log_path).expect("the log");
+
+    for _ in 0..2 {
+        backfill_vault_blocking().expect("copy the cache into the vault");
+        restore_progress_blocking().expect("put the progress back");
+    }
+
+    let log_after = std::fs::read_to_string(&log_path).expect("the log");
+    assert_eq!(log_after, log_before, "the vault log stays as the import wrote it");
+    let conn = open_or_create_db().expect("open the cache");
+    let mut statement = conn
+        .prepare("SELECT chapter_file, seconds_spent FROM reading_sessions ORDER BY chapter_file")
+        .expect("read the reading time");
+    let rows: Vec<(String, i64)> = statement
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .expect("read the rows")
+        .collect::<rusqlite::Result<_>>()
+        .expect("read every row");
+    assert_eq!(rows, vec![("ch-02.md".to_string(), 300), ("ch-03.md".to_string(), 120)]);
 }
