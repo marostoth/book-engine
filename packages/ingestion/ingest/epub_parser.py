@@ -3,8 +3,9 @@
 from __future__ import annotations
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-from bs4 import BeautifulSoup, NavigableString, Tag
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
+from bs4 import BeautifulSoup, CData, NavigableString, Tag
+from bs4.element import PageElement, PreformattedString
 import ebooklib
 from ebooklib import epub
 
@@ -148,8 +149,24 @@ def parse_toc(toc_list: Any, level: int = 1) -> List[TOCItem]:
     return items
 
 
-BLOCK_CONTAINERS = {"div", "section", "article", "main", "body"}
-BLOCK_ELEMENTS = {"p", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "ul", "ol", "table", "pre", "div", "section", "article"}
+# Elements that hold no text of the book: the head of a document, scripts, styles and templates, and the navigation of
+# the book, which the contents of the reader replace
+SKIPPED_TAGS = {"head", "script", "style", "template", "nav"}
+# Project Gutenberg marks its own header and its license with this class. They are no text of the book, so the import
+# leaves them out, as the owner chose (IN-02).
+BOILERPLATE_CLASSES = {"pg-boilerplate"}
+# Elements that a browser shows as blocks, so that their text never runs into the text around them (IN-02)
+BLOCK_TAGS = {
+    "address", "article", "aside", "blockquote", "body", "caption", "center", "dd", "details", "dialog", "div", "dl",
+    "dt", "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hgroup",
+    "hr", "li", "main", "menu", "nav", "ol", "p", "pre", "section", "summary", "table", "tbody", "td", "tfoot", "th",
+    "thead", "tr", "ul",
+}
+HEADINGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
+# While inline text is written, a `<br>` is LINE_BREAK, and the edge of a block inside the text, such as a paragraph of
+# a list item, is BLOCK_EDGE. Book text holds neither, because each run of its whitespace becomes one space.
+LINE_BREAK = "\n"
+BLOCK_EDGE = "\x1f"
 
 
 def html_to_markdown_blocks(soup: BeautifulSoup, element_blocks: Optional[Dict[str, int]] = None) -> List[str]:
@@ -157,96 +174,126 @@ def html_to_markdown_blocks(soup: BeautifulSoup, element_blocks: Optional[Dict[s
 
     With `element_blocks`, it also notes the block where each element with an id, or an `<a name>`, starts, because
     the links of the contents name such elements (CQ-01). An element that makes no block starts at the next block.
-    """
-    blocks: List[str] = []
-    root = soup.body if soup.body else soup
 
-    def process_node(node: Tag | NavigableString) -> None:
-        if isinstance(node, NavigableString):
-            text = str(node).strip()
-            if text:
-                blocks.append(escape_markdown_text(text))
+    Every text that a browser shows is written, in any layout (IN-02). Text and inline elements between two blocks make
+    a paragraph, a container such as `<aside>` or `<figure>` gives the blocks inside it, and a `<br>` is a line break. A
+    paragraph is one line: a line break of the book text is a space, as a browser shows it.
+    """
+    writer = _BlockWriter(element_blocks)
+    writer.add_blocks_of(soup.body if soup.body else soup)
+    return writer.blocks
+
+
+class _BlockWriter:
+    """Writes the Markdown blocks of HTML elements, and notes the block where each element starts."""
+
+    def __init__(self, element_blocks: Optional[Dict[str, int]]) -> None:
+        self.blocks: List[str] = []
+        self.element_blocks = element_blocks
+
+    def note_starts(self, element: Tag, with_inner_elements: bool) -> None:
+        if self.element_blocks is not None:
+            _note_element_starts(element, len(self.blocks), self.element_blocks, with_inner_elements)
+
+    def add_blocks_of(self, container: Tag) -> None:
+        """Adds the blocks of the content of `container`. Text and inline elements between two blocks make a
+        paragraph."""
+        run: List[PageElement] = []
+        for child in container.children:
+            if isinstance(child, Tag) and _is_block(child):
+                self.add_paragraph(run)
+                run = []
+                self.add_block(child)
+            else:
+                if isinstance(child, Tag):
+                    self.note_starts(child, with_inner_elements=True)
+                run.append(child)
+        self.add_paragraph(run)
+
+    def add_paragraph(self, nodes: Iterable[PageElement]) -> None:
+        text = _inline_text(nodes, "<br>")
+        if text:
+            self.blocks.append(text)
+
+    def add_block(self, element: Tag) -> None:
+        name = element.name.lower()
+        if _is_skipped(element):
+            self.note_starts(element, with_inner_elements=True)
             return
 
-        for child in node.children:
-            if isinstance(child, NavigableString):
-                text = str(child).strip()
-                if text:
-                    blocks.append(escape_markdown_text(text))
-                continue
-
-            if not isinstance(child, Tag):
-                continue
-
-            tag_name = child.name.lower()
-            has_child_blocks = tag_name in BLOCK_CONTAINERS and any(
-                isinstance(c, Tag) and c.name.lower() in BLOCK_ELEMENTS for c in child.children
-            )
-            if element_blocks is not None:
-                # The blocks of a container note the elements inside them
-                _note_element_starts(child, len(blocks), element_blocks, with_inner_elements=not has_child_blocks)
-
+        if name in HEADINGS:
+            self.note_starts(element, with_inner_elements=True)
             # Headings, on one line: a line break in a heading cut the chapter title, such as "CHAPTER I.", and
             # the reader showed the heading as a paragraph with its marks (CQ-01)
-            if tag_name in ("h1", "h2", "h3", "h4", "h5", "h6"):
-                level = int(tag_name[1])
-                h_text = re.sub(r"\s+", " ", _render_inline(child)).strip()
-                if h_text:
-                    blocks.append(f"{'#' * level} {h_text}")
+            h_text = re.sub(r"\s+", " ", _inline_text(element.children, " ")).strip()
+            if h_text:
+                self.blocks.append(f"{'#' * int(name[1])} {h_text}")
 
-            # Containers: recurse if contains block elements, else treat as single block
-            elif tag_name in BLOCK_CONTAINERS:
-                if has_child_blocks:
-                    process_node(child)
-                else:
-                    text = _render_inline(child).strip()
-                    if text:
-                        blocks.append(text)
+        # A term of a definition list: a paragraph in bold, before the blocks of its definition
+        elif name == "dt":
+            self.note_starts(element, with_inner_elements=True)
+            term = _inline_text(element.children, "<br>")
+            if term:
+                self.blocks.append(term if "**" in term else f"**{term}**")
 
-            # Paragraphs
-            elif tag_name == "p":
-                p_text = _render_inline(child).strip()
-                if p_text:
-                    blocks.append(p_text)
+        # Blockquotes
+        elif name == "blockquote":
+            self.note_starts(element, with_inner_elements=True)
+            self.add_quote(element)
 
-            # Blockquotes
-            elif tag_name == "blockquote":
-                b_text = _render_inline(child).strip()
-                if b_text:
-                    quoted = "\n".join(f"> {line}" for line in b_text.splitlines() if line.strip())
-                    blocks.append(quoted)
+        # Lists
+        elif name in ("ul", "ol"):
+            self.note_starts(element, with_inner_elements=True)
+            list_lines = _list_lines(element, "")
+            if list_lines:
+                self.blocks.append("\n".join(list_lines))
 
-            # Lists
-            elif tag_name in ("ul", "ol"):
-                list_items: List[str] = []
-                is_ordered = (tag_name == "ol")
-                for idx, li in enumerate(child.find_all("li", recursive=False), start=1):
-                    li_text = _render_inline(li).strip()
-                    if li_text:
-                        prefix = f"{idx}." if is_ordered else "-"
-                        list_items.append(f"{prefix} {li_text}")
-                if list_items:
-                    blocks.append("\n".join(list_items))
+        # Tables
+        elif name == "table":
+            self.note_starts(element, with_inner_elements=True)
+            self.add_table(element)
 
-            # Tables
-            elif tag_name == "table":
-                rows: List[str] = []
-                for tr in child.find_all("tr"):
-                    cells = [_render_inline(td).strip() for td in tr.find_all(["td", "th"])]
-                    if any(cells):
-                        rows.append(" | ".join(cells))
-                if rows:
-                    blocks.append("\n".join(rows))
+        # Preformatted text, such as code
+        elif name == "pre":
+            self.note_starts(element, with_inner_elements=True)
+            pre_block = _preformatted_block(element)
+            if pre_block:
+                self.blocks.append(pre_block)
 
-            # Standalone Images
-            elif tag_name == "img":
-                alt = escape_markdown_text(str(child.get("alt", "")))
-                src = child.get("src", "")
-                if src:
-                    blocks.append(f"![{alt}]({src})")
+        # A line across the page holds no text
+        elif name == "hr":
+            self.note_starts(element, with_inner_elements=True)
 
-    process_node(root)
-    return blocks
+        # Paragraphs, and containers such as <div>, <section>, <aside>, <figure>, <header> and <dd>: their blocks
+        else:
+            self.note_starts(element, with_inner_elements=False)
+            self.add_blocks_of(element)
+
+    def add_quote(self, quote: Tag) -> None:
+        """Adds a quote as one block: each line of the blocks inside it after `> `, and a line `>` between two
+        blocks."""
+        inner = _BlockWriter(None)
+        inner.add_blocks_of(quote)
+        lines: List[str] = []
+        for block in inner.blocks:
+            if lines:
+                lines.append(">")
+            lines.extend(f"> {line}" for line in block.split("\n"))
+        if lines:
+            self.blocks.append("\n".join(lines))
+
+    def add_table(self, table: Tag) -> None:
+        """Adds a table: its caption as a paragraph, and a block with one line of cells for each row."""
+        caption = table.find("caption", recursive=False)
+        if caption is not None:
+            self.add_paragraph(caption.children)
+        rows: List[str] = []
+        for tr in table.find_all("tr"):
+            cells = [_inline_text(cell.children, "<br>") for cell in tr.find_all(["td", "th"])]
+            if any(cells):
+                rows.append(" | ".join(cells))
+        if rows:
+            self.blocks.append("\n".join(rows))
 
 
 def _note_element_starts(element: Tag, block: int, element_blocks: Dict[str, int], with_inner_elements: bool) -> None:
@@ -257,32 +304,127 @@ def _note_element_starts(element: Tag, block: int, element_blocks: Dict[str, int
             element_blocks.setdefault(str(name), block)
 
 
-def _render_inline(element: Tag | NavigableString) -> str:
-    """Render inline HTML tags to Markdown formatting. Text that looks like HTML is written as text (SEC-01)."""
-    if isinstance(element, NavigableString):
-        return escape_markdown_text(str(element))
+def _is_block(element: Tag) -> bool:
+    """True for an element that a browser shows as a block, and for an element that holds one, such as a `<span>`
+    around two paragraphs."""
+    return _is_block_tag(element) or element.find(_is_block_tag) is not None
 
-    out: List[str] = []
-    for child in element.children:
-        if isinstance(child, NavigableString):
-            out.append(escape_markdown_text(str(child)))
-        elif isinstance(child, Tag):
-            name = child.name.lower()
-            inner = _render_inline(child)
-            if name in ("strong", "b"):
-                out.append(f"**{inner.strip()}**" if inner.strip() else "")
-            elif name in ("em", "i"):
-                out.append(f"*{inner.strip()}*" if inner.strip() else "")
-            elif name == "code":
-                out.append(f"`{inner.strip()}`" if inner.strip() else "")
-            elif name == "img":
-                alt = escape_markdown_text(str(child.get("alt", "")))
-                src = child.get("src", "")
-                out.append(f"![{alt}]({src})" if src else "")
+
+def _is_block_tag(element: Tag) -> bool:
+    return element.name.lower() in BLOCK_TAGS
+
+
+def _is_skipped(element: Tag) -> bool:
+    """True for an element that holds no text of the book (SKIPPED_TAGS and BOILERPLATE_CLASSES)."""
+    return element.name.lower() in SKIPPED_TAGS or not BOILERPLATE_CLASSES.isdisjoint(element.get("class") or [])
+
+
+def _is_book_text(node: PageElement) -> bool:
+    """True for text of the book, and False for a comment, a declaration or a processing instruction of its file."""
+    return isinstance(node, NavigableString) and (isinstance(node, CData) or not isinstance(node, PreformattedString))
+
+
+def _list_lines(element: Tag, indent: str) -> List[str]:
+    """The lines of a list: `- ` or `1. ` and the text of each item, and below it the items of its inner lists,
+    indented."""
+    ordered = element.name.lower() == "ol"
+    lines: List[str] = []
+    for number, item in enumerate(element.find_all("li", recursive=False), start=1):
+        marker = f"{number}." if ordered else "-"
+        text_nodes: List[PageElement] = []
+        inner_lists: List[Tag] = []
+        for child in item.children:
+            if isinstance(child, Tag) and child.name.lower() in ("ul", "ol"):
+                inner_lists.append(child)
             else:
-                out.append(inner)
+                text_nodes.append(child)
+        li_text = _inline_text(text_nodes, "<br>")
+        if li_text:
+            lines.append(f"{indent}{marker} {li_text}")
+        for inner_list in inner_lists:
+            lines.extend(_list_lines(inner_list, indent + " " * (len(marker) + 1)))
+    return lines
 
-    # Normalize whitespace
-    raw_text = "".join(out)
-    clean_text = re.sub(r"[ \t]+", " ", raw_text)
-    return clean_text
+
+def _preformatted_block(pre: Tag) -> Optional[str]:
+    """Preformatted text, such as code, as a `<pre>` block with the lines and the spaces of the book (IN-02).
+
+    The reader reads Markdown marks in every block, so `*`, a backtick, `[` and a `#` that starts a line are written as
+    character references, like `<` and `&` (SEC-01). A blank line ends a block of a chapter file, so each blank line is
+    a `&#10;` at the end of the line before it.
+    """
+    lines = [line.rstrip() for line in "".join(_preformatted_text(pre)).split("\n")]
+    while lines and not lines[0]:
+        lines.pop(0)
+    while lines and not lines[-1]:
+        lines.pop()
+    if not lines:
+        return None
+    text = escape_markdown_text("\n".join(lines))
+    text = text.replace("*", "&#42;").replace("`", "&#96;").replace("[", "&#91;")
+    text = re.sub(r"^#", "&#35;", text, flags=re.MULTILINE)
+    return "<pre>" + re.sub(r"\n(?=\n)", "&#10;", text) + "</pre>"
+
+
+def _preformatted_text(element: Tag) -> Iterator[str]:
+    """The text of a preformatted element as the book has it, with a line break for each `<br>`."""
+    for child in element.children:
+        if isinstance(child, Tag):
+            name = child.name.lower()
+            if name == "br":
+                yield "\n"
+            elif not _is_skipped(child):
+                yield from _preformatted_text(child)
+        elif _is_book_text(child):
+            yield str(child)
+
+
+def _inline_text(nodes: Iterable[PageElement], line_break: str) -> str:
+    """The inline Markdown of `nodes` on one line, with `line_break` for each `<br>`.
+
+    A run of whitespace is one space, as a browser shows it, and the edge of a block inside the text, such as between
+    two paragraphs of a list item, is a space too, so that words never run together (IN-02).
+    """
+    text = "".join(_render_inline(node) for node in nodes).replace(BLOCK_EDGE, " ")
+    text = re.sub(r" ?\n ?", LINE_BREAK, re.sub(r" {2,}", " ", text)).strip()
+    return text.replace(LINE_BREAK, line_break)
+
+
+def _render_inline(node: PageElement) -> str:
+    """Render inline HTML tags to Markdown formatting. Text that looks like HTML is written as text (SEC-01)."""
+    if not isinstance(node, Tag):
+        if not _is_book_text(node):
+            # A comment of the book file is no text of the book
+            return ""
+        return escape_markdown_text(re.sub(r"[ \t\n\r\f\x1f]+", " ", str(node)))
+
+    name = node.name.lower()
+    if _is_skipped(node):
+        return ""
+    if name == "br":
+        return LINE_BREAK
+    if name == "img":
+        alt = escape_markdown_text(str(node.get("alt", "")))
+        src = node.get("src", "")
+        return f"![{alt}]({src})" if src else ""
+
+    inner = "".join(_render_inline(child) for child in node.children)
+    if name in ("strong", "b"):
+        return _marked(inner, "**")
+    if name in ("em", "i"):
+        return _marked(inner, "*")
+    if name == "code":
+        return _marked(inner, "`")
+    if name in BLOCK_TAGS:
+        return f"{BLOCK_EDGE}{inner}{BLOCK_EDGE}"
+    return inner
+
+
+def _marked(inner: str, mark: str) -> str:
+    """`inner` between two marks, such as `**` for bold. The spaces and line breaks at its edges stay outside the marks,
+    so that the words around it stay apart."""
+    core = inner.strip()
+    if not core:
+        return inner
+    start = len(inner) - len(inner.lstrip())
+    return f"{inner[:start]}{mark}{core}{mark}{inner[start + len(core):]}"

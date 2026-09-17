@@ -37,6 +37,7 @@ You are acting as a Principal Systems & Frontend Engineer specializing in local-
 - **Parsing:** `ebooklib` + `beautifulsoup4` for EPUBs, `pymupdf4llm` for PDFs, `pydantic` for schema validation.
 - **Determinism:** Normalization must be idempotent. Re-running ingestion on the same file must generate identical Markdown and paragraph anchors.
 - **Line Endings:** Parse an EPUB document with `read_html` and write every vault text file with `write_text_file` (`ingest/line_endings.py`), so vault files have `\n` line endings on every system (IN-06).
+- **EPUB Text:** Write each kind of XHTML element in `html_to_markdown_blocks` (`ingest/epub_parser.py`). A block of a chapter file never holds a blank line, a paragraph is one line, and only a link to a note becomes a footnote (`ingest/endnotes.py`, IN-02).
 
 ### TypeScript / Frontend
 - **Tooling:** React 18+, TipTap/ProseMirror, Tailwind CSS, Floating UI.
