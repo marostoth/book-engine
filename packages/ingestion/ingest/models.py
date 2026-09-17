@@ -7,10 +7,15 @@ from pydantic import BaseModel, Field
 
 
 class TOCItem(BaseModel):
-    """Hierarchical Table of Contents node."""
+    """Hierarchical Table of Contents node.
+
+    In `_meta.json`, `href` is the chapter file that holds the entry (`ch-07.md`), or "" when no chapter holds it, and
+    `anchor` is the paragraph where the entry starts (`^p-012`), or None for the top of the chapter (CQ-01).
+    """
     id: str
     title: str
     href: str
+    anchor: Optional[str] = None
     level: int = 1
     subitems: List[TOCItem] = Field(default_factory=list)
 

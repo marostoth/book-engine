@@ -3,7 +3,7 @@
 from __future__ import annotations
 import re
 from pathlib import Path
-from typing import Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from bs4 import BeautifulSoup, NavigableString, Tag
 import ebooklib
 from ebooklib import epub
@@ -154,8 +154,12 @@ BLOCK_CONTAINERS = {"div", "section", "article", "main", "body"}
 BLOCK_ELEMENTS = {"p", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "ul", "ol", "table", "pre", "div", "section", "article"}
 
 
-def html_to_markdown_blocks(soup: BeautifulSoup) -> List[str]:
-    """Convert HTML content into a list of clean Markdown blocks (paragraphs, headers, etc.)."""
+def html_to_markdown_blocks(soup: BeautifulSoup, element_blocks: Optional[Dict[str, int]] = None) -> List[str]:
+    """Convert HTML content into a list of clean Markdown blocks (paragraphs, headers, etc.).
+
+    With `element_blocks`, it also notes the block where each element with an id, or an `<a name>`, starts, because
+    the links of the contents name such elements (CQ-01). An element that makes no block starts at the next block.
+    """
     blocks: List[str] = []
     root = soup.body if soup.body else soup
 
@@ -177,17 +181,23 @@ def html_to_markdown_blocks(soup: BeautifulSoup) -> List[str]:
                 continue
 
             tag_name = child.name.lower()
+            has_child_blocks = tag_name in BLOCK_CONTAINERS and any(
+                isinstance(c, Tag) and c.name.lower() in BLOCK_ELEMENTS for c in child.children
+            )
+            if element_blocks is not None:
+                # The blocks of a container note the elements inside them
+                _note_element_starts(child, len(blocks), element_blocks, with_inner_elements=not has_child_blocks)
 
-            # Headings
+            # Headings, on one line: a line break in a heading cut the chapter title, such as "CHAPTER I.", and
+            # the reader showed the heading as a paragraph with its marks (CQ-01)
             if tag_name in ("h1", "h2", "h3", "h4", "h5", "h6"):
                 level = int(tag_name[1])
-                h_text = _render_inline(child).strip()
+                h_text = re.sub(r"\s+", " ", _render_inline(child)).strip()
                 if h_text:
                     blocks.append(f"{'#' * level} {h_text}")
 
             # Containers: recurse if contains block elements, else treat as single block
             elif tag_name in BLOCK_CONTAINERS:
-                has_child_blocks = any(isinstance(c, Tag) and c.name.lower() in BLOCK_ELEMENTS for c in child.children)
                 if has_child_blocks:
                     process_node(child)
                 else:
@@ -239,6 +249,14 @@ def html_to_markdown_blocks(soup: BeautifulSoup) -> List[str]:
 
     process_node(root)
     return blocks
+
+
+def _note_element_starts(element: Tag, block: int, element_blocks: Dict[str, int], with_inner_elements: bool) -> None:
+    """Notes `block` as the start of `element`, and with `with_inner_elements` of every element inside it."""
+    for el in [element, *element.find_all(True)] if with_inner_elements else [element]:
+        name = el.get("id") or (el.get("name") if el.name == "a" else None)
+        if name:
+            element_blocks.setdefault(str(name), block)
 
 
 def _render_inline(element: Tag | NavigableString) -> str:
