@@ -273,8 +273,9 @@ pub fn get_study_analytics_blocking(book_id: Option<&str>) -> Result<StudyAnalyt
     if let Ok(vault_root) = find_vault_root() {
         let books_dir = vault_root.join("books");
         if let Some(b_id) = book_id {
-            let meta_path = books_dir.join(b_id).join("_meta.json");
-            if let Ok(meta_str) = std::fs::read_to_string(&meta_path) {
+            // The page sends the book id, so it is checked before it is part of a path (SEC-03).
+            let meta = crate::vault::paths::book_file(b_id, "_meta.json");
+            if let Ok(meta_str) = meta.and_then(|meta_path| Ok(std::fs::read_to_string(meta_path)?)) {
                 if let Ok(val) = serde_json::from_str::<serde_json::Value>(&meta_str) {
                     total_vault_words = val["total_words"].as_u64().unwrap_or(0) as usize;
                 }

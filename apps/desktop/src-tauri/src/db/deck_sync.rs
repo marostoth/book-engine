@@ -18,7 +18,6 @@ use rusqlite::{params, OptionalExtension, Transaction};
 use super::card_identity::card_identity;
 use super::fsrs_parser::{parse_card_section, RawCard};
 use super::schema::open_or_create_db;
-use crate::vault::find_vault_root;
 
 /// Archive reason for a card whose question is no longer in the deck. It comes back when its question returns.
 const NOT_IN_DECK: &str = "not_in_deck";
@@ -31,14 +30,13 @@ const DUPLICATE: &str = "duplicate";
 /// `parse_card_section` verifies every card verbatim against its chapter Markdown.
 pub fn sync_practice_deck_blocking(book_id: &str) -> Result<usize> {
     let mut conn = open_or_create_db()?;
-    let vault_root = find_vault_root()?;
-    let deck_path = vault_root.join("notes").join(book_id).join("practice-deck.md");
+    let deck_path = crate::vault::paths::notes_file(book_id, "practice-deck.md")?;
     if !deck_path.exists() {
         return Ok(0);
     }
 
     let deck_content = std::fs::read_to_string(&deck_path)?;
-    let book_dir = vault_root.join("books").join(book_id);
+    let book_dir = crate::vault::paths::book_folder(book_id)?;
     let mut deck_ids = HashSet::new();
     let cards: Vec<(String, RawCard)> = deck_content
         .split("### ")

@@ -1,13 +1,11 @@
 use anyhow::{Context, Result};
 use super::json_store::read_json_file;
 use super::models::VocabularyEntry;
-use super::reader::find_vault_root;
 
 /// Returns all saved vocabulary terms for the specified book from `vault/notes/<book-id>/vocabulary.json`.
 /// A book with no file yet has no terms. A damaged file gives an error, never an empty list.
 pub fn get_book_vocabulary(book_id: &str) -> Result<Vec<VocabularyEntry>> {
-    let vault = find_vault_root()?;
-    let vocab_file = vault.join("notes").join(book_id).join("vocabulary.json");
+    let vocab_file = super::paths::notes_file(book_id, "vocabulary.json")?;
 
     Ok(read_json_file(&vocab_file)?.unwrap_or_default())
 }
@@ -19,9 +17,7 @@ pub fn get_book_vocabulary(book_id: &str) -> Result<Vec<VocabularyEntry>> {
 /// The whole list is written back, so a damaged file stops the save instead of replacing
 /// every saved term with this one (DS-04).
 pub fn save_vocabulary_term(book_id: &str, entry: VocabularyEntry) -> Result<()> {
-    let vault = find_vault_root()?;
-    let notes_dir = vault.join("notes").join(book_id);
-    let vocab_file = notes_dir.join("vocabulary.json");
+    let vocab_file = super::paths::notes_file(book_id, "vocabulary.json")?;
 
     let mut entries: Vec<VocabularyEntry> = read_json_file(&vocab_file)?.unwrap_or_default();
 

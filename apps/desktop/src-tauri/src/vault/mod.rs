@@ -4,6 +4,7 @@ pub mod json_store;
 pub mod bookmark;
 pub mod inspectional;
 pub mod locate;
+pub mod paths;
 pub mod preferences;
 pub mod safe_write;
 pub mod study_log;
@@ -17,6 +18,10 @@ pub mod syntopicon;
 pub mod syntopicon_compiler;
 #[cfg(test)]
 mod book_pictures_tests;
+#[cfg(test)]
+mod escape_tests;
+#[cfg(test)]
+mod paths_tests;
 #[cfg(test)]
 mod reader_tests;
 #[cfg(test)]

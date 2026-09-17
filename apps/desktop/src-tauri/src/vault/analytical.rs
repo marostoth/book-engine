@@ -1,14 +1,12 @@
 use anyhow::{Context, Result};
 use super::json_store::read_json_file;
 use super::models::AnalyticalStore;
-use super::reader::find_vault_root;
 
 /// Returns the analytical reading store for the given book from `vault/notes/<book-id>/analytical.json`.
 /// A book with no file yet gets an empty store. A damaged file gives an error, never an empty
 /// store, because the caller would then save that empty store over the file (DS-04).
 pub fn load_analytical_store(book_id: &str) -> Result<AnalyticalStore> {
-    let vault = find_vault_root()?;
-    let analytical_file = vault.join("notes").join(book_id).join("analytical.json");
+    let analytical_file = super::paths::notes_file(book_id, "analytical.json")?;
 
     Ok(read_json_file(&analytical_file)?.unwrap_or_default())
 }
@@ -18,9 +16,7 @@ pub fn load_analytical_store(book_id: &str) -> Result<AnalyticalStore> {
 /// The caller sends the whole store, so a damaged file on disk stops the save. Otherwise the
 /// save would replace everything the damaged file still holds (DS-04).
 pub fn save_analytical_store(book_id: &str, store: AnalyticalStore) -> Result<()> {
-    let vault = find_vault_root()?;
-    let notes_dir = vault.join("notes").join(book_id);
-    let analytical_file = notes_dir.join("analytical.json");
+    let analytical_file = super::paths::notes_file(book_id, "analytical.json")?;
 
     read_json_file::<AnalyticalStore>(&analytical_file)?;
 

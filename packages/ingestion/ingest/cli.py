@@ -5,6 +5,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from ingest.book_id import InvalidBookIdError
 from ingest.pipeline import ingest_book
 from ingest.reimport import BookAlreadyInVaultError
 
@@ -13,7 +14,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Ingest an EPUB or PDF document into the local vault.")
     parser.add_argument("file_path", type=Path, help="Path to source document (e.g. book.epub, book.pdf)")
     parser.add_argument("--vault", type=Path, default=Path("vault"), help="Path to local Markdown vault root")
-    parser.add_argument("--book-id", type=str, default=None, help="Custom identifier for the book directory")
+    parser.add_argument(
+        "--book-id",
+        type=str,
+        default=None,
+        help="Custom identifier for the book folders: 1 to 255 characters from a-z, 0-9, - and _, not starting with -",
+    )
     parser.add_argument("--chapter", type=int, default=None, help="Process only a specific chapter index (e.g. 1)")
     parser.add_argument(
         "--force",
@@ -35,6 +41,10 @@ def main() -> None:
         # Not a crash: the import stopped before it wrote anything (DS-09)
         print(f"[-] {e}", file=sys.stderr)
         print("[-] To replace the book, run the same import again with --force.", file=sys.stderr)
+        sys.exit(1)
+    except InvalidBookIdError as e:
+        # Not a crash: the import stopped before it wrote anything (SEC-03)
+        print(f"[-] {e}", file=sys.stderr)
         sys.exit(1)
     except Exception as e:
         print(f"[-] Ingestion failed: {e}", file=sys.stderr)

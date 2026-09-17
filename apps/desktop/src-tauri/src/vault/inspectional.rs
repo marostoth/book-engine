@@ -13,7 +13,7 @@ use serde_json::{Map, Value};
 
 use super::json_store::read_json_file;
 use super::models::ExitAssessmentPayload;
-use super::reader::{find_vault_root, read_book_meta_json};
+use super::reader::read_book_meta_json;
 use super::safe_write::write_file;
 
 /// The name of the file, in `vault/notes/<book-id>/`.
@@ -31,7 +31,7 @@ struct InspectionalFile {
 }
 
 fn inspectional_path(book_id: &str) -> Result<PathBuf> {
-    Ok(find_vault_root()?.join("notes").join(book_id).join(INSPECTIONAL_FILE))
+    super::paths::notes_file(book_id, INSPECTIONAL_FILE)
 }
 
 /// The exit assessment of a book, or `None` when the reader has not written one. A damaged file gives an error and

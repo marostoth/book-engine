@@ -17,10 +17,10 @@ pub fn find_vault_root() -> Result<PathBuf> {
     }
 }
 
-/// Reads a chapter file from vault/books/<book-id>/<file-name>
+/// Reads a chapter file from vault/books/<book-id>/<file-name>. The page sends both names, so they are checked first
+/// (`vault/paths.rs`, SEC-03).
 pub fn read_chapter_file(book_id: &str, file_name: &str) -> Result<String> {
-    let vault = find_vault_root()?;
-    let path = vault.join("books").join(book_id).join(file_name);
+    let path = super::paths::chapter_path(book_id, file_name)?;
     std::fs::read_to_string(&path)
         .with_context(|| format!("Failed to read chapter file: {}", path.display()))
 }
@@ -28,8 +28,7 @@ pub fn read_chapter_file(book_id: &str, file_name: &str) -> Result<String> {
 /// Reads the _meta.json file for a book. The importer makes this file, so the app only reads it: the reader's own
 /// answers are kept in `vault/notes/<book-id>/` (DS-09).
 pub fn read_book_meta_json(book_id: &str) -> Result<String> {
-    let vault = find_vault_root()?;
-    let path = vault.join("books").join(book_id).join("_meta.json");
+    let path = super::paths::book_file(book_id, "_meta.json")?;
     std::fs::read_to_string(&path)
         .with_context(|| format!("Failed to read _meta.json: {}", path.display()))
 }
@@ -71,10 +70,9 @@ pub fn get_inspectional_blueprint(book_id: &str) -> Result<crate::vault::Inspect
     })
 }
 
-/// Reads notes markdown file from vault/notes/<book-id>/<file-name>
+/// Reads the notes of a chapter from vault/notes/<book-id>/<file-name>, such as `ch-01-notes.md` (SEC-03).
 pub fn read_notes_file(book_id: &str, file_name: &str) -> Result<String> {
-    let vault = find_vault_root()?;
-    let path = vault.join("notes").join(book_id).join(file_name);
+    let path = super::paths::chapter_notes_path(book_id, file_name)?;
     if path.exists() {
         std::fs::read_to_string(&path)
             .with_context(|| format!("Failed to read notes file: {}", path.display()))
@@ -84,10 +82,9 @@ pub fn read_notes_file(book_id: &str, file_name: &str) -> Result<String> {
     }
 }
 
-/// Writes notes markdown file to vault/notes/<book-id>/<file-name>
+/// Writes the notes of a chapter to vault/notes/<book-id>/<file-name>, such as `ch-01-notes.md` (SEC-03).
 pub fn write_notes_file(book_id: &str, file_name: &str, content: &str) -> Result<()> {
-    let vault = find_vault_root()?;
-    let path = vault.join("notes").join(book_id).join(file_name);
+    let path = super::paths::chapter_notes_path(book_id, file_name)?;
     super::safe_write::write_file(&path, content)
 }
 
@@ -99,9 +96,13 @@ pub fn book_id_of(folder: &Path) -> Option<String> {
 
 /// Whether the vault holds the book `book_id`: a folder `books/<book_id>` with a `_meta.json`, as the library lists it.
 /// A `_meta.json` that cannot be looked at still counts, because a file in OneDrive can be locked or offline for a
-/// moment (LC-02).
+/// moment (LC-02). A name that is no book id, or a book folder that leads out of the vault, is no book of the vault
+/// (SEC-03).
 pub fn book_is_in_vault(book_id: &str) -> Result<bool> {
-    let meta = find_vault_root()?.join("books").join(book_id).join("_meta.json");
+    find_vault_root()?;
+    let Ok(meta) = super::paths::book_file(book_id, "_meta.json") else {
+        return Ok(false);
+    };
     match std::fs::metadata(meta) {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
         _ => Ok(true),

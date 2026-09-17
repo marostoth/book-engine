@@ -13,7 +13,6 @@ use chrono::{DateTime, SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
 
 use super::json_store::read_json_file;
-use super::reader::find_vault_root;
 use super::safe_write::write_file;
 use super::study_log::books_with_notes;
 
@@ -43,7 +42,7 @@ pub struct BookBookmark {
 }
 
 fn bookmark_path(book_id: &str) -> Result<PathBuf> {
-    Ok(find_vault_root()?.join("notes").join(book_id).join(BOOKMARK_FILE))
+    super::paths::notes_file(book_id, BOOKMARK_FILE)
 }
 
 /// The bookmark of a book, or `None` when the reader has not read it yet. A damaged file gives an error and
