@@ -21,6 +21,27 @@ NEXT_SENTENCE_QUESTION = "Which sentence comes right after this passage in the b
 NEAR_COPY_RATIO = 0.65
 OPTION_LINE = re.compile(r"^- \[([ xX])\] \(([A-Za-z])\) (.*)$")
 
+# The rules of a cloze card, as packages/ingestion/ingest/cloze.py makes it (LE-07). Small words: an answer needs
+# another word, and it neither starts nor ends with one of these.
+STOPWORDS = frozenset(
+    """
+    a about above across after again against all along also although am among an and any are around as at be because
+    been before behind being below beside besides between beyond both but by can could did do does doing down during
+    each either else even ever every few for from further had has have having he hence her here hers herself him
+    himself his how however i if in inside into is it its itself just may me might more most much must my myself
+    near neither no nor not now of off on once only onto or other otherwise our ours ourselves out outside over own
+    per rather same shall she should since so some such than that the their theirs them themselves then there
+    therefore these they this those though through thus to too toward towards under unless until up upon us very via
+    was we were what whatever when where whether which while who whom whose why will with within without would yet
+    you your yours yourself yourselves
+    """.split()
+)
+MIN_ANSWER_CHARS = 3
+MAX_ANSWER_CHARS = 50
+WORD = re.compile(r"[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*")
+BLANK = re.compile(r"\{\{c\d+::(.*?)\}\}|==([^=]+)==")
+PROMPT_MARKS = re.compile(r"[*_`|]|\[\^|</?[A-Za-z][^>]*>")
+
 
 def book_text(text: str) -> str:
     """Text as a quiz card shows it: without the Markdown marks * ` _ # and with single spaces."""
@@ -60,16 +81,40 @@ def normalize_ws(s: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
 
 
-def extract_cloze_targets(text: str) -> List[str]:
-    """Extracts Cloze targets formatted as {{c1::...}} or ==...==."""
-    targets: List[str] = []
-    for match in re.finditer(r"\{\{c\d+::(.*?)\}\}", text):
-        if match.group(1).strip():
-            targets.append(match.group(1).strip())
-    for match in re.finditer(r"==([^=]+)==", text):
-        if match.group(1).strip():
-            targets.append(match.group(1).strip())
-    return targets
+def exact_chapter_text(text: str) -> str:
+    """Chapter text for the byte-for-byte check of an exact source: "\\n" line endings, and a line break inside a
+    paragraph as a space, as the reader shows it."""
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    return re.sub(r"(?<!\n)\n(?!\n)", " ", text)
+
+
+def shown_text(text: str) -> str:
+    """Text as a cloze card shows it: no footnote marks, no Markdown marks * _ `, the book's < and &, single spaces."""
+    text = re.sub(r"[*_`]", "", re.sub(r"\[\^[^\]\s]+\]", "", text))
+    return re.sub(r"\s+", " ", text.replace("&lt;", "<").replace("&amp;", "&"))
+
+
+def answer_problem(answer: str) -> Optional[str]:
+    """Why a text cannot be the answer of a cloze card, or None."""
+    words = WORD.findall(answer)
+    if not MIN_ANSWER_CHARS <= len(answer) <= MAX_ANSWER_CHARS:
+        return f"not {MIN_ANSWER_CHARS} to {MAX_ANSWER_CHARS} characters long"
+    if not re.search(r"[A-Za-z]", answer) or re.search(r"\d$", answer):
+        return "a number or a label such as Table 13.2, not a term"
+    if answer != " ".join(answer.split()) or re.search(r"[*_`\[\]{}<>|^#:;]|&(?:lt|amp);", answer):
+        return "text with marks or extra spaces"
+    if re.match(r"\W", answer) or re.search(r"[.,!?]$", answer):
+        return "text that starts or ends with a punctuation mark"
+    if not words or all(word.lower() in STOPWORDS for word in words):
+        return "only small words"
+    if words[0].lower() in STOPWORDS or words[-1].lower() in STOPWORDS:
+        return "text that starts or ends with a small word"
+    return None
+
+
+def shows_answer(text: str, answer: str) -> bool:
+    """True when the answer stands in the text as a whole term, in any case."""
+    return re.search(r"(?<!\w)" + re.escape(answer) + r"(?!\w)", text, re.IGNORECASE) is not None
 
 
 def extract_scramble_clauses(text: str) -> List[str]:
@@ -135,7 +180,7 @@ def audit_book_practice_deck(deck_path: Path, books_dir: Path) -> DeckAuditResul
             cloze_count += 1
             card_id_m = re.search(r"###\s+(?:Card:\s*)?(card-[a-zA-Z0-9_-]+)", trimmed)
             ch_m = re.search(r"-\s+\*\*Chapter:\*\*\s+([a-zA-Z0-9_-]+)", trimmed)
-            ans_m = re.search(r"-\s+\*\*Answer Key:\*\*\s+`([^`\n\r]+)`", trimmed)
+            ans_m = re.search(r"-\s+\*\*Answer Key:\*\*\s+(`+)([^`\n\r]+)\1", trimmed)
             src_m = re.search(r"-\s+\*\*Exact Source:\*\*\s+(.+)", trimmed)
             cloze_m = re.search(r"-\s+\*\*Cloze:\*\*\s+(.+)", trimmed)
             prompt_m = re.search(r"-\s+\*\*Prompt:\*\*\s+(.+)", trimmed)
@@ -144,7 +189,7 @@ def audit_book_practice_deck(deck_path: Path, books_dir: Path) -> DeckAuditResul
 
             card_id = card_id_m.group(1) if card_id_m else "unknown"
             ch_id = ch_m.group(1) if ch_m else ""
-            answer_key = ans_m.group(1).strip() if ans_m else ""
+            answer_key = ans_m.group(2).strip() if ans_m else ""
             exact_source = src_m.group(1).strip() if src_m else ""
             cloze_text = cloze_m.group(1).strip() if cloze_m else (prompt_m.group(1).strip() if prompt_m else "")
             item_type = type_m.group(1).strip().lower() if type_m else ("scramble" if scramble_m else "cloze")
@@ -159,33 +204,53 @@ def audit_book_practice_deck(deck_path: Path, books_dir: Path) -> DeckAuditResul
 
             ch_content = ch_file.read_text(encoding="utf-8")
             clean_ch_content = re.sub(r"\^p-[a-zA-Z0-9_-]+", "", ch_content)
-            norm_ch = normalize_ws(ch_content)
             norm_clean_ch = normalize_ws(clean_ch_content)
             card_valid = True
 
+            is_scramble = item_type == "scramble" or bool(scramble_text)
             if item_type == "cloze" or not scramble_text:
-                targets = extract_cloze_targets(cloze_text) or ([answer_key] if answer_key else [])
-                if not targets:
+                # One blank that holds the answer, an answer that is a term and text of the chapter byte for byte, and
+                # a prompt that shows its exact source as the reader shows it, with no marks and no second answer (LE-07).
+                blanks = BLANK.findall(cloze_text)
+                answer = answer_key or (next((a or b for a, b in blanks), "").strip())
+                if not answer:
                     card_valid = False
                     errors.append(f"{card_id}: No cloze target or answer key specified")
-                for target in targets:
-                    if normalize_ws(target) not in norm_ch and target not in ch_content:
+                else:
+                    if [a or b for a, b in blanks] != [answer]:
                         card_valid = False
-                        errors.append(f"{card_id}: Cloze target '{target}' is not an exact substring in {ch_filename}")
-                if answer_key and normalize_ws(answer_key) not in norm_ch and answer_key not in ch_content:
-                    card_valid = False
-                    errors.append(f"{card_id}: Answer key '{answer_key}' is not in {ch_filename}")
+                        errors.append(f"{card_id}: The prompt must have one blank, and the blank must hold the answer key")
+                    if answer not in ch_content:
+                        card_valid = False
+                        errors.append(f"{card_id}: Answer key '{answer}' is not text of {ch_filename} byte for byte")
+                    problem = answer_problem(answer)
+                    if problem:
+                        card_valid = False
+                        errors.append(f"{card_id}: The answer '{answer}' is {problem}")
+                    outside = BLANK.sub(" ", cloze_text)
+                    if PROMPT_MARKS.search(outside):
+                        card_valid = False
+                        errors.append(f"{card_id}: The prompt shows Markdown, footnote, table or HTML marks")
+                    if shows_answer(outside, answer):
+                        card_valid = False
+                        errors.append(f"{card_id}: The prompt shows the answer outside the blank")
+                    filled = BLANK.sub(lambda m: m.group(1) if m.group(1) is not None else m.group(2), cloze_text)
+                    if exact_source and not is_scramble and " ".join(filled.split()) != " ".join(shown_text(exact_source).split()):
+                        card_valid = False
+                        errors.append(f"{card_id}: The prompt does not show its exact source as the reader shows it")
 
-            if item_type == "scramble" or scramble_text:
+            if is_scramble:
                 clauses = extract_scramble_clauses(scramble_text) or extract_scramble_clauses(answer_key)
                 for clause in clauses:
                     if normalize_ws(clause) not in norm_clean_ch and clause not in ch_content:
                         card_valid = False
                         errors.append(f"{card_id}: Scramble clause '{clause}' is not in {ch_filename}")
-
-            if exact_source and normalize_ws(exact_source) not in norm_clean_ch and exact_source not in ch_content:
+                if exact_source and normalize_ws(exact_source) not in norm_clean_ch and exact_source not in ch_content:
+                    card_valid = False
+                    errors.append(f"{card_id}: Exact source '{exact_source[:40]}...' is not in {ch_filename}")
+            elif exact_source and exact_source not in exact_chapter_text(ch_content):
                 card_valid = False
-                errors.append(f"{card_id}: Exact source '{exact_source[:40]}...' is not in {ch_filename}")
+                errors.append(f"{card_id}: Exact source '{exact_source[:40]}...' is not text of {ch_filename} byte for byte")
 
             if card_valid:
                 verbatim_matches += 1
