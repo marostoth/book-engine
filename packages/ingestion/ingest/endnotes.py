@@ -4,10 +4,16 @@ Resolves internal reference targets (intra-chapter or severed backmatter files),
 extracts the citation text, inlines it as a standard Markdown footnote definition
 at the bottom of the corresponding chapter ([^1]: Citation text), and updates the
 in-text link to [^1].
+
+Only a link to a note becomes a footnote (IN-02): a link that says that it names a note, a link to an element that says
+that it is a note, and a link that looks like the mark of a note, such as a superscript number. Its target must be able
+to be a note, so a heading or a part of the book, such as a section, never is one. Any other link, such as "see Section
+Two", keeps its words as text of the chapter.
 """
 
 from __future__ import annotations
 import re
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple
 from bs4 import BeautifulSoup, Tag
 import ebooklib
@@ -15,35 +21,56 @@ from ebooklib import epub
 
 from ingest.line_endings import read_html
 
+# The kinds of a note in `epub:type` (EPUB 3) and in `role` (DPUB-ARIA)
+NOTE_KINDS = {"footnote", "endnote", "rearnote", "doc-footnote", "doc-endnote"}
+# The kinds of a list of notes
+NOTE_LIST_KINDS = {"footnotes", "endnotes", "rearnotes", "doc-endnotes"}
+# The kinds of a link to a note
+NOTE_REFERENCE_KINDS = {"noteref", "doc-noteref"}
+# Elements that are never a note: headings, and the parts of a book
+NOT_NOTES = {
+    "html", "body", "main", "article", "section", "nav", "header", "footer", "h1", "h2", "h3", "h4", "h5", "h6",
+}
+# The text of a link that marks a note: a number or a sign such as *, maybe in brackets
+NOTE_MARK = re.compile(r"[\[(]?(?:\d{1,4}|[*†‡§¶]{1,3})[\])]?")
+
+
+@dataclass(frozen=True)
+class NoteTarget:
+    """An element that a link can name: its text as a note, and what the registry knows about it."""
+
+    text: str
+    # The element says that it is a note, or it is inside a note or a list of notes
+    declared: bool
+    # The element can be a note: it is no heading or part of a book, and it holds no heading
+    note_sized: bool
+
 
 class EndnoteRegistry:
     """Collects and indexes endnote definitions across all EPUB documents."""
 
     def __init__(self) -> None:
-        # Key: (doc_name, element_id) -> text
-        self.exact_notes: Dict[Tuple[str, str], str] = {}
-        # Fallback Key: element_id -> (doc_name, text)
-        self.id_notes: Dict[str, str] = {}
+        # Key: (doc_name, element_id) -> target
+        self.exact_notes: Dict[Tuple[str, str], NoteTarget] = {}
+        # Fallback Key: element_id -> target
+        self.id_notes: Dict[str, NoteTarget] = {}
 
     def register_document(self, doc_name: str, html_content: str | bytes) -> None:
         """Scan a document for potential footnote/endnote target elements with id or name."""
         soup = read_html(html_content)
 
         for el in soup.find_all(attrs={"id": True}):
-            elem_id = el["id"]
-            text = self._extract_clean_note_text(el)
-            if text:
-                self.exact_notes[(doc_name, elem_id)] = text
-                self.id_notes[elem_id] = text
+            self._register(doc_name, el["id"], el)
 
         for el in soup.find_all("a", attrs={"name": True}):
-            elem_name = el["name"]
-            # Look at parent container if <a> is just an anchor
-            parent = el.parent if el.parent and el.parent.name in ("p", "li", "div", "dd") else el
-            text = self._extract_clean_note_text(parent)
-            if text:
-                self.exact_notes[(doc_name, elem_name)] = text
-                self.id_notes[elem_name] = text
+            self._register(doc_name, el["name"], named_element(el))
+
+    def _register(self, doc_name: str, name: str, element: Tag) -> None:
+        text = self._extract_clean_note_text(element)
+        if text:
+            target = NoteTarget(text, declares_note(element), can_be_note(element))
+            self.exact_notes[(doc_name, name)] = target
+            self.id_notes[name] = target
 
     def _extract_clean_note_text(self, element: Tag) -> str:
         """Extract note text, removing back-reference links like [back], ↩, etc."""
@@ -66,6 +93,11 @@ class EndnoteRegistry:
 
     def resolve_note(self, source_doc: str, href: str) -> Optional[str]:
         """Resolve a link href to its target note text."""
+        target = self.resolve_target(source_doc, href)
+        return target.text if target else None
+
+    def resolve_target(self, source_doc: str, href: str) -> Optional[NoteTarget]:
+        """The element that a link href names, or None."""
         if "#" not in href:
             return None
 
@@ -106,10 +138,15 @@ def relocate_chapter_footnotes(
     """Find in-text note links in chapter_soup, replace them with [^n], and return list of (footnote_id, note_text).
 
     Returns [(footnote_id, note_text), ...] in order of appearance.
+
+    A link that names no note stays in the chapter, so its words stay (IN-02). A note of this document that says that it
+    is a note leaves the text of the chapter, because the chapter shows it as a footnote, as a reading system does.
     """
     resolved_notes: List[Tuple[str, str]] = []
     seen_notes: Dict[str, str] = {}  # note_key -> footnote_id
     note_counter = 1
+    # The names of the elements of this document that became footnotes
+    shown_as_footnotes: List[str] = []
 
     # Find all candidate <a> tags
     for a in chapter_soup.find_all("a", href=True):
@@ -119,16 +156,18 @@ def relocate_chapter_footnotes(
             continue
 
         # Check if this link points to a note in the registry
-        note_text = registry.resolve_note(source_doc, href)
-        if not note_text:
-            # Check heuristics: epub:type="noteref", class contains "noteref", or is a superscript link
-            is_sup = a.find_parent("sup") is not None or a.find("sup") is not None
-            classes = a.get("class", [])
-            is_noteref = "noteref" in classes or a.get("epub:type") == "noteref" or is_sup
-            if is_noteref and "#" in href:
-                # If target text was not found, fall back to using inner link text or placeholder
-                inner = a.get_text(strip=True)
-                note_text = f"Citation {inner} (Reference target: {href})"
+        note_text = None
+        target = registry.resolve_target(source_doc, href)
+        if target is not None:
+            if is_note_reference(a, target):
+                note_text = target.text
+                name = href.partition("#")[2]
+                if target.declared and registry.exact_notes.get((source_doc, name)) is target:
+                    shown_as_footnotes.append(name)
+        elif "#" in href and (says_note_reference(a) or is_superscript(a)):
+            # If target text was not found, fall back to using inner link text or placeholder
+            inner = a.get_text(strip=True)
+            note_text = f"Citation {inner} (Reference target: {href})"
 
         if note_text:
             # Dedup if same note referenced twice
@@ -146,7 +185,62 @@ def relocate_chapter_footnotes(
             marker_text = f"[^{fn_id}]"
             if a.parent and a.parent.name == "sup":
                 a.parent.replace_with(marker_text)
+            elif not is_superscript(a) and NOTE_MARK.fullmatch(a.get_text(strip=True)) is None:
+                # A link with words, such as "see note 5", keeps its words before the marker
+                a.insert_after(marker_text)
+                a.unwrap()
             else:
                 a.replace_with(marker_text)
 
+    for name in shown_as_footnotes:
+        element = chapter_soup.find("a", attrs={"name": name})
+        element = named_element(element) if element is not None else chapter_soup.find(attrs={"id": name})
+        if element is not None and declares_note(element):
+            element.decompose()
+
     return resolved_notes
+
+
+def named_element(anchor: Tag) -> Tag:
+    """The element that an `<a name>` names: the paragraph, item or box that holds it, or else the anchor itself."""
+    return anchor.parent if anchor.parent and anchor.parent.name in ("p", "li", "div", "dd") else anchor
+
+
+def kinds(element: Tag) -> Set[str]:
+    """The kinds that an element says it has, in `epub:type` and in `role`."""
+    return {kind.lower() for attribute in ("epub:type", "role") for kind in str(element.get(attribute) or "").split()}
+
+
+def declares_note(element: Tag) -> bool:
+    """True when the element says that it is a note, or it is inside a note or a list of notes."""
+    if kinds(element) & NOTE_KINDS:
+        return True
+    return any(kinds(parent) & (NOTE_KINDS | NOTE_LIST_KINDS) for parent in element.parents)
+
+
+def can_be_note(element: Tag) -> bool:
+    """True when the element is no heading or part of a book, such as a section, and holds no heading."""
+    return element.name.lower() not in NOT_NOTES and element.find(re.compile(r"^h[1-6]$")) is None
+
+
+def says_note_reference(link: Tag) -> bool:
+    """True when a link says that it names a note: `epub:type="noteref"`, `role="doc-noteref"` or class `noteref`."""
+    return bool(kinds(link) & NOTE_REFERENCE_KINDS) or "noteref" in (link.get("class") or [])
+
+
+def is_superscript(link: Tag) -> bool:
+    """True when a link is a superscript or holds one, as the mark of a note often is."""
+    return link.find_parent("sup") is not None or link.find("sup") is not None
+
+
+def is_note_reference(link: Tag, target: NoteTarget) -> bool:
+    """True when a link names a note (IN-02).
+
+    Its target must be able to be a note, and the link or its target says that it is a note, or the link looks like the
+    mark of a note: a superscript, or a number or a sign such as `[1]` or `*`.
+    """
+    if not target.note_sized:
+        return False
+    if says_note_reference(link) or target.declared or is_superscript(link):
+        return True
+    return NOTE_MARK.fullmatch(link.get_text(strip=True)) is not None
