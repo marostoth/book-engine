@@ -96,10 +96,11 @@ book-engine/
 │       │   │   │   ├── ScenarioCardView.tsx # Quiz card drill: which sentence comes right after the passage, with shuffled options (LE-06)
 │       │   │   │   └── ScrambleDrill.tsx    # Drag/click scrambled clause reconstruction drill
 │       │   │   ├── reader/          # Modular TipTap custom extensions & reader hooks
+│       │   │   │   ├── ReaderHighlights.ts  # Draws the saved highlights over the chapter text, so they show over marks, blocks & Bionic reading (RD-02)
 │       │   │   │   ├── TableExtensions.ts   # Table, row, header cell & cell nodes; a cell keeps the alignment of its column (RD-03)
 │       │   │   │   ├── TipTapExtensions.ts  # BlockAnchors on every anchored block, the superscript mark & the FootnoteRef node
 │       │   │   │   ├── readerExtensions.ts  # The reader's nodes & marks: every chapter document is made of these (RD-03)
-│       │   │   │   └── useReaderSelection.ts # Text selection, highlights, anchor detection & lexicon de-confliction
+│       │   │   │   └── useReaderSelection.ts # Text selection, highlights from the words of the chapter document, anchor detection & lexicon de-confliction
 │       │   │   ├── settings/        # Modular reader settings tabs
 │       │   │   │   ├── ElementaryTab.tsx       # Level 1 Elementary Reading shell & settings tab
 │       │   │   │   ├── FocusRulerControls.tsx  # Focus ruler contrast presets, fine stepper & spotlight toggle
@@ -185,8 +186,8 @@ book-engine/
 │       │   │   ├── elementaryPacer.test.ts # Unit tests for pacer timing, chunking, and contrast math
 │       │   │   ├── exitAssessment.ts    # The exit assessment of the open book: read from the reader's notes, shown at once when saved, never saved over one that could not be read
 │       │   │   ├── exitAssessment.test.ts # Exit assessment tests: a save shows with no reload, an unreadable assessment is not saved over, a late answer changes nothing
-│       │   │   ├── highlights.ts        # W3C Text Quote Selector reader, highlight marks in a chapter document & old-comment parser (finds the JSON list, not the first `-->`)
-│       │   │   ├── highlights.test.ts   # Highlight tests: a saved anchor brings each highlight back to its own paragraph, also in a list or a table
+│       │   │   ├── highlights.ts        # W3C Text Quote Selector: a selection saves its words, a saved highlight is found again with white space not counted (RD-02), & old-comment parser (finds the JSON list, not the first `-->`)
+│       │   │   ├── highlights.test.ts   # Highlight tests: a highlight shows on its own words over bold text, footnote markers, blocks & Bionic reading, on the copy that was selected, and in the block of its anchor
 │       │   │   ├── libraryRescan.ts     # "Rescan library": reads the library again, then updates search; the note names the new books and counts the files that search could not read
 │       │   │   ├── libraryRescan.test.ts # Rescan tests: a book imported while the app is open shows in the list, and search is updated
 │       │   │   ├── levelGuideData.ts    # Mortimer Adler levels static cheatsheet & hotkeys registry
@@ -214,6 +215,7 @@ book-engine/
 │       │   │   ├── readerLocation.test.ts # Location tests: a hit in another book's ch-01.md opens that book, not the open one
 │       │   │   ├── readerShortcuts.ts   # Keyboard shortcut owners: App listener (Ctrl+K, Alt+P, ? / F1) or elementary canvas ([ and ])
 │       │   │   ├── readerShortcuts.test.ts # Shortcut tests: one Alt+P press toggles the pacer once at every reading level
+│       │   │   ├── readerText.ts        # The text of a chapter document as the reader shows it, with the document position of each character (RD-02)
 │       │   │   ├── readingPlace.ts      # Where you stopped: the chapter a book opens at, the book the app opens with, and when a place is saved
 │       │   │   ├── readingPlace.test.ts # Place tests: a book opens where you stopped, and closing and opening it never creeps up or down
 │       │   │   ├── readingTime.ts       # Reading time: the focused seconds a chapter is on screen, and the Completed mark from its own scroll position
@@ -631,6 +633,7 @@ App.tsx (Global state: reader settings with the theme, viewMode, activeBook, act
 - `src/lib/backendErrors.ts`: The error bar store. `reportBackendError` adds a failed load or save (the same action with the same error again only raises its count, and the newest 5 stay), and `errorText` turns a Tauri rejection value (a string or an `AppError` object) into text for `BackendErrorBar.tsx`.
 - `src/lib/markdown.ts`: Parses chapter Markdown into a document of the reader's nodes with markdown-it (`src/lib/markdownNodes.ts`, `markdownInline.ts` and `markdownTables.ts`), block by block. It separates the footnote texts, gives the first node of each block the anchor of the block (`data-anchor="p-xxx"`, the attribute form of `^p-xxx`), and makes each footnote marker a footnote node (`data-fn="n"`) (RD-03).
 - `src/lib/anchors.ts`: Converts paragraph anchors between the saved form (`^p-xxx`) and the HTML attribute form (`p-xxx`) with `toSavedAnchor` and `toAnchorAttribute`.
+- `src/lib/readerText.ts`: `readerText` gives the text of a chapter document as the reader shows it, with the document position of each character: a new block and a line break start a new line, and a footnote marker is its number in brackets (`footnoteLabel`, which `FootnoteRef` also shows). A highlight saves its words from this text, and `highlightRanges` finds them in it again (RD-02).
 - `src/lib/readerLoads.ts`: Loads a book at the place where the reader stopped (`loadBookOnto`) or a chapter (`loadChapterOnto`) onto the reader. Every load takes a ticket from `createLoadGuard`, and only the newest ticket may show its answer, report its failure, or name the chapter a new highlight belongs to. The reader is emptied the moment a chapter opens.
 - `src/lib/readingPlace.ts`: Where the reader stopped. `openingPlace` gives the chapter and paragraph a book opens at (its first chapter when the saved chapter is gone), `startingBookId` the book the app opens with (the newest bookmark, then the book an older version kept in browser storage, then the first book), `paragraphAtMiddle` the paragraph a place is saved at, `createPlaceWatcher` reports the place a second after the scrolling stops, for the chapter whose words are on screen, and `createBookmarkKeeper` never saves over a bookmark that could not be read. A jump into a chapter that has just opened lands at once; a jump inside the open chapter scrolls there.
 - `src/lib/readingTime.ts`: Reading time. `createReadingTimer` counts the seconds the words of a chapter are on screen while the window has focus, in ticks of 1 second (a longer gap, as when the PC sleeps, counts 5 seconds at most). It saves the time in pieces of 15 seconds, and the rest when the next chapter shows. A scroll only tells it how far down the chapter on screen you are: 90% completes the chapter, and a scroll reported for the chapter you left does not count (AN-01).
@@ -737,7 +740,7 @@ export interface HighlightItem {
   prefix: string;      // Contextual prefix (up to 32 characters preceding)
   suffix: string;      // Contextual suffix (up to 32 characters following)
   anchor?: string;     // Nearest paragraph anchor (^p-xxx)
-  color?: string;      // Color token (yellow, emerald, blue, purple)
+  color?: string;      // Color token (yellow, amber, emerald, blue, purple; any other shows yellow)
   note?: string;       // Optional attached reflection note
   createdAt: string;   // ISO-8601 timestamp
 }
@@ -763,17 +766,20 @@ Older chapters kept the same list inside a `<!-- highlights-json ... -->` commen
 
 The list is read from the `[` that opens it to the `]` that closes it, counting brackets but not those inside a quoted string, and never to the first `-->`. A saved quote may itself hold `-->`, and stopping there cut the list in half, so every highlight of that chapter read as none and the next save wrote only the new one (DS-06). The same scan finds where the comment really ends, so the clean-up removes all of it. A comment whose list still cannot be read, for example after a hand edit that deletes a comma, is left alone and gives an error: nothing is moved, nothing is removed.
 
-**Fuzzy Hydration & Mark Algorithm (`applyHighlightsToDoc`):**
-When a chapter document is prepared for TipTap:
-1. `getChapterHighlights`: Reads the `HighlightItem[]` list of the chapter from its highlights file.
-2. `Paragraph Resolution` (`findHighlightParagraph`): For each highlight, converts the saved anchor (`^p-xxx`) to the attribute form with `toAnchorAttribute` and uses the first paragraph of the block with that anchor that still contains the quote. A list, a table and a quote are one block with a paragraph in each item, cell or line (RD-03). If the anchor is absent or no paragraph of its block contains the quote, falls back to the first paragraph that contains it.
-3. `Fuzzy Recovery Pass`:
-   - Checks verbatim match: `pText.includes(hl.exact)`.
-   - If verbatim match fails (e.g. whitespace or punctuation slightly edited externally), executes relaxed normalization: `text.replace(/\s+/g, " ")`.
-4. `Mark in the Document`:
-   - Finds the first text in the paragraph (or in the whole chapter, when no paragraph contains the quote) that contains `hl.exact` and has no highlight mark yet.
-   - Slices that text into `before`, `match`, and `after`.
-   - Gives the match a highlight mark next to the marks it already has, and keeps the nodes around it (such as footnote markers `[^n]`). Text in code can hold no other mark, so a quote found there shows no highlight.
+**Highlights Show on Their Own Words (RD-02):**
+A highlight was a mark in the chapter document, on the first text node that held all of its words. A highlight over bold or italic text, a footnote marker, a line break or two blocks found no such text node, so it was saved but never showed. With Bionic reading on, every word is two text nodes, so no highlight showed. Words that a paragraph holds more than once always showed on their first copy, and the mark kept no color and no id. And no text in the reader could be selected at all: the app turns text selection off everywhere, and a refactor (5fd97d7) had removed the `select-text` class that turned it on again for the chapter, so no highlight, note or word lookup could start from a selection. The document positions below are used only while a selection is saved and while the highlights are drawn. They are never saved.
+
+**Saving a Selection (`createHighlight`):**
+1. `useReaderSelection` finds the document positions of the selected text with `posAtDOM`. A selection that starts above the chapter or ends below it keeps only its part in the chapter.
+2. `createHighlight` reads the text of the chapter document as the reader shows it (`readerText`, `src/lib/readerText.ts`): a new block and a line break start a new line, a footnote marker is its number in brackets, such as `[1]`, and a picture has no text.
+3. `exact` is the selected text with no white space at its ends. `prefix` and `suffix` are up to 32 characters before and after it, also from the blocks around it. They come from the place of the selection, so a selection of words that the chapter holds more than once saves the text around its own copy. The old version saved the text around the first copy in the paragraph.
+
+**Drawing the Highlights (`highlightRanges`, `components/reader/ReaderHighlights.ts`):**
+- **Over the Text:** the `ReaderHighlights` plugin draws each highlight as a ProseMirror decoration: a `<mark class="reader-highlight">` with `data-hl-id` and `data-color`, over the text, the marks and the footnote markers of its words. The chapter document does not change, so Bionic reading and highlights do not affect each other, and a highlight also shows in code.
+- **Finding the Words:** `highlightRanges` looks for the words in the text of the chapter with no white space, so a line break, a new block, and the white space that an older version saved do not count. A highlight goes in the block of its anchor when that block holds its words, otherwise anywhere in the chapter (RD-01). When the words are there more than once, it goes on the copy whose text before and after it matches the most of `prefix` and `suffix`, then on the first of the best copies. A highlight whose words are no longer in the chapter shows nowhere.
+- **No New Parse:** `Reader.tsx` gives the list to the plugin (`showHighlights`) and sets the chapter only when its text or Bionic reading changes. A new highlight shows at once, and the plugin draws the highlights again for each new document.
+- **Colors:** yellow, amber, emerald, blue and purple (`index.css`). Any other color shows in yellow, and the text keeps the color of the theme.
+- **The Same Words With the Same Text Around Them:** two such copies in one block, or where there is no anchor, cannot be told apart, so the highlight shows on the first. On 72 real chapters, 10,798 of 10,800 random selections came back on the same characters, with Bionic reading off and on; the other 2 were such copies in a heading.
 
 ### Omni-Search Command Palette (`apps/desktop/src/components/OmniSearchModal.tsx`)
 - **Keyboard-Driven Interaction:** Global listener toggles modal via `Ctrl + K` (Windows/Linux) or `Cmd + K` (macOS), with Arrow keys for selection, `Enter` to navigate, and `Escape` to dismiss.
@@ -818,7 +824,7 @@ The reader made HTML from chapter Markdown with regular expressions. It had no r
 - **Tags (`markdownInline.ts`):** a tag that the reader has a mark for becomes that mark: `<sup>` a superscript, `<mark>` a highlight, and `<b>`, `<strong>`, `<i>`, `<em>`, `<s>`, `<del>` and `<code>` as in a browser. `<br>` is a line break. A tag with no closing tag in its block does nothing. Any other tag is left out, and the words around it stay, but the text of `<script>` and `<style>` does not show. No text of a book becomes HTML.
 - **No Lost Words (`markdownTables.ts`):** a table leaves out each cell that a row has beyond the cells of its header row. The PDF import can end the last row of a table with the sentence that follows the table in the book, so that text shows as a paragraph below the table, and any other extra cell joins the last cell of its row.
 - **White Space:** a line break or a run of spaces in a paragraph is one space, and a paragraph starts and ends with no space, as before. Highlights and cards find the same text.
-- **Bionic Reading and Highlights:** `applyBionicReading` (`src/lib/bionic.ts`) and `applyHighlightsToDoc` (`src/lib/highlights.ts`) change the document, as their HTML versions changed the HTML.
+- **Bionic Reading and Highlights:** `applyBionicReading` (`src/lib/bionic.ts`) changes the document, as its HTML version changed the HTML. The saved highlights are drawn over the document, so they show with Bionic reading on (see "Highlights Show on Their Own Words", RD-02).
 - **Headings:** a heading of a chapter file has no anchor, because the owner chose to change only the reader. A heading that has an anchor in its chapter file keeps it.
 
 ### Polished TipTap Paragraph Anchors

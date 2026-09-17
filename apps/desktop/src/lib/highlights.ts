@@ -1,59 +1,206 @@
-import type { JSONContent } from "@tiptap/core";
+import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import type { HighlightItem } from "./types";
-// The .ts extension lets the Node test runner load this module (highlights.test.ts).
+// The .ts extensions let the Node test runner load this module (highlights.test.ts).
 import { toAnchorAttribute } from "./anchors.ts";
+import { readerText } from "./readerText.ts";
 
 const PREFIX_SUFFIX_LEN = 32;
 
 /** Start of the comment older chapters keep their highlights in. */
 const COMMENT_START = "<!-- highlights-json";
 
+const SPACE = /\s/;
+
 /**
- * Extracts a W3C Text Quote Selector from the current window selection.
+ * The words of a selection from `from` to `to` in a chapter document, as a W3C Text Quote Selector: the words with no
+ * white space at their ends, and up to 32 characters of the chapter before and after them. The characters come from the
+ * document, so the selection saves the words where it was made, also when the chapter holds them more than once, and
+ * across bold text, footnote markers and blocks (RD-02). Returns null when the selection holds no words.
  */
-export function createW3CHighlight(
-  selection: Selection,
+function quoteAt(
+  doc: ProseMirrorNode,
+  from: number,
+  to: number
+): Pick<HighlightItem, "exact" | "prefix" | "suffix"> | null {
+  const { text, positions } = readerText(doc);
+  let start = firstIndexAtOrAfter(positions, from);
+  let end = firstIndexAtOrAfter(positions, to);
+  while (start < end && SPACE.test(text[start])) start++;
+  while (end > start && SPACE.test(text[end - 1])) end--;
+  if (start === end) return null;
+
+  return {
+    exact: text.slice(start, end),
+    prefix: text.slice(Math.max(0, start - PREFIX_SUFFIX_LEN), start),
+    suffix: text.slice(end, end + PREFIX_SUFFIX_LEN),
+  };
+}
+
+/** A new highlight of the selection from `from` to `to` in a chapter document, or null when it holds no words. */
+export function createHighlight(
+  doc: ProseMirrorNode,
+  from: number,
+  to: number,
   anchor?: string,
   color: string = "yellow"
 ): HighlightItem | null {
-  if (!selection || selection.isCollapsed || !selection.rangeCount) {
-    return null;
-  }
-
-  const range = selection.getRangeAt(0);
-  const exact = range.toString().trim();
-  if (!exact) return null;
-
-  // Find container paragraph or block
-  let blockEl: HTMLElement | null = range.commonAncestorContainer as HTMLElement;
-  if (blockEl.nodeType === Node.TEXT_NODE) {
-    blockEl = blockEl.parentElement;
-  }
-  const parentPara = blockEl?.closest("p") || blockEl;
-  const fullBlockText = parentPara?.textContent || "";
-
-  // Locate exact text within block
-  const exactIndex = fullBlockText.indexOf(exact);
-  let prefix = "";
-  let suffix = "";
-
-  if (exactIndex !== -1) {
-    const prefixStart = Math.max(0, exactIndex - PREFIX_SUFFIX_LEN);
-    prefix = fullBlockText.slice(prefixStart, exactIndex);
-
-    const suffixEnd = Math.min(fullBlockText.length, exactIndex + exact.length + PREFIX_SUFFIX_LEN);
-    suffix = fullBlockText.slice(exactIndex + exact.length, suffixEnd);
-  }
+  const quote = quoteAt(doc, from, to);
+  if (!quote) return null;
 
   return {
     id: `hl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    exact,
-    prefix,
-    suffix,
+    ...quote,
     anchor,
     color,
     createdAt: new Date().toISOString(),
   };
+}
+
+/** The first index whose position is `position` or after it, in positions that never go down. */
+function firstIndexAtOrAfter(positions: ArrayLike<number>, position: number): number {
+  let low = 0;
+  let high = positions.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (positions[middle] < position) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+}
+
+/** Where a saved highlight shows in a chapter document. */
+export interface HighlightRange {
+  highlight: HighlightItem;
+  from: number;
+  to: number;
+}
+
+/** The text of a chapter with no white space, where the reader looks for saved words. */
+interface SearchText {
+  /** Each character of the chapter text that is not white space. */
+  characters: string;
+  /** The document position of each character in `characters`. */
+  positions: Int32Array;
+  /** The document range of each block with an anchor, by its anchor in the attribute form (`p-001`). */
+  anchoredBlocks: Map<string, [number, number][]>;
+}
+
+const searchTexts = new WeakMap<ProseMirrorNode, SearchText>();
+
+/** True for the character at `index` when `/\s/` matches it. The check of each ASCII code is quicker. */
+function isSpace(text: string, index: number): boolean {
+  const code = text.charCodeAt(index);
+  if (code < 128) return code === 32 || (code >= 9 && code <= 13);
+  return SPACE.test(text[index]);
+}
+
+function searchTextOf(doc: ProseMirrorNode): SearchText {
+  const known = searchTexts.get(doc);
+  if (known) return known;
+
+  const shown = readerText(doc);
+  const characters = shown.text.replace(/\s+/g, "");
+  const positions = new Int32Array(characters.length);
+  let count = 0;
+  for (let index = 0; index < shown.text.length; index++) {
+    if (!isSpace(shown.text, index)) positions[count++] = shown.positions[index];
+  }
+
+  const anchoredBlocks = new Map<string, [number, number][]>();
+  doc.descendants((node, pos) => {
+    const anchor = toAnchorAttribute(node.attrs.anchor);
+    if (anchor) {
+      const blocks = anchoredBlocks.get(anchor) ?? [];
+      blocks.push([pos, pos + node.nodeSize]);
+      anchoredBlocks.set(anchor, blocks);
+    }
+    return !node.isTextblock;
+  });
+
+  const search = { characters, positions, anchoredBlocks };
+  searchTexts.set(doc, search);
+  return search;
+}
+
+/**
+ * Finds where each saved highlight shows in a chapter document. White space does not count, so the words are found over
+ * a line break and from one block into the next, also when an older version of the reader saved them with other white
+ * space. A highlight goes in the block of its anchor when that block holds its words, otherwise anywhere in the chapter
+ * (RD-01). There, when the words are there more than once, it goes on the copy whose text before and after it is most
+ * like the saved `prefix` and `suffix`, then on the first of the best copies. A highlight whose words are no longer in
+ * the chapter shows nowhere (RD-02).
+ */
+export function highlightRanges(doc: ProseMirrorNode, highlights: HighlightItem[]): HighlightRange[] {
+  if (!highlights.length) return [];
+
+  const search = searchTextOf(doc);
+  const ranges: HighlightRange[] = [];
+  for (const highlight of highlights) {
+    const words = withoutSpace(highlight.exact);
+    const at = words ? bestCopy(search, words, highlight) : -1;
+    if (at === -1) continue;
+    ranges.push({ highlight, from: search.positions[at], to: search.positions[at + words.length - 1] + 1 });
+  }
+  return ranges;
+}
+
+/** The index in `search.characters` of the copy of `words` where the highlight goes, or -1. */
+function bestCopy(search: SearchText, words: string, highlight: HighlightItem): number {
+  const { characters, positions } = search;
+  const prefix = withoutSpace(highlight.prefix);
+  const suffix = withoutSpace(highlight.suffix);
+  const fullScore = prefix.length + suffix.length;
+
+  let best = -1;
+  let bestScore = -1;
+  // Keeps the copy at `at` when the text around it matches more of the saved text than the copies before it. True when
+  // it matches all of it: no copy after it can be better.
+  const matchesAll = (at: number): boolean => {
+    const score =
+      sameCharactersBefore(characters, at, prefix) + sameCharactersAfter(characters, at + words.length, suffix);
+    if (score > bestScore) {
+      best = at;
+      bestScore = score;
+    }
+    return score === fullScore;
+  };
+
+  for (const [from, to] of search.anchoredBlocks.get(toAnchorAttribute(highlight.anchor) ?? "") ?? []) {
+    const end = firstIndexAtOrAfter(positions, to);
+    let at = characters.indexOf(words, firstIndexAtOrAfter(positions, from));
+    while (at !== -1 && at < end) {
+      if (matchesAll(at)) return at;
+      at = characters.indexOf(words, at + 1);
+    }
+  }
+  if (best !== -1) return best;
+
+  for (let at = characters.indexOf(words); at !== -1; at = characters.indexOf(words, at + 1)) {
+    if (matchesAll(at)) return at;
+  }
+  return best;
+}
+
+function withoutSpace(text: string | undefined): string {
+  return (text ?? "").replace(/\s+/g, "");
+}
+
+/** How many characters just before `at` are the same as the end of `prefix`. */
+function sameCharactersBefore(characters: string, at: number, prefix: string): number {
+  let count = 0;
+  while (count < prefix.length && count < at && characters[at - 1 - count] === prefix[prefix.length - 1 - count]) {
+    count++;
+  }
+  return count;
+}
+
+/** How many characters from `at` on are the same as the start of `suffix`. */
+function sameCharactersAfter(characters: string, at: number, suffix: string): number {
+  let count = 0;
+  while (count < suffix.length && at + count < characters.length && characters[at + count] === suffix[count]) {
+    count++;
+  }
+  return count;
 }
 
 /**
@@ -107,124 +254,4 @@ function jsonArrayEnd(text: string): number {
     }
   }
   return -1;
-}
-
-/** Text of one paragraph of the chapter and the anchor of the nearest block at or above it. */
-export interface ParagraphCandidate {
-  anchor: string | null;
-  text: string;
-}
-
-/**
- * Picks the paragraph for a highlight: the first paragraph with the highlight's anchor that still
- * contains the quote, otherwise the first paragraph that contains the quote. Returns -1 when no
- * paragraph contains it. The saved anchor (`^p-001`) and the HTML attribute (`p-001`) are
- * compared in one form. A list, a table or a quote is one block with one anchor and a paragraph
- * in each item, cell or line (RD-03).
- */
-export function findHighlightParagraph(
-  paragraphs: ParagraphCandidate[],
-  highlight: Pick<HighlightItem, "exact" | "anchor">
-): number {
-  const normalizedExact = highlight.exact.replace(/\s+/g, " ");
-  // Exact match, or fuzzy recovery with relaxed whitespace
-  const containsQuote = (text: string) =>
-    text.includes(highlight.exact) || text.replace(/\s+/g, " ").includes(normalizedExact);
-
-  const anchor = toAnchorAttribute(highlight.anchor);
-  if (anchor) {
-    const anchored = paragraphs.findIndex((p) => toAnchorAttribute(p.anchor) === anchor && containsQuote(p.text));
-    if (anchored !== -1) {
-      return anchored;
-    }
-  }
-  // No anchor, or the anchored paragraph was edited: scan all paragraphs
-  return paragraphs.findIndex((p) => containsQuote(p.text));
-}
-
-/**
- * Puts a highlight mark on the text of each highlight in a chapter document. The reader shows a document since RD-03,
- * and this does what the HTML version did: the mark goes on the first piece of text in the paragraph from
- * `findHighlightParagraph` that holds the whole quote, or in the whole chapter when no paragraph holds it. A quote
- * that runs over bold text, a footnote marker or two list items finds no such piece and gets no mark (RD-02).
- */
-export function applyHighlightsToDoc(doc: JSONContent, highlights: HighlightItem[]): JSONContent {
-  if (!highlights.length) return doc;
-
-  const marked: JSONContent = structuredClone(doc);
-  const paragraphs = paragraphsOf(marked, null);
-  const candidates: ParagraphCandidate[] = paragraphs.map(({ node, anchor }) => ({ anchor, text: textOf(node) }));
-
-  for (const hl of highlights) {
-    const index = findHighlightParagraph(candidates, hl);
-    if (index !== -1) {
-      markFirstText(paragraphs[index].node, hl);
-    } else if (textOf(marked).includes(hl.exact)) {
-      // Global fallback search
-      markFirstText(marked, hl);
-    }
-  }
-
-  return marked;
-}
-
-/** Every paragraph of `node`, in order, with the anchor of the nearest block at or above it. */
-function paragraphsOf(
-  node: JSONContent,
-  anchor: string | null,
-  found: { node: JSONContent; anchor: string | null }[] = []
-): { node: JSONContent; anchor: string | null }[] {
-  const nearest = typeof node.attrs?.anchor === "string" ? node.attrs.anchor : anchor;
-  if (node.type === "paragraph") found.push({ node, anchor: nearest });
-  for (const child of node.content ?? []) paragraphsOf(child, nearest, found);
-  return found;
-}
-
-/** The text that the reader shows for `node`. A footnote marker shows its number in brackets. */
-function textOf(node: JSONContent): string {
-  if (node.type === "text") return node.text ?? "";
-  if (node.type === "footnoteRef") return footnoteLabel(node);
-  return (node.content ?? []).map(textOf).join("");
-}
-
-function footnoteLabel(node: JSONContent): string {
-  const fnId = node.attrs?.fnId || "1";
-  return `[${node.attrs?.number || fnId}]`;
-}
-
-/**
- * Marks the first text in `node` that holds the whole quote and has no highlight yet, and returns true once such text
- * is found. Text in code, and the number of a footnote marker, can hold no mark, so a quote found there shows none.
- */
-function markFirstText(node: JSONContent, hl: HighlightItem): boolean {
-  if (node.type === "footnoteRef") return footnoteLabel(node).includes(hl.exact);
-  const children = node.content ?? [];
-  for (let index = 0; index < children.length; index++) {
-    const child = children[index];
-    if (child.type !== "text") {
-      if (markFirstText(child, hl)) return true;
-      continue;
-    }
-    const text = child.text ?? "";
-    const marks = child.marks ?? [];
-    const at = text.indexOf(hl.exact);
-    if (at === -1 || marks.some((mark) => mark.type === "highlight")) continue;
-    if (node.type !== "codeBlock" && !marks.some((mark) => mark.type === "code")) {
-      children.splice(
-        index,
-        1,
-        ...textPieces(text.slice(0, at), marks),
-        ...textPieces(hl.exact, [...marks, { type: "highlight" }]),
-        ...textPieces(text.slice(at + hl.exact.length), marks)
-      );
-    }
-    return true;
-  }
-  return false;
-}
-
-/** A text node with `marks`, or none for empty text. */
-function textPieces(text: string, marks: JSONContent["marks"]): JSONContent[] {
-  if (!text) return [];
-  return [marks && marks.length ? { type: "text", text, marks } : { type: "text", text }];
 }

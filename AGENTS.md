@@ -48,6 +48,7 @@ You are acting as a Principal Systems & Frontend Engineer specializing in local-
 - **Typing:** Strict mode enabled (`noImplicitAny: true`, `strictNullChecks: true`).
 - **Editor:** Markdown AST transformations must occur through headless custom nodes.
 - **Chapter Documents:** The reader shows a chapter as a document of the nodes in `readerExtensions` (`components/reader/readerExtensions.ts`). `parseChapterMarkdown` (`lib/markdown.ts`) makes it from markdown-it tokens, block by block, and the first node of each block keeps the anchor of the block. Never build chapter HTML as a string. A new kind of block or tag in a chapter file needs a node or a mark there, and a test that shows it in a document that fits the reader's nodes (RD-03).
+- **Highlights:** Draw a saved highlight over the chapter as a decoration (`ReaderHighlights`, `components/reader/ReaderHighlights.ts`), never as a mark in the chapter document. `createHighlight` saves the words of a selection from the text of the chapter document (`readerText`, `lib/readerText.ts`), and `highlightRanges` finds them there again with white space not counted. A new inline node that shows text needs that text in `readerText` (RD-02).
 
 ---
 

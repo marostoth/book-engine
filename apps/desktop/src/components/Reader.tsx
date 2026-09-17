@@ -3,13 +3,13 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import { parseChapterMarkdown } from "../lib/markdown";
 import { resolveAssetUrl } from "../lib/api";
 import { applyBionicReading } from "../lib/bionic";
-import { applyHighlightsToDoc } from "../lib/highlights";
 import { toAnchorAttribute } from "../lib/anchors";
 import { createPlaceWatcher, paragraphAtMiddle, type ChapterRef } from "../lib/readingPlace";
 import { FootnoteItem, HighlightItem, ReaderPreferences } from "../lib/types";
 import { FootnotePopover } from "./FootnotePopover";
 import { SelectionMenu } from "./SelectionMenu";
 import { readerExtensions } from "./reader/readerExtensions";
+import { showHighlights } from "./reader/ReaderHighlights";
 import { ElementaryCanvas } from "./elementary/ElementaryCanvas";
 import { LexiconPopover } from "./elementary/LexiconPopover";
 import { useReaderSelection } from "./reader/useReaderSelection";
@@ -92,45 +92,15 @@ export const Reader: React.FC<ReaderProps> = ({
   const [footnotePos, setFootnotePos] = useState<{ x: number; y: number } | null>(null);
   const [activeLightboxImage, setActiveLightboxImage] = useState<{ src: string; alt: string } | null>(null);
 
-  // Selection, highlight, and lexicon popover coordination hook
-  const {
-    selectionPos,
-    selectedText,
-    isSingleWord,
-    lexiconWord,
-    lexiconPos,
-    lexiconAnchor,
-    setLexiconWord,
-    handleMouseUp,
-    handleHighlight,
-    handleAddNote,
-    handleCopyLink,
-    handleAddTerm,
-    handleAddArgument,
-    handleAddCritique,
-    handleAddInquiry,
-    handleAddSyntopic,
-    handleDefine,
-    handleDoubleClick,
-  } = useReaderSelection({
-    containerRef,
-    onAddHighlight,
-    onAddNoteFromSelection,
-    onAddTerm,
-    onAddArgument,
-    onAddCritique,
-    onAddInquiry,
-    onAddSyntopic,
-    instantDictionaryEnabled: preferences?.elementary?.instantDictionaryEnabled,
-  });
-
   // Single-Chapter Virtualization: Mounts TipTap for only the current chapter
   const editor = useEditor({
     extensions: readerExtensions,
     editorProps: {
       attributes: {
+        // The app turns off text selection everywhere, so the chapter turns it on again: a highlight, a note and a
+        // lookup all start from a selection (RD-02).
         class:
-          "reader-prose prose max-w-none focus:outline-none font-serif text-lg leading-relaxed antialiased",
+          "reader-prose prose max-w-none select-text focus:outline-none font-serif text-lg leading-relaxed antialiased",
       },
       handleClick: (_view, _pos, event) => {
         const target = event.target as HTMLElement;
@@ -164,6 +134,39 @@ export const Reader: React.FC<ReaderProps> = ({
     editable: false,
   });
 
+  // Selection, highlight, and lexicon popover coordination hook
+  const {
+    selectionPos,
+    selectedText,
+    isSingleWord,
+    lexiconWord,
+    lexiconPos,
+    lexiconAnchor,
+    setLexiconWord,
+    handleMouseUp,
+    handleHighlight,
+    handleAddNote,
+    handleCopyLink,
+    handleAddTerm,
+    handleAddArgument,
+    handleAddCritique,
+    handleAddInquiry,
+    handleAddSyntopic,
+    handleDefine,
+    handleDoubleClick,
+  } = useReaderSelection({
+    containerRef,
+    editor,
+    onAddHighlight,
+    onAddNoteFromSelection,
+    onAddTerm,
+    onAddArgument,
+    onAddCritique,
+    onAddInquiry,
+    onAddSyntopic,
+    instantDictionaryEnabled: preferences?.elementary?.instantDictionaryEnabled,
+  });
+
   // A chapter opens at its top. The reader used to keep the scroll position of the chapter before, so a chapter opened
   // part of the way down and could get the "Completed" mark of the chapter you left (AN-01). A jump to a paragraph, like
   // the place where you stopped, runs after this.
@@ -177,15 +180,7 @@ export const Reader: React.FC<ReaderProps> = ({
     const parsed = parseChapterMarkdown(markdown, (src) => (bookId ? resolveAssetUrl(bookId, src, vaultPath) : src));
     setFootnotes(parsed.footnotes);
 
-    let doc = parsed.doc;
-    if (isBionic) {
-      doc = applyBionicReading(doc);
-    }
-    if (highlights && highlights.length > 0) {
-      doc = applyHighlightsToDoc(doc, highlights);
-    }
-
-    editor.commands.setContent(doc);
+    editor.commands.setContent(isBionic ? applyBionicReading(parsed.doc) : parsed.doc);
     placeWatcher.shown(markdownSource ?? null);
     if (chapterAtTop.current !== markdownSource) {
       chapterAtTop.current = markdownSource;
@@ -194,7 +189,13 @@ export const Reader: React.FC<ReaderProps> = ({
     if (containerRef.current) {
       setTimeout(handleScroll, 50);
     }
-  }, [editor, markdown, markdownSource, isBionic, highlights, bookId, vaultPath, placeWatcher]);
+  }, [editor, markdown, markdownSource, isBionic, bookId, vaultPath, placeWatcher]);
+
+  // The saved highlights are drawn over the chapter, also with Bionic reading on. A new highlight shows without the
+  // chapter being parsed and set again (RD-02).
+  useEffect(() => {
+    if (editor) showHighlights(editor, highlights);
+  }, [editor, highlights]);
 
   // Jump to target paragraph anchor when requested. A chapter that has just opened lands on the paragraph at once,
   // for example where the reader stopped (DS-11): a smooth scroll does not move a window that is not on screen, and
