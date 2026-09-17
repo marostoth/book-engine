@@ -6,7 +6,8 @@
 //! work even if the cache is lost the next day.
 //!
 //! It runs on every startup and writes only what the vault does not have, so it costs nothing after the
-//! first time. It never changes the cache and never removes a line.
+//! first time. It never changes the cache and never removes a line. Reading time is copied only for a book whose
+//! vault log holds none, because a new import can move the lines of the log to other chapter files (IN-04).
 //!
 //! The cache does not know as much as a review line does. It has the rating and the time of each old
 //! review, but not the schedule each one produced, and it has the standing of each card now, but not
@@ -19,7 +20,7 @@
 use anyhow::{Context, Result};
 use rusqlite::{params, Connection};
 
-use crate::vault::study_log::{self, CardStanding, ReadingLine, ReviewLine};
+use crate::vault::study_log::{self, BookStudyLog, CardStanding, ReadingLine, ReviewLine};
 
 /// What one run copied into the vault.
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -47,7 +48,7 @@ pub fn backfill_vault_blocking() -> Result<BackfillReport> {
             .with_context(|| format!("Failed to copy the reviews of '{book_id}' into the vault"))?;
         copy_cards(&conn, &book_id, &log.reviews, &mut report)
             .with_context(|| format!("Failed to copy the cards of '{book_id}' into the vault"))?;
-        copy_reading(&conn, &book_id, &log.reading, &mut report)
+        copy_reading(&conn, &book_id, &log, &mut report)
             .with_context(|| format!("Failed to copy the reading time of '{book_id}' into the vault"))?;
     }
 
@@ -135,10 +136,17 @@ fn copy_cards(conn: &Connection, book_id: &str, have: &[ReviewLine], report: &mu
     Ok(())
 }
 
-/// Writes the reading time of every chapter the vault has no line for. The word count in the cache stays behind:
-/// it was the length of the whole chapter, not the words read (AN-01).
-fn copy_reading(conn: &Connection, book_id: &str, have: &[ReadingLine], report: &mut BackfillReport) -> Result<()> {
-    let known: std::collections::HashSet<&str> = have.iter().map(|line| line.chapter_file.as_str()).collect();
+/// Writes the reading time of a book whose vault log holds none, as a cache from before DS-01 has it. The word count in
+/// the cache stays behind: it was the length of the whole chapter, not the words read (AN-01).
+///
+/// Once the log holds reading time of a book, the log is its record: the app writes every new piece of reading time to
+/// the vault first. A new import can then move the lines of the log to other chapter files (IN-04), and the cache keeps
+/// the old names until the next start puts it right (`restore.rs`). So a chapter that the log does not name is no time
+/// that the vault is missing, and copying it would give its time to the chapter that has that file name now.
+fn copy_reading(conn: &Connection, book_id: &str, log: &BookStudyLog, report: &mut BackfillReport) -> Result<()> {
+    if !log.reading.is_empty() || log.damaged_reading_lines > 0 {
+        return Ok(());
+    }
 
     let mut stmt = conn.prepare(
         "SELECT chapter_file, seconds_spent, completed, last_read_at
@@ -149,9 +157,6 @@ fn copy_reading(conn: &Connection, book_id: &str, have: &[ReadingLine], report: 
         .collect::<rusqlite::Result<_>>()?;
 
     for (chapter_file, seconds_spent, completed, last_read_at) in rows {
-        if known.contains(chapter_file.as_str()) {
-            continue;
-        }
         study_log::append_reading(&ReadingLine {
             book_id: book_id.to_string(),
             chapter_file,

@@ -10,10 +10,15 @@
 //! - A review the cache already has, matched on the card and the second it happened, is skipped.
 //! - A card only takes the schedule of a replayed review that is newer than its last review, so a review
 //!   done in the app is never undone by an older line.
-//! - Reading time is put back only for a chapter the cache has no row for at all, so seconds are never
-//!   added to a count that is already there. The word count on an older line is not put back: it was the
-//!   length of the whole chapter, not the words read (AN-01).
+//! - The reading time of each chapter in the cache is the sum of its lines, so seconds are never added to a
+//!   count that is already there. A new import can move the lines to other chapter files (IN-04), and the
+//!   cache follows them. The word count on an older line is not put back: it was the length of the whole
+//!   chapter, not the words read (AN-01).
+//! - When the log may not hold all of a book's reading time (a line is damaged, or the cache counts more
+//!   seconds), the cache keeps its rows and only a chapter it has no row for at all is put back.
 //! - A book that left the vault (no `vault/books/<book-id>/_meta.json`) gets nothing back until it returns (LC-02).
+
+use std::collections::BTreeMap;
 
 use anyhow::{Context, Result};
 use rusqlite::{params, Connection, TransactionBehavior};
@@ -25,6 +30,8 @@ use crate::vault::study_log::{self, ReadingLine, ReviewLine};
 pub struct RestoreReport {
     pub reviews_added: usize,
     pub cards_rescheduled: usize,
+    /// Chapters whose reading time the cache took from the vault: a row added, set to the sum of its lines, or
+    /// removed because no line names its chapter file any more.
     pub chapters_restored: usize,
     /// Lines in the vault that could not be read. Each one names its file and says why.
     pub damaged_lines: Vec<String>,
@@ -51,22 +58,31 @@ pub fn restore_progress_blocking() -> Result<RestoreReport> {
         let log = study_log::read_book_log(&book_id)
             .with_context(|| format!("Failed to read the study log of '{book_id}'"))?;
         report.damaged_lines.extend(log.damaged);
-        restore_book(&mut conn, &log.reviews, &log.reading, &mut report)
+        let reading = ReadingLog { book_id: &book_id, lines: &log.reading, damaged_lines: log.damaged_reading_lines };
+        restore_book(&mut conn, &log.reviews, &reading, &mut report)
             .with_context(|| format!("Failed to put back the study progress of '{book_id}'"))?;
     }
 
     Ok(report)
 }
 
+/// The reading log of one book.
+struct ReadingLog<'a> {
+    book_id: &'a str,
+    lines: &'a [ReadingLine],
+    /// Lines of the log that could not be read.
+    damaged_lines: usize,
+}
+
 fn restore_book(
     conn: &mut Connection,
     reviews: &[ReviewLine],
-    reading: &[ReadingLine],
+    reading: &ReadingLog,
     report: &mut RestoreReport,
 ) -> Result<()> {
     let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
     add_missing_reviews(&tx, reviews, report)?;
-    add_missing_reading(&tx, reading, report)?;
+    restore_reading(&tx, reading, report)?;
     tx.commit()?;
     Ok(())
 }
@@ -134,16 +150,94 @@ fn add_missing_reviews(tx: &rusqlite::Transaction, reviews: &[ReviewLine], repor
     Ok(())
 }
 
-/// Builds a `reading_sessions` row for every chapter the cache has none for.
-fn add_missing_reading(tx: &rusqlite::Transaction, reading: &[ReadingLine], report: &mut RestoreReport) -> Result<()> {
-    let mut chapters: Vec<(&str, &str)> = reading
-        .iter()
-        .map(|line| (line.book_id.as_str(), line.chapter_file.as_str()))
-        .collect();
-    chapters.sort_unstable();
-    chapters.dedup();
+/// The reading time of one chapter: its seconds, whether it was finished, and when it was read last.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ChapterTime {
+    seconds: i64,
+    completed: bool,
+    last_read_at: i64,
+}
 
-    for (book_id, chapter_file) in chapters {
+/// The sum of the lines of each chapter, by book id and chapter file.
+fn sum_by_chapter(lines: &[ReadingLine]) -> BTreeMap<(&str, &str), ChapterTime> {
+    let mut sums: BTreeMap<(&str, &str), ChapterTime> = BTreeMap::new();
+    for line in lines {
+        let sum = sums
+            .entry((line.book_id.as_str(), line.chapter_file.as_str()))
+            .or_insert(ChapterTime { seconds: 0, completed: false, last_read_at: 0 });
+        sum.seconds += line.seconds_spent;
+        sum.completed |= line.completed;
+        sum.last_read_at = sum.last_read_at.max(line.read_at);
+    }
+    sums
+}
+
+/// Makes the reading time of a book in the cache follow its log.
+///
+/// The log is the record (DS-01), and a new import can move its lines to other chapter files (IN-04). So when the
+/// log holds all of the book's reading time, each chapter in the cache gets the sum of its lines, and a chapter that
+/// no line names leaves the cache. The log holds all of it when every line can be read, every line names this book,
+/// and the lines hold at least as many seconds as the cache. Otherwise the cache can count time that only it knows,
+/// so only the chapters it has no row for are added, and nothing is taken away.
+fn restore_reading(tx: &rusqlite::Transaction, reading: &ReadingLog, report: &mut RestoreReport) -> Result<()> {
+    let sums = sum_by_chapter(reading.lines);
+    let cached = cached_reading(tx, reading.book_id)?;
+    let log_seconds: i64 = sums.values().map(|time| time.seconds).sum();
+    let cache_seconds: i64 = cached.values().map(|time| time.seconds).sum();
+    let log_is_whole = reading.damaged_lines == 0
+        && sums.keys().all(|(book_id, _)| *book_id == reading.book_id)
+        && log_seconds >= cache_seconds;
+
+    if !log_is_whole {
+        return add_missing_chapters(tx, &sums, report);
+    }
+
+    for chapter_file in cached.keys() {
+        if !sums.contains_key(&(reading.book_id, chapter_file.as_str())) {
+            tx.execute(
+                "DELETE FROM reading_sessions WHERE book_id = ?1 AND chapter_file = ?2",
+                params![reading.book_id, chapter_file],
+            )?;
+            report.chapters_restored += 1;
+        }
+    }
+    for ((book_id, chapter_file), time) in &sums {
+        if cached.get(*chapter_file) == Some(time) {
+            continue;
+        }
+        tx.execute(
+            "INSERT INTO reading_sessions (book_id, chapter_file, seconds_spent, completed, last_read_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(book_id, chapter_file) DO UPDATE SET
+                 seconds_spent = excluded.seconds_spent,
+                 completed = excluded.completed,
+                 last_read_at = excluded.last_read_at",
+            params![book_id, chapter_file, time.seconds, i64::from(time.completed), time.last_read_at],
+        )?;
+        report.chapters_restored += 1;
+    }
+    Ok(())
+}
+
+/// The reading time of each chapter of a book that the cache holds, by chapter file.
+fn cached_reading(tx: &rusqlite::Transaction, book_id: &str) -> Result<BTreeMap<String, ChapterTime>> {
+    let mut statement = tx.prepare(
+        "SELECT chapter_file, seconds_spent, completed, last_read_at FROM reading_sessions WHERE book_id = ?1",
+    )?;
+    let rows = statement.query_map(params![book_id], |row| {
+        let completed: i64 = row.get(2)?;
+        Ok((row.get(0)?, ChapterTime { seconds: row.get(1)?, completed: completed != 0, last_read_at: row.get(3)? }))
+    })?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
+/// Builds a `reading_sessions` row for every chapter the cache has none for.
+fn add_missing_chapters(
+    tx: &rusqlite::Transaction,
+    sums: &BTreeMap<(&str, &str), ChapterTime>,
+    report: &mut RestoreReport,
+) -> Result<()> {
+    for ((book_id, chapter_file), time) in sums {
         let already: i64 = tx.query_row(
             "SELECT COUNT(*) FROM reading_sessions WHERE book_id = ?1 AND chapter_file = ?2",
             params![book_id, chapter_file],
@@ -153,22 +247,10 @@ fn add_missing_reading(tx: &rusqlite::Transaction, reading: &[ReadingLine], repo
             continue;
         }
 
-        let lines = reading
-            .iter()
-            .filter(|line| line.book_id == book_id && line.chapter_file == chapter_file);
-        let mut seconds = 0i64;
-        let mut completed = false;
-        let mut last_read_at = 0i64;
-        for line in lines {
-            seconds += line.seconds_spent;
-            completed |= line.completed;
-            last_read_at = last_read_at.max(line.read_at);
-        }
-
         tx.execute(
             "INSERT INTO reading_sessions (book_id, chapter_file, seconds_spent, completed, last_read_at)
              VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![book_id, chapter_file, seconds, i64::from(completed), last_read_at],
+            params![book_id, chapter_file, time.seconds, i64::from(time.completed), time.last_read_at],
         )?;
         report.chapters_restored += 1;
     }

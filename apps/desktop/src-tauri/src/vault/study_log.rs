@@ -86,6 +86,8 @@ pub struct BookStudyLog {
     pub reading: Vec<ReadingLine>,
     /// Lines that could not be read. Each one names its file and says why.
     pub damaged: Vec<String>,
+    /// How many of the damaged lines are in `reading.jsonl`. The reading time they hold is not in `reading`.
+    pub damaged_reading_lines: usize,
 }
 
 fn log_path(book_id: &str, file: &'static str) -> Result<PathBuf> {
@@ -151,10 +153,12 @@ fn read_lines<T: serde::de::DeserializeOwned>(path: &PathBuf, damaged: &mut Vec<
 pub fn read_book_log(book_id: &str) -> Result<BookStudyLog> {
     let mut damaged = Vec::new();
     let reviews = read_lines(&log_path(book_id, REVIEWS_FILE)?, &mut damaged)?;
+    let damaged_reviews = damaged.len();
     let reading = read_lines(&log_path(book_id, READING_FILE)?, &mut damaged)?;
     Ok(BookStudyLog {
         reviews,
         reading,
+        damaged_reading_lines: damaged.len() - damaged_reviews,
         damaged,
     })
 }

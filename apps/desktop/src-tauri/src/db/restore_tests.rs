@@ -406,3 +406,138 @@ fn a_book_that_left_the_vault_gets_nothing_back_at_the_start() {
     let report = restore_progress_blocking().expect("start the app again, with the book back");
     assert_eq!((report.reviews_added, report.chapters_restored), (1, 1));
 }
+
+// ---------------------------------------------------------------------------------------------
+// IN-04: a new import can give a chapter another file name, and it moves the reading time in the log.
+// ---------------------------------------------------------------------------------------------
+
+/// Puts the reading time of one chapter into the cache, the way the app keeps it.
+fn cache_reading(chapter_file: &str, seconds: i64, completed: bool, read_at: i64) {
+    let conn = open_or_create_db().expect("open the cache");
+    conn.execute(
+        "INSERT INTO reading_sessions (book_id, chapter_file, seconds_spent, completed, last_read_at)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![BOOK, chapter_file, seconds, i64::from(completed), read_at],
+    )
+    .expect("the reading time the app keeps");
+}
+
+fn reading_in(chapter_file: &str, seconds: i64, completed: bool, read_at: i64) -> ReadingLine {
+    ReadingLine {
+        chapter_file: chapter_file.to_string(),
+        ..reading(seconds, completed, read_at)
+    }
+}
+
+/// Every reading row of the cache: chapter file, seconds, completed, last read.
+fn reading_rows() -> Vec<(String, i64, i64, i64)> {
+    let conn = open_or_create_db().expect("open the cache");
+    let mut statement = conn
+        .prepare(
+            "SELECT chapter_file, seconds_spent, completed, last_read_at FROM reading_sessions ORDER BY chapter_file",
+        )
+        .expect("read the reading time");
+    let rows = statement
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))
+        .expect("read the rows");
+    rows.collect::<rusqlite::Result<_>>().expect("read every row")
+}
+
+/// A new import that puts a dedication first gives every chapter the next file name, and it moves the reading time in
+/// the vault log with its chapter. The cache follows the log, so no chapter keeps the time of another chapter.
+#[test]
+fn reading_time_follows_the_chapters_that_a_new_import_renamed() {
+    let sandbox = Sandbox::new();
+    sandbox.write_sample_book();
+    cache_reading("ch-01.md", 300, true, 1_758_000_100);
+    cache_reading("ch-02.md", 120, false, 1_758_000_200);
+    append_reading(&reading_in("ch-02.md", 300, true, 1_758_000_100)).expect("the line of ch-01.md, moved");
+    append_reading(&reading_in("ch-03.md", 120, false, 1_758_000_200)).expect("the line of ch-02.md, moved");
+
+    let report = restore_progress_blocking().expect("start the app");
+
+    assert_eq!(
+        reading_rows(),
+        vec![
+            ("ch-02.md".to_string(), 300, 1, 1_758_000_100),
+            ("ch-03.md".to_string(), 120, 0, 1_758_000_200),
+        ],
+        "each chapter has its own time, and ch-01.md has none"
+    );
+    assert_eq!(report.chapters_restored, 3, "ch-01.md removed, ch-02.md changed, ch-03.md added: {report:?}");
+    let again = restore_progress_blocking().expect("start the app again");
+    assert!(again.changed_nothing(), "the cache follows the log once: {again:?}");
+}
+
+/// A damaged line of the review log says nothing about reading time, so the reading time still follows its log.
+#[test]
+fn a_damaged_review_line_does_not_stop_reading_time_from_following_its_log() {
+    let sandbox = Sandbox::new();
+    sandbox.write_sample_book();
+    cache_reading("ch-01.md", 300, true, 1_758_000_100);
+    append_reading(&reading_in("ch-02.md", 300, true, 1_758_000_100)).expect("the line of ch-01.md, moved");
+    let path = sandbox.vault().join("notes").join(BOOK).join("reviews.jsonl");
+    std::fs::write(&path, "{\"cardId\":\"card-two\",\"bookId\":\"sam").expect("a damaged review line");
+
+    let report = restore_progress_blocking().expect("start the app");
+
+    assert_eq!(report.damaged_lines.len(), 1, "{report:?}");
+    assert_eq!(reading_rows(), vec![("ch-02.md".to_string(), 300, 1, 1_758_000_100)]);
+}
+
+/// A line that names another book is no reading time of this book, and it never changes the time of that book.
+#[test]
+fn a_log_line_of_another_book_changes_no_reading_time_of_that_book() {
+    let sandbox = Sandbox::new();
+    sandbox.write_sample_book();
+    {
+        let conn = open_or_create_db().expect("open the cache");
+        conn.execute(
+            "INSERT INTO reading_sessions (book_id, chapter_file, seconds_spent, completed, last_read_at)
+             VALUES ('other-book', 'ch-01.md', 500, 0, 1758000000)",
+            [],
+        )
+        .expect("the reading time of another book");
+    }
+    // The app writes a line into the log of its own book, so only a copied or edited file can hold such a line
+    let line = concat!(
+        r#"{"bookId":"other-book","chapterFile":"ch-01.md","#,
+        r#""secondsSpent":60,"completed":false,"readAt":1758000100}"#,
+        "\n"
+    );
+    std::fs::write(sandbox.vault().join("notes").join(BOOK).join("reading.jsonl"), line)
+        .expect("a line of another book in the log of this book");
+
+    restore_progress_blocking().expect("start the app");
+
+    assert_eq!(
+        count("SELECT seconds_spent FROM reading_sessions WHERE book_id = 'other-book'"),
+        500,
+        "the other book keeps its reading time"
+    );
+}
+
+/// A line of the log that cannot be read can hold reading time that the cache counts. Then the log is not the whole
+/// record, so the cache keeps every second it has.
+#[test]
+fn a_damaged_reading_line_takes_no_reading_time_away_from_the_cache() {
+    let sandbox = Sandbox::new();
+    sandbox.write_sample_book();
+    cache_reading("ch-01.md", 300, true, 1_758_000_100);
+    // The good line holds as many seconds as the cache, so only the damaged line keeps the rows of the cache
+    append_reading(&reading_in("ch-02.md", 300, true, 1_758_000_100)).expect("a good line");
+    let path = sandbox.vault().join("notes").join(BOOK).join("reading.jsonl");
+    let mut text = std::fs::read_to_string(&path).expect("read the log");
+    text.push_str("{\"bookId\":\"sample\",\"chapterFile\":\"ch-01.md\",\"secondsSp");
+    std::fs::write(&path, text).expect("write the log back");
+
+    let report = restore_progress_blocking().expect("start the app");
+
+    assert_eq!(report.damaged_lines.len(), 1, "{report:?}");
+    let rows = reading_rows();
+    assert!(
+        rows.contains(&("ch-01.md".to_string(), 300, 1, 1_758_000_100)),
+        "the cache keeps its reading time: {rows:?}"
+    );
+    assert!(rows.iter().any(|row| row.0 == "ch-02.md" && row.1 == 300), "and gets the good line: {rows:?}");
+}

@@ -19,6 +19,7 @@ from ingest.epub_parser import extract_metadata, parse_toc, html_to_markdown_blo
 from ingest.line_endings import read_html, write_text_file
 from ingest.markdown_text import unescape_markdown_text
 from ingest.pdf_parser import PDFParser
+from ingest.places import move_reader_files, read_book_text
 from ingest.reimport import book_to_import
 from ingest.toc_links import ImportedDocument, element_anchors, link_toc_to_chapters
 
@@ -44,6 +45,8 @@ def ingest_epub(
 
     # Stop before anything is written when the vault already has this book (DS-09), or another book has its id (IN-03)
     book_id, source = book_to_import(vault_dir, epub_path, name_id, custom_book_id or None, replace)
+    # The chapters and paragraphs of the book before this import, so the reader's files can follow their text (IN-04)
+    old_text = read_book_text(vault_dir / "books" / book_id)
 
     # Vault destinations
     book_dir = vault_dir / "books" / book_id
@@ -223,7 +226,10 @@ def ingest_epub(
     practice_deck_path = notes_dir / "practice-deck.md"
     write_text_file(practice_deck_path, practice_deck_md)
 
-    # 8. Create user note template for first chapter if not existing
+    # 8. The reader's files point to the same text in the new chapter files and paragraphs (IN-04)
+    move_reader_files(vault_dir, book_id, old_text)
+
+    # 9. Create user note template for first chapter if not existing
     first_ch_notes = notes_dir / "ch-01-notes.md"
     if not first_ch_notes.exists():
         first_title = spine_metas[0].title if spine_metas else "Chapter 1"

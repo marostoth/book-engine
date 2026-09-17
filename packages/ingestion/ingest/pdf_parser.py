@@ -31,6 +31,7 @@ from ingest.vector_figures import (
 from ingest.layout_stitcher import stitch_layout_blocks
 from ingest.line_endings import write_text_file
 from ingest.pdf_outline import CHAPTER, describe_pages, outline_parts
+from ingest.places import move_reader_files, read_book_text
 from ingest.reimport import book_to_import
 
 
@@ -77,6 +78,9 @@ class PDFParser:
         except Exception:
             doc.close()
             raise
+        # The chapters and paragraphs of the book before this import, so the reader's files can follow their text
+        # (IN-04)
+        old_text = read_book_text(self.vault_dir / "books" / book_id)
 
         # Establish destination directories
         book_dir = self.vault_dir / "books" / book_id
@@ -273,6 +277,9 @@ class PDFParser:
 
         practice_deck_md = format_practice_deck_markdown(title, all_practice_cards, all_scenarios)
         write_text_file(notes_dir / "practice-deck.md", practice_deck_md)
+
+        # The reader's files point to the same text in the new chapter files and paragraphs (IN-04)
+        move_reader_files(self.vault_dir, book_id, old_text)
 
         # The notes template goes with the first chapter, not with the cover
         first_ch_notes = notes_dir / (f"{chapter_metas[0].id}-notes.md" if chapter_metas else "ch-01-notes.md")

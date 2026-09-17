@@ -31,6 +31,7 @@ You are acting as a Principal Systems & Frontend Engineer specializing in local-
 - **Safety:** Explicit error handling via `thiserror` and `anyhow`. Do not use `.unwrap()` or `.expect()` in non-test paths.
 - **Concurrency:** Execute disk I/O, SQLite FTS5 queries, and hashing on background threads (`tokio::task::spawn_blocking`). Keep the IPC message loop unblocked.
 - **Line Endings:** Read a chapter or notes file with `read_text_file` (`vault/text_file.rs`) before you split it into paragraphs or lines. It gives `\n` line endings only (IN-06).
+- **Chapter Files Get New Names:** A new import can rename the chapter files of a book. The reading time in the cache follows `reading.jsonl` (`db/restore.rs`), and no chapter name goes from the cache into the vault (`db/backfill.rs`, IN-04).
 
 ### Python (Ingestion Pipeline)
 - **Tooling:** Python 3.11+, `mypy` strict mode, `pytest`.
@@ -38,6 +39,7 @@ You are acting as a Principal Systems & Frontend Engineer specializing in local-
 - **Determinism:** Normalization must be idempotent. Re-running ingestion on the same file must generate identical Markdown and paragraph anchors.
 - **Line Endings:** Parse an EPUB document with `read_html` and write every vault text file with `write_text_file` (`ingest/line_endings.py`), so vault files have `\n` line endings on every system (IN-06).
 - **EPUB Text:** Write each kind of XHTML element in `html_to_markdown_blocks` (`ingest/epub_parser.py`). A block of a chapter file never holds a blank line, a paragraph is one line, and only a link to a note becomes a footnote (`ingest/endnotes.py`, IN-02).
+- **Reader Files Follow the Text:** An import that replaces a book reads its old chapters before it writes anything (`read_book_text`), and calls `move_reader_files` (`ingest/places.py`) after it wrote the new chapters and before a notes template. A new kind of reader file in `vault/notes/<book-id>/` that names a chapter or a paragraph needs a move there (IN-04).
 
 ### TypeScript / Frontend
 - **Tooling:** React 18+, TipTap/ProseMirror, Tailwind CSS, Floating UI.
