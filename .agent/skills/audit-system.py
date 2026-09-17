@@ -43,6 +43,10 @@ LEDGER_PATH = VAULT_DIR / "_ledger.json"
 DESKTOP_DIR = ROOT_DIR / "apps" / "desktop"
 CARGO_TOML = DESKTOP_DIR / "src-tauri" / "Cargo.toml"
 
+# The import's own rule for a character that nothing could read (CQ-02)
+sys.path.insert(0, str(ROOT_DIR / "packages" / "ingestion"))
+from ingest.glyph_repair import REPLACEMENT  # noqa: E402
+
 # ANSI Color formatting
 ANSI_GREEN = "\033[92m"
 ANSI_RED = "\033[91m"
@@ -208,6 +212,13 @@ def check_anchor_and_asset_integrity() -> DiagnosticResult:
 
         for ch_file in chapters:
             content = ch_file.read_text(encoding="utf-8")
+
+            # A character that nothing could read: the book drew something the reader cannot show (CQ-02)
+            unreadable = content.count(REPLACEMENT)
+            if unreadable:
+                errors.append(
+                    f"{book_dir.name}/{ch_file.name}: {unreadable} broken character(s) (U+FFFD) that nothing could read."
+                )
 
             # Paragraph anchor format: ^p-[0-9]{3,}
             paragraphs = [
