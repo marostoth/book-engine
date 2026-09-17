@@ -41,7 +41,9 @@ export const DipStream: React.FC<DipStreamProps> = ({
         if (cancelled) return;
 
         const blocks = text.split(/\n\s*\n/);
-        const paragraphs: { text: string; anchor: string }[] = [];
+        // A paragraph with no anchor keeps none: the app used to give it `^p-001`, the anchor of the first block
+        // of the chapter, and the dip then opened the chapter at the wrong paragraph (RD-04).
+        const paragraphs: { text: string; anchor?: string }[] = [];
 
         for (const b of blocks) {
           const trimmed = b.trim();
@@ -50,13 +52,13 @@ export const DipStream: React.FC<DipStreamProps> = ({
           if (match) {
             paragraphs.push({ text: match[1].trim(), anchor: match[2] });
           } else if (!trimmed.startsWith("[^")) {
-            paragraphs.push({ text: trimmed, anchor: "^p-001" });
+            paragraphs.push({ text: trimmed });
           }
         }
 
         const head = paragraphs.length > 0 ? paragraphs[0].text : undefined;
         const tail = paragraphs.length > 1 ? paragraphs[paragraphs.length - 1].text : head;
-        const firstAnchor = paragraphs.length > 0 ? paragraphs[0].anchor : "^p-001";
+        const firstAnchor = paragraphs.find((paragraph) => paragraph.anchor)?.anchor;
 
         setHydratedExcerpts((prev) => ({
           ...prev,
@@ -170,7 +172,8 @@ export const DipStream: React.FC<DipStreamProps> = ({
             (chapter as any).tail_sample ||
             hydrated?.tail ||
             "Closing conclusion unavailable for this chapter.";
-          const targetAnchor = chapter.first_anchor || hydrated?.firstAnchor || "^p-001";
+          // No anchor opens the chapter at its top, which is where a dip starts anyway (RD-04).
+          const targetAnchor = chapter.first_anchor || hydrated?.firstAnchor;
           const dipMinutes = Math.max(1, Math.min(3, Math.ceil(chapter.word_count / 10000) + 1));
           const wordDisplay =
             chapter.word_count >= 1000

@@ -58,6 +58,7 @@ mod tests {
         VocabularyEntry {
             word: word.to_string(),
             definition: format!("definition of {word}"),
+            chapter_file: "ch-01.md".to_string(),
             anchor: "^p-001".to_string(),
             saved_at: "2026-09-16T00:00:00Z".to_string(),
         }
@@ -163,6 +164,24 @@ mod tests {
 
         let saved = get_book_vocabulary("sample").expect("read vocabulary back");
         assert_eq!(saved[0].saved_at, "2026-09-14T00:00:00Z", "the save time must not be dropped");
+    }
+
+    /// A word saved before the app kept the chapter of a word still reads, and keeps its place (RD-04).
+    #[test]
+    fn a_term_saved_without_a_chapter_reads_as_an_empty_chapter() {
+        let sandbox = Sandbox::new();
+        sandbox.write(
+            VOCAB_FILE,
+            r#"[{"word":"pin","definition":"a small metal pin","anchor":"^p-001","savedAt":"2026-09-14T00:00:00Z"}]"#,
+        );
+
+        save_vocabulary_term("sample", entry("labour")).expect("a term without a chapter must save");
+
+        let saved = get_book_vocabulary("sample").expect("read vocabulary back");
+        assert_eq!(saved.len(), 2, "the old term must stay");
+        assert_eq!(saved[0].chapter_file, "", "an unknown chapter reads as empty");
+        assert_eq!(saved[0].anchor, "^p-001", "the anchor of the old term must not be dropped");
+        assert_eq!(saved[1].chapter_file, "ch-01.md", "a new term keeps its chapter");
     }
 
     #[test]

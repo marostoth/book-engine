@@ -4,6 +4,7 @@ import {
   InferenceType,
   AnchoredCitation,
 } from "../../lib/types/analytical";
+import { citationPlace } from "../../lib/citations";
 
 interface ArgumentBuilderModalProps {
   isOpen: boolean;
@@ -24,9 +25,10 @@ export const ArgumentBuilderModal: React.FC<ArgumentBuilderModalProps> = ({
 }) => {
   const [title, setTitle] = useState("");
   const [inferenceType, setInferenceType] = useState<InferenceType>("deductive");
+  // A citation with no anchor names no paragraph. The app never writes an anchor of its own (RD-04).
   const [conclusion, setConclusion] = useState<AnchoredCitation>({
     chapterFile: "",
-    anchor: "^p-001",
+    anchor: "",
     quote: "",
   });
   const [premises, setPremises] = useState<AnchoredCitation[]>([]);
@@ -47,7 +49,7 @@ export const ArgumentBuilderModal: React.FC<ArgumentBuilderModalProps> = ({
       setPremises([
         {
           chapterFile: currentChapterFile || stagedCitation.chapterFile,
-          anchor: "^p-001",
+          anchor: "",
           quote: "",
         },
       ]);
@@ -56,8 +58,8 @@ export const ArgumentBuilderModal: React.FC<ArgumentBuilderModalProps> = ({
       const defaultChap = currentChapterFile || "unknown.md";
       setTitle("");
       setInferenceType("deductive");
-      setConclusion({ chapterFile: defaultChap, anchor: "^p-001", quote: "" });
-      setPremises([{ chapterFile: defaultChap, anchor: "^p-002", quote: "" }]);
+      setConclusion({ chapterFile: defaultChap, anchor: "", quote: "" });
+      setPremises([{ chapterFile: defaultChap, anchor: "", quote: "" }]);
       setNotes("");
     }
     setError(null);
@@ -182,7 +184,7 @@ export const ArgumentBuilderModal: React.FC<ArgumentBuilderModalProps> = ({
               <span className="font-semibold uppercase tracking-wider text-sky-400">
                 Main Conclusion (Rule 6 Proposition)
               </span>
-              <span className="text-zinc-400">{conclusion.chapterFile} #{conclusion.anchor}</span>
+              <span className="text-zinc-400">{citationPlace(conclusion.chapterFile, conclusion.anchor)}</span>
             </div>
             <textarea
               rows={2}
@@ -215,7 +217,7 @@ export const ArgumentBuilderModal: React.FC<ArgumentBuilderModalProps> = ({
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-medium text-zinc-300">Premise {idx + 1}</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-zinc-500">{p.chapterFile} #{p.anchor}</span>
+                    <span className="text-zinc-500">{citationPlace(p.chapterFile, p.anchor)}</span>
                     {premises.length > 1 && (
                       <button
                         type="button"

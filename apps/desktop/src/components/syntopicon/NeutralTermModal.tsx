@@ -53,7 +53,7 @@ export const NeutralTermModal: React.FC<NeutralTermModalProps> = ({
     } else {
       setMapBookId(currentBookId || "");
       setMapChapter(currentChapterFile || "ch-01.md");
-      setMapAnchor("^p-001");
+      setMapAnchor("");
       setMapQuote("");
       setMapVariant("");
     }

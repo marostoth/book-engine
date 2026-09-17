@@ -78,7 +78,7 @@ export const InquiryModal: React.FC<InquiryModalProps> = ({
         priority,
         citation: editingInquiry?.citation || stagedCitation || {
           chapterFile: currentChapterFile,
-          anchor: "^p-001",
+          anchor: "",
           quote: question.slice(0, 80),
         },
         resolution,

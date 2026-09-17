@@ -6,6 +6,7 @@ import {
   CritiqueJudgment,
   CritiqueDefect,
 } from "../../lib/types/analytical";
+import { citationPlace } from "../../lib/citations";
 
 interface CritiqueTabProps {
   critiques: CritiqueItem[];
@@ -171,7 +172,7 @@ export const CritiqueTab: React.FC<CritiqueTabProps> = ({
                       title="Jump to cited anchor"
                     >
                       <span>§</span>
-                      <span>{targetCitation.chapterFile}#{targetCitation.anchor}</span>
+                      <span>{citationPlace(targetCitation.chapterFile, targetCitation.anchor)}</span>
                     </button>
                     {targetCitation.quote && (
                       <span className="text-zinc-500 truncate max-w-[130px]" title={targetCitation.quote}>

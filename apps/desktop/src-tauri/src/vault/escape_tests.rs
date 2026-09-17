@@ -95,6 +95,7 @@ fn term() -> VocabularyEntry {
     VocabularyEntry {
         word: "pin".to_string(),
         definition: "a small metal pin".to_string(),
+        chapter_file: "ch-01.md".to_string(),
         anchor: "^p-002".to_string(),
         saved_at: "2026-09-17T00:00:00.000Z".to_string(),
     }

@@ -9,9 +9,19 @@ import {
 
 export interface UseAnalyticalModalsProps {
   currentChapterFile?: string;
+  /** The anchor of the paragraph on screen. */
+  currentAnchor?: string;
 }
 
-export function useAnalyticalModals({ currentChapterFile }: UseAnalyticalModalsProps) {
+export function useAnalyticalModals({ currentChapterFile, currentAnchor }: UseAnalyticalModalsProps) {
+  /**
+   * The citation of a modal that opens from a button, with no selection in the reader: the paragraph on screen, and no
+   * anchor when the reader is not on one. The app used to write `^p-001` here, which named the first block of the
+   * chapter wherever the reader was (RD-04).
+   */
+  const placeOnScreen = (): AnchoredCitation | null =>
+    currentChapterFile ? { chapterFile: currentChapterFile, anchor: currentAnchor ?? "", quote: "" } : null;
+
   const [termModalOpen, setTermModalOpen] = useState<boolean>(false);
   const [argumentModalOpen, setArgumentModalOpen] = useState<boolean>(false);
   const [critiqueModalOpen, setCritiqueModalOpen] = useState<boolean>(false);
@@ -42,15 +52,11 @@ export function useAnalyticalModals({ currentChapterFile }: UseAnalyticalModalsP
         setStagedCitation(target);
       } else {
         setEditingTerm(null);
-        setStagedCitation(
-          currentChapterFile
-            ? { chapterFile: currentChapterFile, anchor: "^p-001", quote: "" }
-            : null
-        );
+        setStagedCitation(placeOnScreen());
       }
       setTermModalOpen(true);
     },
-    [currentChapterFile]
+    [currentChapterFile, currentAnchor]
   );
 
   const openArgumentModal = useCallback(
@@ -63,15 +69,11 @@ export function useAnalyticalModals({ currentChapterFile }: UseAnalyticalModalsP
         setStagedCitation(target);
       } else {
         setEditingArgument(null);
-        setStagedCitation(
-          currentChapterFile
-            ? { chapterFile: currentChapterFile, anchor: "^p-001", quote: "" }
-            : null
-        );
+        setStagedCitation(placeOnScreen());
       }
       setArgumentModalOpen(true);
     },
-    [currentChapterFile]
+    [currentChapterFile, currentAnchor]
   );
 
   const openCritiqueModal = useCallback(
@@ -85,16 +87,12 @@ export function useAnalyticalModals({ currentChapterFile }: UseAnalyticalModalsP
       } else {
         setStagedCritiqueTarget({
           targetArgumentId: targetArgId,
-          citation:
-            citation ||
-            (currentChapterFile
-              ? { chapterFile: currentChapterFile, anchor: "^p-001", quote: "" }
-              : undefined),
+          citation: citation || placeOnScreen() || undefined,
         });
       }
       setCritiqueModalOpen(true);
     },
-    [currentChapterFile]
+    [currentChapterFile, currentAnchor]
   );
 
   const openInquiryModal = useCallback(
@@ -110,8 +108,8 @@ export function useAnalyticalModals({ currentChapterFile }: UseAnalyticalModalsP
         setStagedInquiryTarget({
           question: target.quote,
           citation: {
-            chapterFile: target.chapterFile || currentChapterFile || "ch-01.md",
-            anchor: target.anchor || "^p-001",
+            chapterFile: target.chapterFile || currentChapterFile || "",
+            anchor: target.anchor || currentAnchor || "",
             quote: target.quote || "",
           },
         });
@@ -119,14 +117,12 @@ export function useAnalyticalModals({ currentChapterFile }: UseAnalyticalModalsP
         setEditingInquiry(null);
         setStagedInquiryTarget({
           question: "",
-          citation: currentChapterFile
-            ? { chapterFile: currentChapterFile, anchor: "^p-001", quote: "" }
-            : undefined,
+          citation: placeOnScreen() || undefined,
         });
       }
       setInquiryModalOpen(true);
     },
-    [currentChapterFile]
+    [currentChapterFile, currentAnchor]
   );
 
   const closeModals = useCallback(() => {

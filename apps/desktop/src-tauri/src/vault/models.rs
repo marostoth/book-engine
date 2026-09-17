@@ -142,6 +142,10 @@ pub struct HighlightItem {
 pub struct VocabularyEntry {
     pub word: String,
     pub definition: String,
+    /// The chapter where the word was read. An entry saved by an older version of the app holds none, and reads as
+    /// empty (RD-04).
+    #[serde(default)]
+    pub chapter_file: String,
     /// An entry saved without an anchor reads as empty, so the whole file still loads.
     #[serde(default)]
     pub anchor: String,

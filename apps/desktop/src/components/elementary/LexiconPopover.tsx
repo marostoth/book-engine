@@ -2,12 +2,16 @@ import React, { useEffect, useState } from "react";
 import { Bookmark, Check, X, Sparkles } from "lucide-react";
 import { DictionaryEntry, VocabularyEntry } from "../../lib/types";
 import { lookupDictionaryTerm, saveBookVocabulary } from "../../lib/api";
+import { savedWord } from "../../lib/citations";
 import { reportBackendError } from "../../lib/backendErrors";
 
 interface LexiconPopoverProps {
   word: string;
+  /** The anchor of the block that holds the word, or none when the chapter holds no anchor (RD-04). */
   anchor?: string;
   bookId: string;
+  /** The chapter that holds the word. A saved word keeps it, so the word can be found again (RD-04). */
+  chapterFile?: string;
   position: { x: number; y: number } | null;
   onClose: () => void;
   onSavedVocabulary?: (entry: VocabularyEntry) => void;
@@ -17,6 +21,7 @@ export const LexiconPopover: React.FC<LexiconPopoverProps> = ({
   word,
   anchor,
   bookId,
+  chapterFile,
   position,
   onClose,
   onSavedVocabulary,
@@ -59,14 +64,9 @@ export const LexiconPopover: React.FC<LexiconPopoverProps> = ({
     if (isSaved || saving) return;
     setSaving(true);
 
-    const definitionText = entry?.definition || `Vocabulary term: ${word}`;
-    const cleanAnchor = anchor || "^p-001";
-    const vocabEntry: VocabularyEntry = {
-      word: entry?.word || word.trim().toLowerCase(),
-      definition: definitionText,
-      anchor: cleanAnchor,
-      savedAt: new Date().toISOString(),
-    };
+    // The chapter and the anchor say where the word was read. The app writes neither of its own: it used to save
+    // `^p-001` for a word with no anchor, which named the first block of the chapter (RD-04).
+    const vocabEntry: VocabularyEntry = savedWord(word, entry, chapterFile, anchor, new Date().toISOString());
 
     try {
       await saveBookVocabulary(bookId, vocabEntry);
