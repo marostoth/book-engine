@@ -4,10 +4,12 @@ import Highlight from "@tiptap/extension-highlight";
 import Image from "@tiptap/extension-image";
 import { BlockAnchors, FootnoteRef, Superscript } from "./TipTapExtensions.ts";
 import { Table, TableCell, TableHeader, TableRow } from "./TableExtensions.ts";
+import { ReaderHighlights } from "./ReaderHighlights.ts";
 
 /**
  * The nodes and marks of the reader. `parseChapterMarkdown` (`lib/markdown.ts`) makes each chapter a document of these,
- * and a test checks every such document against them (RD-03).
+ * and a test checks every such document against them (RD-03). `ReaderHighlights` draws the saved highlights over the
+ * document (RD-02).
  */
 export const readerExtensions: Extensions = [
   StarterKit.configure({
@@ -32,4 +34,5 @@ export const readerExtensions: Extensions = [
   Highlight.configure({
     multicolor: true,
   }),
+  ReaderHighlights,
 ];

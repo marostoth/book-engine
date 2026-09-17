@@ -231,6 +231,29 @@ body.theme-nord ::selection {
   hyphens: manual;
 }
 
+/* Saved highlights, drawn over the text in their own color (RD-02). The text keeps the color of the theme. */
+.reader-prose mark.reader-highlight {
+  color: inherit;
+  padding: 0;
+  background-color: rgba(250, 204, 21, 0.4);
+}
+
+.reader-prose mark.reader-highlight[data-color="amber"] {
+  background-color: rgba(245, 158, 11, 0.35);
+}
+
+.reader-prose mark.reader-highlight[data-color="emerald"] {
+  background-color: rgba(16, 185, 129, 0.3);
+}
+
+.reader-prose mark.reader-highlight[data-color="blue"] {
+  background-color: rgba(59, 130, 246, 0.3);
+}
+
+.reader-prose mark.reader-highlight[data-color="purple"] {
+  background-color: rgba(168, 85, 247, 0.3);
+}
+
 /* Footnote callout pills */
 .footnote-callout {
   display: inline-flex;

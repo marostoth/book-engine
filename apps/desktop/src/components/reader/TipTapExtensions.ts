@@ -1,5 +1,6 @@
 import { Extension, Mark, Node as TiptapNode, mergeAttributes } from "@tiptap/core";
 import { toAnchorAttribute } from "../../lib/anchors.ts";
+import { footnoteLabel } from "../../lib/readerText.ts";
 
 /**
  * The blocks that keep the anchor of their block in the chapter file as `data-anchor="p-001"`. Only a paragraph had
@@ -108,7 +109,6 @@ export const FootnoteRef = TiptapNode.create({
 
   renderHTML({ node, HTMLAttributes }) {
     const fnId = node.attrs.fnId || "1";
-    const num = node.attrs.number || fnId;
     return [
       "sup",
       mergeAttributes(
@@ -119,7 +119,8 @@ export const FootnoteRef = TiptapNode.create({
         },
         HTMLAttributes
       ),
-      `[${num}]`,
+      // The same text that a highlight saves for the marker (RD-02)
+      footnoteLabel(node.attrs),
     ];
   },
 });
