@@ -1,154 +1,74 @@
-import { FootnoteItem } from "./types";
-import { resolveAssetUrl } from "./api";
+import type { JSONContent } from "@tiptap/core";
+import type { FootnoteItem } from "./types.ts";
+import { markdownNodes, type ResolveImage } from "./markdownNodes.ts";
 
 export interface ParsedChapter {
-  html: string;
+  /** The chapter as a document of the reader's nodes (`readerExtensions`), with the anchor of each block. */
+  doc: JSONContent;
   footnotes: Record<string, FootnoteItem>;
 }
 
+/** The anchor at the end of a block of a chapter file: `^p-001`, or the older `§p-001` */
+const BLOCK_ANCHOR = /\s*(?:\^|§)p-([a-zA-Z0-9_-]+)$/;
+
+/** A footnote text: `[^1]: Note text` */
+const FOOTNOTE = /^\[\^([a-zA-Z0-9_-]+)\]:\s*(.+)$/;
+
 /**
- * Parses chapter Markdown into HTML formatted for TipTap, separating
- * footnote definitions and injecting interactive footnote and anchor tags.
- * Converts relative asset references to Tauri asset protocol URLs.
+ * Parses chapter Markdown into the document that the reader shows, and the texts of its footnotes (RD-03).
+ *
+ * The blocks are those of the import and of search: the text between two blank lines, with its anchor at the end.
+ * markdown-it reads each block (`markdownNodes`), so a list, a table, a quote, a superscript and preformatted text
+ * show as such, and the first node of the block keeps the anchor (`data-anchor="p-001"`). `resolveImage` gives the
+ * address of each picture of the book.
  */
-export function parseChapterMarkdown(
-  markdown: string,
-  bookId?: string,
-  vaultPath?: string
-): ParsedChapter {
-  const lines = markdown.split("\n");
-  const bodyBlocks: string[] = [];
+export function parseChapterMarkdown(markdown: string, resolveImage: ResolveImage = (src) => src): ParsedChapter {
+  const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
+  const body: string[] = [];
   const footnotes: Record<string, FootnoteItem> = {};
 
-  // 1. Separate footnote definitions from content blocks
-  const currentBlock: string[] = [];
-
+  // 1. Separate footnote texts from the text of the chapter
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
-    // Check if line is footnote definition: [^1]: Note text...
-    const fnMatch = line.match(/^\[\^([a-zA-Z0-9_-]+)\]:\s*(.+)$/);
-    if (fnMatch) {
-      const fnId = fnMatch[1];
-      let fnText = fnMatch[2].replace(/\s*\^p-[a-zA-Z0-9_-]+$/, "").trim();
-
-      // Check if subsequent indented lines belong to this footnote
-      while (i + 1 < lines.length && (lines[i + 1].startsWith("    ") || lines[i + 1].startsWith("\t"))) {
-        i++;
-        fnText += " " + lines[i].trim().replace(/\s*\^p-[a-zA-Z0-9_-]+$/, "");
-      }
-
-      footnotes[fnId] = {
-        id: fnId,
-        number: fnId,
-        text: fnText,
-      };
+    const fnMatch = lines[i].startsWith("[^") ? lines[i].match(FOOTNOTE) : null;
+    if (!fnMatch) {
+      body.push(lines[i]);
       continue;
     }
+    const fnId = fnMatch[1];
+    let fnText = fnMatch[2].replace(/\s*\^p-[a-zA-Z0-9_-]+$/, "").trim();
 
-    if (!line.trim()) {
-      if (currentBlock.length > 0) {
-        bodyBlocks.push(currentBlock.join("\n"));
-        currentBlock.length = 0;
-      }
-    } else {
-      currentBlock.push(line);
+    // Indented lines below the footnote belong to it
+    while (i + 1 < lines.length && (lines[i + 1].startsWith("    ") || lines[i + 1].startsWith("\t"))) {
+      i++;
+      fnText += " " + lines[i].trim().replace(/\s*\^p-[a-zA-Z0-9_-]+$/, "");
     }
+
+    footnotes[fnId] = { id: fnId, number: fnId, text: fnText };
   }
 
-  if (currentBlock.length > 0) {
-    bodyBlocks.push(currentBlock.join("\n"));
-  }
-
-  // 2. Render blocks to HTML
-  const htmlParts: string[] = [];
-
-  for (const block of bodyBlocks) {
+  // 2. Parse each block, and give its first node the anchor of the block
+  const blocks: JSONContent[] = [];
+  for (const block of body.join("\n").split("\n\n")) {
     const trimmed = block.trim();
     if (!trimmed) continue;
 
-    // Check for block-level paragraph anchor: ^p-001 or §p-001
-    const anchorMatch = trimmed.match(/\s*(?:\^|§)p-([a-zA-Z0-9_-]+)$/);
-    const anchor = anchorMatch ? `p-${anchorMatch[1]}` : null;
-    const content = anchorMatch ? trimmed.slice(0, anchorMatch.index).trim() : trimmed;
-
-    // Headings 1-6: # through ######
-    const headingMatch = content.match(/^(#{1,6})\s+(.+)$/);
-    if (headingMatch) {
-      const level = headingMatch[1].length;
-      const text = renderInlines(headingMatch[2], bookId, vaultPath);
-      const anchorAttr = anchor ? ` data-anchor="${anchor}"` : "";
-      htmlParts.push(`<h${level}${anchorAttr}>${text}</h${level}>`);
-      continue;
+    // The anchor is at the end, so only the end of a long block is searched
+    const tail = Math.max(0, trimmed.length - 80);
+    const anchorMatch = trimmed.slice(tail).match(BLOCK_ANCHOR);
+    const content = anchorMatch ? trimmed.slice(0, tail + (anchorMatch.index ?? 0)) : trimmed;
+    const nodes = markdownNodes(content, resolveImage);
+    if (anchorMatch) {
+      const [first = { type: "paragraph" }, ...rest] = nodes;
+      blocks.push({ ...first, attrs: { ...first.attrs, anchor: `p-${anchorMatch[1]}` } }, ...rest);
+    } else {
+      blocks.push(...nodes);
     }
-
-    // Standalone Image: ![alt](src)
-    const imgMatch = content.match(/^!\[(.*?)\]\((.*?)\)$/);
-    if (imgMatch) {
-      const alt = imgMatch[1];
-      const src = imgMatch[2];
-      const resolvedSrc = bookId ? resolveAssetUrl(bookId, src, vaultPath) : src;
-      const anchorAttr = anchor ? ` data-anchor="${anchor}"` : "";
-      htmlParts.push(`<p${anchorAttr}><img src="${resolvedSrc}" alt="${alt}" /></p>`);
-      continue;
-    }
-
-    // Blockquote
-    if (content.startsWith(">")) {
-      const cleanQuote = content
-        .split("\n")
-        .map((l) => l.replace(/^>\s?/, ""))
-        .join(" ");
-      const text = renderInlines(cleanQuote, bookId, vaultPath);
-      const anchorAttr = anchor ? ` data-anchor="${anchor}"` : "";
-      htmlParts.push(`<blockquote${anchorAttr}><p>${text}</p></blockquote>`);
-      continue;
-    }
-
-    // Standard Paragraph
-    const text = renderInlines(content, bookId, vaultPath);
-    const anchorAttr = anchor ? ` data-anchor="${anchor}"` : "";
-    htmlParts.push(`<p${anchorAttr}>${text}</p>`);
   }
 
   return {
-    html: htmlParts.join("\n"),
+    doc: { type: "doc", content: blocks.length ? blocks : [{ type: "paragraph" }] },
     footnotes,
   };
-}
-
-/**
- * Renders inline Markdown constructs: bold, italic, code, and footnote callouts.
- * Anchors are parsed into node attributes and never left in the inline text body.
- */
-function renderInlines(raw: string, bookId?: string, vaultPath?: string): string {
-  let text = raw;
-
-  // Clean any remaining anchor tokens from inline text body
-  text = text.replace(/\s*(?:\^|§)p-[a-zA-Z0-9_-]+$/g, "");
-
-  // Footnote callouts: [^1] -> <sup class="footnote-callout" data-fn="1">[1]</sup>
-  text = text.replace(
-    /\[\^([a-zA-Z0-9_-]+)\]/g,
-    '<sup class="footnote-callout" data-fn="$1">[$1]</sup>'
-  );
-
-  // Inline images: ![alt](src) -> <img src="resolved" alt="alt" />
-  text = text.replace(/!\[(.*?)\]\((.*?)\)/g, (_, alt, src) => {
-    const resolved = bookId ? resolveAssetUrl(bookId, src, vaultPath) : src;
-    return `<img src="${resolved}" alt="${alt}" />`;
-  });
-
-  // Bold: **text**
-  text = text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-
-  // Italic: *text*
-  text = text.replace(/\*(.*?)\*/g, "<em>$1</em>");
-
-  // Code: `code`
-  text = text.replace(/`([^`]+)`/g, "<code>$1</code>");
-
-  return text;
 }
 
 /**
