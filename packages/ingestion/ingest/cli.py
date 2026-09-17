@@ -7,7 +7,7 @@ from pathlib import Path
 
 from ingest.book_id import InvalidBookIdError
 from ingest.pipeline import ingest_book
-from ingest.reimport import BookAlreadyInVaultError
+from ingest.reimport import BookAlreadyInVaultError, BookIdTakenError
 
 
 def main() -> None:
@@ -24,7 +24,8 @@ def main() -> None:
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Replace a book that is already in the vault. Your own files for it in notes/<book-id>/ are kept.",
+        help="Replace a book that is already in the vault. Your own files for it in notes/<book-id>/ are kept. "
+        "A book that came from another file is replaced only when --book-id names it.",
     )
 
     args = parser.parse_args()
@@ -37,6 +38,15 @@ def main() -> None:
         print(f"[+] Total chapters: {meta.total_chapters}, Total words: {meta.total_words}")
         print(f"[+] Output written to: {args.vault / 'books' / meta.book_id}")
         print(f"[+] Practice deck written to: {args.vault / 'notes' / meta.book_id / 'practice-deck.md'}")
+    except BookIdTakenError as e:
+        # Not a crash: the import stopped before it wrote anything (IN-03)
+        print(f"[-] {e}", file=sys.stderr)
+        print(f"[-] If this file is a different book, run the same import again with --book-id {e.own_book_id}", file=sys.stderr)
+        print(
+            f"[-] If this file is a new copy of that book, run the same import again with --book-id {e.book_id} --force",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     except BookAlreadyInVaultError as e:
         # Not a crash: the import stopped before it wrote anything (DS-09)
         print(f"[-] {e}", file=sys.stderr)

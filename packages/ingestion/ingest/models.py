@@ -60,6 +60,12 @@ class ChapterMeta(BaseModel):
     inspectional_sampling: Optional[InspectionalSampling] = None
 
 
+class BookSource(BaseModel):
+    """The file that an import of a book read: its name, and the SHA-256 of its bytes (IN-03)."""
+    file_name: str
+    sha256: str
+
+
 class BookMeta(BaseModel):
     """Schema for vault/books/<book-id>/_meta.json."""
     book_id: str
@@ -71,6 +77,7 @@ class BookMeta(BaseModel):
     toc: List[TOCItem] = Field(default_factory=list)
     spine: List[ChapterMeta] = Field(default_factory=list)
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    source: Optional[BookSource] = None
     elementary_metrics: Optional[ElementaryMetrics] = None
     inspectional_blueprint: Optional[InspectionalBlueprint] = None
 

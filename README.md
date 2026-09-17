@@ -96,6 +96,8 @@ Each entry of the contents names the chapter file that holds it and the paragrap
 
 An import stops, and changes nothing, when the vault already has the book, for example an annotated copy of a PDF you imported before. It names your own files for that book in `vault/notes/<book-id>/`. Run the import again with `--force` to replace the book: your own files are kept, but a paragraph they point to can be a different paragraph after the new import.
 
+A book id comes from the file name. Letters with marks become plain letters, and a name in another script, such as "Война и мир", gets a short code, such as `book-74b780f4`. Two files can still get the same book id, such as "Principles of Marketing 2020.pdf" and "Principles of Marketing 2023.pdf". The import of the second file then stops, even with `--force`, and names the file of the other book. To import it as a different book, run it again with the `--book-id` that the stop gives. To replace the other book with it, run it again with `--book-id <that book id> --force`. Each import records its file in `_meta.json`, so a new import finds the book that the same file made, also after you rename the file.
+
 A book id names the folders of the book, so it has 1 to 255 characters from a-z, 0-9, `-` and `_`, and it does not start with `-`. An import with another `--book-id`, such as `../my-book` or `My Book`, stops before it writes anything. The app uses the same rule: a book folder that you rename by hand to another name does not open, and no name that the app page sends can reach a file outside the vault.
 
 A book you import while the app is open shows after you click **Rescan library** at the bottom of the book list. The app reads the library again and updates search.

@@ -30,7 +30,7 @@ from ingest.vector_figures import (
 )
 from ingest.layout_stitcher import stitch_layout_blocks
 from ingest.pdf_outline import CHAPTER, describe_pages, outline_parts
-from ingest.reimport import check_book_can_be_imported
+from ingest.reimport import book_to_import
 
 
 __all__ = ["PDFParser", "generate_pdf_slug", "sanitize_pdf_markdown", "clean_author_metadata"]
@@ -69,11 +69,10 @@ class PDFParser:
         title = raw_title.strip()
         author = clean_author_metadata(raw_author)
 
-        book_id = self.custom_book_id or generate_pdf_slug(self.pdf_path.name, title)
-
-        # Stop before anything is written when the vault already has this book (DS-09)
+        # Stop before anything is written when the vault already has this book (DS-09), or another book has its id (IN-03)
         try:
-            check_book_can_be_imported(self.vault_dir, book_id, replace)
+            name_id = generate_pdf_slug(self.pdf_path.name, title)
+            book_id, source = book_to_import(self.vault_dir, self.pdf_path, name_id, self.custom_book_id or None, replace)
         except Exception:
             doc.close()
             raise
@@ -265,6 +264,7 @@ class PDFParser:
             total_chapters=len(spine_metas),
             toc=toc_items,
             spine=spine_metas,
+            source=source,
             elementary_metrics=compute_elementary_metrics(" ".join(all_clean_text)),
             inspectional_blueprint=inspectional_blueprint,
         )
