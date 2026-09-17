@@ -90,6 +90,8 @@ python -m ingest.cli path/to/book.epub --vault vault --force
 
 Ingestion relocates endnotes into chapter-level inline footnotes `[^n]`, tags every paragraph with persistent anchors `^p-xxx`, extracts diagrams into `assets/`, and generates `_meta.json`.
 
+A PDF import keeps every part that the PDF outline names, not only the chapters: the contents, the preface, the appendices, the glossary, the references and the index. Each part is a chapter file, `ch-01.md`, `ch-02.md` and so on, in page order. Only the chapters, the pages between them (such as the title page of a part) and the appendices make practice cards. The import prints the pages that no part of the outline covers, which it does not import. A PDF book that you import again with `--force` gets new chapter numbers, so your notes and reading time for a chapter can then point at another part.
+
 An import stops, and changes nothing, when the vault already has the book, for example an annotated copy of a PDF you imported before. It names your own files for that book in `vault/notes/<book-id>/`. Run the import again with `--force` to replace the book: your own files are kept, but a paragraph they point to can be a different paragraph after the new import.
 
 A book id names the folders of the book, so it has 1 to 255 characters from a-z, 0-9, `-` and `_`, and it does not start with `-`. An import with another `--book-id`, such as `../my-book` or `My Book`, stops before it writes anything. The app uses the same rule: a book folder that you rename by hand to another name does not open, and no name that the app page sends can reach a file outside the vault.

@@ -56,3 +56,20 @@ def test_footnote_definitions_pass_audit_regex():
     paragraphs = [p for p in anchored.split("\n\n") if p.strip() and not p.startswith("#")]
     for p in paragraphs:
         assert AUDIT_ANCHOR_REGEX.search(p.strip()), f"Failed audit regex: {p}"
+
+
+def test_a_short_chapter_gets_head_and_tail_samples_that_share_no_paragraph():
+    """A PDF import now makes short parts, such as a cover (IN-01). The inspectional audit of audit-system.py allows a
+    paragraph in both samples only when the chapter has one paragraph."""
+    from ingest.anchors import extract_inspectional_sampling
+
+    def sampled(count):
+        md, _ = inject_paragraph_anchors("# Part\n\n" + "\n\n".join(f"Paragraph {n}." for n in range(1, count + 1)))
+        sampling = extract_inspectional_sampling(md)
+        return sampling.head_anchors, sampling.tail_anchors
+
+    assert sampled(1) == (["^p-001"], ["^p-001"])
+    assert sampled(2) == (["^p-001"], ["^p-002"])
+    assert sampled(3) == (["^p-001", "^p-002"], ["^p-003"])
+    assert sampled(4) == (["^p-001", "^p-002"], ["^p-003", "^p-004"])
+    assert sampled(9) == (["^p-001", "^p-002"], ["^p-008", "^p-009"])

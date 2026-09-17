@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import pymupdf
 import pymupdf4llm
@@ -29,6 +29,7 @@ from ingest.vector_figures import (
     replace_vector_diagram_streams,
 )
 from ingest.layout_stitcher import stitch_layout_blocks
+from ingest.pdf_outline import CHAPTER, describe_pages, outline_parts
 from ingest.reimport import check_book_can_be_imported
 
 
@@ -86,52 +87,16 @@ class PDFParser:
         assets_dir.mkdir(parents=True, exist_ok=True)
         notes_dir.mkdir(parents=True, exist_ok=True)
 
-        # 1. Outline extraction & chapter range segmentation
-        toc = doc.get_toc()  # Returns [level, title, 1-based page]
-        chapter_ranges: List[Tuple[str, int, int]] = []
+        # 1. The parts of the book: every part that the PDF outline names, not only the chapters (IN-01)
+        parts, pages_left_out = outline_parts(doc.get_toc(), total_pages)
+        if pages_left_out:
+            which = "it" if len(pages_left_out) == 1 else "them"
+            print(
+                f"    [!] Not imported: {describe_pages(pages_left_out)}. No part of the PDF outline covers {which}.",
+                flush=True,
+            )
 
-        # Filter for chapter-level entries (regex r"(?i)chapter\s+\d+" or lvl == 2)
-        chapter_toc_entries = [
-            (entry[1].strip(), entry[2])
-            for entry in toc
-            if re.search(r"(?i)chapter\s+\d+", entry[1])
-        ]
-
-        if not chapter_toc_entries:
-            # Fallback to lvl == 2 entries (ignoring indexes / backmatter)
-            chapter_toc_entries = [
-                (entry[1].strip(), entry[2])
-                for entry in toc
-                if entry[0] == 2
-                and not any(k in entry[1].lower() for k in ["index", "appendix", "glossary"])
-            ]
-
-        if chapter_toc_entries:
-            # Build start/end page intervals from TOC (convert 1-based page numbers to 0-based indices)
-            for i, (ch_title, start_1based) in enumerate(chapter_toc_entries):
-                start_0 = max(0, start_1based - 1)
-                if i + 1 < len(chapter_toc_entries):
-                    next_start_1based = chapter_toc_entries[i + 1][1]
-                    end_0 = max(start_0 + 1, min(total_pages, next_start_1based - 1))
-                else:
-                    # For the last chapter, search for any subsequent major section (level <= 2, e.g. Appendix, Index)
-                    subsequent = [e[2] for e in toc if e[0] <= 2 and e[2] > start_1based]
-                    if subsequent:
-                        end_0 = max(start_0 + 1, min(total_pages, min(subsequent) - 1))
-                    else:
-                        end_0 = total_pages
-                chapter_ranges.append((ch_title, start_0, end_0))
-        else:
-            # Fallback: chunk document into 35-page slices
-            chunk_size = 35
-            chunk_idx = 1
-            for start_0 in range(0, total_pages, chunk_size):
-                end_0 = min(total_pages, start_0 + chunk_size)
-                ch_title = f"Chapter {chunk_idx}"
-                chapter_ranges.append((ch_title, start_0, end_0))
-                chunk_idx += 1
-
-        # 2. Sequential Extraction: Iterate chapter-by-chapter (Memory-Safe)
+        # 2. Sequential Extraction: Iterate part-by-part (Memory-Safe)
         spine_metas: List[ChapterMeta] = []
         toc_items: List[TOCItem] = []
         all_practice_cards: List[PracticeCard] = []
@@ -139,7 +104,8 @@ class PDFParser:
         all_clean_text: List[str] = []
         total_words = 0
 
-        for chapter_idx, (ch_title, start_page, end_page) in enumerate(chapter_ranges, start=1):
+        for chapter_idx, part in enumerate(parts, start=1):
+            ch_title, start_page, end_page = part.title, part.first_page, part.end_page
             ch_id = f"ch-{chapter_idx:02d}"
             ch_filename = f"{ch_id}.md"
             ch_path = book_dir / ch_filename
@@ -164,15 +130,16 @@ class PDFParser:
                     )
                 )
                 toc_items.append(TOCItem(id=ch_id, title=ch_title, href=ch_filename, level=1, subitems=[]))
-                clean_t = clean_preview_text(anchored_md)
-                if clean_t:
-                    all_clean_text.append(clean_t)
-                all_practice_cards.extend(generate_chapter_practice_cards(ch_id, anchored_md, min_items=5, max_items=8))
-                all_scenarios.extend(generate_chapter_scenario_cards(anchored_md, ch_id, max_items=3))
+                if part.makes_cards:
+                    clean_t = clean_preview_text(anchored_md)
+                    if clean_t:
+                        all_clean_text.append(clean_t)
+                    all_practice_cards.extend(generate_chapter_practice_cards(ch_id, anchored_md, min_items=5, max_items=8))
+                    all_scenarios.extend(generate_chapter_scenario_cards(anchored_md, ch_id, max_items=3))
                 continue
 
             print(
-                f"    -> Chapter {chapter_idx}/{len(chapter_ranges)}: '{ch_title}' (pages {start_page + 1}..{end_page})...",
+                f"    -> Part {chapter_idx}/{len(parts)} ({part.kind}): '{ch_title}' (pages {start_page + 1}..{end_page})...",
                 flush=True,
             )
 
@@ -230,8 +197,8 @@ class PDFParser:
             # Extract inspectional sampling
             sampling = extract_inspectional_sampling(anchored_md)
 
-            # Collect clean text for elementary metrics
-            clean_ch_text = clean_preview_text(anchored_md)
+            # Collect clean text for elementary metrics, from the parts that make cards: a reader studies them
+            clean_ch_text = clean_preview_text(anchored_md) if part.makes_cards else ""
             if clean_ch_text:
                 all_clean_text.append(clean_ch_text)
 
@@ -259,25 +226,32 @@ class PDFParser:
                 )
             )
 
-            # 6. Salience Scoring & Deterministic Cloze Deck
-            chapter_cards = generate_chapter_practice_cards(
-                ch_id, anchored_md, min_items=5, max_items=8
-            )
-            all_practice_cards.extend(chapter_cards)
-            all_scenarios.extend(generate_chapter_scenario_cards(anchored_md, ch_id, max_items=3))
+            # 6. Salience Scoring & Deterministic Cloze Deck, for the parts the owner chose (IN-01)
+            if part.makes_cards:
+                chapter_cards = generate_chapter_practice_cards(
+                    ch_id, anchored_md, min_items=5, max_items=8
+                )
+                all_practice_cards.extend(chapter_cards)
+                all_scenarios.extend(generate_chapter_scenario_cards(anchored_md, ch_id, max_items=3))
 
         doc.close()
 
         # Clean up any orphaned asset files not referenced in any chapter markdown
         cleanup_orphaned_assets(book_dir, assets_dir, [ch.file_path for ch in spine_metas])
 
-        # Aggregate elementary metrics
-        pivotal_chapters = [spine_metas[0].id] if spine_metas else []
-        if len(spine_metas) > 1:
-            pivotal_chapters.append(spine_metas[-1].id)
+        # The first and the last chapter are pivotal, not the cover or the index
+        chapter_metas = [meta for meta, part in zip(spine_metas, parts) if part.kind == CHAPTER] or spine_metas
+        pivotal_chapters = [chapter_metas[0].id] if chapter_metas else []
+        if len(chapter_metas) > 1:
+            pivotal_chapters.append(chapter_metas[-1].id)
+        preface = next((meta for meta, part in zip(spine_metas, parts) if part.is_preface), None)
 
         inspectional_blueprint = InspectionalBlueprint(
-            front_matter={"has_preface": False, "preface_path": None, "publisher_blurb": f"{title} by {author}"},
+            front_matter={
+                "has_preface": preface is not None,
+                "preface_path": preface.file_path if preface else None,
+                "publisher_blurb": f"{title} by {author}",
+            },
             pivotal_chapters=pivotal_chapters,
             synthetic_index_clusters=[],
         )
@@ -299,9 +273,10 @@ class PDFParser:
         practice_deck_md = format_practice_deck_markdown(title, all_practice_cards, all_scenarios)
         (notes_dir / "practice-deck.md").write_text(practice_deck_md, encoding="utf-8")
 
-        first_ch_notes = notes_dir / "ch-01-notes.md"
+        # The notes template goes with the first chapter, not with the cover
+        first_ch_notes = notes_dir / (f"{chapter_metas[0].id}-notes.md" if chapter_metas else "ch-01-notes.md")
         if not first_ch_notes.exists():
-            first_title = spine_metas[0].title if spine_metas else "Chapter 1"
+            first_title = chapter_metas[0].title if chapter_metas else "Chapter 1"
             first_ch_notes.write_text(f"# Reflections: {title} - {first_title}\n\n## Key Takeaways\n\n- \n\n## Open Inquiries\n\n- \n", encoding="utf-8")
 
         return book_meta
