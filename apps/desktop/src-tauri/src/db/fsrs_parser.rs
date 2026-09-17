@@ -1,5 +1,6 @@
 use std::path::Path;
 use super::models::{ScenarioOption, ScenarioPayload};
+use crate::vault::text_file::read_text_file;
 use crate::vault::AnchoredCitation;
 
 pub struct RawCard {
@@ -112,7 +113,8 @@ fn parse_scenario_section(trimmed: &str, book_dir: &Path) -> Option<RawCard> {
         return None;
     }
 
-    let ch_text = std::fs::read_to_string(&ch_path).ok()?;
+    // With `\n` line endings only, so that a blank line ends the paragraph of the anchor (IN-06)
+    let ch_text = read_text_file(&ch_path).ok()?;
     if !ch_text.contains(&anchor) {
         eprintln!("Rejecting scenario {}: anchor {} not found in {}", card_id, anchor, chapter_file);
         return None;

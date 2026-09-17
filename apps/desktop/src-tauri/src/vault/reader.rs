@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use super::models::{AppError, BookMetadata, BookSummary};
+use super::text_file::read_text_file;
 
 /// Test builds only resolve the vault inside the active `test_support::Sandbox`.
 #[cfg(test)]
@@ -17,11 +18,11 @@ pub fn find_vault_root() -> Result<PathBuf> {
     }
 }
 
-/// Reads a chapter file from vault/books/<book-id>/<file-name>. The page sends both names, so they are checked first
-/// (`vault/paths.rs`, SEC-03).
+/// Reads a chapter file from vault/books/<book-id>/<file-name>, with `\n` line endings only, so the reader finds its
+/// paragraphs and footnotes (IN-06). The page sends both names, so they are checked first (`vault/paths.rs`, SEC-03).
 pub fn read_chapter_file(book_id: &str, file_name: &str) -> Result<String> {
     let path = super::paths::chapter_path(book_id, file_name)?;
-    std::fs::read_to_string(&path)
+    read_text_file(&path)
         .with_context(|| format!("Failed to read chapter file: {}", path.display()))
 }
 
@@ -70,11 +71,12 @@ pub fn get_inspectional_blueprint(book_id: &str) -> Result<crate::vault::Inspect
     })
 }
 
-/// Reads the notes of a chapter from vault/notes/<book-id>/<file-name>, such as `ch-01-notes.md` (SEC-03).
+/// Reads the notes of a chapter from vault/notes/<book-id>/<file-name>, such as `ch-01-notes.md` (SEC-03), with `\n`
+/// line endings only (IN-06).
 pub fn read_notes_file(book_id: &str, file_name: &str) -> Result<String> {
     let path = super::paths::chapter_notes_path(book_id, file_name)?;
     if path.exists() {
-        std::fs::read_to_string(&path)
+        read_text_file(&path)
             .with_context(|| format!("Failed to read notes file: {}", path.display()))
     } else {
         // Return default starter template if file does not yet exist

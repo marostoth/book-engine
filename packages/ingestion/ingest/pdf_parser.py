@@ -29,6 +29,7 @@ from ingest.vector_figures import (
     replace_vector_diagram_streams,
 )
 from ingest.layout_stitcher import stitch_layout_blocks
+from ingest.line_endings import write_text_file
 from ingest.pdf_outline import CHAPTER, describe_pages, outline_parts
 from ingest.reimport import book_to_import
 
@@ -186,7 +187,7 @@ class PDFParser:
             total_words += word_count
 
             # Write chapter markdown file
-            ch_path.write_text(anchored_md, encoding="utf-8")
+            write_text_file(ch_path, anchored_md)
 
             # Extract anchor boundaries
             anchors_list = extract_anchors(anchored_md)
@@ -268,16 +269,16 @@ class PDFParser:
             elementary_metrics=compute_elementary_metrics(" ".join(all_clean_text)),
             inspectional_blueprint=inspectional_blueprint,
         )
-        (book_dir / "_meta.json").write_text(book_meta.model_dump_json(indent=2), encoding="utf-8")
+        write_text_file(book_dir / "_meta.json", book_meta.model_dump_json(indent=2))
 
         practice_deck_md = format_practice_deck_markdown(title, all_practice_cards, all_scenarios)
-        (notes_dir / "practice-deck.md").write_text(practice_deck_md, encoding="utf-8")
+        write_text_file(notes_dir / "practice-deck.md", practice_deck_md)
 
         # The notes template goes with the first chapter, not with the cover
         first_ch_notes = notes_dir / (f"{chapter_metas[0].id}-notes.md" if chapter_metas else "ch-01-notes.md")
         if not first_ch_notes.exists():
             first_title = chapter_metas[0].title if chapter_metas else "Chapter 1"
-            first_ch_notes.write_text(f"# Reflections: {title} - {first_title}\n\n## Key Takeaways\n\n- \n\n## Open Inquiries\n\n- \n", encoding="utf-8")
+            write_text_file(first_ch_notes, f"# Reflections: {title} - {first_title}\n\n## Key Takeaways\n\n- \n\n## Open Inquiries\n\n- \n")
 
         return book_meta
 

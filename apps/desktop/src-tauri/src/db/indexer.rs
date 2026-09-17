@@ -5,6 +5,7 @@ use std::sync::{Mutex, PoisonError};
 
 use anyhow::{Context, Result};
 use rusqlite::{params, Connection, TransactionBehavior};
+use crate::vault::text_file::read_text_file;
 use crate::vault::{book_id_of, find_vault_root};
 use super::models::{IndexProblem, IndexSummary, RenamedBook, SearchResult};
 use super::removed_books::set_aside_removed_books;
@@ -140,7 +141,8 @@ fn index_book(
         };
         let ch_title = chapter["title"].as_str().unwrap_or("");
 
-        let content = match std::fs::read_to_string(book_path.join(ch_file)) {
+        // With `\n` line endings only, so search finds the paragraphs that the reader shows (IN-06)
+        let content = match read_text_file(&book_path.join(ch_file)) {
             Ok(content) => content,
             Err(e) => {
                 let missing = e.kind() == ErrorKind::NotFound;
@@ -172,10 +174,8 @@ fn index_chapter(
     ch_id: &str,
     ch_title: &str,
     ch_file: &str,
-    raw_content: &str,
+    content: &str,
 ) -> Result<Option<usize>> {
-    let content = raw_content.replace("\r\n", "\n");
-
     // Simple hash to detect updates. It holds the form of the rows too, so rows of an older form are written again.
     let content_hash = format!("{:x}", md5_hash(&format!("{SEARCH_ROWS_FORM}\n{content}")));
 

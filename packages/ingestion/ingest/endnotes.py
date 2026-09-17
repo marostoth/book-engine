@@ -13,6 +13,8 @@ from bs4 import BeautifulSoup, Tag
 import ebooklib
 from ebooklib import epub
 
+from ingest.line_endings import read_html
+
 
 class EndnoteRegistry:
     """Collects and indexes endnote definitions across all EPUB documents."""
@@ -25,7 +27,7 @@ class EndnoteRegistry:
 
     def register_document(self, doc_name: str, html_content: str | bytes) -> None:
         """Scan a document for potential footnote/endnote target elements with id or name."""
-        soup = BeautifulSoup(html_content, "html.parser")
+        soup = read_html(html_content)
 
         for el in soup.find_all(attrs={"id": True}):
             elem_id = el["id"]
@@ -54,6 +56,8 @@ class EndnoteRegistry:
                 a.decompose()
 
         text = clone.get_text(" ", strip=True)
+        # A note is one line, because a footnote of a chapter is one line in Markdown and in the reader (IN-06)
+        text = re.sub(r"\s*\n\s*", " ", text)
         # Strip leading numbers like "1. ", "1 ", "[1] "
         text = re.sub(r"^(?:\[\d+\]|\d+\.|\d+)\s*", "", text).strip()
         # Strip trailing back-reference indicators
