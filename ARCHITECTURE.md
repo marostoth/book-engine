@@ -106,7 +106,7 @@ book-engine/
 │       │   │   │   ├── PacerControls.tsx       # Pacer velocity, line sweep vs chunk underline, focus lock & direct launch button
 │       │   │   │   └── PracticeTab.tsx         # Chapter Gatekeeper, recall quota, daily target & deck sync
 │       │   │   ├── sidebar/         # Modular sidebar subcomponents
-│       │   │   │   └── TOCItemRow.tsx       # Hierarchical TOC tree item row
+│       │   │   │   └── TOCItemRow.tsx       # Hierarchical TOC tree item row; an entry opens its chapter file & paragraph, and an entry that no chapter holds is dimmed (CQ-01)
 │       │   │   ├── syntopicon/      # Modular Level 4 Syntopical Reading & Syntopicon components
 │       │   │   │   ├── ControversyModal.tsx # Rule 4 multi-author controversy and issue definition modal
 │       │   │   │   ├── IssueMatrixTab.tsx   # Rules 3 & 4 framed question feed & controversy matrix tab
@@ -131,7 +131,7 @@ book-engine/
 │       │   │   ├── Reader.tsx           # Virtualized TipTap chapter canvas with margin anchors; saves where you stopped once the scrolling stops; a chapter opens at its top
 │       │   │   ├── SelectionMenu.tsx    # Floating UI selection toolbar (Highlight, Note, Link)
 │       │   │   ├── SettingsPopover.tsx  # Reader preferences & Gatekeeper settings popover
-│       │   │   ├── Sidebar.tsx          # Hierarchical TOC & linear chapter navigation drawer
+│       │   │   ├── Sidebar.tsx          # Hierarchical TOC & linear chapter navigation drawer; a book whose contents open no chapter file shows its chapter list (CQ-01)
 │       │   │   └── TopNav.tsx           # Top navigation chrome, progress bar, view modes & themes
 │       │   ├── hooks/           # Modular application custom hooks
 │       │   │   ├── useAnalyticalModals.ts    # Level 3 modal open/close & staged target coordinator
@@ -219,6 +219,8 @@ book-engine/
 │       │   │   ├── searchQuery.test.ts  # Search length tests: 1 character does not search, spaces at the ends do not count
 │       │   │   ├── searchSnippet.ts     # Search result snippets as React text with a <mark> around each hit, so book text never becomes HTML (SEC-01)
 │       │   │   ├── searchSnippet.test.ts # Snippet tests: a tag in a result shows as text, each hit is marked and nothing else, a hit with no end marks the rest
+│       │   │   ├── tableOfContents.ts   # Contents entries: the chapter file & paragraph that each entry opens, never a chapter found by its title (CQ-01)
+│       │   │   ├── tableOfContents.test.ts # Contents tests: entries with the same title open their own chapters, an entry inside a chapter opens its paragraph, a PDF book opens the same chapters
 │       │   │   └── types.ts             # Canonical TypeScript interfaces & data contracts
 │       │   ├── App.tsx          # Application shell, global state coordinator & router
 │       │   ├── index.css        # Editorial design tokens, typography, and margin glyphs
@@ -320,7 +322,7 @@ book-engine/
 │       │   ├── cloze.py                 # Cloze (fill-in) cards: a marked term of a plain sentence, no small-word, number or label answers, prompts without marks or a second answer, and one card for a repeated term in a chapter without a marked term (LE-07)
 │       │   ├── elementary.py            # Deterministic Flesch-Kincaid & reading time metrics
 │       │   ├── endnotes.py              # Backmatter endnote relocation to inline footnotes
-│       │   ├── epub_parser.py           # XHTML chapter extractor & typography normalizer; book text that looks like HTML is written as text (SEC-01)
+│       │   ├── epub_parser.py           # XHTML chapter extractor & typography normalizer; book text that looks like HTML is written as text (SEC-01); a heading is one line, and the block where each element id starts is noted (CQ-01)
 │       │   ├── layout_stitcher.py       # Narrative sentence healing, layout reconciliation & callout hoisting
 │       │   ├── markdown_text.py         # Book text in chapter Markdown: a < or & that could be read as HTML is written as &lt; or &amp;, and read back (SEC-01)
 │       │   ├── models.py                # Pydantic schema validation for metadata and cards
@@ -332,6 +334,7 @@ book-engine/
 │       │   ├── salience.py              # Deterministic salience scorer & practice deck writer; re-exports the cloze and quiz card generators
 │       │   ├── sample_generator.py      # Starter sample generator for development
 │       │   ├── scenarios.py             # Quiz cards that ask which sentence comes right after a passage: wrong options from other paragraphs of the chapter, no near-copies, the right option spread over A to D (LE-06)
+│       │   ├── toc_links.py             # Links the EPUB contents to the import: each entry gets the chapter file that holds it & the paragraph where it starts (CQ-01)
 │       │   └── vector_figures.py        # Vector diagram rasterization, boundary stops & full-width section bounds
 │       ├── tests/               # Pytest verification suite for anchors, schemas, TOC, and pipeline
 │       │   ├── test_analytical_audit.py # Vector 9 analytical logic & citation parity test suite
@@ -340,6 +343,7 @@ book-engine/
 │       │   ├── test_book_id_rule.py     # Book id rule tests: every id the importer makes passes, an id that could leave its folder is refused
 │       │   ├── test_cloze_cards.py      # Cloze card tests: no small-word, number or label answer, no marks or second answer in the prompt, no card from a table or HTML, one card for a repeated term, and the audit refuses the old cards (LE-07)
 │       │   ├── test_endnotes.py         # Endnote relocation & inline footnote syntax test suite
+│       │   ├── test_epub_contents.py    # EPUB contents tests: full chapter titles, and each entry names the chapter file & paragraph where it starts, as in The Wealth of Nations (CQ-01)
 │       │   ├── test_figure_cards.py     # Figure extraction, full-width dimensions & table suppression tests
 │       │   ├── test_markdown_text.py    # Book text tests: a tag the book shows as text is written as text in every kind of block, and reads back as the book has it
 │       │   ├── test_meta_schema.py      # Book metadata, hierarchical TOC & schema validation tests
@@ -352,7 +356,8 @@ book-engine/
 │       │   ├── test_reimport.py         # Import stop tests: nothing changes, --force keeps the reader's files, the inbox keeps a stopped copy
 │       │   ├── test_salience.py         # Salience scoring & extractive cloze extraction tests
 │       │   ├── test_syntopicon_audit.py # Vector 10 syntopical cross-vault referential parity test suite
-│       │   └── test_toc.py              # Table of contents extraction & hierarchy tests
+│       │   ├── test_toc.py              # Table of contents extraction & hierarchy tests
+│       │   └── test_toc_links.py        # Contents link tests: the block & paragraph of each element, encoded and NCX-relative links, no guessed document (CQ-01)
 │       └── pyproject.toml       # Python package configuration and CLI entrypoints
 ├── scripts/
 │   └── create_desktop_shortcut.ps1 # One-click Windows desktop shortcut generator; an open app comes to the front, and no second copy starts
@@ -384,6 +389,12 @@ Anchors follow the format `^p-[0-9]{3,}` and are preserved across re-indexes.
 
 ### Hierarchical Spine Contract (_meta.json)
 The manifest models multi-level books (Parts -> Chapters -> Sections) with word counts, paths, and anchors. The importer makes this file and writes it again on every import, so it holds nothing the reader writes, and the app only reads it (DS-09).
+
+### Contents Open Files, Not Titles (`packages/ingestion/ingest/toc_links.py`)
+The contents of an EPUB book link to source documents and element ids, such as `part-2.xhtml#chapter-7`, which the vault does not have. The sidebar found the chapter of an entry by its title, and the import cut each chapter title at a line break in its heading. Every book of The Wealth of Nations starts again at "CHAPTER I.", so 21 of the 42 entries in the sidebar opened a chapter of Book I, and 2 opened nothing (CQ-01).
+- **Import:** each entry gets the chapter file that holds its document (`href`, such as `ch-16.md`) and the paragraph where it starts (`anchor`, such as `^p-012`). The converter notes the block where each element id starts. An entry at the top of a chapter gets no anchor. An entry whose document made no chapter, such as an endnote file, gets no file.
+- **Titles:** a heading is one line, so a chapter title keeps the words after a line break ("CHAPTER I. OF THE DIVISION OF LABOUR."), and the reader shows the heading as a heading, not as text with `##` marks.
+- **Sidebar:** an entry opens its file and its paragraph (`contentsTarget`, `apps/desktop/src/lib/tableOfContents.ts`). Titles are never compared. A part with no file opens its first sub-entry, and an entry that no chapter holds is dimmed and opens nothing. The contents of a book imported before this fix name source files, so the sidebar shows the chapter list of that book until it is imported again.
 
 ### Every Part of a PDF Book (`packages/ingestion/ingest/pdf_outline.py`)
 The PDF import used to keep only the pages from the first "Chapter N" entry of the PDF outline to the last one. A preface, an appendix, a glossary, a reference list and an index were never imported, a part with no chapter number such as "Conclusion" was lost, and a last chapter with sections in the outline was cut at its first section (IN-01: Kotler lost 155 of 769 pages, Dalton 40 of 370). Now `outline_parts` makes a part of every outline entry at the level of the chapters, and of every entry above that level that holds no chapter, with the sections inside it. An entry that holds chapters, such as "Part 1" or the book title, is not a part itself, but its pages before its first inner entry are. A part runs until the next part starts. The pages before the first part are not imported, and the import prints them (`Not imported: pages 1-2.`). Outline entries that start on the same page share one part, because a page cannot be split. The parts are `ch-01.md`, `ch-02.md` and so on in page order, as in an EPUB book, because the app opens only chapter files with these names (SEC-03).
@@ -577,6 +588,7 @@ App.tsx (Global state: reader settings with the theme, viewMode, activeBook, act
 - `src/lib/readerShortcuts.ts`: Gives every reader keyboard shortcut one owner, so one key press runs its action once. `appShortcut` is the App window listener (Ctrl+K or Cmd+K search, Alt+P pacer, ? or F1 Field Guide), and `elementaryCanvasShortcut` is the elementary canvas listener (`[` and `]` pacer speed, elementary level only). Alt+P, ? and F1 do nothing in inputs, textareas, and editable elements.
 - `src/lib/searchQuery.ts`: `isSearchable` tells the Omni-Search palette whether a typed search has at least `MIN_SEARCH_CHARACTERS` (2) characters. The backend (`src-tauri/src/db/search_query.rs`) uses the same minimum and finds nothing for a shorter search.
 - `src/lib/searchSnippet.ts`: A search result snippet is plain text with the private-use characters U+E000 and U+E001 (`HIT_START`, `HIT_END`) around each hit. `snippetParts` splits it into text and hits, and `snippetNodes` gives the search window React text with a `<mark>` around each hit, so book text never becomes HTML there (SEC-01). `src-tauri/src/db/search_text.rs` uses the same characters, and a Rust test checks that the two files agree.
+- `src/lib/tableOfContents.ts`: `contentsTarget` gives the chapter and the paragraph that an entry of the contents opens: the chapter file and the anchor that the import wrote into the entry, or for a part with no file the place of its first sub-entry (CQ-01). Titles are never compared, because chapters can share a title. `contentsOpenChapters` is false for a book imported before CQ-01, whose contents name source files, and the sidebar then shows the chapter list.
 - `src/lib/bionic.ts`: Deterministic Bionic reading transformer bolding the initial 40–50% of word tokens for eye fixation.
 - `src/lib/types.ts`: TypeScript contracts matching `BookMeta`, `ChapterMeta`, `TOCItem`, and theme definitions.
 

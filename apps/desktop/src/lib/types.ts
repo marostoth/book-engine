@@ -1,7 +1,11 @@
+/** An entry of the contents of a book. Open it with `contentsTarget` (`tableOfContents.ts`), never by its title (CQ-01). */
 export interface TOCItem {
   id: string;
   title: string;
+  /** The chapter file that holds the entry (`ch-07.md`), or "" when no chapter holds it. */
   href: string;
+  /** The paragraph where the entry starts (`^p-012`), or none for the top of the chapter. */
+  anchor?: string | null;
   level: number;
   subitems?: TOCItem[];
 }

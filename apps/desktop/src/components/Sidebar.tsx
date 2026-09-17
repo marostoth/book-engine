@@ -12,6 +12,7 @@ import { BookMeta, ChapterMeta, BookMetadata, TOCItem, ReadingLevelMode, Inspect
 import { BookSelector } from "./BookSelector";
 import type { LibraryRescanControl } from "../lib/libraryRescan";
 import { TOCItemRow } from "./sidebar/TOCItemRow";
+import { contentsOpenChapters, contentsTarget, type ContentsTarget } from "../lib/tableOfContents";
 import { Compass, BookCheck } from "lucide-react";
 
 interface SidebarProps {
@@ -23,7 +24,8 @@ interface SidebarProps {
   /** The "Rescan library" button of the book list (DS-13). */
   libraryRescan?: LibraryRescanControl;
   activeChapterId: string;
-  onSelectChapter: (chapter: ChapterMeta) => void;
+  /** Opens a chapter, at the paragraph `anchor` when given: an entry of the contents can start inside a chapter. */
+  onSelectChapter: (chapter: ChapterMeta, anchor?: string) => void;
   onOpenNotesDrawer?: () => void;
   activeLevel?: ReadingLevelMode;
   activeSubView?: InspectionalSubView;
@@ -56,33 +58,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }));
   };
 
-  const findChapterForTOC = useMemo(() => {
-    return (item: TOCItem): ChapterMeta | null => {
-      if (!bookMeta) return null;
-      const spine = bookMeta.spine;
-      const tTitle = item.title.trim().toLowerCase();
-
-      for (const ch of spine) {
-        if (ch.title.trim().toLowerCase() === tTitle) return ch;
-      }
-
-      for (const ch of spine) {
-        const cTitle = ch.title.trim().toLowerCase();
-        if (tTitle.startsWith(cTitle) || cTitle.startsWith(tTitle)) return ch;
-      }
-
-      if (item.subitems && item.subitems.length > 0) {
-        for (const sub of item.subitems) {
-          for (const ch of spine) {
-            const cTitle = ch.title.trim().toLowerCase();
-            const sTitle = sub.title.trim().toLowerCase();
-            if (sTitle.startsWith(cTitle) || cTitle.startsWith(sTitle)) return ch;
-          }
-        }
-      }
-
-      return null;
-    };
+  // An entry opens the chapter file and the paragraph that the import wrote into it. Many chapters can share a title,
+  // so titles are never compared (CQ-01).
+  const findTarget = useMemo(() => {
+    return (item: TOCItem): ContentsTarget | null => (bookMeta ? contentsTarget(item, bookMeta.spine) : null);
   }, [bookMeta]);
 
   const filteredSpine = useMemo(() => {
@@ -113,7 +92,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return results;
   }, [bookMeta, searchFilter]);
 
-  const hasNestedTOC = bookMeta?.toc && bookMeta.toc.length > 0;
+  // The contents of a book imported before CQ-01 name source files and open no chapter: its chapter list shows
+  const hasNestedTOC = Boolean(bookMeta && contentsOpenChapters(bookMeta.toc ?? [], bookMeta.spine));
 
   return (
     <aside
@@ -226,12 +206,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <TOCItemRow
                 key={item.id}
                 item={item}
-                matchedCh={findChapterForTOC(item)}
+                target={findTarget(item)}
                 activeChapterId={activeChapterId}
                 isCollapsed={Boolean(collapsedSections[item.id])}
                 onToggleSection={toggleSection}
                 onSelectChapter={onSelectChapter}
-                findChapterForTOC={findChapterForTOC}
+                findTarget={findTarget}
               />
             ))}
           </div>

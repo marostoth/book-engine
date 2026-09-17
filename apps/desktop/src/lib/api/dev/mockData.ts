@@ -21,8 +21,8 @@ export const FALLBACK_META: BookMeta = {
       href: "",
       level: 1,
       subitems: [
-        { id: "ch01_xhtml", title: "Chapter 1: Consistency Models", href: "ch01.xhtml", level: 2 },
-        { id: "ch02_xhtml", title: "Chapter 2: State Machine Replication", href: "ch02.xhtml", level: 2 },
+        { id: "ch01_xhtml", title: "Chapter 1: Consistency Models", href: "ch-01.md", level: 2 },
+        { id: "ch02_xhtml", title: "Chapter 2: State Machine Replication", href: "ch-02.md", level: 2 },
       ],
     },
   ],

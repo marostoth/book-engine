@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 import json
+import posixpath
 import re
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 from bs4 import BeautifulSoup
 import ebooklib
 from ebooklib import epub
@@ -19,6 +20,7 @@ from ingest.epub_parser import extract_metadata, parse_toc, html_to_markdown_blo
 from ingest.markdown_text import unescape_markdown_text
 from ingest.pdf_parser import PDFParser
 from ingest.reimport import check_book_can_be_imported
+from ingest.toc_links import ImportedDocument, element_anchors, link_toc_to_chapters
 
 
 def ingest_epub(
@@ -75,6 +77,8 @@ def ingest_epub(
     all_clean_text: List[str] = []
     total_words = 0
     chapter_index = 1
+    # The chapter file and the paragraphs of each imported source document, for the links of the contents (CQ-01)
+    imported_documents: Dict[str, ImportedDocument] = {}
 
     # Detect dedicated endnote files to avoid emitting them as separate empty chapters
     endnote_file_patterns = re.compile(r"(?:endnotes?|backmatter|footnotes?|notes)\.x?html?$", re.IGNORECASE)
@@ -102,8 +106,9 @@ def ingest_epub(
         # Relocate footnotes
         footnotes = relocate_chapter_footnotes(soup, item_name, registry)
 
-        # Convert HTML to Markdown blocks
-        blocks = html_to_markdown_blocks(soup)
+        # Convert HTML to Markdown blocks, and note the block where each element starts
+        element_blocks: Dict[str, int] = {}
+        blocks = html_to_markdown_blocks(soup, element_blocks)
         if not blocks:
             continue
 
@@ -135,6 +140,10 @@ def ingest_epub(
         ch_filename = f"{ch_id}.md"
         ch_path = book_dir / ch_filename
         ch_path.write_text(anchored_md, encoding="utf-8")
+        imported_documents[posixpath.normpath(item_name)] = ImportedDocument(
+            chapter_file=ch_filename,
+            element_anchors=element_anchors(normalized_blocks[: len(blocks)], element_blocks, anchored_md),
+        )
 
         # Determine first and last anchors
         anchors_list = extract_anchors(anchored_md)
@@ -169,6 +178,9 @@ def ingest_epub(
         all_scenarios.extend(generate_chapter_scenario_cards(anchored_md, ch_id, max_items=3))
 
         chapter_index += 1
+
+    # The contents open chapter files and paragraphs of the vault, not the source documents of the EPUB (CQ-01)
+    link_toc_to_chapters(toc_items, imported_documents)
 
     # Aggregate elementary metrics
     elementary_metrics = compute_elementary_metrics(" ".join(all_clean_text))
