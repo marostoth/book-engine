@@ -16,6 +16,14 @@ export const readerExtensions: Extensions = [
     heading: {
       levels: [1, 2, 3, 4, 5, 6],
     },
+    // The starter kit of TipTap 3 holds 4 more parts, which the reader does not use (SEC-05). A chapter file has no
+    // link and no underline, because `markdownInline.ts` keeps only the words of a link (RD-03). The list keys and the
+    // trailing node are for writing: the trailing node would add an empty paragraph to a chapter that ends with a
+    // table or a list.
+    link: false,
+    underline: false,
+    listKeymap: false,
+    trailingNode: false,
   }),
   BlockAnchors,
   FootnoteRef,

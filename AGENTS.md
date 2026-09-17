@@ -44,7 +44,8 @@ You are acting as a Principal Systems & Frontend Engineer specializing in local-
 - **Pinned Versions:** Install the dependencies from `packages/ingestion/requirements.lock`. When you change a version, change the lock, run `pytest packages/ingestion/tests`, and compare the files of a real book that you import before and after the change (IN-05).
 
 ### TypeScript / Frontend
-- **Tooling:** React 18+, TipTap/ProseMirror, Tailwind CSS, Floating UI.
+- **Tooling:** React 18+, TipTap 3 / ProseMirror, Tailwind CSS, Floating UI.
+- **Editor Library:** Keep every `@tiptap/*` package at the same version, 3.30.4 or later, the first version without the `__proto__` hole of `mergeAttributes` (GHSA-cp6q-959q-f8rh, SEC-05). After a change, `cd apps/desktop && npm audit` must find nothing. The reader takes from the starter kit only the parts that a chapter file uses, so `readerExtensions.ts` turns off a new part of a newer kit; `src/lib/readerEditor.test.ts` fails when the reader gets another node, mark or part.
 - **Typing:** Strict mode enabled (`noImplicitAny: true`, `strictNullChecks: true`).
 - **Editor:** Markdown AST transformations must occur through headless custom nodes.
 - **Chapter Documents:** The reader shows a chapter as a document of the nodes in `readerExtensions` (`components/reader/readerExtensions.ts`). `parseChapterMarkdown` (`lib/markdown.ts`) makes it from markdown-it tokens, block by block, and the first node of each block keeps the anchor of the block. Never build chapter HTML as a string. A new kind of block or tag in a chapter file needs a node or a mark there, and a test that shows it in a document that fits the reader's nodes (RD-03).
