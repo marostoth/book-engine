@@ -19,6 +19,7 @@ from ingest.salience import (
     generate_chapter_practice_cards,
     generate_chapter_scenario_cards,
 )
+from ingest.glyph_repair import repair_glyph_maps
 from ingest.pdf_sanitizer import clean_author_metadata, generate_pdf_slug, sanitize_pdf_markdown
 from ingest.assets import (
     filter_and_normalize_markdown_assets,
@@ -65,6 +66,11 @@ class PDFParser:
         if total_pages == 0:
             doc.close()
             raise ValueError(f"PDF document {self.pdf_path.name} contains 0 pages.")
+
+        # A font that names its maths characters wrongly is corrected before any text is read, so an
+        # "=" does not come out as a "1/4" (CQ-02). The file on disk is not touched.
+        for line in repair_glyph_maps(doc):
+            print(f"[*] Character map repaired: {line}")
 
         # Extract title and author metadata
         raw_title = doc.metadata.get("title") or self.pdf_path.stem

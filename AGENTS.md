@@ -36,6 +36,7 @@ You are acting as a Principal Systems & Frontend Engineer specializing in local-
 ### Python (Ingestion Pipeline)
 - **Tooling:** Python 3.11+, `mypy` strict mode, `pytest`.
 - **Parsing:** `ebooklib` + `beautifulsoup4` for EPUBs, `pymupdf4llm` for PDFs, `pydantic` for schema validation.
+- **A Formula Says What the Book Says:** A symbol font can name its characters wrongly, so an "=" comes out as a "1/4" and an "x" as a broken character. `repair_glyph_maps` (`ingest/glyph_repair.py`) gives such a font a correct map in the open document before any text is read, and `ingest/pdf_parser.py` calls it right after it opens the file. A new bad font needs an entry in `FONT_GLYPHS` and `FONT_CODES`, and you prove each glyph by cutting it out of the page as a picture, never by guessing. A chapter that still holds a broken character fails the book check, so it never reaches the vault (CQ-02).
 - **Determinism:** Normalization must be idempotent. Re-running ingestion on the same file must generate identical Markdown and paragraph anchors.
 - **Line Endings:** Parse an EPUB document with `read_html` and write every vault text file with `write_text_file` (`ingest/line_endings.py`), so vault files have `\n` line endings on every system (IN-06).
 - **EPUB Text:** Write each kind of XHTML element in `html_to_markdown_blocks` (`ingest/epub_parser.py`). A block of a chapter file never holds a blank line, a paragraph is one line, and only a link to a note becomes a footnote (`ingest/endnotes.py`, IN-02).
