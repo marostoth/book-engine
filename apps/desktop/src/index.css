@@ -207,6 +207,30 @@ body.theme-nord ::selection {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
 }
 
+/* Lists and tables of a book (RD-03): a paragraph inside keeps the size of its item or cell */
+.reader-prose li > p {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.reader-prose th,
+.reader-prose td {
+  padding: 0.4rem 0.6rem;
+  vertical-align: top;
+}
+
+.reader-prose th {
+  text-align: start;
+  font-weight: 600;
+}
+
+.reader-prose th > p,
+.reader-prose td > p {
+  margin: 0;
+  text-align: inherit;
+  hyphens: manual;
+}
+
 /* Footnote callout pills */
 .footnote-callout {
   display: inline-flex;
@@ -233,8 +257,12 @@ body.theme-nord ::selection {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
-/* Subtle Muted Paragraph Anchor Margin Glyph */
-.reader-prose p[data-anchor]::before {
+/* Subtle Muted Paragraph Anchor Margin Glyph, on every block with an anchor (RD-03) */
+.reader-prose [data-anchor] {
+  position: relative;
+}
+
+.reader-prose [data-anchor]::before {
   content: "§";
   position: absolute;
   left: -1.75rem;
@@ -250,7 +278,7 @@ body.theme-nord ::selection {
   pointer-events: none;
 }
 
-.reader-prose p[data-anchor]:hover::before {
+.reader-prose [data-anchor]:hover::before {
   opacity: 0.55;
   color: var(--theme-accent);
   transform: translateX(0);

@@ -1,3 +1,4 @@
+import type { JSONContent } from "@tiptap/core";
 import type { HighlightItem } from "./types";
 // The .ts extension lets the Node test runner load this module (highlights.test.ts).
 import { toAnchorAttribute } from "./anchors.ts";
@@ -108,17 +109,18 @@ function jsonArrayEnd(text: string): number {
   return -1;
 }
 
-/** Text of one rendered paragraph and the `data-anchor` of the nearest element at or above it. */
+/** Text of one paragraph of the chapter and the anchor of the nearest block at or above it. */
 export interface ParagraphCandidate {
   anchor: string | null;
   text: string;
 }
 
 /**
- * Picks the paragraph for a highlight: the paragraph with the highlight's anchor when it still
+ * Picks the paragraph for a highlight: the first paragraph with the highlight's anchor that still
  * contains the quote, otherwise the first paragraph that contains the quote. Returns -1 when no
  * paragraph contains it. The saved anchor (`^p-001`) and the HTML attribute (`p-001`) are
- * compared in one form.
+ * compared in one form. A list, a table or a quote is one block with one anchor and a paragraph
+ * in each item, cell or line (RD-03).
  */
 export function findHighlightParagraph(
   paragraphs: ParagraphCandidate[],
@@ -131,8 +133,8 @@ export function findHighlightParagraph(
 
   const anchor = toAnchorAttribute(highlight.anchor);
   if (anchor) {
-    const anchored = paragraphs.findIndex((p) => toAnchorAttribute(p.anchor) === anchor);
-    if (anchored !== -1 && containsQuote(paragraphs[anchored].text)) {
+    const anchored = paragraphs.findIndex((p) => toAnchorAttribute(p.anchor) === anchor && containsQuote(p.text));
+    if (anchored !== -1) {
       return anchored;
     }
   }
@@ -141,64 +143,88 @@ export function findHighlightParagraph(
 }
 
 /**
- * Hydrates and injects highlight marks into chapter HTML with fuzzy recovery.
+ * Puts a highlight mark on the text of each highlight in a chapter document. The reader shows a document since RD-03,
+ * and this does what the HTML version did: the mark goes on the first piece of text in the paragraph from
+ * `findHighlightParagraph` that holds the whole quote, or in the whole chapter when no paragraph holds it. A quote
+ * that runs over bold text, a footnote marker or two list items finds no such piece and gets no mark (RD-02).
  */
-export function applyHighlightsToHtml(html: string, highlights: HighlightItem[]): string {
-  if (!highlights.length) return html;
+export function applyHighlightsToDoc(doc: JSONContent, highlights: HighlightItem[]): JSONContent {
+  if (!highlights.length) return doc;
 
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, "text/html");
-  const paragraphs = Array.from(doc.querySelectorAll("p"));
-  const candidates: ParagraphCandidate[] = paragraphs.map((p) => ({
-    anchor: p.closest("[data-anchor]")?.getAttribute("data-anchor") ?? null,
-    text: p.textContent || "",
-  }));
+  const marked: JSONContent = structuredClone(doc);
+  const paragraphs = paragraphsOf(marked, null);
+  const candidates: ParagraphCandidate[] = paragraphs.map(({ node, anchor }) => ({ anchor, text: textOf(node) }));
 
   for (const hl of highlights) {
     const index = findHighlightParagraph(candidates, hl);
     if (index !== -1) {
-      highlightInElement(paragraphs[index], hl);
-    } else if ((doc.body.textContent || "").includes(hl.exact)) {
+      markFirstText(paragraphs[index].node, hl);
+    } else if (textOf(marked).includes(hl.exact)) {
       // Global fallback search
-      highlightInElement(doc.body, hl);
+      markFirstText(marked, hl);
     }
   }
 
-  return doc.body.innerHTML;
+  return marked;
 }
 
-function highlightInElement(el: Element, hl: HighlightItem) {
-  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-  let currentNode: Node | null = walker.nextNode();
+/** Every paragraph of `node`, in order, with the anchor of the nearest block at or above it. */
+function paragraphsOf(
+  node: JSONContent,
+  anchor: string | null,
+  found: { node: JSONContent; anchor: string | null }[] = []
+): { node: JSONContent; anchor: string | null }[] {
+  const nearest = typeof node.attrs?.anchor === "string" ? node.attrs.anchor : anchor;
+  if (node.type === "paragraph") found.push({ node, anchor: nearest });
+  for (const child of node.content ?? []) paragraphsOf(child, nearest, found);
+  return found;
+}
 
-  while (currentNode) {
-    const text = currentNode.textContent || "";
-    const idx = text.indexOf(hl.exact);
+/** The text that the reader shows for `node`. A footnote marker shows its number in brackets. */
+function textOf(node: JSONContent): string {
+  if (node.type === "text") return node.text ?? "";
+  if (node.type === "footnoteRef") return footnoteLabel(node);
+  return (node.content ?? []).map(textOf).join("");
+}
 
-    if (idx !== -1) {
-      const parent = currentNode.parentNode;
-      if (!parent || (parent as HTMLElement).tagName === "MARK") {
-        currentNode = walker.nextNode();
-        continue;
-      }
+function footnoteLabel(node: JSONContent): string {
+  const fnId = node.attrs?.fnId || "1";
+  return `[${node.attrs?.number || fnId}]`;
+}
 
-      const before = text.slice(0, idx);
-      const match = text.slice(idx, idx + hl.exact.length);
-      const after = text.slice(idx + hl.exact.length);
-
-      const mark = document.createElement("mark");
-      mark.className = "w3c-highlight bg-amber-200/70 dark:bg-amber-400/30 text-inherit rounded px-0.5 transition-colors";
-      mark.setAttribute("data-hl-id", hl.id);
-      mark.textContent = match;
-
-      const fragment = document.createDocumentFragment();
-      if (before) fragment.appendChild(document.createTextNode(before));
-      fragment.appendChild(mark);
-      if (after) fragment.appendChild(document.createTextNode(after));
-
-      parent.replaceChild(fragment, currentNode);
-      break;
+/**
+ * Marks the first text in `node` that holds the whole quote and has no highlight yet, and returns true once such text
+ * is found. Text in code, and the number of a footnote marker, can hold no mark, so a quote found there shows none.
+ */
+function markFirstText(node: JSONContent, hl: HighlightItem): boolean {
+  if (node.type === "footnoteRef") return footnoteLabel(node).includes(hl.exact);
+  const children = node.content ?? [];
+  for (let index = 0; index < children.length; index++) {
+    const child = children[index];
+    if (child.type !== "text") {
+      if (markFirstText(child, hl)) return true;
+      continue;
     }
-    currentNode = walker.nextNode();
+    const text = child.text ?? "";
+    const marks = child.marks ?? [];
+    const at = text.indexOf(hl.exact);
+    if (at === -1 || marks.some((mark) => mark.type === "highlight")) continue;
+    if (node.type !== "codeBlock" && !marks.some((mark) => mark.type === "code")) {
+      children.splice(
+        index,
+        1,
+        ...textPieces(text.slice(0, at), marks),
+        ...textPieces(hl.exact, [...marks, { type: "highlight" }]),
+        ...textPieces(text.slice(at + hl.exact.length), marks)
+      );
+    }
+    return true;
   }
+  return false;
+}
+
+/** A text node with `marks`, or none for empty text. */
+function textPieces(text: string, marks: JSONContent["marks"]): JSONContent[] {
+  if (!text) return [];
+  return [marks && marks.length ? { type: "text", text, marks } : { type: "text", text }];
 }

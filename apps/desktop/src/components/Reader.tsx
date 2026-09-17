@@ -1,17 +1,15 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import Highlight from "@tiptap/extension-highlight";
-import Image from "@tiptap/extension-image";
 import { parseChapterMarkdown } from "../lib/markdown";
+import { resolveAssetUrl } from "../lib/api";
 import { applyBionicReading } from "../lib/bionic";
-import { applyHighlightsToHtml } from "../lib/highlights";
+import { applyHighlightsToDoc } from "../lib/highlights";
 import { toAnchorAttribute } from "../lib/anchors";
 import { createPlaceWatcher, paragraphAtMiddle, type ChapterRef } from "../lib/readingPlace";
 import { FootnoteItem, HighlightItem, ReaderPreferences } from "../lib/types";
 import { FootnotePopover } from "./FootnotePopover";
 import { SelectionMenu } from "./SelectionMenu";
-import { AnchorParagraph, FootnoteRef } from "./reader/TipTapExtensions";
+import { readerExtensions } from "./reader/readerExtensions";
 import { ElementaryCanvas } from "./elementary/ElementaryCanvas";
 import { LexiconPopover } from "./elementary/LexiconPopover";
 import { useReaderSelection } from "./reader/useReaderSelection";
@@ -128,26 +126,7 @@ export const Reader: React.FC<ReaderProps> = ({
 
   // Single-Chapter Virtualization: Mounts TipTap for only the current chapter
   const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        heading: {
-          levels: [1, 2, 3, 4, 5, 6],
-        },
-        paragraph: false,
-      }),
-      AnchorParagraph,
-      FootnoteRef,
-      Image.configure({
-        inline: true,
-        allowBase64: true,
-        HTMLAttributes: {
-          class: "reader-image mx-auto my-6 rounded-lg shadow-md max-w-full border border-stone-200 dark:border-stone-800",
-        },
-      }),
-      Highlight.configure({
-        multicolor: true,
-      }),
-    ],
+    extensions: readerExtensions,
     editorProps: {
       attributes: {
         class:
@@ -190,22 +169,23 @@ export const Reader: React.FC<ReaderProps> = ({
   // the place where you stopped, runs after this.
   const chapterAtTop = useRef<ChapterRef | null | undefined>(undefined);
 
-  // Parse markdown, extract footnotes, resolve asset URLs, and inject into TipTap
+  // Parse the chapter Markdown into a document of reader nodes, with the footnotes and the addresses of its pictures,
+  // and show it in TipTap. The reader gets no HTML from a chapter file (RD-03).
   useEffect(() => {
     if (!editor || !markdown) return;
 
-    const parsed = parseChapterMarkdown(markdown, bookId, vaultPath);
+    const parsed = parseChapterMarkdown(markdown, (src) => (bookId ? resolveAssetUrl(bookId, src, vaultPath) : src));
     setFootnotes(parsed.footnotes);
 
-    let html = parsed.html;
+    let doc = parsed.doc;
     if (isBionic) {
-      html = applyBionicReading(html);
+      doc = applyBionicReading(doc);
     }
     if (highlights && highlights.length > 0) {
-      html = applyHighlightsToHtml(html, highlights);
+      doc = applyHighlightsToDoc(doc, highlights);
     }
 
-    editor.commands.setContent(html);
+    editor.commands.setContent(doc);
     placeWatcher.shown(markdownSource ?? null);
     if (chapterAtTop.current !== markdownSource) {
       chapterAtTop.current = markdownSource;

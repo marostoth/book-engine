@@ -96,7 +96,9 @@ book-engine/
 │       │   │   │   ├── ScenarioCardView.tsx # Quiz card drill: which sentence comes right after the passage, with shuffled options (LE-06)
 │       │   │   │   └── ScrambleDrill.tsx    # Drag/click scrambled clause reconstruction drill
 │       │   │   ├── reader/          # Modular TipTap custom extensions & reader hooks
-│       │   │   │   ├── TipTapExtensions.ts  # AnchorParagraph & FootnoteRef custom Prosemirror nodes
+│       │   │   │   ├── TableExtensions.ts   # Table, row, header cell & cell nodes; a cell keeps the alignment of its column (RD-03)
+│       │   │   │   ├── TipTapExtensions.ts  # BlockAnchors on every anchored block, the superscript mark & the FootnoteRef node
+│       │   │   │   ├── readerExtensions.ts  # The reader's nodes & marks: every chapter document is made of these (RD-03)
 │       │   │   │   └── useReaderSelection.ts # Text selection, highlights, anchor detection & lexicon de-confliction
 │       │   │   ├── settings/        # Modular reader settings tabs
 │       │   │   │   ├── ElementaryTab.tsx       # Level 1 Elementary Reading shell & settings tab
@@ -175,19 +177,24 @@ book-engine/
 │       │   │   ├── apiFailures.test.ts  # API tests: inside the app, every failed backend call rejects; empty answers stay empty
 │       │   │   ├── backendErrors.ts     # Error bar store: failed loads and saves, repeats counted, newest 5 kept
 │       │   │   ├── backendErrors.test.ts # Error bar tests: a repeated failure raises its count; Tauri rejection values become text
-│       │   │   ├── bionic.ts            # Deterministic bionic fixation bolding transformer
+│       │   │   ├── bionic.ts            # Bionic reading on a chapter document: the first letters of each word bold, not in code or superscripts
+│       │   │   ├── bionic.test.ts       # Bionic tests: lists, tables and quotes get fixations; code, superscripts & footnote markers stay
 │       │   │   ├── chapterGate.ts       # Pure Chapter Gatekeeper rules: which chapter moves are gated, which gate runs pass
 │       │   │   ├── chapterGate.test.ts  # Gate tests: later chapters only, every level but syntopical, wrong answers never pass
 │       │   │   ├── elementaryPacer.ts      # Pure pacer timing, chunking, and contrast opacity functions
 │       │   │   ├── elementaryPacer.test.ts # Unit tests for pacer timing, chunking, and contrast math
 │       │   │   ├── exitAssessment.ts    # The exit assessment of the open book: read from the reader's notes, shown at once when saved, never saved over one that could not be read
 │       │   │   ├── exitAssessment.test.ts # Exit assessment tests: a save shows with no reload, an unreadable assessment is not saved over, a late answer changes nothing
-│       │   │   ├── highlights.ts        # W3C Text Quote Selector reader, paragraph placement & old-comment parser (finds the JSON list, not the first `-->`)
-│       │   │   ├── highlights.test.ts   # Highlight tests: a saved anchor brings each highlight back to its own paragraph
+│       │   │   ├── highlights.ts        # W3C Text Quote Selector reader, highlight marks in a chapter document & old-comment parser (finds the JSON list, not the first `-->`)
+│       │   │   ├── highlights.test.ts   # Highlight tests: a saved anchor brings each highlight back to its own paragraph, also in a list or a table
 │       │   │   ├── libraryRescan.ts     # "Rescan library": reads the library again, then updates search; the note names the new books and counts the files that search could not read
 │       │   │   ├── libraryRescan.test.ts # Rescan tests: a book imported while the app is open shows in the list, and search is updated
 │       │   │   ├── levelGuideData.ts    # Mortimer Adler levels static cheatsheet & hotkeys registry
-│       │   │   ├── markdown.ts          # Chapter Markdown preprocessor & anchor normalizer
+│       │   │   ├── markdown.ts          # Chapter Markdown as a document of reader nodes: the blocks of the import, their anchors & the footnote texts (RD-03)
+│       │   │   ├── markdown.test.ts     # Reader tests: lists, tables, superscripts, quotes & code show as such, each block keeps its anchor, no book text becomes HTML
+│       │   │   ├── markdownInline.ts    # Inline tokens as reader nodes: tags as marks, footnote markers, white space as a browser shows it (RD-03)
+│       │   │   ├── markdownNodes.ts     # The markdown-it parser & the block tokens of one block as reader nodes: lists, tables, quotes, code (RD-03)
+│       │   │   ├── markdownTables.ts    # No lost table words: the text after the last row of a PDF table, and cells beyond the header (RD-03)
 │       │   │   ├── notesAggregator.ts   # Cross-chapter note aggregation, anchor sorting & summary compiler
 │       │   │   ├── notesAutosave.ts     # Chapter notes autosave: one save per typing pause, one when the chapter closes, and one now
 │       │   │   ├── notesAutosave.test.ts # Autosave tests: the words go into the chapter they were typed in
@@ -408,7 +415,7 @@ The app reads the HTML that a chapter file holds: the reader shows it, and searc
 The converter wrote only some kinds of blocks, and only in some layouts: a `<pre>`, a `<figure>`, an `<aside>` and a `<dl>` vanished, text before a paragraph in a box was lost, a `<br>` ran words together ("Poem line onePoem line two"), and a chapter title in a `<header>` was lost (IN-02). Now `html_to_markdown_blocks` writes every text that a browser shows:
 - **Blocks:** a container, such as `<div>`, `<aside>`, `<figure>` or `<header>`, gives the blocks inside it, and text between two blocks is a paragraph. A term of a definition list is a paragraph in bold, a table caption is a paragraph, and an inner list is indented below its item.
 - **One Line:** a paragraph is one line, because a browser shows a line break of the book file as a space. A `<br>` stays a `<br>` tag, which the reader shows as a line break (a space in a heading). Words at the edge of a block or of a bold mark stay apart, and a comment of the book file is no text.
-- **Preformatted Text:** a `<pre>` block keeps the lines and the spaces of the book, and the reader shows it as a code block. A blank line ends a block of a chapter file, so a blank line inside it is `&#10;`. `*`, a backtick, `[` and a `#` at the start of a line are character references, so the reader finds no Markdown in it. Until RD-03, the reader shows an empty line above and below it.
+- **Preformatted Text:** a `<pre>` block keeps the lines and the spaces of the book, and the reader shows it as a code block. A blank line ends a block of a chapter file, so a blank line inside it is `&#10;`. `*`, a backtick, `[` and a `#` at the start of a line are character references, so the reader finds no Markdown in it. The reader shows the characters of these references, with no empty line above and below the code block (RD-03).
 - **Left Out:** the navigation of the book, and the header and the license that Project Gutenberg adds to its books (class `pg-boilerplate`), as the owner chose.
 - **The Wealth of Nations:** a new import gives the same chapters, titles, contents and text. A number table that the old import cut into pieces at its blank lines is one paragraph now, so later anchor numbers in chapters 14, 34, 36 and 37 go down, and one card of chapter 7 is a whole sentence now.
 
@@ -622,7 +629,7 @@ App.tsx (Global state: reader settings with the theme, viewMode, activeBook, act
 **Supporting Utilities:**
 - `src/lib/api.ts`: Tauri IPC wrappers. Every call goes through `callBackend` (`src/lib/api/clientBase.ts`): inside the app, a failed command rejects with the backend error, and an empty answer stays empty. Only a dev build in a browser (`npm run dev`) answers, from the stand-in in `src/lib/api/dev/`. The stand-in loads through a dynamic import behind `import.meta.env.DEV`, so a production build does not contain it.
 - `src/lib/backendErrors.ts`: The error bar store. `reportBackendError` adds a failed load or save (the same action with the same error again only raises its count, and the newest 5 stay), and `errorText` turns a Tauri rejection value (a string or an `AppError` object) into text for `BackendErrorBar.tsx`.
-- `src/lib/markdown.ts`: Pre-processes chapter Markdown into TipTap HTML, separating footnote definitions and injecting interactive anchors (`data-anchor="p-xxx"`, the attribute form of `^p-xxx`) and footnote markers (`data-fn="n"`).
+- `src/lib/markdown.ts`: Parses chapter Markdown into a document of the reader's nodes with markdown-it (`src/lib/markdownNodes.ts`, `markdownInline.ts` and `markdownTables.ts`), block by block. It separates the footnote texts, gives the first node of each block the anchor of the block (`data-anchor="p-xxx"`, the attribute form of `^p-xxx`), and makes each footnote marker a footnote node (`data-fn="n"`) (RD-03).
 - `src/lib/anchors.ts`: Converts paragraph anchors between the saved form (`^p-xxx`) and the HTML attribute form (`p-xxx`) with `toSavedAnchor` and `toAnchorAttribute`.
 - `src/lib/readerLoads.ts`: Loads a book at the place where the reader stopped (`loadBookOnto`) or a chapter (`loadChapterOnto`) onto the reader. Every load takes a ticket from `createLoadGuard`, and only the newest ticket may show its answer, report its failure, or name the chapter a new highlight belongs to. The reader is emptied the moment a chapter opens.
 - `src/lib/readingPlace.ts`: Where the reader stopped. `openingPlace` gives the chapter and paragraph a book opens at (its first chapter when the saved chapter is gone), `startingBookId` the book the app opens with (the newest bookmark, then the book an older version kept in browser storage, then the first book), `paragraphAtMiddle` the paragraph a place is saved at, `createPlaceWatcher` reports the place a second after the scrolling stops, for the chapter whose words are on screen, and `createBookmarkKeeper` never saves over a bookmark that could not be read. A jump into a chapter that has just opened lands at once; a jump inside the open chapter scrolls there.
@@ -638,7 +645,7 @@ App.tsx (Global state: reader settings with the theme, viewMode, activeBook, act
 - `src/lib/searchQuery.ts`: `isSearchable` tells the Omni-Search palette whether a typed search has at least `MIN_SEARCH_CHARACTERS` (2) characters. The backend (`src-tauri/src/db/search_query.rs`) uses the same minimum and finds nothing for a shorter search.
 - `src/lib/searchSnippet.ts`: A search result snippet is plain text with the private-use characters U+E000 and U+E001 (`HIT_START`, `HIT_END`) around each hit. `snippetParts` splits it into text and hits, and `snippetNodes` gives the search window React text with a `<mark>` around each hit, so book text never becomes HTML there (SEC-01). `src-tauri/src/db/search_text.rs` uses the same characters, and a Rust test checks that the two files agree.
 - `src/lib/tableOfContents.ts`: `contentsTarget` gives the chapter and the paragraph that an entry of the contents opens: the chapter file and the anchor that the import wrote into the entry, or for a part with no file the place of its first sub-entry (CQ-01). Titles are never compared, because chapters can share a title. `contentsOpenChapters` is false for a book imported before CQ-01, whose contents name source files, and the sidebar then shows the chapter list.
-- `src/lib/bionic.ts`: Deterministic Bionic reading transformer bolding the initial 40–50% of word tokens for eye fixation.
+- `src/lib/bionic.ts`: Bionic reading on a chapter document: the first 40–50% of the letters of each word are bold, as a fixation point for the eye. Code, superscripts and footnote markers stay as they are.
 - `src/lib/types.ts`: TypeScript contracts matching `BookMeta`, `ChapterMeta`, `TOCItem`, and theme definitions.
 
 ### Editorial Design System & Tokens
@@ -756,17 +763,17 @@ Older chapters kept the same list inside a `<!-- highlights-json ... -->` commen
 
 The list is read from the `[` that opens it to the `]` that closes it, counting brackets but not those inside a quoted string, and never to the first `-->`. A saved quote may itself hold `-->`, and stopping there cut the list in half, so every highlight of that chapter read as none and the next save wrote only the new one (DS-06). The same scan finds where the comment really ends, so the clean-up removes all of it. A comment whose list still cannot be read, for example after a hand edit that deletes a comma, is left alone and gives an error: nothing is moved, nothing is removed.
 
-**Fuzzy Hydration & TreeWalker Injection Algorithm (`applyHighlightsToHtml`):**
-When a chapter HTML payload is prepared for mounting into TipTap:
+**Fuzzy Hydration & Mark Algorithm (`applyHighlightsToDoc`):**
+When a chapter document is prepared for TipTap:
 1. `getChapterHighlights`: Reads the `HighlightItem[]` list of the chapter from its highlights file.
-2. `Paragraph Resolution` (`findHighlightParagraph`): For each highlight, converts the saved anchor (`^p-xxx`) to the attribute form with `toAnchorAttribute` and uses the paragraph with `data-anchor="p-xxx"` when it still contains the quote. If the anchor is absent or its paragraph no longer contains the quote, falls back to the first candidate `<p>` element that contains it.
+2. `Paragraph Resolution` (`findHighlightParagraph`): For each highlight, converts the saved anchor (`^p-xxx`) to the attribute form with `toAnchorAttribute` and uses the first paragraph of the block with that anchor that still contains the quote. A list, a table and a quote are one block with a paragraph in each item, cell or line (RD-03). If the anchor is absent or no paragraph of its block contains the quote, falls back to the first paragraph that contains it.
 3. `Fuzzy Recovery Pass`:
    - Checks verbatim match: `pText.includes(hl.exact)`.
    - If verbatim match fails (e.g. whitespace or punctuation slightly edited externally), executes relaxed normalization: `text.replace(/\s+/g, " ")`.
-4. `Non-Destructive TreeWalker DOM Injection`:
-   - Uses `document.createTreeWalker(el, NodeFilter.SHOW_TEXT)` to locate the precise text node containing `hl.exact` without traversing existing `<mark>` elements.
-   - Slices the text node into `before`, `match`, and `after`.
-   - Inserts `<mark class="w3c-highlight ..." data-hl-id="hl-xxx">` containing the match and replaces the target text node within a `DocumentFragment`, preserving adjacent inline nodes (such as footnote markers `[^n]`).
+4. `Mark in the Document`:
+   - Finds the first text in the paragraph (or in the whole chapter, when no paragraph contains the quote) that contains `hl.exact` and has no highlight mark yet.
+   - Slices that text into `before`, `match`, and `after`.
+   - Gives the match a highlight mark next to the marks it already has, and keeps the nodes around it (such as footnote markers `[^n]`). Text in code can hold no other mark, so a quote found there shows no highlight.
 
 ### Omni-Search Command Palette (`apps/desktop/src/components/OmniSearchModal.tsx`)
 - **Keyboard-Driven Interaction:** Global listener toggles modal via `Ctrl + K` (Windows/Linux) or `Cmd + K` (macOS), with Arrow keys for selection, `Enter` to navigate, and `Escape` to dismiss.
@@ -804,11 +811,21 @@ The backend scans `vault/books/` dynamically on startup and command invocation, 
 - At startup the app opens the book of the newest `vault/notes/<book-id>/bookmark.json` (DS-11). The browser storage key `book_engine_active_book_id` is only read, for a reader who has no bookmark yet.
 - Switching books cleanly dismounts the current chapter, loads the new manifest, reloads the hierarchical Table of Contents, and opens the chapter and paragraph where the reader stopped in that book (chapter 1 for a book not read yet).
 
+### The Reader Shows What the Chapter File Holds (`apps/desktop/src/lib/markdown.ts`)
+The reader made HTML from chapter Markdown with regular expressions. It had no rule for lists and tables, and TipTap knew no superscript, so a list, a numbered list and a table showed as one run-on paragraph, and the price `96<sup>29</sup>/32` showed as "9629/32". Only a paragraph kept its anchor, so a quote lost its anchor. `2 * 3 * 4` became italic, and `_word_` kept its marks (RD-03). Now:
+- **Parser:** markdown-it (CommonMark, with the tables and the strikethrough of GitHub) reads each block of a chapter: the text between two blank lines, as the import, the book check and search read it. `parseChapterMarkdown` gives a document of the reader's nodes (`readerExtensions`, `components/reader/readerExtensions.ts`), never HTML.
+- **Blocks:** a list, a numbered list (from its first number), a table (with its header row, the alignment of each column and its `<br>` line breaks), a quote, a heading, a picture, and the `<pre>` text of an EPUB book show as such. The first node of a block keeps the anchor of the block (`BlockAnchors`), so a note, a jump and a highlight find a list, a table and a quote.
+- **Tags (`markdownInline.ts`):** a tag that the reader has a mark for becomes that mark: `<sup>` a superscript, `<mark>` a highlight, and `<b>`, `<strong>`, `<i>`, `<em>`, `<s>`, `<del>` and `<code>` as in a browser. `<br>` is a line break. A tag with no closing tag in its block does nothing. Any other tag is left out, and the words around it stay, but the text of `<script>` and `<style>` does not show. No text of a book becomes HTML.
+- **No Lost Words (`markdownTables.ts`):** a table leaves out each cell that a row has beyond the cells of its header row. The PDF import can end the last row of a table with the sentence that follows the table in the book, so that text shows as a paragraph below the table, and any other extra cell joins the last cell of its row.
+- **White Space:** a line break or a run of spaces in a paragraph is one space, and a paragraph starts and ends with no space, as before. Highlights and cards find the same text.
+- **Bionic Reading and Highlights:** `applyBionicReading` (`src/lib/bionic.ts`) and `applyHighlightsToDoc` (`src/lib/highlights.ts`) change the document, as their HTML versions changed the HTML.
+- **Headings:** a heading of a chapter file has no anchor, because the owner chose to change only the reader. A heading that has an anchor in its chapter file keeps it.
+
 ### Polished TipTap Paragraph Anchors
-- Raw paragraph anchors (`^p-001`, `§p-001`) are stripped from inline text bodies during markdown ingestion into HTML.
-- Parsed into headless custom node attributes (`<p data-anchor="p-001">`) via TipTap's `AnchorParagraph` extension.
+- Raw paragraph anchors (`^p-001`, `§p-001`) are stripped from the text of each block when chapter Markdown becomes a document.
+- Parsed into headless custom node attributes (`<p data-anchor="p-001">`) by the `BlockAnchors` extension, on every block that a chapter file can anchor: a paragraph, a heading, a quote, a list, a numbered list, a code block, a line and a table (RD-03).
 - Saved data (chapter Markdown, notes, citations, practice cards) keeps the `^p-001` form. Code converts between the two forms only with `src/lib/anchors.ts`: text selection saves `toSavedAnchor(data-anchor)`, and highlight placement, anchor navigation, the pacer, the focus ruler, and gutter badges find paragraphs with `toAnchorAttribute`.
-- Displayed via CSS pseudo-element (`.reader-prose p[data-anchor]::before`) as a subtle, muted `§` glyph in the left margin (`left: -1.75rem`) that smoothly reveals on paragraph hover without polluting text selection or clipboard payloads.
+- Displayed via CSS pseudo-element (`.reader-prose [data-anchor]::before`) as a subtle, muted `§` glyph in the left margin (`left: -1.75rem`) that smoothly reveals on paragraph hover without polluting text selection or clipboard payloads.
 
 ---
 
