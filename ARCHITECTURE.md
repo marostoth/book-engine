@@ -266,9 +266,9 @@ book-engine/
 │           │   ├── fsrs/                # FSRS engine test module
 │           │   │   └── tests.rs             # FSRS-5 reference tests with numbers from the official py-fsrs 5.1.3
 │           │   ├── fsrs.rs              # Local FSRS-5 spaced repetition scheduling engine
-│           │   ├── lib.rs               # Application builder, plugin setup, and invoke router; only one copy of the app runs (single-instance plugin, registered first)
+│           │   ├── lib.rs               # Application builder, plugin setup, and invoke router; only one copy of the app runs (single-instance plugin, registered first); the app loads only the dialog & single-instance plugins (SEC-04)
 │           │   ├── main.rs              # Tauri binary executable entrypoint
-│           │   ├── security_config_tests.rs # Window security tests: only the scripts of the app run, pictures come only from the app & the book picture folders, the asset protocol opens no file on its own (SEC-02)
+│           │   ├── security_config_tests.rs # Security tests: only the scripts of the app run, pictures come only from the app & the book picture folders, the asset protocol opens no file on its own (SEC-02); `Cargo.toml` names only the plugins that the app needs (SEC-04)
 │           │   ├── test_support.rs      # Test-only sandbox: temporary vault & cache database per unit test, also for its test threads (Sandbox::spawn); the vault search finds nothing outside it; folder links for tests on Windows (`junction`)
 │           │   ├── vault/               # Modular vault file I/O & notes aggregation
 │           │   │   ├── analytical.rs        # Level 3 analytical store loader, saver & unit tests; a damaged file stops the load and the save
@@ -300,7 +300,7 @@ book-engine/
 │           │   │   ├── syntopicon_tests.rs  # Topic tests: a title whose file is taken is refused and that topic stays byte for byte, two creates at once make one topic
 │           │   │   ├── vocabulary.rs        # Vault vocabulary persistence with case-insensitive deduplication; a damaged file stops the load and the save
 │           │   │   └── mod.rs               # Vault module facade
-│           ├── Cargo.toml       # Rust dependency manifest (rusqlite, tokio, tauri v2, single-instance plugin)
+│           ├── Cargo.toml       # Rust dependency manifest (rusqlite, tokio, tauri v2; only the dialog & single-instance plugins, SEC-04)
 │           └── tauri.conf.json  # Tauri v2 window, security, and bundle configuration; content security policy & an asset protocol that opens no file on its own (SEC-02)
 │ 
 ├── docs/
@@ -833,6 +833,7 @@ with fallback to the aggregate FSRS power-law retrievability $R(t, S) = (1 + 19/
   - `object-src 'none'`, `base-uri 'none'` and `form-action 'none'`.
 
   `assetProtocol.scope` is empty, so on its own the asset protocol opens no file. `load_chapter` lets it open the picture folder of each book in the vault, `books/<book>/assets` (`src-tauri/src/vault/book_pictures.rs`). A book folder or a picture folder that is a link is left out, because Tauri follows the link when it allows a folder. Tauri applies the policy only in the built app: `tauri dev` loads the page from the Vite server, which sends no policy. `index.html` must not hold a `<style>` element, because Tauri would give it a nonce, and a browser ignores `'unsafe-inline'` next to a nonce. `src-tauri/src/security_config_tests.rs` checks the policy, the empty scope and `index.html`.
+- **Only the Plugins the App Needs (SEC-04):** The app loaded the shell plugin, and nothing used it. The plugin gave page code five commands that start programs, write to them, stop them and open links (`execute`, `spawn`, `stdin_write`, `kill` and `open`), and only a missing permission in `capabilities/default.json` kept page code from them. It also put a script into every page that sends a click on a link with `target="_blank"` to its `open` command, and the page has no such link. The app now loads two plugins: dialog, for the folder picker that `choose_vault_folder` opens (LC-01), and single-instance (DS-13). `src-tauri/src/security_config_tests.rs` fails when `Cargo.toml` names any other plugin, so a new plugin goes into its list with the job that it does.
 
 ### Production Build Outputs & Release Artifacts
 Compiled via `npm run tauri build`:

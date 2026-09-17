@@ -1,4 +1,5 @@
-//! Tests for the security part of `tauri.conf.json`: what the app window may run and load (SEC-02).
+//! Tests for the security settings of the app: what the app window may run and load (`tauri.conf.json`, SEC-02), and
+//! which plugins the app loads (`Cargo.toml`, SEC-04).
 //!
 //! The content security policy works only in the built app. `tauri dev` loads the page from the Vite server, which
 //! sends no policy, so a dev run never shows a rule that blocks something.
@@ -7,6 +8,7 @@ use serde_json::Value;
 
 const CONFIG: &str = include_str!("../tauri.conf.json");
 const PAGE: &str = include_str!("../../index.html");
+const MANIFEST: &str = include_str!("../Cargo.toml");
 
 fn security() -> Value {
     let config: Value = serde_json::from_str(CONFIG).expect("tauri.conf.json holds JSON");
@@ -99,4 +101,34 @@ fn the_asset_protocol_opens_no_file_on_its_own() {
 #[test]
 fn the_page_has_no_style_element_that_would_turn_off_inline_styles() {
     assert!(!PAGE.to_ascii_lowercase().contains("<style"), "index.html must not hold a <style> element");
+}
+
+/// The Tauri plugins that the app needs, sorted by name.
+const NEEDED_PLUGINS: [&str; 2] = [
+    // The folder picker that `choose_vault_folder` opens (LC-01).
+    "tauri-plugin-dialog",
+    // Only one copy of the app runs (DS-13).
+    "tauri-plugin-single-instance",
+];
+
+/// The Tauri plugins that `Cargo.toml` names, sorted by name. A name in a comment does not count.
+fn plugins_in_manifest() -> Vec<&'static str> {
+    let mut plugins: Vec<&str> = MANIFEST
+        .lines()
+        .map(|line| line.split_once('#').map_or(line, |(code, _comment)| code))
+        .flat_map(|code| code.split(|c: char| !(c.is_ascii_alphanumeric() || c == '-' || c == '_')))
+        .filter(|word| word.starts_with("tauri-plugin-"))
+        .collect();
+    plugins.sort_unstable();
+    plugins.dedup();
+    plugins
+}
+
+/// A plugin adds commands that page code can call when a permission allows them, and some plugins put a script into
+/// every page. The app loaded the shell plugin, whose commands start programs, and nothing in the app used it. Only a
+/// missing permission kept page code from those commands. So `Cargo.toml` names only the plugins that the app needs
+/// (SEC-04). A new plugin goes into `NEEDED_PLUGINS` with the job that it does.
+#[test]
+fn the_app_loads_only_the_plugins_that_it_needs() {
+    assert_eq!(plugins_in_manifest(), NEEDED_PLUGINS, "Cargo.toml must name only the plugins that the app needs");
 }

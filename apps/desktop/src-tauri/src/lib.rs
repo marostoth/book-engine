@@ -49,7 +49,6 @@ pub fn run() {
     let builder = builder.plugin(one_copy_only());
     builder
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             // Explicitly ensure the main window is unminimized, visible, and focused on startup
             show_main_window(app.handle());
