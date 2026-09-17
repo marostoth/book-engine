@@ -44,20 +44,27 @@ def test_scenario_format_and_grounding_audit(tmp_path: Path):
         "In distributed computing, linearizability is defined as a strong consistency guarantee "
         "where all operations appear to execute atomically at a specific point in time between "
         "their invocation and response. ^p-001\n\n"
+        "Replicas exchange heartbeat messages to detect failed peers. ^p-002\n\n"
+        "A partition separates replicas from the coordinator. "
         "Under network partitions, the CAP theorem states that a distributed data store can "
-        "simultaneously provide at most two out of Consistency, Availability, and Partition tolerance. ^p-003\n"
+        "simultaneously provide at most two out of Consistency, Availability, and Partition tolerance. ^p-003\n\n"
+        "Quorum reads contact a majority of replicas before they answer a client. ^p-004\n"
     )
     (books / "ch-01.md").write_text(ch_text, encoding="utf-8")
 
-    # 1. Valid scenario card
+    # 1. Valid scenario card: it asks which sentence comes right after its passage, and every option is chapter text (LE-06)
     valid_deck = (
         "### Scenario: sc-001\n"
         "<!-- citation: ch-01.md#^p-003 -->\n"
-        "**Scenario:** A partition separates replicas from the coordinator.\n"
-        "- [ ] (A) All replicas continue processing writes unconditionally.\n"
-        "- [x] (B) The system must choose between consistency and availability.\n"
-        "- [ ] (C) Eventual consistency guarantees zero data conflicts.\n"
-        "- [ ] (D) Quorum consensus is bypassed.\n"
+        "**Scenario:** Which sentence comes right after this passage in the book?\n"
+        '"A partition separates replicas from the coordinator."\n'
+        "- [ ] (A) Replicas exchange heartbeat messages to detect failed peers.\n"
+        "- [x] (B) Under network partitions, the CAP theorem states that a distributed data store can "
+        "simultaneously provide at most two out of Consistency, Availability, and Partition tolerance.\n"
+        "- [ ] (C) Quorum reads contact a majority of replicas before they answer a client.\n"
+        "- [ ] (D) In distributed computing, linearizability is defined as a strong consistency guarantee "
+        "where all operations appear to execute atomically at a specific point in time between "
+        "their invocation and response.\n"
         '> **Rationale:** Under network partitions, "a distributed data store can simultaneously provide at most two out of Consistency, Availability, and Partition tolerance." (ch-01.md#^p-003)\n'
     )
     deck_path = notes / "practice-deck.md"

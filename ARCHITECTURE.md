@@ -44,7 +44,7 @@ book-engine/
 ├── .agent/
 │   └── skills/                  # Autonomous verification harnesses
 │       ├── audit-anchors.py         # Verifies paragraph anchor & footnote definition integrity
-│       ├── audit-practice.py        # Audits zero-hallucination verbatim extractive study cards
+│       ├── audit-practice.py        # Audits zero-hallucination verbatim extractive study cards; every quiz option is chapter text and the right one comes right after the passage (LE-06)
 │       ├── audit-system.py          # Universal dynamic health orchestrator (12 vectors: Ledger, Anchors, Cards, Rust, TS, FTS5, GUI smoke test, Inspectional, Analytical, Syntopical, Elementary, Modularity & Isolation)
 │       ├── benchmark-fts.py         # Benchmarks SQLite FTS5 query latency (<15ms target)
 │       ├── process-inbox.py         # Automated fail-safe batch book intake pipeline & ledger manager; a book the vault already has stops unless --force
@@ -93,7 +93,7 @@ book-engine/
 │       │   │   │   ├── ClozeDrill.tsx       # Extractive Cloze completion drill
 │       │   │   │   ├── GatekeeperCardDrill.tsx # Dual-modality Cloze & Scenario MCQ challenge drill for Chapter Gatekeeper
 │       │   │   │   ├── RatingBar.tsx        # FSRS-5 Again/Hard/Good/Easy rating bar with suggested rating badge
-│       │   │   │   ├── ScenarioCardView.tsx # Deductive multiple-choice scenario drill with anti-bias option shuffling
+│       │   │   │   ├── ScenarioCardView.tsx # Quiz card drill: which sentence comes right after the passage, with shuffled options (LE-06)
 │       │   │   │   └── ScrambleDrill.tsx    # Drag/click scrambled clause reconstruction drill
 │       │   │   ├── reader/          # Modular TipTap custom extensions & reader hooks
 │       │   │   │   ├── TipTapExtensions.ts  # AnchorParagraph & FootnoteRef custom Prosemirror nodes
@@ -329,7 +329,7 @@ book-engine/
 │       │   ├── reimport.py              # Stops an import of a book the vault already has before it writes anything, and names the reader's own files
 │       │   ├── salience.py              # Deterministic salience scorer & Cloze deck generator
 │       │   ├── sample_generator.py      # Starter sample generator for development
-│       │   ├── scenarios.py             # Contextual deductive scenario & MCQ engine with thematic distractor matching
+│       │   ├── scenarios.py             # Quiz cards that ask which sentence comes right after a passage: wrong options from other paragraphs of the chapter, no near-copies, the right option spread over A to D (LE-06)
 │       │   └── vector_figures.py        # Vector diagram rasterization, boundary stops & full-width section bounds
 │       ├── tests/               # Pytest verification suite for anchors, schemas, TOC, and pipeline
 │       │   ├── test_analytical_audit.py # Vector 9 analytical logic & citation parity test suite
@@ -340,6 +340,7 @@ book-engine/
 │       │   ├── test_figure_cards.py     # Figure extraction, full-width dimensions & table suppression tests
 │       │   ├── test_markdown_text.py    # Book text tests: a tag the book shows as text is written as text in every kind of block, and reads back as the book has it
 │       │   ├── test_meta_schema.py      # Book metadata, hierarchical TOC & schema validation tests
+│       │   ├── test_next_sentence_quiz.py # Quiz card tests: the card asks what comes right after its passage, the right option spreads over A to D, no near-copy or next-paragraph wrong option, and the audit refuses the old cards (LE-06)
 │       │   ├── test_pdf.py              # PDF parsing, chapter splitting & text preservation tests
 │       │   ├── test_pipeline.py         # End-to-end ingestion pipeline integration test suite
 │       │   ├── test_practice_deck.py    # Zero-hallucination verbatim practice card validation tests
@@ -851,7 +852,9 @@ Compiled via `npm run tauri build`:
 ## 10. Scenario-Based Analytical Drills & FSRS Integration (Phase 3 Track 3D)
 
 ### Architectural Overview
-Extends the spaced repetition subsystem beyond lexical cloze recall to test Adlerian Level 3 deductive analytical comprehension (propositions, syllogisms, and validity of inferences).
+Extends the spaced repetition subsystem beyond cloze recall with quiz cards that follow the author's argument. A quiz card quotes a passage and asks which sentence comes right after it in the book.
+
+**What Comes Next (LE-06):** The quiz cards used to ask for "the analytically valid conclusion". But every wrong option was a true sentence of the same chapter, so a reader who picked a true sentence was marked wrong. The right option was also never D, and a wrong option could say the same thing as the right one. Now a card asks a question with exactly one right answer: the sentence that comes right after the passage. The wrong options are sentences of the same chapter, so they are about the same subject, but they do not come there.
 
 ```
 vault/notes/<book-id>/practice-deck.md
@@ -883,33 +886,40 @@ vault/notes/<book-id>/practice-deck.md
 ### Invariants & Technical Specifications
 1. **Markdown Format (`practice-deck.md`):**
    ```markdown
-   ### Scenario: sc-sample-001
-   <!-- citation: ch-01.md#^p-003 -->
-   **Scenario:** Description of problem or synthetic premise.
-   - [ ] (A) Plausible distractor.
-   - [x] (B) Valid deductive conclusion.
-   - [ ] (C) Alternative distractor.
-   - [ ] (D) Plausible distractor.
-   > **Rationale:** Verbatim quote from cited anchor explaining deductive link. (ch-01.md#^p-003)
+   ### Scenario: sc-ch-01-001
+   - **Chapter:** ch-01
+   - **Anchor:** ^p-003
+   **Scenario:** Which sentence comes right after this passage in the book?
+   "Every sentence of paragraph ^p-003 but the last."
+   - [ ] (A) A sentence of another paragraph of the chapter.
+   - [ ] (B) A sentence of another paragraph of the chapter.
+   - [ ] (C) A sentence of another paragraph of the chapter.
+   - [x] (D) The last sentence of paragraph ^p-003.
+   > **Rationale:** Right after this passage, the book says: "The last sentence of paragraph ^p-003."
    ```
 2. **SQLite Schema & Migration (`db/schema.rs`):**
    - Idempotently adds `card_type TEXT DEFAULT 'cloze'` and `payload TEXT DEFAULT NULL` via `PRAGMA table_info(fsrs_cards)`, and creates `fsrs_cards_archive`.
    - `sync_practice_deck_blocking` (`db/deck_sync.rs`) stores each card under its question id (`card_identity`) and uses `INSERT ... ON CONFLICT(card_id) DO UPDATE SET ...` to preserve the review state, reps, and stability of unchanged questions. Cards that left the deck move to `fsrs_cards_archive` with their progress.
 3. **Anti-Bias Shuffling (`ScenarioCardView.tsx`):**
    - Randomizes option presentation order on mount via Fisher-Yates shuffle while retaining immutable option keys (`A`, `B`, `C`, `D`) for deterministic evaluation.
+   - The Chapter Gatekeeper shows the options in the order of the deck. The deck spreads the place of the right option over A to D with a hash of the card id and the right sentence, so every import puts it in the same place (LE-06).
    - Gates FSRS rating bar until user submits an answer; pre-suggests `Again` (rating 1) on incorrect evaluations.
 4. **Audit Grounding (`audit-practice.py`):**
    - Verifies citation anchor exists in chapter text.
    - Verifies `> **Rationale:**` contains a verbatim quote matching the cited paragraph text.
    - Format validation: exactly 1 `[x]` and at least 2 `[ ]`.
+   - The question is "Which sentence comes right after this passage in the book?", and a quoted passage follows it (LE-06).
+   - Every option is text of the cited chapter, compared without the Markdown marks `*` `` ` `` `_` `#` and with single spaces. The right option comes right after the passage in the cited paragraph, and no two options say much the same thing: one holds the other, or they are at least 0.65 alike (`difflib`).
 5. **Autonomous Ingestion Generation (`ingest/scenarios.py`):**
    - Autonomous extraction during EPUB and PDF intake via `generate_chapter_scenario_cards(chapter_markdown, chapter_id, max_items=3)`.
-   - Selects top-scoring proposition sentences from paragraphs as target correct conclusions.
-   - Harvests plausible in-domain distractor propositions from non-target paragraphs across the chapter.
-   - Zero-hallucination guarantee: every option (`A`, `B`, `C`, `D`) and the rationale quote are 100% extractive, exact character substrings from the source chapter.
+   - Takes the top-scoring paragraphs of two or more sentences. The last sentence is the right option, and the sentences before it are the passage. A paragraph of one sentence has no passage, so it makes no card.
+   - Takes the wrong options from other paragraphs of the chapter, best keyword overlap first. None comes from the paragraph right after the passage, and none is a near-copy of the right option or of another wrong option.
+   - Uses only text that ends like a sentence, with `.`, `!` or `?` and maybe a closing quote or bracket, for every option. Text that the import cut off, or that ends with an image link or a footnote mark, is no option.
+   - Places the right option with a hash, so the right options of a deck spread over A to D.
+   - Zero-hallucination guarantee: every option (`A`, `B`, `C`, `D`) is a sentence of the chapter without its Markdown marks, and the generator checks this against the chapter before it uses a sentence. The rationale quotes the right sentence as the chapter has it.
    - Integrated into `pipeline.py` and `pdf_parser.py`, and formatted side-by-side with Cloze cards in `vault/notes/<book-id>/practice-deck.md`.
 6. **Practice Modality Filtering & Dynamic Retrieval (`due_cards.rs`, `usePracticeDeck.ts`):**
-   - Reader settings allow toggling between `verbatim` (Cloze/Scramble recall), `mcq_scenario` (Analytical Scenario MCQs), and `hybrid` (Balanced dual-modality).
+   - Reader settings allow toggling between `verbatim` (Cloze/Scramble recall), `mcq_scenario` (quiz cards that ask what comes next), and `hybrid` (Balanced dual-modality).
    - In `mcq_scenario` mode, SQLite filters `AND card_type = 'scenario'`.
    - In `verbatim` mode, SQLite filters `AND card_type != 'scenario'`.
    - In `hybrid` mode, `hybrid_ratio` (default `0.5`, with selectable UI presets `50:50 Balanced`, `70:30 Recall`, `30:70 MCQ`) sets the cloze/scenario mix inside each queue: due reviews first, then new cards. When one type runs short, the other type fills its places, the two types are interleaved, and the result never exceeds the limit.
@@ -1092,7 +1102,7 @@ The system health orchestrator in `.agent/skills/audit-system.py` dynamically va
 
 1. **Vector 1 (Dynamic Ledger & Vault Parity):** Verifies all books in `vault/books/` and binaries in `inbox/processed/` are cataloged in `vault/_ledger.json` with matching SHA-256 digests.
 2. **Vector 2 (Anchor & Asset Integrity):** Validates persistent paragraph anchors (`^p-NNN`), unreferenced asset cleanup, and image markdown reference existence.
-3. **Vector 3 (Zero-Hallucination & Dual-Modality Guardrail):** Confirms that every answer key, distractor, and rationale quote is an exact character substring in the cited chapter; enforces that library practice items feature both Cloze recall and deductive Scenario MCQ cards.
+3. **Vector 3 (Zero-Hallucination & Dual-Modality Guardrail):** Confirms that every answer key and rationale quote is an exact character substring in the cited chapter, and that every quiz option is text of the cited chapter without its Markdown marks (LE-06); enforces that library practice items feature both Cloze recall and deductive Scenario MCQ cards.
 4. **Vector 4 (Backend Safety):** `cargo check` and `cargo test` in `apps/desktop/src-tauri` with zero errors and zero failing unit tests. Unit tests run inside a temporary sandbox vault and database (`src/test_support.rs`), never the real ones.
 5. **Vector 5 (Frontend Safety):** TypeScript strict typecheck in `apps/desktop` with zero errors.
 6. **Vector 6 (FTS5 Search Latency Benchmark):** SQLite FTS5 query latency average strictly $< 15.0\text{ms}$.

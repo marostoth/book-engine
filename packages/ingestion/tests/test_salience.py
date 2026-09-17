@@ -74,12 +74,18 @@ def test_format_practice_deck_markdown():
 def test_zero_hallucination_scenario_standard():
     chapter_md = (
         "# Chapter 1: Consistency\n\n"
-        "In distributed computing, linearizability is defined as a strong consistency guarantee. ^p-001\n\n"
-        "The primary purpose of vector clocks is determining the partial ordering of events. ^p-002\n\n"
-        "Under network partitions, the CAP theorem establishes the trade-off between consistency and availability. ^p-003\n\n"
-        "The fundamental principle of eventual consistency requires that all replicas converge over time. ^p-004\n\n"
-        "A quorums system refers to a subset of nodes whose intersection guarantees safety. ^p-005\n\n"
-        "Byzantine fault tolerance represents the capability to defend against arbitrary node failures. ^p-006\n"
+        "In distributed computing, linearizability is defined as a strong consistency guarantee. "
+        "Every operation appears to take effect at a single point in time. ^p-001\n\n"
+        "The primary purpose of vector clocks is determining the partial ordering of events. "
+        "Each node keeps a counter for every other node in the system. ^p-002\n\n"
+        "Under network partitions, the CAP theorem establishes the trade-off between consistency and availability. "
+        "A partitioned system must therefore refuse some requests or accept stale reads. ^p-003\n\n"
+        "The fundamental principle of eventual consistency requires that all replicas converge over time. "
+        "Replicas that stop receiving writes reach the same state after enough exchanges. ^p-004\n\n"
+        "A quorums system refers to a subset of nodes whose intersection guarantees safety. "
+        "Any two quorums share at least one node that has seen the latest write. ^p-005\n\n"
+        "Byzantine fault tolerance represents the capability to defend against arbitrary node failures. "
+        "Such systems need more than three times as many nodes as the faults they tolerate. ^p-006\n"
     )
 
     scenarios = generate_chapter_scenario_cards(chapter_md, "ch-01", max_items=3)
@@ -102,18 +108,24 @@ def test_zero_hallucination_scenario_standard():
             assert opt.text in chapter_md, f"Option '{opt.text}' is not an exact verbatim extract!"
 
         # Rationale must match the audit-practice format
-        assert sc.rationale.startswith('In this section, the text states: "')
-        quote = sc.rationale[len('In this section, the text states: "'):-1]
+        assert sc.rationale.startswith('Right after this passage, the book says: "')
+        quote = sc.rationale[len('Right after this passage, the book says: "'):-1]
         assert quote == correct_text
         assert quote in chapter_md
 
 
 def test_format_practice_deck_with_scenarios():
     chapter_md = (
-        "In distributed computing, **linearizability** is defined as a strong consistency guarantee. ^p-001\n\n"
-        "The primary purpose of **vector clocks** is determining the partial ordering of events. ^p-002\n\n"
-        "Under network partitions, the **CAP theorem** establishes the trade-off between consistency and availability. ^p-003\n\n"
-        "The fundamental principle of eventual consistency requires that all replicas converge over time. ^p-004\n"
+        "In distributed computing, **linearizability** is defined as a strong consistency guarantee. "
+        "Every operation appears to take effect at a single point in time. ^p-001\n\n"
+        "The primary purpose of **vector clocks** is determining the partial ordering of events. "
+        "Each node keeps a counter for every other node in the system. ^p-002\n\n"
+        "Under network partitions, the **CAP theorem** establishes the trade-off between consistency and availability. "
+        "A partitioned system must therefore refuse some requests or accept stale reads. ^p-003\n\n"
+        "The fundamental principle of eventual consistency requires that all replicas converge over time. "
+        "Replicas that stop receiving writes reach the same state after enough exchanges. ^p-004\n\n"
+        "A quorums system refers to a subset of nodes whose intersection guarantees safety. "
+        "Any two quorums share at least one node that has seen the latest write. ^p-005\n"
     )
     clozes = generate_chapter_practice_cards("ch-01", chapter_md, min_items=1, max_items=2)
     scenarios = generate_chapter_scenario_cards(chapter_md, "ch-01", max_items=2)
@@ -135,7 +147,8 @@ def test_contextual_scenario_premise_and_narrative_filtering():
         "Therefore, if the student is proficient, they will express emotion naturally in performance. ^p-002\n\n"
         "Linearizability guarantees real-time consistency across all distributed replicas. ^p-003\n\n"
         "Eventual consistency requires that nodes converge over sufficient time intervals. ^p-004\n\n"
-        "Fault tolerance represents the capability to defend against arbitrary node crash failures. ^p-005\n"
+        "Fault tolerance represents the capability to defend against arbitrary node crash failures. ^p-005\n\n"
+        "Partition tolerance keeps the system working when messages between nodes are lost. ^p-006\n"
     )
 
     scenarios = generate_chapter_scenario_cards(chapter_md, "ch-01", max_items=1)
@@ -143,7 +156,7 @@ def test_contextual_scenario_premise_and_narrative_filtering():
     assert len(scenarios) == 1
     sc = scenarios[0]
     assert sc.anchor_id == "^p-002"
-    assert "Consider the following excerpt from this section:" in sc.scenario
+    assert sc.scenario.startswith("Which sentence comes right after this passage in the book?\n")
     assert "To reach the fourth level and become proficient" in sc.scenario
     assert "Jim got up at 6:00" not in sc.scenario
 

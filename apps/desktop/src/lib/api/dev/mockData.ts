@@ -96,7 +96,7 @@ A **quorums system** refers to a subset of nodes whose intersection property gua
 
 In contrast to crash-stop failures, Byzantine nodes may communicate conflicting state transitions to distinct peers in the cluster. ^p-007
 
-Crucially, achieving consensus in an asynchronous environment with even a single crash failure is mathematically impossible according to the FLP impossibility theorem. ^p-008
+No algorithm can tell a crashed node from a slow one when messages have no time limit. Crucially, achieving consensus in an asynchronous environment with even a single crash failure is mathematically impossible according to the FLP impossibility theorem. ^p-008
 
 [^1]: Herlihy, M. P., & Wing, J. M. (1990). Linearizability: A correctness condition for concurrent objects. ACM TOPLAS. ^p-009
 
@@ -128,11 +128,11 @@ export const fallbackCardsMemory: PracticeCardItem[] = [
     card_id: "sc-sample-001",
     book_id: "sample",
     chapter_file: "ch-01.md",
-    anchor: "^p-003",
+    anchor: "^p-008",
     item_type: "scenario",
     card_type: "scenario",
-    prompt: "An asynchronous distributed cluster experiences an asymmetric network partition dividing nodes into isolated subnets.",
-    answer: "Under network partitions, a distributed data store can simultaneously provide at most two out of Consistency, Availability, and Partition tolerance.",
+    prompt: 'Which sentence comes right after this passage in the book?\n"No algorithm can tell a crashed node from a slow one when messages have no time limit."',
+    answer: "(B) Crucially, achieving consensus in an asynchronous environment with even a single crash failure is mathematically impossible according to the FLP impossibility theorem.",
     state: 0,
     stability: 0.0,
     difficulty: 0.0,
@@ -140,19 +140,19 @@ export const fallbackCardsMemory: PracticeCardItem[] = [
     last_review: 0,
     reps: 0,
     scenario_payload: {
-      scenario: "An asynchronous distributed cluster experiences an asymmetric network partition dividing nodes into isolated subnets.",
+      scenario: 'Which sentence comes right after this passage in the book?\n"No algorithm can tell a crashed node from a slow one when messages have no time limit."',
       options: [
-        { key: "A", text: "The system can simultaneously provide strict consistency, unbounded availability, and partition tolerance.", is_correct: false },
-        { key: "B", text: "Replicas in the minority partition continue accepting conflicting writes without stalling.", is_correct: false },
-        { key: "C", text: "Under network partitions, a distributed data store can simultaneously provide at most two out of Consistency, Availability, and Partition tolerance.", is_correct: true },
-        { key: "D", text: "Quorum intersection is ignored so all partitions remain available for updates.", is_correct: false },
+        { key: "A", text: "In contrast to crash-stop failures, Byzantine nodes may communicate conflicting state transitions to distinct peers in the cluster.", is_correct: false },
+        { key: "B", text: "Crucially, achieving consensus in an asynchronous environment with even a single crash failure is mathematically impossible according to the FLP impossibility theorem.", is_correct: true },
+        { key: "C", text: "The fundamental principle of eventual consistency is that all replicas will gradually converge to the same value given that no new updates are made to the object.", is_correct: false },
+        { key: "D", text: "A quorums system refers to a subset of nodes whose intersection property guarantees mutual exclusion for concurrent read and write operations.", is_correct: false },
       ],
       citation: {
         chapterFile: "ch-01.md",
-        anchor: "^p-003",
-        quote: "a distributed data store can simultaneously provide at most two out of Consistency, Availability, and Partition tolerance.",
+        anchor: "^p-008",
+        quote: "Crucially, achieving consensus in an asynchronous environment with even a single crash failure is mathematically impossible according to the FLP impossibility theorem.",
       },
-      rationale: 'Under network partitions, the CAP theorem states that "a distributed data store can simultaneously provide at most two out of Consistency, Availability, and Partition tolerance."',
+      rationale: 'Right after this passage, the book says: "Crucially, achieving consensus in an asynchronous environment with even a single crash failure is mathematically impossible according to the FLP impossibility theorem."',
     },
   },
   {

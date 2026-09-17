@@ -56,7 +56,7 @@ export const ScenarioCardView: React.FC<ScenarioCardViewProps> = ({
       <div className="p-4 rounded-2xl bg-[var(--theme-bg)] border border-[var(--theme-border)] space-y-2">
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[var(--theme-accent)]">
           <HelpCircle className="w-4 h-4" />
-          <span>Analytical Scenario Comprehension</span>
+          <span>What comes next</span>
         </div>
         <p className="text-sm font-medium leading-relaxed text-[var(--theme-text)] select-text whitespace-pre-line">
           {payload?.scenario || card.prompt}
@@ -66,7 +66,7 @@ export const ScenarioCardView: React.FC<ScenarioCardViewProps> = ({
       {/* Options List */}
       <div className="space-y-2.5">
         <div className="text-xs font-semibold text-[var(--theme-muted)] px-1">
-          Select the analytically valid conclusion:
+          Pick the sentence that comes right after the passage:
         </div>
         {options.map((opt, idx) => {
           const isSelected = selectedKey === opt.key;
@@ -118,7 +118,7 @@ export const ScenarioCardView: React.FC<ScenarioCardViewProps> = ({
             disabled={!selectedKey}
             className="px-5 py-2.5 rounded-xl bg-[var(--theme-accent)] text-white text-xs sm:text-sm font-semibold hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md active:scale-95 flex items-center gap-1.5"
           >
-            <span>Evaluate Hypothesis</span>
+            <span>Check answer</span>
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
@@ -135,14 +135,14 @@ export const ScenarioCardView: React.FC<ScenarioCardViewProps> = ({
                 <>
                   <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                   <span className="text-xs font-bold text-emerald-900 dark:text-emerald-300">
-                    Correct Deduction
+                    Right: this sentence comes next
                   </span>
                 </>
               ) : (
                 <>
                   <XCircle className="w-4 h-4 text-rose-500" />
                   <span className="text-xs font-bold text-rose-900 dark:text-rose-300">
-                    Incorrect Hypothesis
+                    Not the next sentence
                   </span>
                 </>
               )}
@@ -164,9 +164,9 @@ export const ScenarioCardView: React.FC<ScenarioCardViewProps> = ({
           {payload?.rationale && (
             <div className="text-xs leading-relaxed text-[var(--theme-text)] border-t border-[var(--theme-border)]/50 pt-2.5 space-y-1">
               <span className="font-bold text-[10px] uppercase tracking-wide text-[var(--theme-muted)] block">
-                Extractive Rationale:
+                From the book:
               </span>
-              <p className="select-text italic">"{payload.rationale}"</p>
+              <p className="select-text italic">{payload.rationale}</p>
             </div>
           )}
         </div>

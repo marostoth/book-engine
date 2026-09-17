@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import re
 import sys
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -13,6 +14,45 @@ ROOT_DIR = SKILL_DIR.parent.parent
 VAULT_DIR = ROOT_DIR / "vault"
 NOTES_DIR = VAULT_DIR / "notes"
 BOOKS_DIR = VAULT_DIR / "books"
+
+# The question of every quiz card, as packages/ingestion/ingest/scenarios.py writes it (LE-06).
+NEXT_SENTENCE_QUESTION = "Which sentence comes right after this passage in the book?"
+# Two options at least this alike say much the same thing (NEAR_COPY_RATIO in ingest/scenarios.py).
+NEAR_COPY_RATIO = 0.65
+OPTION_LINE = re.compile(r"^- \[([ xX])\] \(([A-Za-z])\) (.*)$")
+
+
+def book_text(text: str) -> str:
+    """Text as a quiz card shows it: without the Markdown marks * ` _ # and with single spaces."""
+    return re.sub(r"\s+", " ", re.sub(r"[*`_#]", "", text)).strip()
+
+
+def is_near_copy(first: str, second: str) -> bool:
+    """True when two options say much the same thing: one holds the other, or they are NEAR_COPY_RATIO alike."""
+    a, b = first.lower(), second.lower()
+    if a in b or b in a:
+        return True
+    ratio = max(
+        SequenceMatcher(None, a, b, autojunk=False).ratio(),
+        SequenceMatcher(None, b, a, autojunk=False).ratio(),
+    )
+    return ratio >= NEAR_COPY_RATIO
+
+
+def scenario_stem(block: str) -> str:
+    """The text of a quiz card after **Scenario:**, one line per line, up to its options. The app reads it the same way."""
+    lines: List[str] = []
+    in_stem = False
+    for line in block.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("**Scenario:**"):
+            lines.append(stripped[len("**Scenario:**"):].strip())
+            in_stem = True
+        elif stripped.startswith(("- ", ">", "<!--")):
+            in_stem = False
+        elif in_stem and stripped and not stripped.startswith("#"):
+            lines.append(stripped)
+    return "\n".join(lines)
 
 
 def normalize_ws(s: str) -> str:
@@ -224,6 +264,34 @@ def audit_book_practice_deck(deck_path: Path, books_dir: Path) -> DeckAuditResul
                 if not quote_matched:
                     card_valid = False
                     errors.append(f"{card_id}: Rationale does not contain a verbatim quote matching cited anchor {anchor_id}")
+
+            # The card asks which sentence comes right after its quoted passage. Every option is text of the chapter,
+            # the right option comes right after the passage, and no two options say much the same thing (LE-06).
+            question, _, passage = scenario_stem(trimmed).partition("\n")
+            passage = passage.strip()
+            if question.strip() != NEXT_SENTENCE_QUESTION:
+                card_valid = False
+                errors.append(f"{card_id}: The question must be '{NEXT_SENTENCE_QUESTION}'")
+            has_passage = len(passage) > 2 and passage.startswith('"') and passage.endswith('"')
+            if not has_passage:
+                card_valid = False
+                errors.append(f"{card_id}: The card quotes no passage after its question")
+            options = [match.groups() for match in (OPTION_LINE.match(line) for line in opt_lines) if match]
+            chapter_text = book_text(ch_content)
+            for _, key, text in options:
+                if book_text(text) not in chapter_text:
+                    card_valid = False
+                    errors.append(f"{card_id}: Option ({key}) is not text of {ch_filename}")
+            rights = [text for mark, _, text in options if mark in "xX"]
+            if has_passage and len(rights) == 1 and paragraphs:
+                if f"{book_text(passage[1:-1])} {book_text(rights[0])}" not in book_text(paragraphs[0]):
+                    card_valid = False
+                    errors.append(f"{card_id}: The right option does not come right after the passage in {anchor_id}")
+            for index, (_, key, text) in enumerate(options):
+                for _, other_key, other_text in options[index + 1:]:
+                    if is_near_copy(book_text(text), book_text(other_text)):
+                        card_valid = False
+                        errors.append(f"{card_id}: Options ({key}) and ({other_key}) say much the same thing")
 
             if card_valid:
                 verbatim_matches += 1
