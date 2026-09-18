@@ -344,19 +344,20 @@ book-engine/
 │       │   ├── endnotes.py              # Backmatter endnote relocation to inline footnotes; a note is one footnote line (IN-06); only a link to a note becomes a footnote, and any other link keeps its words (IN-02)
 │       │   ├── epub_parser.py           # XHTML chapter extractor & typography normalizer; book text that looks like HTML is written as text (SEC-01); a heading is one line, and the block where each element id starts is noted (CQ-01); every text a browser shows is written in any layout, with preformatted text as the book has it and a <br> as a line break, and no Project Gutenberg boilerplate (IN-02)
 │       │   ├── glyph_repair.py          # A font that names its maths characters wrongly is given a correct map before any text is read, so an "=" does not come out as a "1/4" (CQ-02)
-│       │   ├── layout_stitcher.py       # Narrative sentence healing, layout reconciliation & callout hoisting
+│       │   ├── layout_stitcher.py       # Narrative sentence healing, layout reconciliation & callout hoisting; the two halves of a sentence that a page break, a photo credit or a figure label cut in two are joined again, and joining repeats until nothing more joins (CQ-03)
 │       │   ├── line_endings.py          # One line ending: the text of an EPUB book is read with `\n` line endings, and every file that the import writes has `\n` line endings, also on Windows (IN-06)
 │       │   ├── markdown_text.py         # Book text in chapter Markdown: a < or & that could be read as HTML is written as &lt; or &amp;, and read back (SEC-01)
 │       │   ├── models.py                # Pydantic schema validation for metadata and cards; `_meta.json` records the file of the book (`source`, IN-03); no time of the import, so two imports of the same file write the same bytes (IN-05)
 │       │   ├── pdf_outline.py           # The parts of a PDF book from its outline: every part from the cover to the index, and its kind (front matter, chapter, body, appendix, back matter) (IN-01)
 │       │   ├── pdf_parser.py            # Sequential part-by-part PDF parser & asset coordinator; only chapters, body parts and appendices make practice cards (IN-01); the book is built in its build folder, and an import of some parts starts from a copy of the book (IN-05); the character maps of the fonts are repaired before any text is read (CQ-02)
-│       │   ├── pdf_sanitizer.py         # PDF slug normalization, drop-cap healing, heading & author sanitization; the slug of a name in another script gets a code (IN-03)
+│       │   ├── pdf_sanitizer.py         # PDF slug normalization, drop-cap healing, heading & author sanitization; the slug of a name in another script gets a code (IN-03); the page's own marks come off the text and a small roman page number goes (`text_repair.py`, CQ-03)
 │       │   ├── pipeline.py              # End-to-end ingestion pipeline coordinator; the book is built in its build folder, and goes into the vault only when it is whole and checked (IN-05)
 │       │   ├── places.py                # A new import finds each old chapter and paragraph in the new text, and moves what the reader's files point to: the bookmark, reading time, notes, highlights and citations (IN-04); the moves go into the vault together with the new book (IN-05)
 │       │   ├── reimport.py              # Stops an import of a book the vault already has before it writes anything, and names the reader's own files; picks the book id of a file, and stops a file whose book id a book from another file has (IN-03)
 │       │   ├── salience.py              # Deterministic salience scorer & practice deck writer; re-exports the cloze and quiz card generators
 │       │   ├── sample_generator.py      # Starter sample generator for development
 │       │   ├── scenarios.py             # Quiz cards that ask which sentence comes right after a passage: wrong options from other paragraphs of the chapter, no near-copies, the right option spread over A to D (LE-06)
+│       │   ├── text_repair.py           # A page's own layout marks come off the text, and a word a hyphen cut in two is made whole; a lost first letter goes back only when the chapter's own words prove which letter it was (CQ-03)
 │       │   ├── toc_links.py             # Links the EPUB contents to the import: each entry gets the chapter file that holds it & the paragraph where it starts (CQ-01)
 │       │   ├── vault_changes.py         # Puts a new book folder and changed vault files in place all together, or puts each change back; tries again while Windows holds a file, and removes folders that Windows marks read-only (IN-05)
 │       │   └── vector_figures.py        # Vector diagram rasterization, boundary stops & full-width section bounds
@@ -390,6 +391,7 @@ book-engine/
 │       │   ├── test_reimport.py         # Import stop tests: nothing changes, --force keeps the reader's files, the inbox keeps a stopped copy
 │       │   ├── test_salience.py         # Salience scoring & extractive cloze extraction tests
 │       │   ├── test_syntopicon_audit.py # Vector 10 syntopical cross-vault referential parity test suite
+│       │   ├── test_text_repair.py      # Whole sentence tests: the two halves of a cut sentence join, a photo credit or a figure label never becomes part of one, and a page's own highlight, empty heading and roman page number go (CQ-03)
 │       │   ├── test_toc.py              # Table of contents extraction & hierarchy tests
 │       │   ├── test_toc_links.py        # Contents link tests: the block & paragraph of each element, encoded and NCX-relative links, no guessed document (CQ-01)
 │       │   └── test_vault_changes.py    # Vault change tests: every change goes in, a change that fails puts each change back, a file that Windows holds for a moment still goes in, and a read-only old book folder is removed (IN-05)
@@ -481,6 +483,18 @@ Multi-column textbook pages frequently include full-width conceptual matrices, m
 - **The glyph name has the last word:** one part of a font can put the same glyph at another code, so the code table is the start and the `/Differences` array overrides it.
 - **A broken character stops an import:** a chapter that holds a replacement character fails the book check and names the blocks it sits in (`ingest/book_check.py`), so the vault keeps the book it had. `audit-anchors.py` and `audit-system.py` use the same rule. A "1/4" or a "thorn" is not broken by itself, because a book may hold one for its own reasons.
 - **Superscripts:** a price like 96 29/32 shows as a superscript in the reader, which RD-03 added (`components/reader/TipTapExtensions.ts`).
+
+### A Sentence Stays Whole (CQ-03)
+- **Why a sentence came in two halves:** a page is not a stream of words. A page break, a picture, a photo credit or the title of a story box can land in the middle of a sentence, and a text reader then writes the two halves as two paragraphs. A reader cannot highlight, quote or study half a sentence, and a practice card cannot cite one.
+- **A paragraph is finished only when it ends a sentence:** `finishes_a_sentence` (`ingest/layout_stitcher.py`) uses the same rule as the practice cards (`SENTENCE_END` in `ingest/scenarios.py`). A colon, a semicolon or a closing bracket does not finish one, and a bold marker or a footnote number at the very end is taken off before the rule looks.
+- **Joining repeats until nothing more joins:** one sentence can be cut into three or more parts, so the round runs again, up to `MAX_ROUNDS`.
+- **A photo credit inside a paragraph is lifted out:** a credit line that landed at the end of a paragraph made the whole paragraph read as a caption, so the cut was never seen. The credit moves out only when that lets the sentence join again, and it is kept.
+- **A figure label is not a half sentence:** `is_figure_label` knows the shouted label of a figure or a table, so a sentence is never joined on to one, and a sentence that a label cut in two is joined across it. A sentence that merely begins "Figure 4.65 contains..." is prose, because a label shouts its name in capitals.
+- **The rest of a sentence goes on in lower case:** a capital letter starts something new, so "For comparison, ..." is a new sentence, not the rest of the last one.
+- **A word ending is never the start of a sentence:** a scrap such as "ers could sit for hours" is the tail of "customers" from a line the layout put elsewhere. `WORD_ENDINGS` holds those scraps, and such a join is refused, because a wrong join would put words in the book that the book never wrote. A hyphen at the end of the first half is proof of its own, and the word is closed up.
+- **A page's own marks come off:** `repair_page_text` (`ingest/text_repair.py`) takes off the book's own `<mark>` highlight, so no chapter arrives already highlighted, drops a heading with no words, closes a word that a hyphen and a space cut in two, and puts back a lost first letter. A hanging hyphen stays, because "heat- and moisture-resistant" is how the book means to write it.
+- **A lost first letter is never guessed:** exactly one capital letter must turn the stem into a word the chapter uses more than once, and the chapter must use that word more often than the bare stem. Anything less is a guess, so nothing changes.
+- **A small roman page number goes:** the front matter counts its pages "vi", "xiv", and such a line landed in the middle of a sentence. Only the numbers 1 to 89 count, because "mix" is the roman number 1009 and also a word a marketing book uses on every other page.
 
 ### Zero-Redaction Reading Architecture & Table Suppression (`packages/ingestion/ingest/pdf_parser.py`)
 - **Zero Redactions:** Destructive PDF text redactions are permanently abolished. Markdown text is generated directly from the pristine PyMuPDF document, guaranteeing 100% text completeness and preventing prefix or word amputations (`Importance`, `Underlying`, `They include`).

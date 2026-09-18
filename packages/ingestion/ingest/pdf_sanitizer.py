@@ -6,6 +6,7 @@ import re
 from typing import List, Optional
 
 from ingest.book_id import book_id_of_name, plain_letters
+from ingest.text_repair import repair_page_text
 
 
 def generate_pdf_slug(filename: str, title: Optional[str] = None) -> str:
@@ -197,7 +198,11 @@ def deduplicate_figure_captions(markdown_text: str) -> str:
 
 
 def sanitize_pdf_markdown(markdown_text: str) -> str:
-    """Strips running headers, footers, solitary page numbers, picture text markers, and orphan footnotes."""
+    """Strips running headers, footers, solitary page numbers, picture text markers, and orphan footnotes.
+
+    It also takes a page's own layout marks off the text and makes a cut word whole again
+    (`ingest/text_repair.py`, CQ-03).
+    """
     # Strip picture text boundary comments if any leaked
     markdown_text = re.sub(
         r"<!--\s*Start of picture text\s*-->.*?<!--\s*End of picture text\s*-->",
@@ -215,6 +220,13 @@ def sanitize_pdf_markdown(markdown_text: str) -> str:
 
         # 1. Solitary page numbers on their own lines: e.g. "25", "123"
         if re.match(r"^\d{1,4}$", stripped):
+            continue
+
+        # 1b. The front matter counts its pages in small roman numbers: "vi", "xiv" (CQ-03). Left
+        # in, such a line lands in the middle of a sentence or inside the table of contents. Only
+        # the numbers 1 to 89 count, because "mix" is the roman number 1009 and also a word that a
+        # marketing book uses on every other page.
+        if stripped and re.match(r"^(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3})$", stripped):
             continue
 
         # 2. Running headers / footers with chapter or part titles:
@@ -241,6 +253,8 @@ def sanitize_pdf_markdown(markdown_text: str) -> str:
         cleaned_lines.append(line)
 
     cleaned_md = "\n".join(cleaned_lines)
+    # A page's own highlight, a heading with no words and a word a hyphen cut in two (CQ-03)
+    cleaned_md = repair_page_text(cleaned_md)
     cleaned_md = re.sub(r"\n{3,}", "\n\n", cleaned_md)
 
     # Neutralize any orphan footnote callouts [^callout] that lack definitions [^callout]:
