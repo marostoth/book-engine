@@ -289,9 +289,6 @@ pub fn compile_and_export_book_summary(book_id: &str) -> Result<String> {
     Ok(exported_path.to_string_lossy().to_string())
 }
 
-/// Exports a single compiled summary markdown file to vault/notes/<book-id>/summary-export.md
-pub fn export_summary_file(book_id: &str, content: &str) -> Result<String> {
-    let path = super::paths::notes_file(book_id, SUMMARY_EXPORT_FILE)?;
-    super::safe_write::write_file(&path, content)?;
-    Ok(path.to_string_lossy().to_string())
-}
+// `export_summary_file` was deleted here (LC-03). It wrote the same `summary-export.md` as the function above, but
+// with whatever text the window sent, and the only caller was the `export_summary` command, which was never
+// registered. The window asks for `export_book_summary` now, which compiles the file here.

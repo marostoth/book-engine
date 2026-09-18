@@ -9,13 +9,13 @@ pub mod vault;
 
 use commands::{
     choose_vault_folder, create_syntopic_topic, export_book_summary, export_syntopic_report, get_all_book_notes,
-    get_analytical_data, get_bookmark, get_chapter_due_cards, get_chapter_highlights, get_deck_stats, get_due_cards,
+    get_analytical_data, get_bookmark, get_chapter_due_cards, get_chapter_highlights, get_due_cards,
     get_inspectional_blueprint, get_inspectional_exit_assessment, get_last_bookmark, get_library_books,
-    get_preferences, get_reading_velocity, get_retention_metrics, get_review_heatmap, get_study_analytics,
-    get_syntopic_topic, get_syntopic_topics, get_vault_path, get_vault_status, index_vault, list_books, load_book_meta,
-    load_chapter, load_notes, lookup_dictionary_term, record_reading_progress, save_analytical_data,
-    save_book_vocabulary, save_bookmark, save_chapter_highlights, save_inspectional_exit_assessment, save_notes,
-    save_preferences, save_syntopic_topic, search_vault, submit_review, sync_practice_deck,
+    get_preferences, get_reading_velocity, get_study_analytics, get_syntopic_topic, get_syntopic_topics,
+    get_vault_path, get_vault_status, index_vault, load_book_meta, load_chapter, load_notes, lookup_dictionary_term,
+    record_reading_progress, save_analytical_data, save_book_vocabulary, save_bookmark, save_chapter_highlights,
+    save_inspectional_exit_assessment, save_notes, save_preferences, save_syntopic_topic, search_vault, submit_review,
+    sync_practice_deck,
 };
 use tauri::{AppHandle, Manager, Runtime};
 
@@ -92,7 +92,6 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_library_books,
-            list_books,
             load_book_meta,
             get_inspectional_blueprint,
             get_inspectional_exit_assessment,
@@ -106,9 +105,6 @@ pub fn run() {
             get_due_cards,
             get_chapter_due_cards,
             submit_review,
-            get_deck_stats,
-            get_review_heatmap,
-            get_retention_metrics,
             get_reading_velocity,
             record_reading_progress,
             get_all_book_notes,

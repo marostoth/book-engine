@@ -1,6 +1,6 @@
 use crate::vault::{
-    read_book_meta_json, read_chapter_file, read_notes_file, scan_available_books, scan_library_books,
-    write_notes_file, AppError, BookMetadata, BookSummary,
+    read_book_meta_json, read_chapter_file, read_notes_file, scan_library_books, write_notes_file, AppError,
+    BookMetadata,
 };
 use tauri::{command, Manager};
 
@@ -9,14 +9,6 @@ pub async fn get_library_books() -> Result<Vec<BookMetadata>, AppError> {
     tokio::task::spawn_blocking(scan_library_books)
         .await
         .map_err(|e| AppError::Internal(format!("Task join error: {e}")))?
-}
-
-#[command]
-pub async fn list_books() -> Result<Vec<BookSummary>, String> {
-    tokio::task::spawn_blocking(scan_available_books)
-        .await
-        .map_err(|e| format!("Task join error: {e}"))?
-        .map_err(|e| format!("Failed to list books: {e}"))
 }
 
 #[command]
@@ -153,45 +145,15 @@ pub async fn submit_review(card_id: String, rating: u8) -> Result<crate::fsrs::C
         .map_err(|e| format!("Failed to submit review: {e}"))
 }
 
-#[command]
-pub async fn get_deck_stats(book_id: Option<String>) -> Result<crate::db::DeckStats, String> {
-    tokio::task::spawn_blocking(move || crate::db::get_deck_stats_blocking(book_id.as_deref()))
-        .await
-        .map_err(|e| format!("Task join error: {e}"))?
-        .map_err(|e| format!("Failed to get deck stats: {e}"))
-}
-
-#[command]
-pub async fn load_all_book_notes(book_id: String) -> Result<Vec<crate::vault::ChapterNoteFile>, String> {
-    tokio::task::spawn_blocking(move || crate::vault::scan_all_notes(&book_id))
-        .await
-        .map_err(|e| format!("Task join error: {e}"))?
-        .map_err(|e| format!("Failed to load book notes: {e}"))
-}
-
-#[command]
-pub async fn export_summary(book_id: String, content: String) -> Result<String, String> {
-    tokio::task::spawn_blocking(move || crate::vault::export_summary_file(&book_id, &content))
-        .await
-        .map_err(|e| format!("Task join error: {e}"))?
-        .map_err(|e| format!("Failed to export summary: {e}"))
-}
-
-#[command]
-pub async fn get_review_heatmap(book_id: Option<String>) -> Result<Vec<crate::db::ReviewBlock>, String> {
-    tokio::task::spawn_blocking(move || crate::db::get_review_heatmap_blocking(book_id.as_deref()))
-        .await
-        .map_err(|e| format!("Task join error: {e}"))?
-        .map_err(|e| format!("Failed to get review heatmap: {e}"))
-}
-
-#[command]
-pub async fn get_retention_metrics(book_id: Option<String>) -> Result<crate::db::RetentionMetrics, String> {
-    tokio::task::spawn_blocking(move || crate::db::get_retention_metrics_blocking(book_id.as_deref()))
-        .await
-        .map_err(|e| format!("Task join error: {e}"))?
-        .map_err(|e| format!("Failed to get retention metrics: {e}"))
-}
+// `get_deck_stats`, `get_review_heatmap` and `get_retention_metrics` were deleted here (LC-03). Each asked the
+// database for one part of what `get_study_analytics` already returns in full, and the analytics window has read
+// the whole thing since AN-03. Their `*_blocking` workers stay in `db/`: `get_study_analytics_blocking` calls
+// `get_retention_metrics_blocking` itself, and the other two are used by the database tests.
+//
+// `load_all_book_notes` and `export_summary` went with them. `get_all_book_notes` returns the parsed note items the
+// notes pane needs instead of raw files, and `export_book_summary` builds the same `summary-export.md` in Rust
+// rather than writing whatever text the window sends. Neither of the two was ever registered, so no version of the
+// app could call them.
 
 #[command]
 pub async fn get_reading_velocity(book_id: Option<String>) -> Result<crate::db::ReadingVelocityStats, String> {

@@ -1,23 +1,17 @@
-import type {
-  StudyAnalytics,
-  ReviewBlock,
-  RetentionMetrics,
-  ReadingVelocityStats,
-} from "../types.ts";
+import type { StudyAnalytics, ReadingVelocityStats } from "../types.ts";
 import { callBackend } from "./clientBase.ts";
 
+/**
+ * Everything the analytics window shows: the review blocks its activity grid draws, the card state counts, the
+ * retention rate, and the size of the vault.
+ *
+ * `fetchReviewHeatmap` and `fetchRetentionMetrics` were deleted here (LC-03). Each asked for one part of this
+ * answer, and no screen had called either since AN-03 made this one carry the lot.
+ */
 export async function getStudyAnalytics(bookId?: string): Promise<StudyAnalytics> {
   return callBackend<StudyAnalytics>("get_study_analytics", { bookId: bookId || null }, (dev) =>
     dev.getStudyAnalytics()
   );
-}
-
-export async function fetchReviewHeatmap(bookId?: string): Promise<ReviewBlock[]> {
-  return callBackend<ReviewBlock[]>("get_review_heatmap", { bookId }, (dev) => dev.fetchReviewHeatmap());
-}
-
-export async function fetchRetentionMetrics(bookId?: string): Promise<RetentionMetrics> {
-  return callBackend<RetentionMetrics>("get_retention_metrics", { bookId }, (dev) => dev.fetchRetentionMetrics());
 }
 
 export async function fetchReadingVelocity(bookId?: string): Promise<ReadingVelocityStats> {

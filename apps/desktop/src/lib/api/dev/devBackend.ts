@@ -15,11 +15,8 @@ export {
   indexVault,
   getVaultPath,
 } from "./fallbackBooks.ts";
-export {
-  getFallbackInspectionalBlueprint as getInspectionalBlueprint,
-  generateFallbackHeatmap as fetchReviewHeatmap,
-} from "./mockData.ts";
-export { syncPracticeDeck, getDueCards, getChapterDueCards, submitReview, getDeckStats } from "./fallbackPractice.ts";
+export { getFallbackInspectionalBlueprint as getInspectionalBlueprint } from "./mockData.ts";
+export { syncPracticeDeck, getDueCards, getChapterDueCards, submitReview } from "./fallbackPractice.ts";
 export { getAllBookNotes, exportBookSummary } from "./fallbackNotes.ts";
 export { getChapterHighlights, saveChapterHighlights } from "./fallbackHighlights.ts";
 export {
@@ -37,9 +34,10 @@ export {
   getInspectionalExitAssessment,
   saveInspectionalExitAssessment,
 } from "./fallbackReaderState.ts";
+// The stand-ins for `fetchReviewHeatmap`, `fetchRetentionMetrics` and `getDeckStats` went with their commands
+// (LC-03). `getFallbackStudyAnalytics` still builds the same numbers, because it always did.
 export {
   getFallbackStudyAnalytics as getStudyAnalytics,
-  getFallbackRetentionMetrics as fetchRetentionMetrics,
   getFallbackReadingVelocity as fetchReadingVelocity,
   updateFallbackReadingProgress as recordReadingProgress,
 } from "./fallbackAnalytics.ts";
