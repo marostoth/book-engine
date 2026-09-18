@@ -170,7 +170,6 @@ def test_the_inbox_stops_a_new_copy_of_a_book_the_vault_has_and_keeps_it_in_the_
     monkeypatch.setattr(inbox, "INBOX_DIR", tmp_path / "inbox")
     monkeypatch.setattr(inbox, "PROCESSED_DIR", tmp_path / "inbox" / "processed")
     monkeypatch.setattr(inbox, "VAULT_DIR", tmp_path / "vault")
-    monkeypatch.setattr(inbox, "LEDGER_FILE", tmp_path / "vault" / "_ledger.json")
     monkeypatch.setattr(sys, "argv", ["process-inbox.py"])
     (tmp_path / "inbox").mkdir()
     create_sample_epub(tmp_path / "inbox" / "sample.epub")

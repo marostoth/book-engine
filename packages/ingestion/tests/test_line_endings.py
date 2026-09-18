@@ -143,7 +143,6 @@ def test_every_file_that_an_import_writes_has_unix_line_endings(tmp_path: Path, 
     monkeypatch.setattr(inbox, "INBOX_DIR", tmp_path / "inbox")
     monkeypatch.setattr(inbox, "PROCESSED_DIR", tmp_path / "inbox" / "processed")
     monkeypatch.setattr(inbox, "VAULT_DIR", tmp_path / "vault")
-    monkeypatch.setattr(inbox, "LEDGER_FILE", tmp_path / "vault" / "_ledger.json")
     monkeypatch.setattr(sys, "argv", ["process-inbox.py"])
     make_epub(tmp_path / "inbox" / f"{BOOK_ID}.epub", "\r\n")
     make_pdf(tmp_path / "inbox" / "river-charts.pdf")

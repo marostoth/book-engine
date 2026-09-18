@@ -2,7 +2,8 @@
 """Master System Health Audit Orchestrator for Book Engine.
 
 Dynamically evaluates:
-1. Dynamic Ledger & Vault Parity (vault/books, inbox/processed, vault/_ledger.json)
+1. Dynamic Ledger & Vault Parity (vault/books, inbox/processed, vault/_ledger.json), and the ledger's
+   chapter and word counts against each book's own _meta.json (CQ-05)
 2. Anchor & Asset Integrity (^p-[0-9]{3,}, unique anchors, markdown images -> disk assets, footnote parity)
 3. Zero-Hallucination Guardrail (extractive Cloze & Scramble verbatim matches against source chapters)
 4. Backend Safety (Rust cargo check + cargo test in apps/desktop/src-tauri)
@@ -46,6 +47,8 @@ CARGO_TOML = DESKTOP_DIR / "src-tauri" / "Cargo.toml"
 # The import's own rule for a character that nothing could read (CQ-02)
 sys.path.insert(0, str(ROOT_DIR / "packages" / "ingestion"))
 from ingest.glyph_repair import REPLACEMENT  # noqa: E402
+# The import's own reading of the ledger, so the audit and the import never disagree (CQ-05)
+from ingest.ledger import lines_that_disagree  # noqa: E402
 
 # ANSI Color formatting
 ANSI_GREEN = "\033[92m"
@@ -156,6 +159,15 @@ def check_ledger_and_vault_parity() -> DiagnosticResult:
                 errors.append(
                     f"SHA-256 mismatch for '{filename}': expected {expected_sha[:12]}..., got {actual_sha[:12]}..."
                 )
+
+    # The numbers of a book that the vault holds. They went stale, because only the inbox wrote
+    # them and a book imported again from the command line changed only its `_meta.json` (CQ-05).
+    for drift in lines_that_disagree(VAULT_DIR):
+        errors.append(
+            f"Ledger says book '{drift['book_id']}' has {drift['ledger_chapters']} chapters and "
+            f"{drift['ledger_words']} words, but its _meta.json says {drift['book_chapters']} and "
+            f"{drift['book_words']}. Import the book again to bring them together."
+        )
 
     # Orphaned folders in vault/books
     orphaned_books = discovered_books - ledger_book_ids
