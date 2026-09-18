@@ -164,7 +164,8 @@ def test_audit_syntopicon_parity_catches_invalid_data(tmp_path: Path):
     assert passed is False
     assert "questionId 'q-unknown' does not match any framed question" in err
 
-    # 7. Valid Dossier report passes
+    # 7. A dossier whose links open from the folder it is saved in passes (CQ-06). A report lives in
+    # vault/syntopicon/reports/, so a link to a passage climbs two folders.
     topic_file.write_text(json.dumps(base_topic), encoding="utf-8")
     reports = vault / "syntopicon" / "reports"
     reports.mkdir(parents=True)
@@ -175,8 +176,9 @@ def test_audit_syntopicon_parity_catches_invalid_data(tmp_path: Path):
         "title: Comparative Inquiry\n"
         "---\n\n"
         "# Syntopical Dossier\n\n"
-        "— [book-a:ch-01.md#^p-001](book-a/ch-01.md#^p-001)\n"
-        "— [book-b:ch-01.md#^p-010](book-b/ch-01.md#^p-010)\n"
+        "— [`ch-01.md#^p-001`](../../books/book-a/ch-01.md#^p-001)\n"
+        "— [`ch-01.md#^p-010`](../../books/book-b/ch-01.md#^p-010)\n"
+        "— [the review](https://example.invalid/review) and [the top](#syntopical-dossier)\n"
     )
     report_file.write_text(report_content, encoding="utf-8")
     passed, metric = mod.audit_syntopicon_parity(vault)
@@ -191,12 +193,51 @@ def test_audit_syntopicon_parity_catches_invalid_data(tmp_path: Path):
     assert "References topic_id 'unknown-topic' which does not exist" in err
     bad_report.unlink()
 
-    # 9. Invariant: Dossier with invalid anchor citation fails
+    # 9. Invariant: a dossier link that names no such paragraph fails (CQ-06)
     broken_cite_report = reports / "test-topic-synthesis.md"
     broken_cite_report.write_text(
-        "---\ntopic_id: test-topic\n---\n# Dossier\n— [book-a:ch-01.md#^p-999](book-a/ch-01.md#^p-999)\n",
+        "---\ntopic_id: test-topic\n---\n# Dossier\n"
+        "— [`ch-01.md#^p-999`](../../books/book-a/ch-01.md#^p-999)\n",
         encoding="utf-8",
     )
     passed, err = mod.audit_syntopicon_parity(vault)
     assert passed is False
-    assert "Anchor '^p-999' not found" in err
+    assert "names a file that has no such paragraph" in err
+
+    # 10. Invariant: a dossier link that starts where the repository starts, as the app used to write it, fails
+    # because it reaches no file from the folder the report is saved in (CQ-06).
+    broken_cite_report.write_text(
+        "---\ntopic_id: test-topic\n---\n# Dossier\n"
+        "— [`ch-01.md#^p-001`](vault/books/book-a/ch-01.md)\n",
+        encoding="utf-8",
+    )
+    passed, err = mod.audit_syntopicon_parity(vault)
+    assert passed is False
+    assert "names a folder that is not in the vault" in err
+
+    # 10b. A link written from the right place, to a chapter the book no longer has, says so instead (CQ-06)
+    broken_cite_report.write_text(
+        "---\ntopic_id: test-topic\n---\n# Dossier\n"
+        "— [`ch-09.md#^p-001`](../../books/book-a/ch-09.md#^p-001)\n",
+        encoding="utf-8",
+    )
+    passed, err = mod.audit_syntopicon_parity(vault)
+    assert passed is False
+    assert "reaches no file" in err
+    broken_cite_report.write_text(report_content, encoding="utf-8")
+
+    # 11. Invariant: a quote that is not in the paragraph it names fails (CQ-06)
+    moved_quote = json.loads(json.dumps(base_topic))
+    moved_quote["neutralTerms"][0]["mappings"][0]["citation"]["quote"] = "Words the book never wrote."
+    topic_file.write_text(json.dumps(moved_quote), encoding="utf-8")
+    passed, err = mod.audit_syntopicon_parity(vault)
+    assert passed is False
+    assert "is not in that paragraph any more" in err
+
+    # 12. A quote that only a line wrap or a mark tells apart is the same quote (CQ-06)
+    (book_a / "ch-01.md").write_text("# Chapter 1\n\nFirst\nparagraph  here. ^p-001\n", encoding="utf-8")
+    wrapped_quote = json.loads(json.dumps(base_topic))
+    wrapped_quote["neutralTerms"][0]["mappings"][0]["citation"]["quote"] = "**First** paragraph here"
+    topic_file.write_text(json.dumps(wrapped_quote), encoding="utf-8")
+    passed, metric = mod.audit_syntopicon_parity(vault)
+    assert passed is True, f"Expected pass, got error: {metric}"

@@ -17,6 +17,7 @@ pub mod analytical;
 pub mod syntopicon_models;
 pub mod syntopicon;
 pub mod syntopicon_compiler;
+pub mod syntopicon_check;
 #[cfg(test)]
 mod book_pictures_tests;
 #[cfg(test)]
@@ -37,6 +38,8 @@ mod preferences_tests;
 mod inspectional_tests;
 #[cfg(test)]
 mod syntopicon_tests;
+#[cfg(test)]
+mod syntopicon_check_tests;
 
 pub use models::*;
 pub use reader::*;
@@ -47,3 +50,4 @@ pub use highlights::*;
 pub use syntopicon_models::*;
 pub use syntopicon::*;
 pub use syntopicon_compiler::*;
+pub use syntopicon_check::*;

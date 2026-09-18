@@ -209,10 +209,14 @@ pub fn save_syntopic_topic(topic: SyntopicTopic) -> Result<()> {
 
 /// Compiles a dialectical synthesis report and persists it to `vault/syntopicon/reports/<topic-id>-synthesis.md`. The id
 /// in the topic file names the report, so that id is checked too (SEC-03). Loading the topic makes the reports folder.
+/// Every citation is read back from its book first, so the report says which quotes are still there (CQ-06).
 pub fn export_syntopic_report(topic_id: &str) -> Result<String> {
     let topic = load_syntopic_topic(topic_id)?;
     let file_path = super::paths::topic_report_path(&topic.id)?;
-    let markdown = super::syntopicon_compiler::compile_dialectical_dossier(&topic);
+    let markdown = super::syntopicon_compiler::compile_dialectical_dossier(
+        &topic,
+        &super::syntopicon_check::check_citation,
+    );
 
     super::safe_write::write_file(&file_path, &markdown)?;
 

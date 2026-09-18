@@ -49,6 +49,7 @@ sys.path.insert(0, str(ROOT_DIR / "packages" / "ingestion"))
 from ingest.glyph_repair import REPLACEMENT  # noqa: E402
 # The import's own reading of the ledger, so the audit and the import never disagree (CQ-05)
 from ingest.ledger import lines_that_disagree  # noqa: E402
+from ingest.citations import links_that_lead_nowhere, quote_that_moved  # noqa: E402
 
 # ANSI Color formatting
 ANSI_GREEN = "\033[92m"
@@ -1081,6 +1082,13 @@ def audit_syntopicon_parity(vault_dir: Path) -> Tuple[bool, str]:
             errors.append(f"{context_label}: Anchor '{anchor}' not found in '{b_id}/{c_file}'.")
             return None
 
+        # The quote is read back from the paragraph the citation names (CQ-06). A citation with no quote, such as one
+        # taken from a link in a report, has nothing to read back.
+        moved = quote_that_moved(cite, content)
+        if moved:
+            errors.append(f"{context_label}: {moved}")
+            return None
+
         return b_id
 
     for tf in topic_files:
@@ -1196,13 +1204,13 @@ def audit_syntopicon_parity(vault_dir: Path) -> Tuple[bool, str]:
         if topic_id_in_report not in known_topic_ids:
             errors.append(f"Dossier '{rf.name}': References topic_id '{topic_id_in_report}' which does not exist in vault/syntopicon/topics/.")
 
-        # Match markdown citations like [book:ch.md#^p-xxx](...) or (book/ch.md#^p-xxx)
-        cite_matches = re.findall(r"\[([a-zA-Z0-9_\-]+):([a-zA-Z0-9_\-.]+)#(\^p-[0-9]{3,})\]", content)
-        for b_id, c_file, anchor in cite_matches:
-            fake_cite = {"bookId": b_id, "chapterFile": c_file, "anchor": anchor}
-            validate_cross_citation(fake_cite, f"Dossier '{rf.name}' citation")
-
         total_reports += 1
+
+    # Follow every link of every report from the folder the report is saved in (CQ-06). Matching the shape of a
+    # citation instead used to check nothing at all once a report came from the app, because the app writes its
+    # place as `[`ch-04.md#^p-001`](../../books/...)` and the pattern wanted `[book-id:ch-04.md#^p-001]`.
+    for dead in links_that_lead_nowhere(vault_dir):
+        errors.append(f"Dossier '{dead['report']}': the link '{dead['href']}' {dead['why']}.")
 
     passed = len(errors) == 0
     if passed:
