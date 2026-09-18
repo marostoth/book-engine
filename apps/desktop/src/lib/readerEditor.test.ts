@@ -98,7 +98,8 @@ test("every TipTap package of the app is 3.30.4 or later, the first version with
 });
 
 test("the app installs one @tiptap/core, 3.30.4 or later", () => {
-  const packages: Record<string, { version: string }> = readJson("../../package-lock.json").packages;
+  // One lock file, at the root of the repository, because `apps/desktop` is a workspace of it now (TL-06).
+  const packages: Record<string, { version: string }> = readJson("../../../../package-lock.json").packages;
   const installed = Object.entries(packages).filter(([place]) => place.endsWith("node_modules/@tiptap/core"));
 
   assert.equal(installed.length, 1, `@tiptap/core is installed ${installed.length} times`);
