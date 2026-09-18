@@ -1,28 +1,29 @@
 """Test suite for practice deck parsing, scenario drills, and audit grounding."""
 
 from pathlib import Path
-import importlib.util
-import pytest
+
+from conftest import load_skill
 
 
 def get_audit_practice_module():
-    skill_path = Path(".agent/skills/audit-practice.py")
-    spec = importlib.util.spec_from_file_location("audit_practice", skill_path)
-    assert spec and spec.loader
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    """The audit script, found by an anchored path, not by the folder pytest was started in (TL-02)."""
+    return load_skill("audit-practice.py")
 
 
-def test_live_vault_practice_decks():
-    """Verify that all live vault practice decks pass cloze and scenario verification."""
+def test_every_practice_deck_of_the_vault_of_the_tests(vault_of_the_tests: Path):
+    """Every card of every deck of a whole vault that this test run built says what its chapter says (TL-02).
+
+    It used to read the vault beside the repository and assert that it held at least one deck. A fresh clone
+    holds none, so the test did not skip there: it failed on `0 > 0`.
+    """
     mod = get_audit_practice_module()
-    target_notes = sorted(Path("vault/notes").glob("*/practice-deck.md"))
-    assert len(target_notes) > 0, "No practice decks found in live vault"
+    decks = sorted((vault_of_the_tests / "notes").glob("*/practice-deck.md"))
+    assert len(decks) == 2, f"The vault of the tests has {len(decks)} practice decks, and it should have two"
 
-    for deck_path in target_notes:
-        res = mod.audit_book_practice_deck(deck_path, Path("vault/books"))
-        total, matches, mismatches, errors = res
+    for deck_path in decks:
+        total, matches, mismatches, errors = mod.audit_book_practice_deck(
+            deck_path, vault_of_the_tests / "books"
+        )
         assert mismatches == 0, f"Deck {deck_path.name} failed with errors: {errors}"
         assert matches == total
         assert total > 0

@@ -19,6 +19,8 @@ from bs4 import Comment
 from ingest.line_endings import normalize_line_endings, read_html
 from ingest.pipeline import ingest_book
 
+from conftest import SKILLS
+
 BOOK_ID = "harbour-tides"
 LINE_ENDINGS = {"unix": "\n", "windows": "\r\n", "old mac": "\r"}
 
@@ -112,7 +114,7 @@ def vault_files(vault: Path) -> dict:
 
 
 def load_script(name: str, file_name: str):
-    spec = importlib.util.spec_from_file_location(name, Path(".agent/skills") / file_name)
+    spec = importlib.util.spec_from_file_location(name, SKILLS / file_name)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

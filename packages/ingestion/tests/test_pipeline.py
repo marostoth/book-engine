@@ -8,6 +8,8 @@ import pytest
 from ingest.sample_generator import create_sample_epub
 from ingest.pipeline import ingest_epub
 
+from conftest import SKILLS
+
 
 def test_full_pipeline_ingestion(tmp_path: Path):
     epub_path = tmp_path / "sample.epub"
@@ -60,7 +62,7 @@ def test_full_pipeline_ingestion(tmp_path: Path):
     assert "{{c1::" in deck_text
 
     # 6. Execute anchor integrity audit skill
-    audit_script = Path(".agent/skills/audit-anchors.py").resolve()
+    audit_script = (SKILLS / "audit-anchors.py").resolve()
     result = subprocess.run(
         [sys.executable, str(audit_script), str(book_dir)],
         capture_output=True,

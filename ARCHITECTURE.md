@@ -371,7 +371,7 @@ book-engine/
 │       │   ├── vault_changes.py         # Puts a new book folder and changed vault files in place all together, or puts each change back; tries again while Windows holds a file, and removes folders that Windows marks read-only (IN-05)
 │       │   └── vector_figures.py        # Vector diagram rasterization, boundary stops & full-width section bounds; `figure_file_name` carries the whole number of the figure, so Figure 2.1 and Figure 3.1 of one part no longer write one file (IN-10)
 │       ├── tests/               # Pytest verification suite for anchors, schemas, TOC, and pipeline
-│       │   ├── test_analytical_audit.py # Vector 9 analytical logic & citation parity test suite
+│       │   ├── test_analytical_audit.py # Vector 9 analytical logic & citation parity test suite, on the vault the tests build (TL-02)
 │       │   ├── test_anchors.py          # Deterministic paragraph anchor injection test suite; the samples of a short chapter share no paragraph (IN-01)
 │       │   ├── test_book_build.py       # Build folder tests: what a killed import left does not stop the next import, also in read-only folders, a book folder that Windows marks read-only is replaced, a book left aside stops the next import, and the check names each problem (IN-05)
 │       │   ├── test_book_id.py          # Import tests: an EPUB, a PDF or the command line with a book id that could lead out of the vault writes nothing (SEC-03)
@@ -383,11 +383,12 @@ book-engine/
 │       │   ├── test_citations.py        # Citation tests: a link that climbs out of the reports folder opens its paragraph, one written from the repository root leads nowhere, and a quote that moved is named (CQ-06)
 │       │   ├── test_cloze_cards.py      # Cloze card tests: no small-word, number or label answer, no marks or second answer in the prompt, no card from a table or HTML, one card for a repeated term, and the audit refuses the old cards (LE-07)
 │       │   ├── test_console.py          # Command output tests: a pipe that takes plain letters only takes a Cyrillic title after `allow_any_letter`, a stream that cannot or will not change is left alone, saying what was done never stops a command, and every command of the repository calls `allow_any_letter` (IN-09)
+│       │   ├── conftest.py              # `vault_of_the_tests`: a whole vault built once a run, with two books, their practice decks, analytical notes, one topic and its report, so no test opens the reader's own books; `load_skill` finds a script of `.agent/skills/` by an anchored path (TL-02)
 │       │   ├── test_dependencies.py     # Lock tests: each dependency of both lists of pyproject.toml, and each package that one needs, has one exact version in requirements.lock, and the installed versions are those versions (IN-05, IN-11)
 │       │   ├── test_endnotes.py         # Endnote relocation & inline footnote syntax test suite
 │       │   ├── test_epub_contents.py    # EPUB contents tests: full chapter titles, and each entry names the chapter file & paragraph where it starts, as in The Wealth of Nations (CQ-01); the title page of a division joins the chapter after it and both entries open it (CQ-04); the endnote document of the fixture is a chapter now, because nothing in that book cites its note (IN-07)
 │       │   ├── test_epub_text.py        # EPUB text tests: every kind of block in any layout, preformatted text as the book has it, no words run together, and only a link to a note becomes a footnote (IN-02)
-│       │   ├── test_figure_cards.py     # Figure extraction, full-width dimensions & table suppression tests
+│       │   ├── test_figure_cards.py     # Figure tests on a PDF the test builds: a wide drawing keeps its full width at 200 dpi, Figure 1.1 and Figure 2.1 of one part keep two pictures, and no word of a page loses its opening letters (TL-02)
 │       │   ├── test_glyph_repair.py     # Character map tests: the maths font of the Dalton book gets an "=", a "+" and a multiplication sign, a right font is left alone, and a broken character stops an import (CQ-02)
 │       │   ├── test_hash_paragraphs.py  # Hash paragraph tests: `#1 rule` and a hashtag keep their anchor, `# PRICES OF WHEAT` is written as `&#35; PRICES OF WHEAT` and shows as the book has it, and the check now names a paragraph with no anchor (IN-08)
 │       │   ├── test_import_changes.py   # Import tests: a failed EPUB or PDF import changes nothing, a new import leaves no old chapter or picture, a book that fails the check stays out of the vault, and two imports of a file write the same bytes (IN-05)
@@ -395,7 +396,7 @@ book-engine/
 │       │   ├── test_ledger.py           # Ledger tests: an import puts the numbers of a known book right, adds no book of its own, leaves the other lines alone, and the audit says so when a number and a book disagree (CQ-05)
 │       │   ├── test_line_endings.py     # Line ending tests: an EPUB book with Windows or old Mac line endings imports as the same book, a note is one footnote line, and every file an import writes has `\n` line endings (IN-06)
 │       │   ├── test_markdown_text.py    # Book text tests: a tag the book shows as text is written as text in every kind of block, and reads back as the book has it
-│       │   ├── test_meta_schema.py      # Book metadata, hierarchical TOC & schema validation tests
+│       │   ├── test_meta_schema.py      # Book metadata, hierarchical TOC & schema validation tests; the `_meta.json` check reads a book the run imported, with no `if exists()` around it (TL-02)
 │       │   ├── test_next_sentence_quiz.py # Quiz card tests: the card asks what comes right after its passage, the right option spreads over A to D, no near-copy or next-paragraph wrong option, and the audit refuses the old cards (LE-06)
 │       │   ├── test_note_documents.py   # Note document tests: a chapter named `ch03-fieldnotes.xhtml` or `backmatter.xhtml` is kept, a document whose notes the chapters cite makes no chapter whatever it is called, and a chapter that holds its own list of notes stays a chapter (IN-07)
 │       │   ├── test_packaging.py        # Package list tests: `ast` reads every import of `ingest`, `tests` and the skills, and each one is named by `dependencies` or by the `dev` group; no tool of the work is a part of the import; git keeps no folder that a build writes (IN-11)
@@ -404,13 +405,14 @@ book-engine/
 │       │   ├── test_pdf_outline.py      # Outline part tests: the Kotler and Dalton outline shapes cover every page and keep the chapter pages, and each part gets its kind (IN-01)
 │       │   ├── test_pipeline.py         # End-to-end ingestion pipeline integration test suite
 │       │   ├── test_places.py           # Place tests: a joined or a cut paragraph, a chapter in another place, text that is gone, and a file in the way that cannot be read (IN-04)
-│       │   ├── test_practice_deck.py    # Zero-hallucination verbatim practice card validation tests
+│       │   ├── test_practice_deck.py    # Zero-hallucination verbatim practice card validation tests, on the two decks of the vault the tests build (TL-02)
 │       │   ├── test_reimport.py         # Import stop tests: nothing changes, --force keeps the reader's files, the inbox keeps a stopped copy
 │       │   ├── test_salience.py         # Salience scoring & extractive cloze extraction tests
-│       │   ├── test_syntopicon_audit.py # Vector 10 syntopical cross-vault referential parity test suite; a report link is followed from the folder it is saved in, and a quote that is not in its paragraph fails (CQ-06)
+│       │   ├── test_syntopicon_audit.py # Vector 10 syntopical cross-vault referential parity test suite, on the vault the tests build (TL-02); a report link is followed from the folder it is saved in, and a quote that is not in its paragraph fails (CQ-06)
 │       │   ├── test_text_repair.py      # Whole sentence tests: the two halves of a cut sentence join, a photo credit or a figure label never becomes part of one, and a page's own highlight, empty heading and roman page number go (CQ-03)
 │       │   ├── test_toc.py              # Table of contents extraction & hierarchy tests
 │       │   ├── test_toc_links.py        # Contents link tests: the block & paragraph of each element, encoded and NCX-relative links, no guessed document (CQ-01)
+│       │   ├── test_vault_of_the_tests.py # The vault the tests build holds two whole books, notes of all four kinds and a topic that cites two books; `ast` fails any test that writes `Path("vault")` or `Path(".agent/...")` (TL-02)
 │       │   └── test_vault_changes.py    # Vault change tests: every change goes in, a change that fails puts each change back, a file that Windows holds for a moment still goes in, and a read-only old book folder is removed (IN-05)
 │       ├── pyproject.toml       # Python package configuration and CLI entrypoints; `dependencies` holds what the import of a book needs, the `dev` group holds pytest, Pillow, packaging, mypy and ruff, and mypy steps over the type file of numpy so it can check this package for Python 3.11 (IN-11)
 │       └── requirements.lock    # The exact version of every package that the import needs, and of every package that the tests and the checks need (IN-05, IN-11)
@@ -500,6 +502,15 @@ Multi-column textbook pages frequently include full-width conceptual matrices, m
 - **The glyph name has the last word:** one part of a font can put the same glyph at another code, so the code table is the start and the `/Differences` array overrides it.
 - **A broken character stops an import:** a chapter that holds a replacement character fails the book check and names the blocks it sits in (`ingest/book_check.py`), so the vault keeps the book it had. `audit-anchors.py` and `audit-system.py` use the same rule. A "1/4" or a "thorn" is not broken by itself, because a book may hold one for its own reasons.
 - **Superscripts:** a price like 96 29/32 shows as a superscript in the reader, which RD-03 added (`components/reader/TipTapExtensions.ts`).
+
+### The Tests Read the Vault They Built (TL-02)
+- **What went wrong:** eight tests in five files opened `vault/` beside the repository, which holds the reader's own books. Measured on a folder holding only the files git keeps: **4 failed, 529 passed, 4 skipped**. Two of the four failed on the owner's computer as well, and neither failure was about the code: one wanted analytical notes that were never written, and one read a topic file that git keeps, which cites two books that were moved out of the vault.
+- **A test that only skips is not a test:** the three tests of `test_figure_cards.py` named one commercial book and skipped everywhere, so nobody saw that they had gone stale. They still expected `fig-01-1.png`, which IN-10 renamed to `fig-01-1-1.png`.
+- **A test that passes on nothing is worse:** `test_sample_vault_meta_validation` read its file inside `if ... exists()` with nothing to do when it did not. That file is in no clone, so the test passed while checking nothing at all.
+- **The vault the tests build:** `vault_of_the_tests` (`tests/conftest.py`) makes a temporary vault once a run, with two books imported from EPUBs made there, their practice decks, analytical notes of all four kinds, one syntopical topic and its report. Two books, because a topic must cite two. The second book carries a marked term in each paragraph, because a practice card is made from one, and a deck with no card would let a broken deck pass unseen. Every quote is taken out of the paragraph it cites, so the quote check (CQ-06) has something to pass on.
+- **Anchored paths:** `load_skill` (`tests/conftest.py`) finds a script of `.agent/skills/` from the file that asks for it. Ten test files used to write `Path(".agent/skills/...")`, which is read from whatever folder pytest was started in.
+- **The door stays shut:** `test_no_test_opens_the_vault_beside_the_repository` (`tests/test_vault_of_the_tests.py`) reads every test file with `ast` and fails on any `Path("vault...")` or `Path(".agent...")`.
+- **The reader's own books are still checked**, by `.agent/skills/audit-anchors.py`, `audit-practice.py` and `audit-system.py`, which read the real vault and are run by hand.
 
 ### The Package Lists Say What the Code Needs (IN-11)
 - **A tool of the work is not a part of the import:** `dependencies` in `packages/ingestion/pyproject.toml` asked for pytest, so a computer that only wanted to read books was told to install the test runner as well. pytest now sits in the `dev` group with Pillow, packaging, mypy and ruff.

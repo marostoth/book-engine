@@ -20,6 +20,8 @@ from ingest.pipeline import ingest_book
 from ingest.reimport import BookAlreadyInVaultError, BookIdTakenError
 from ingest.sample_generator import create_sample_epub
 
+from conftest import SKILLS
+
 BOOK_ID = "principles-of-marketing"
 OLD = "Principles of Marketing 2020.pdf"
 NEW = "Principles of Marketing 2023.pdf"
@@ -158,7 +160,7 @@ def test_a_book_whose_file_the_vault_does_not_record_stops_as_before_and_says_so
 def test_the_inbox_stops_a_book_whose_id_another_file_has_and_imports_it_with_its_own_id(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
-    spec = importlib.util.spec_from_file_location("process_inbox", Path(".agent/skills/process-inbox.py"))
+    spec = importlib.util.spec_from_file_location("process_inbox", SKILLS / "process-inbox.py")
     assert spec and spec.loader
     inbox = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(inbox)
