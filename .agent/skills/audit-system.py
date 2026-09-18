@@ -183,6 +183,10 @@ def check_ledger_and_vault_parity() -> DiagnosticResult:
     for ub in untracked_binaries:
         errors.append(f"Untracked binary '{ub}' in inbox/processed/ (not in _ledger.json).")
 
+    # An empty ledger named no book, so the loop above ran over nothing and the check passed (TL-04).
+    if not ledger_book_ids:
+        errors.append("The ledger names no book, so nothing was compared with the vault.")
+
     duration = time.perf_counter() - start_time
     passed = len(errors) == 0
     metric = f"{len(ledger_book_ids)} books, {len(ledger_filenames)} binaries synced"
@@ -274,6 +278,10 @@ def check_anchor_and_asset_integrity() -> DiagnosticResult:
                         f"{book_dir.name}/{ch_file.name}: Missing referenced asset '{clean_src}' (expected at {img_path})."
                     )
 
+    # No book, or a book with no chapter, read no file at all, and the check still passed (TL-04).
+    if total_chapters == 0:
+        errors.append(f"No chapter file was read under {BOOKS_DIR}. Nothing was checked.")
+
     duration = time.perf_counter() - start_time
     passed = len(errors) == 0
     metric = f"{total_anchors:,} anchors, {total_assets} assets ({total_chapters} chs)"
@@ -324,12 +332,13 @@ def check_zero_hallucination_practice() -> DiagnosticResult:
 
     target_decks = sorted(NOTES_DIR.glob("*/practice-deck.md")) if NOTES_DIR.exists() else []
     if not target_decks:
+        # This said "0 decks found" and passed, so a vault with no book at all got a green check (TL-04).
         return DiagnosticResult(
             name="3. Zero-Hallucination Guardrail",
             target="vault/notes",
             metric="0 decks found",
-            passed=True,
-            errors=[],
+            passed=False,
+            errors=["No practice deck found in vault/notes/. Nothing was checked."],
             duration_s=time.perf_counter() - start_time,
         )
 
@@ -528,19 +537,35 @@ def check_fts_benchmark() -> DiagnosticResult:
 # ----------------------------------------------------------------------
 # 7. Desktop Runtime Launch Smoke Test
 # ----------------------------------------------------------------------
+def newest_backend_change() -> Tuple[float, str]:
+    """When the Rust of the app last changed, and which file changed then."""
+    newest, name = 0.0, ""
+    backend = DESKTOP_DIR / "src-tauri"
+    for source in list((backend / "src").rglob("*.rs")) + [backend / "Cargo.toml"]:
+        if not source.is_file():
+            continue
+        when = source.stat().st_mtime
+        if when > newest:
+            newest, name = when, source.name
+    return newest, name
+
+
 def check_desktop_runtime_launch() -> DiagnosticResult:
+    """Starts the app that is built, and only when the reader asks for it with `--launch` (TL-04).
+
+    This used to run on every audit. It opens a window, it reads the reader's own vault and the live search
+    database, and it took whichever binary was on disk: the release one when both were there, even when the debug
+    one was newer. The release binary was days older than the Rust it was built from, so a green check said the
+    app starts when nobody had built the code that the check was run against.
+    """
     start_time = time.perf_counter()
     errors: List[str] = []
 
-    # Executable discovery: prefer release, fall back to debug
+    # Of the two binaries, take the one that was built last, not the release one by habit.
     release_exe = DESKTOP_DIR / "src-tauri" / "target" / "release" / "book-engine-desktop.exe"
     debug_exe = DESKTOP_DIR / "src-tauri" / "target" / "debug" / "book-engine-desktop.exe"
-
-    target_exe: Optional[Path] = None
-    if release_exe.exists():
-        target_exe = release_exe
-    elif debug_exe.exists():
-        target_exe = debug_exe
+    built = [exe for exe in (release_exe, debug_exe) if exe.exists()]
+    target_exe: Optional[Path] = max(built, key=lambda exe: exe.stat().st_mtime) if built else None
 
     if not target_exe:
         return DiagnosticResult(
@@ -553,6 +578,23 @@ def check_desktop_runtime_launch() -> DiagnosticResult:
         )
 
     rel_target = str(target_exe.relative_to(ROOT_DIR)).replace("\\", "/")
+
+    # A binary older than the code says nothing about the code. Starting it would be a check of the past.
+    built_at = target_exe.stat().st_mtime
+    changed_at, changed_file = newest_backend_change()
+    if changed_at > built_at:
+        days = (changed_at - built_at) / 86400.0
+        return DiagnosticResult(
+            name="7. Desktop Runtime Launch",
+            target=rel_target,
+            metric=f"Binary {days:.1f} days older than the code",
+            passed=False,
+            errors=[
+                f"{rel_target} was built before {changed_file} changed ({days:.1f} days earlier), so starting it "
+                "would check code that nobody built. Run 'cargo build' in apps/desktop/src-tauri first."
+            ],
+            duration_s=time.perf_counter() - start_time,
+        )
 
     # Subprocess smoke run
     try:
@@ -1370,11 +1412,25 @@ def check_modularity_and_vault_isolation() -> DiagnosticResult:
             except Exception:
                 pass
 
+    # The Rust of the app, and the scripts of this folder, are source files too (TL-04). The check read neither,
+    # although AGENTS.md names `commands.rs` as its own example, and `audit-system.py` is the longest file here.
+    for folder, pattern in ((ROOT_DIR / "apps" / "desktop" / "src-tauri" / "src", "*.rs"), (SKILLS_DIR, "*.py")):
+        if not folder.exists():
+            continue
+        for p in sorted(folder.rglob(pattern)):
+            src_files += 1
+            lines = len(p.read_text(encoding="utf-8", errors="ignore").splitlines())
+            if lines > 300:
+                named = p.relative_to(ROOT_DIR).as_posix() if p.is_relative_to(ROOT_DIR) else p.name
+                over_limit.append(f"{named} ({lines} lines)")
+
     if over_limit:
         errors.append(f"Directive 4 violation: Files exceeding 300-line modular ceiling: {', '.join(over_limit)}")
 
     passed = len(errors) == 0
-    metric = f"{src_files} source files <= 300 lines (0 DB leaks)"
+    # The line used to read "<= 300 lines (0 DB leaks)" whatever the check found, so a failed check still printed a
+    # clean result beside the word FAIL (TL-04).
+    metric = f"{src_files} source files, {len(over_limit)} over 300 lines, {len(db_leaks)} DB leaks"
 
     return DiagnosticResult(
         name="12. Modularity & Isolation",
@@ -1442,6 +1498,11 @@ def main() -> int:
     allow_any_letter()
     parser = argparse.ArgumentParser(description="Book Engine Dynamic System Health Audit")
     parser.add_argument("--no-color", action="store_true", help="Disable ANSI terminal colors")
+    parser.add_argument(
+        "--launch",
+        action="store_true",
+        help="Also start the built app for 5 seconds. It opens a window and reads your own vault (TL-04).",
+    )
     args = parser.parse_args()
 
     use_color = not args.no_color and sys.stdout.isatty() and "NO_COLOR" not in os.environ
@@ -1468,8 +1529,11 @@ def main() -> int:
     print("    -> Evaluating FTS5 Search Latency Benchmark...", flush=True)
     results.append(check_fts_benchmark())
 
-    print("    -> Evaluating Desktop Runtime Launch Smoke Test...", flush=True)
-    results.append(check_desktop_runtime_launch())
+    if args.launch:
+        print("    -> Evaluating Desktop Runtime Launch Smoke Test...", flush=True)
+        results.append(check_desktop_runtime_launch())
+    else:
+        print("    -> Skipping Desktop Runtime Launch Smoke Test (pass --launch to start the app).", flush=True)
 
     print("    -> Evaluating Inspectional Blueprint & Sampling Parity...", flush=True)
     results.append(check_inspectional_parity(VAULT_DIR))

@@ -184,6 +184,7 @@ def audit_book_practice_deck(deck_path: Path, books_dir: Path) -> DeckAuditResul
             cloze_count += 1
             card_id_m = re.search(r"###\s+(?:Card:\s*)?(card-[a-zA-Z0-9_-]+)", trimmed)
             ch_m = re.search(r"-\s+\*\*Chapter:\*\*\s+([a-zA-Z0-9_-]+)", trimmed)
+            anc_m = re.search(r"-\s+\*\*Anchor:\*\*\s+(\^p-[a-zA-Z0-9_-]+)", trimmed)
             ans_m = re.search(r"-\s+\*\*Answer Key:\*\*\s+(`+)([^`\n\r]+)\1", trimmed)
             src_m = re.search(r"-\s+\*\*Exact Source:\*\*\s+(.+)", trimmed)
             cloze_m = re.search(r"-\s+\*\*Cloze:\*\*\s+(.+)", trimmed)
@@ -212,6 +213,24 @@ def audit_book_practice_deck(deck_path: Path, books_dir: Path) -> DeckAuditResul
             card_valid = True
 
             is_scramble = item_type == "scramble" or bool(scramble_text)
+
+            # The card says which paragraph it came from, so the check reads that paragraph and not the whole
+            # chapter (TL-04). A card could name one paragraph and take its words from another one, and the audit
+            # still called the card grounded. `ingest/salience.py` writes an `Anchor:` line on every cloze card.
+            anchor_id = anc_m.group(1) if anc_m else ""
+            cited = ch_content
+            if not is_scramble:
+                if not anchor_id:
+                    mismatches += 1
+                    errors.append(f"{card_id}: The card names no paragraph of {ch_filename}")
+                    continue
+                paragraphs = [p for p in ch_content.replace("\r\n", "\n").split("\n\n") if anchor_id in p]
+                if not paragraphs:
+                    mismatches += 1
+                    errors.append(f"{card_id}: Anchor '{anchor_id}' not found in {ch_filename}")
+                    continue
+                cited = paragraphs[0]
+
             if item_type == "cloze" or not scramble_text:
                 # One blank that holds the answer, an answer that is a term and text of the chapter byte for byte, and
                 # a prompt that shows its exact source as the reader shows it, with no marks and no second answer (LE-07).
@@ -224,9 +243,11 @@ def audit_book_practice_deck(deck_path: Path, books_dir: Path) -> DeckAuditResul
                     if [a or b for a, b in blanks] != [answer]:
                         card_valid = False
                         errors.append(f"{card_id}: The prompt must have one blank, and the blank must hold the answer key")
-                    if answer not in ch_content:
+                    if answer not in cited:
                         card_valid = False
-                        errors.append(f"{card_id}: Answer key '{answer}' is not text of {ch_filename} byte for byte")
+                        errors.append(
+                            f"{card_id}: Answer key '{answer}' is not text of {ch_filename}#{anchor_id} byte for byte"
+                        )
                     problem = answer_problem(answer)
                     if problem:
                         card_valid = False
@@ -252,9 +273,12 @@ def audit_book_practice_deck(deck_path: Path, books_dir: Path) -> DeckAuditResul
                 if exact_source and normalize_ws(exact_source) not in norm_clean_ch and exact_source not in ch_content:
                     card_valid = False
                     errors.append(f"{card_id}: Exact source '{exact_source[:40]}...' is not in {ch_filename}")
-            elif exact_source and exact_source not in exact_chapter_text(ch_content):
+            elif exact_source and exact_source not in exact_chapter_text(cited):
                 card_valid = False
-                errors.append(f"{card_id}: Exact source '{exact_source[:40]}...' is not text of {ch_filename} byte for byte")
+                errors.append(
+                    f"{card_id}: Exact source '{exact_source[:40]}...' is not text of "
+                    f"{ch_filename}#{anchor_id} byte for byte"
+                )
 
             if card_valid:
                 verbatim_matches += 1
@@ -388,8 +412,9 @@ def main() -> int:
     allow_any_letter()
     target_notes = sorted(NOTES_DIR.glob("*/practice-deck.md"))
     if not target_notes:
-        print("[-] No practice decks found in vault/notes/.", file=sys.stderr)
-        return 0
+        # A check that read no deck stopped with 0, so it said "pass" for a vault with no book at all (TL-04).
+        print("[-] No practice decks found in vault/notes/. Nothing was checked.", file=sys.stderr)
+        return 1
 
     rows: List[Dict[str, str]] = []
     total_mismatches = 0
