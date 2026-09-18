@@ -312,8 +312,10 @@ book-engine/
 │           │   │   ├── reader_tests.rs      # Vault write tests: no half-written notes file while a save runs; a renamed book folder opens under its folder name; a chapter and its notes with Windows line endings are read with `\n` line endings (IN-06)
 │           │   │   ├── safe_write.rs        # The one vault write: temporary file in the same folder, flushed, then renamed over the target, so a save is never half done
 │           │   │   ├── study_log.rs         # The permanent record of your study: reviews & reading time, one line each; a notes folder whose name is no book id, or that is a link, is no book (SEC-03)
-│           │   │   ├── syntopicon.rs        # Level 4 Syntopicon topic file I/O & report exporter; a new topic never replaces a topic file that is there
-│           │   │   ├── syntopicon_compiler.rs # Level 4 Dialectical dossier compiler producing Markdown reports
+│           │   │   ├── syntopicon.rs        # Level 4 Syntopicon topic file I/O & report exporter; a new topic never replaces a topic file that is there; every citation is read back from its book before a report is written (CQ-06)
+│           │   │   ├── syntopicon_check.rs  # Level 4 Where a topic citation points, and whether its quote is still in the book: the link climbs out of the reports folder and names the paragraph, and a name the vault cannot hold gets no link (CQ-06)
+│           │   │   ├── syntopicon_check_tests.rs # Citation tests: a link opens the chapter file and the paragraph from where the report is saved, a quote cut by a line wrap still matches, and each way a citation can fail is told apart (CQ-06)
+│           │   │   ├── syntopicon_compiler.rs # Level 4 Dialectical dossier compiler producing Markdown reports; a citation links to its paragraph, and the report says how many quotes are still there (CQ-06)
 │           │   │   ├── syntopicon_models.rs # Level 4 Syntopicon neutral terms & controversy structs
 │           │   │   ├── syntopicon_tests.rs  # Topic tests: a title whose file is taken is refused and that topic stays byte for byte, two creates at once make one topic
 │           │   │   ├── text_file.rs         # Chapters & notes are read with `\n` line endings only: `\r\n` and a lone `\r` become `\n` (IN-06)
@@ -340,6 +342,7 @@ book-engine/
 │       │   ├── book_source.py           # The file each book came from (`source` in `_meta.json`): an import finds the book of a file by its bytes or else its name (IN-03)
 │       │   ├── cli.py                   # Command-line entrypoint (`book-ingest`); a book the vault already has is replaced only with --force; a --book-id that breaks the rule stops the import (SEC-03); --force alone never replaces a book from another file, and the stop gives the two ways on (IN-03)
 │       │   ├── chapter_shape.py         # A page of a book that holds nothing but a title is no chapter: its headings join the chapter it introduces, which then carries its own name instead of the name of the division (CQ-04)
+│       │   ├── citations.py             # Does a topic citation still point at its passage, and does a report link still open one? The quote is read back from the paragraph it names, and a link is checked by following it (CQ-06)
 │       │   ├── cloze.py                 # Cloze (fill-in) cards: a marked term of a plain sentence, no small-word, number or label answers, prompts without marks or a second answer, and one card for a repeated term in a chapter without a marked term (LE-07)
 │       │   ├── elementary.py            # Deterministic Flesch-Kincaid & reading time metrics
 │       │   ├── endnotes.py              # Backmatter endnote relocation to inline footnotes; a note is one footnote line (IN-06); only a link to a note becomes a footnote, and any other link keeps its words (IN-02)
@@ -372,6 +375,7 @@ book-engine/
 │       │   ├── test_book_id_rule.py     # Book id rule tests: every id the importer makes passes, an id that could leave its folder is refused
 │       │   ├── test_book_source.py      # Same book id tests: a book from another file is never replaced, even with --force; the command line & the inbox give the two ways on; a file finds its own book by its bytes or its name (IN-03)
 │       │   ├── test_chapter_shape.py    # Chapter shape tests: a title page joins the chapter after it and loses no word, a page of a picture stays a chapter, a chapter that starts a book carries its own name, and an entry that opens nothing goes (CQ-04)
+│       │   ├── test_citations.py        # Citation tests: a link that climbs out of the reports folder opens its paragraph, one written from the repository root leads nowhere, and a quote that moved is named (CQ-06)
 │       │   ├── test_cloze_cards.py      # Cloze card tests: no small-word, number or label answer, no marks or second answer in the prompt, no card from a table or HTML, one card for a repeated term, and the audit refuses the old cards (LE-07)
 │       │   ├── test_dependencies.py     # Lock tests: each dependency, and each package that one needs, has one exact version in requirements.lock, and the installed versions are those versions (IN-05)
 │       │   ├── test_endnotes.py         # Endnote relocation & inline footnote syntax test suite
@@ -394,7 +398,7 @@ book-engine/
 │       │   ├── test_practice_deck.py    # Zero-hallucination verbatim practice card validation tests
 │       │   ├── test_reimport.py         # Import stop tests: nothing changes, --force keeps the reader's files, the inbox keeps a stopped copy
 │       │   ├── test_salience.py         # Salience scoring & extractive cloze extraction tests
-│       │   ├── test_syntopicon_audit.py # Vector 10 syntopical cross-vault referential parity test suite
+│       │   ├── test_syntopicon_audit.py # Vector 10 syntopical cross-vault referential parity test suite; a report link is followed from the folder it is saved in, and a quote that is not in its paragraph fails (CQ-06)
 │       │   ├── test_text_repair.py      # Whole sentence tests: the two halves of a cut sentence join, a photo credit or a figure label never becomes part of one, and a page's own highlight, empty heading and roman page number go (CQ-03)
 │       │   ├── test_toc.py              # Table of contents extraction & hierarchy tests
 │       │   ├── test_toc_links.py        # Contents link tests: the block & paragraph of each element, encoded and NCX-relative links, no guessed document (CQ-01)
@@ -487,6 +491,14 @@ Multi-column textbook pages frequently include full-width conceptual matrices, m
 - **The glyph name has the last word:** one part of a font can put the same glyph at another code, so the code table is the start and the `/Differences` array overrides it.
 - **A broken character stops an import:** a chapter that holds a replacement character fails the book check and names the blocks it sits in (`ingest/book_check.py`), so the vault keeps the book it had. `audit-anchors.py` and `audit-system.py` use the same rule. A "1/4" or a "thorn" is not broken by itself, because a book may hold one for its own reasons.
 - **Superscripts:** a price like 96 29/32 shows as a superscript in the reader, which RD-03 added (`components/reader/TipTapExtensions.ts`).
+
+### A Citation Points at Its Passage (CQ-06)
+- **Where a report is:** a dialectical dossier is written to `vault/syntopicon/reports/<topic-id>-synthesis.md`, and the books are in `vault/books/<book-id>/`. So a link from a report to a passage climbs two folders: `../../books/wealth-of-nations/ch-04.md#^p-001`. The compiler used to write `vault/books/...`, which is where the repository starts and not where the report is, and it left the paragraph anchor out. So all 4 links of the owner's report led nowhere, and a link that did open a chapter would have opened it at the top.
+- **A name the vault cannot hold gets no link:** a citation is free text, so `place_of` (`vault/syntopicon_check.rs`) puts the book id and the chapter file through the same rule as every other path the page sends (`check_book_id` and `check_chapter_file`, SEC-03). A name that breaks the rule is shown as plain code instead, and an anchor that is not `^p-` and 3 or more digits is left out of the link.
+- **The quote is read back:** `check_citation` reads the chapter from the vault and finds the paragraph whose last word is the anchor. The quote is compared by its letters and digits only, the rule `words_of` in `ingest/places.py` uses, so a line wrap, a changed dash or an added mark makes no difference. All 4 quotes of the owner's topic are right; the 2 from The Wealth of Nations match only because the line wrap is ignored.
+- **The report says what was checked:** a line under the sources says how many quotes are still in the paragraph they name, and each citation that is not is marked in plain words: the book has left the vault, the chapter has no such paragraph now, or the paragraph does not hold that quote. The compiler reads no file itself, so a test gives it any answer it wants.
+- **Saving a topic is never refused:** a citation to a book that has left the vault, or one whose text a new import changed, still saves. Refusing would lock the reader out of their own topic, and the report and the audit both say what is wrong instead.
+- **The audit follows the link:** vector 10 of `.agent/skills/audit-system.py` used to look for the shape `[book-id:ch-04.md#^p-001]` in a report. The app writes ``[`ch-04.md#^p-001`](../../books/...)``, so after one Export the audit checked no citation of the report at all. Now `links_that_lead_nowhere` (`ingest/citations.py`) opens every link from the folder the report is saved in, and the advice fits the fault: a link that reaches no file is put right by exporting the report again, and a book that has left the vault is not. `quote_that_moved` reads every topic quote back from its paragraph.
 
 ### The Ledger Says What the Books Say (CQ-05)
 - **What the ledger is:** `vault/_ledger.json` records each file the inbox took in: the SHA-256 of its bytes, the book it made, and how many chapters and words that book has. The inbox reads the hashes to know a file it has taken in before, so the same file is never imported twice by mistake.

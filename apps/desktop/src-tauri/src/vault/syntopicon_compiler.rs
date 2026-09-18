@@ -1,9 +1,72 @@
-use std::collections::BTreeSet;
-use super::syntopicon_models::SyntopicTopic;
+use std::collections::{BTreeSet, HashMap};
+use super::syntopicon_check::{citations_of, place_of, CitationCheck};
+use super::syntopicon_models::{CrossBookCitation, SyntopicTopic};
+
+/// What each citation of the topic was found to be, by the four fields that tell one citation from another.
+type Checks = HashMap<(String, String, String, String), CitationCheck>;
+
+/// The four fields that tell one citation from another. Two citations of one paragraph can hold different quotes, so
+/// the quote is part of the key.
+fn key_of(citation: &CrossBookCitation) -> (String, String, String, String) {
+    (
+        citation.book_id.clone(),
+        citation.chapter_file.clone(),
+        citation.anchor.clone(),
+        citation.quote.clone(),
+    )
+}
+
+/// Where the passage is, for the report: a link when the names are ones the vault can hold (`place_of`), and the
+/// chapter and the anchor as plain code when they are not, because such a name must never go inside a link.
+fn shown_place(citation: &CrossBookCitation) -> String {
+    let label = format!("`{}#{}`", citation.chapter_file, citation.anchor);
+    match place_of(citation) {
+        Some(place) => format!("[{label}]({place})"),
+        None => label,
+    }
+}
+
+/// What the report says beside a citation, with a dash in front, or nothing when the quote is still there.
+fn shown_check(checks: &Checks, citation: &CrossBookCitation) -> String {
+    match checks.get(&key_of(citation)).copied().and_then(CitationCheck::says) {
+        Some(word) => format!(" — *{word}*"),
+        None => String::new(),
+    }
+}
+
+/// How many of the citations that the report shows hold a quote that is still in the book.
+fn checked_line(topic: &SyntopicTopic, checks: &Checks) -> String {
+    let all = citations_of(topic);
+    if all.is_empty() {
+        return "this topic cites no passage yet.".to_string();
+    }
+    let good = all
+        .iter()
+        .filter(|citation| checks.get(&key_of(citation)) == Some(&CitationCheck::Checked))
+        .count();
+    if good == all.len() {
+        return format!("all {} quotes are in the paragraph they name.", all.len());
+    }
+    format!(
+        "{good} of {} quotes are in the paragraph they name. The others are marked below.",
+        all.len()
+    )
+}
 
 /// Compiles a publication-grade academic Markdown synthesis dossier from a `SyntopicTopic`.
 /// Implements Mortimer Adler's Syntopical Rule 5: "Analyzing the Discussion".
-pub fn compile_dialectical_dossier(topic: &SyntopicTopic) -> String {
+///
+/// `check` reads the books and says whether each quote is still in the paragraph its citation names (CQ-06). The
+/// compiler reads no file itself, so a test gives it whatever answer it wants.
+pub fn compile_dialectical_dossier(
+    topic: &SyntopicTopic,
+    check: &dyn Fn(&CrossBookCitation) -> CitationCheck,
+) -> String {
+    let mut checks: Checks = HashMap::new();
+    for citation in citations_of(topic) {
+        checks.entry(key_of(citation)).or_insert_with(|| check(citation));
+    }
+
     let mut doc = String::new();
 
     // 1. Header & Metadata
@@ -30,7 +93,8 @@ pub fn compile_dialectical_dossier(topic: &SyntopicTopic) -> String {
     }
 
     let books_list: Vec<String> = books.into_iter().collect();
-    doc.push_str(&format!("> **Primary Sources Investigated:** {}\n\n", books_list.join(", ")));
+    doc.push_str(&format!("> **Primary Sources Investigated:** {}\n", books_list.join(", ")));
+    doc.push_str(&format!("> **Citations checked:** {}\n\n", checked_line(topic, &checks)));
     doc.push_str("---\n\n");
 
     // 2. Section 1: Neutral Vocabulary Translation Table (Rule 2)
@@ -63,9 +127,11 @@ pub fn compile_dialectical_dossier(topic: &SyntopicTopic) -> String {
             doc.push_str(&format!("*Definition:* &ldquo;{}&rdquo;\n\n", term.neutral_definition));
             for m in &term.mappings {
                 doc.push_str(&format!(
-                    "- **[{}]** &ldquo;{}&rdquo; — [`{}#{}`](vault/books/{}/{})\n",
-                    m.book_id, m.author_variant, m.citation.chapter_file, m.citation.anchor,
-                    m.book_id, m.citation.chapter_file
+                    "- **[{}]** &ldquo;{}&rdquo; — {}{}\n",
+                    m.book_id,
+                    m.author_variant,
+                    shown_place(&m.citation),
+                    shown_check(&checks, &m.citation)
                 ));
                 if !m.citation.quote.is_empty() {
                     doc.push_str(&format!("  > &ldquo;{}&rdquo; ({})\n", m.citation.quote, m.citation.anchor));
@@ -101,8 +167,9 @@ pub fn compile_dialectical_dossier(topic: &SyntopicTopic) -> String {
                             doc.push_str("**Textual Evidence:**\n");
                             for cit in &p.citations {
                                 doc.push_str(&format!(
-                                    "- [`{}#{}`](vault/books/{}/{}):\n",
-                                    cit.chapter_file, cit.anchor, cit.book_id, cit.chapter_file
+                                    "- {}{}:\n",
+                                    shown_place(cit),
+                                    shown_check(&checks, cit)
                                 ));
                                 if !cit.quote.is_empty() {
                                     doc.push_str(&format!("  > &ldquo;{}&rdquo; ({})\n", cit.quote, cit.anchor));
@@ -201,7 +268,7 @@ mod tests {
             created_at: "2026-09-13T10:00:00Z".into(),
         };
 
-        let report = compile_dialectical_dossier(&topic);
+        let report = compile_dialectical_dossier(&topic, &|_| CitationCheck::Checked);
 
         assert!(report.contains("# Syntopical Reading Dossier: Division of Labor"));
         assert!(report.contains("Section 1: Neutral Vocabulary Translation Table (Rule 2)"));
