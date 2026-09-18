@@ -75,6 +75,30 @@ Ensure the following runtimes are installed on your workstation:
   3.13 and `numpy==2.5.3` in it has no build for 3.11: on 3.11 the install in the next section stops partway with
   "No matching distribution found". `requires-python` says the same, so pip refuses plainly instead.
 
+### Where to keep this repository
+
+**Not inside OneDrive, Dropbox, Google Drive or iCloud.** Put it somewhere the client does not reach, such as
+`C:\dev\book-engine`, or set `CARGO_TARGET_DIR` to a folder outside it so at least the build stays out.
+`npm run check` fails with the name of the folder, and where to move it, when either one is inside a synced folder.
+
+git keeps **424** files of this repository. A working copy holds tens of thousands more, and a cloud client uploads
+every one of them. Measured on 2026-09-18, in `OneDrive\Documents`:
+
+| | files | size |
+|---|---|---|
+| kept by git | 424 | small |
+| `apps/desktop/src-tauri/target` | 23,630 | **23.79 GB** |
+| `node_modules` | 12,391 | 163 MB |
+| the whole folder | **37,083** | **24.22 GB** |
+
+The build folder is written again on every build, and it had almost tripled in the four days since it was first
+measured at 8.3 GB. Uploading it costs quota and bandwidth for nothing, the client holds files open while cargo is
+replacing them, and it marks folders read-only: a stale `.git/worktrees` folder could not be removed by git at all
+until the mark was cleared by hand.
+
+Your vault is the part worth backing up, and it is 21 MB. Keep a copy of it somewhere you trust. Nothing else in
+this folder is lost by deleting it: the code is on GitHub, and `npm install` and `cargo build` write the rest again.
+
 ---
 
 ## Developer Quickstart
