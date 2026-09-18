@@ -1,4 +1,4 @@
-import test from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { getSchema, type JSONContent } from "@tiptap/core";
 import { readerExtensions } from "../components/reader/readerExtensions.ts";

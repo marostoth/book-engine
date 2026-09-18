@@ -1,4 +1,4 @@
-import test, { mock } from "node:test";
+import { test, vi, onTestFinished } from "vitest";
 import assert from "node:assert/strict";
 import { createNotesAutosave, type NotesTarget } from "./notesAutosave.ts";
 
@@ -8,17 +8,19 @@ const CHAPTER_ONE: NotesTarget = { bookId: "adler", notesFile: "ch-01-notes.md" 
 const CHAPTER_TWO: NotesTarget = { bookId: "adler", notesFile: "ch-02-notes.md" };
 
 /** An autosave whose saves are recorded, on a clock this test moves by hand. */
-function autosaveUnderTest(t: { after(fn: () => void): void }) {
-  mock.timers.enable({ apis: ["setTimeout"] });
-  t.after(() => mock.timers.reset());
+function autosaveUnderTest() {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
 
   const saves: { target: NotesTarget; text: string }[] = [];
   const autosave = createNotesAutosave(DELAY, (target, text) => saves.push({ target, text }));
-  return { autosave, saves, wait: (ms: number) => mock.timers.tick(ms) };
+  return { autosave, saves, wait: (ms: number) => vi.advanceTimersByTime(ms) };
 }
 
-test("the words you typed are saved into the chapter you typed them in", (t) => {
-  const { autosave, saves, wait } = autosaveUnderTest(t);
+test("the words you typed are saved into the chapter you typed them in", () => {
+  const { autosave, saves, wait } = autosaveUnderTest();
 
   autosave.change(CHAPTER_ONE, "my notes on chapter one");
   // The reader moves to chapter two before the save is due. The notes pane closes and flushes.
@@ -35,16 +37,16 @@ test("the words you typed are saved into the chapter you typed them in", (t) => 
   assert.equal(saves.length, 1, "the timer must not save the same text again");
 });
 
-test("nothing is saved when you leave with nothing typed", (t) => {
-  const { autosave, saves } = autosaveUnderTest(t);
+test("nothing is saved when you leave with nothing typed", () => {
+  const { autosave, saves } = autosaveUnderTest();
 
   autosave.flush();
 
   assert.deepEqual(saves, [], "leaving a chapter you did not type in must not write to the vault");
 });
 
-test("typing fast makes one save, with the last words", (t) => {
-  const { autosave, saves, wait } = autosaveUnderTest(t);
+test("typing fast makes one save, with the last words", () => {
+  const { autosave, saves, wait } = autosaveUnderTest();
 
   autosave.change(CHAPTER_ONE, "a");
   wait(100);
@@ -56,8 +58,8 @@ test("typing fast makes one save, with the last words", (t) => {
   assert.deepEqual(saves, [{ target: CHAPTER_ONE, text: "abc" }]);
 });
 
-test("the save happens by itself when the typing stops", (t) => {
-  const { autosave, saves, wait } = autosaveUnderTest(t);
+test("the save happens by itself when the typing stops", () => {
+  const { autosave, saves, wait } = autosaveUnderTest();
 
   autosave.change(CHAPTER_ONE, "my notes");
   wait(DELAY - 1);
@@ -67,8 +69,8 @@ test("the save happens by itself when the typing stops", (t) => {
   assert.deepEqual(saves, [{ target: CHAPTER_ONE, text: "my notes" }]);
 });
 
-test("a text is waiting only until it is saved", (t) => {
-  const { autosave, wait } = autosaveUnderTest(t);
+test("a text is waiting only until it is saved", () => {
+  const { autosave, wait } = autosaveUnderTest();
 
   assert.equal(autosave.isPending(), false);
   autosave.change(CHAPTER_ONE, "my notes");
@@ -77,8 +79,8 @@ test("a text is waiting only until it is saved", (t) => {
   assert.equal(autosave.isPending(), false);
 });
 
-test("typing again after a save starts a new one", (t) => {
-  const { autosave, saves, wait } = autosaveUnderTest(t);
+test("typing again after a save starts a new one", () => {
+  const { autosave, saves, wait } = autosaveUnderTest();
 
   autosave.change(CHAPTER_ONE, "first");
   wait(DELAY);

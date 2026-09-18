@@ -1,4 +1,4 @@
-import test, { mock } from "node:test";
+import { test, vi, onTestFinished } from "vitest";
 import assert from "node:assert/strict";
 import type { ReaderPreferences } from "./types.ts";
 import {
@@ -72,14 +72,16 @@ test("the app starts with the reading theme the reader chose", async () => {
   assert.equal(themeOf(loaded.preferences), "nord", "the app used to start on paper whatever was chosen");
 });
 
-test("choosing a theme saves it with the other settings", (t) => {
-  mock.timers.enable({ apis: ["setTimeout"] });
-  t.after(() => mock.timers.reset());
+test("choosing a theme saves it with the other settings", () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
   const { store, saves } = vault(chosenSettings());
   const saver = createPreferencesSaver(400, store.persistPreferences, errorLog().report, true);
 
   saver.change(withTheme(chosenSettings(), "sepia"));
-  mock.timers.tick(400);
+  vi.advanceTimersByTime(400);
 
   assert.equal(saves.length, 1, "a theme change must reach the vault");
   assert.equal(themeOf(saves[0]), "sepia");
@@ -141,9 +143,11 @@ test("a reader with no settings anywhere starts with the default settings, and n
   assert.deepEqual(saves, []);
 });
 
-test("settings that cannot be read give the default settings, and nothing is ever saved over them", async (t) => {
-  mock.timers.enable({ apis: ["setTimeout"] });
-  t.after(() => mock.timers.reset());
+test("settings that cannot be read give the default settings, and nothing is ever saved over them", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
   const errors = errorLog();
   const saves: ReaderPreferences[] = [];
   const store: PreferencesStore = {
@@ -156,7 +160,7 @@ test("settings that cannot be read give the default settings, and nothing is eve
   const loaded = await loadPreferences(store, () => ({ general: { theme: "nord" } }), errors.report);
   const saver = createPreferencesSaver(400, store.persistPreferences, errors.report, loaded.canSave);
   saver.change(withTheme(loaded.preferences, "sepia"));
-  mock.timers.tick(400);
+  vi.advanceTimersByTime(400);
   saver.flush();
 
   assert.deepEqual(loaded.preferences, DEFAULT_PREFERENCES);
@@ -168,9 +172,11 @@ test("settings that cannot be read give the default settings, and nothing is eve
   ]);
 });
 
-test("holding a key down makes one save, with the last value", (t) => {
-  mock.timers.enable({ apis: ["setTimeout"] });
-  t.after(() => mock.timers.reset());
+test("holding a key down makes one save, with the last value", () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
   const saves: ReaderPreferences[] = [];
   const saver = createPreferencesSaver(400, async (preferences) => void saves.push(preferences), errorLog().report, true);
 
@@ -178,18 +184,20 @@ test("holding a key down makes one save, with the last value", (t) => {
   for (let press = 0; press < 30; press += 1) {
     settings = { ...settings, elementary: { ...settings.elementary, pacerWpm: settings.elementary.pacerWpm + 25 } };
     saver.change(settings);
-    mock.timers.tick(33);
+    vi.advanceTimersByTime(33);
   }
   assert.equal(saves.length, 0, "nothing is saved while the key is held");
 
-  mock.timers.tick(400);
+  vi.advanceTimersByTime(400);
   assert.equal(saves.length, 1);
   assert.equal(saves[0].elementary.pacerWpm, 325 + 30 * 25);
 });
 
-test("a save that finishes late never puts back an older setting", async (t) => {
-  mock.timers.enable({ apis: ["setTimeout"] });
-  t.after(() => mock.timers.reset());
+test("a save that finishes late never puts back an older setting", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
   const started: number[] = [];
   const finish: (() => void)[] = [];
   let vaultSpeed = 0;
@@ -209,9 +217,9 @@ test("a save that finishes late never puts back an older setting", async (t) => 
   const withSpeed = (pacerWpm: number) => ({ ...chosenSettings(), elementary: { ...chosenSettings().elementary, pacerWpm } });
 
   saver.change(withSpeed(300));
-  mock.timers.tick(400);
+  vi.advanceTimersByTime(400);
   saver.change(withSpeed(500));
-  mock.timers.tick(400);
+  vi.advanceTimersByTime(400);
   assert.deepEqual(started, [300], "a second save must wait while the first one runs");
 
   finish[0]();
@@ -223,9 +231,11 @@ test("a save that finishes late never puts back an older setting", async (t) => 
   assert.equal(vaultSpeed, 500, "the vault must end with the newest settings");
 });
 
-test("a failed save is reported, and the next change still saves", async (t) => {
-  mock.timers.enable({ apis: ["setTimeout"] });
-  t.after(() => mock.timers.reset());
+test("a failed save is reported, and the next change still saves", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
   const errors = errorLog();
   const saves: number[] = [];
   let failNext = true;
@@ -243,19 +253,21 @@ test("a failed save is reported, and the next change still saves", async (t) => 
   );
 
   saver.change(chosenSettings());
-  mock.timers.tick(400);
+  vi.advanceTimersByTime(400);
   await settle();
   saver.change({ ...chosenSettings(), elementary: { ...chosenSettings().elementary, pacerWpm: 450 } });
-  mock.timers.tick(400);
+  vi.advanceTimersByTime(400);
   await settle();
 
   assert.deepEqual(errors.reported, ["Your settings were not saved."]);
   assert.deepEqual(saves, [450]);
 });
 
-test("closing the app saves a change that is still waiting", (t) => {
-  mock.timers.enable({ apis: ["setTimeout"] });
-  t.after(() => mock.timers.reset());
+test("closing the app saves a change that is still waiting", () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
   const saves: string[] = [];
   const saver = createPreferencesSaver(400, async (preferences) => void saves.push(themeOf(preferences)), errorLog().report, true);
 
@@ -265,9 +277,11 @@ test("closing the app saves a change that is still waiting", (t) => {
   assert.deepEqual(saves, ["paper"], "the change must not wait for a timer that never fires");
 });
 
-test("the old Gatekeeper fields are saved to match the study settings", (t) => {
-  mock.timers.enable({ apis: ["setTimeout"] });
-  t.after(() => mock.timers.reset());
+test("the old Gatekeeper fields are saved to match the study settings", () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
   const saves: ReaderPreferences[] = [];
   const saver = createPreferencesSaver(400, async (preferences) => void saves.push(preferences), errorLog().report, true);
 

@@ -1,4 +1,4 @@
-import test from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import type { ExitAssessmentPayload, VocabularyEntry } from "./types.ts";
 import type { AnalyticalStore } from "./types/analytical.ts";

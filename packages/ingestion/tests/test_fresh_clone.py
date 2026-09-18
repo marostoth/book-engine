@@ -21,8 +21,11 @@ DESKTOP_PACKAGE = REPO / "apps" / "desktop" / "package.json"
 CARGO = REPO / "apps" / "desktop" / "src-tauri" / "Cargo.toml"
 README = REPO / "README.md"
 
-#: `--experimental-strip-types`, which the frontend test command needs, arrived in this version of Node.
-STRIP_TYPES_ARRIVED = (22, 6, 0)
+#: The oldest Node that runs the frontend tests. It was `--experimental-strip-types`, which arrived in 22.6.0 and
+#: could not read `let answer!: T` (TL-05). Vitest runs them now and transforms the TypeScript itself, so the floor
+#: is the runner's own: vitest 5 asks for ^22.12.0 and jsdom for ^22.13.0 (TL-03). `test_one_check.py` reads what
+#: they ask for, instead of trusting this number.
+TESTS_NEED_NODE = (22, 12, 0)
 
 
 def numbers_of(version: str) -> tuple[int, ...]:
@@ -105,19 +108,21 @@ def test_the_one_lock_file_holds_what_the_frontend_needs():
 
 
 def test_the_node_the_readme_asks_for_can_run_the_frontend_tests():
-    """The README said 18.0+, and the test command uses a flag that arrived in 22.6.0. The floor is higher than the
-    flag, because 22.6.0 cannot read every test file; test_one_check.py holds that measurement (TL-05)."""
+    """The README said 18.0+, which no version of this test command has ever run on. It ran on
+    `--experimental-strip-types`, which arrived in 22.6.0 and still could not read every test file (TL-05), and it
+    runs on vitest now, which asks for 22.12.0 of its own (TL-03). `test_one_check.py` reads the runner's own
+    answer; this one only holds the README to it."""
     test_command = json.loads(DESKTOP_PACKAGE.read_text(encoding="utf-8"))["scripts"]["test"]
-    assert "--experimental-strip-types" in test_command, "this test guards a flag the command no longer uses"
+    assert "vitest" in test_command, "this test guards a runner the command no longer uses"
 
     asked = numbers_of(readme_versions()["Node.js"])
-    assert at_least(asked, STRIP_TYPES_ARRIVED), f"the README asks for Node {asked}, too old for the test command"
+    assert at_least(asked, TESTS_NEED_NODE), f"the README asks for Node {asked}, too old for the test command"
 
 
 def test_the_root_package_says_the_same_node_as_the_readme():
     """`engines` is what npm itself reads, so a reader is told by the tool as well as by the page."""
     declared = root_package()["engines"]["node"]
-    assert at_least(numbers_of(declared), STRIP_TYPES_ARRIVED)
+    assert at_least(numbers_of(declared), TESTS_NEED_NODE)
     assert numbers_of(declared) == numbers_of(readme_versions()["Node.js"])
 
 

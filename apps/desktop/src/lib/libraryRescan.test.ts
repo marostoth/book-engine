@@ -1,4 +1,4 @@
-import test from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import type { BookMetadata, IndexProblem, IndexSummary } from "./types.ts";
 import { rescanLibrary, rescanSummary, type LibraryBackend } from "./libraryRescan.ts";

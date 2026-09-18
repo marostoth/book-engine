@@ -1,4 +1,4 @@
-import test from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import type { ReviewBlock } from "./types.ts";
 import { heatmapWeeks, localDay, reviewsInLastDays, reviewsPerDay, reviewStreaks, startOfLocalDay } from "./reviewDays.ts";

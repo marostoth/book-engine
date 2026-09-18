@@ -1,4 +1,4 @@
-import test from "node:test";
+import { test, vi } from "vitest";
 import assert from "node:assert/strict";
 import {
   MAX_BACKEND_ERRORS,
@@ -39,8 +39,8 @@ test("Tauri rejection values become readable text", () => {
   assert.equal(errorText(undefined), "Unknown error");
 });
 
-test("a reported error shows in the bar until it is dismissed", (t) => {
-  t.mock.method(console, "error", () => {});
+test("a reported error shows in the bar until it is dismissed", () => {
+  vi.spyOn(console, "error").mockImplementation(() => {});
   let changes = 0;
   const stop = subscribeBackendErrors(() => {
     changes++;
