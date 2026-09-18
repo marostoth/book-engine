@@ -13,6 +13,10 @@ from pathlib import Path
 # Root-relative path resolution
 SKILL_DIR = Path(__file__).resolve().parent
 ROOT_DIR = SKILL_DIR.parent.parent
+sys.path.insert(0, str(ROOT_DIR / "packages" / "ingestion"))
+
+from ingest.console import allow_any_letter  # noqa: E402
+
 SRC_TAURI_DIR = ROOT_DIR / "apps" / "desktop" / "src-tauri"
 VAULT_DIR = ROOT_DIR / "vault"
 
@@ -62,6 +66,8 @@ def restore_backup(db_path, backup_path) -> None:
 
 
 def main() -> int:
+    # A command of this repository may print any letter of any book (IN-09)
+    allow_any_letter()
     db_path = get_db_path()
     print(f"[*] Live Database Path: {db_path}")
 

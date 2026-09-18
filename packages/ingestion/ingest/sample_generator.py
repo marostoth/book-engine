@@ -138,6 +138,10 @@ def generate_sample_vault_book(vault_dir: Path, custom_book_id: str = "sample") 
 
 
 if __name__ == "__main__":
+    # A command of this repository may print any letter of any book (IN-09)
+    from ingest.console import allow_any_letter
+
+    allow_any_letter()
     if len(sys.argv) > 1 and sys.argv[1] == "--vault":
         target_vault = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("vault")
         generate_sample_vault_book(target_vault)

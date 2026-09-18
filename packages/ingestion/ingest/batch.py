@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
+from ingest.console import say_what_was_done
 from ingest.models import BookMeta
 from ingest.pipeline import ingest_book
 
@@ -40,7 +41,8 @@ def batch_ingest(
             print(f"[*] Batch processing: {file_path.name}...")
             meta = ingest_book(file_path, vault_path)
             results.append(meta)
-            print(f"[+] Successfully ingested '{meta.title}' ({meta.book_id})")
+            # The book is in the vault now, so saying so may not make this book count as failed (IN-09)
+            say_what_was_done([f"[+] Successfully ingested '{meta.title}' ({meta.book_id})"])
         except Exception as e:
             print(f"[-] Failed to ingest {file_path.name}: {e}", file=sys.stderr)
             if stop_on_error:

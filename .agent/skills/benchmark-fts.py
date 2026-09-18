@@ -13,6 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "packages" / "ingestion"))
 
 from ingest.chapter_shape import is_heading  # noqa: E402
+from ingest.console import allow_any_letter  # noqa: E402
 
 
 def find_db_path() -> Path:
@@ -182,5 +183,7 @@ def run_benchmark() -> bool:
 
 
 if __name__ == "__main__":
+    # A command of this repository may print any letter of any book (IN-09)
+    allow_any_letter()
     success = run_benchmark()
     sys.exit(0 if success else 1)

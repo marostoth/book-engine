@@ -51,6 +51,8 @@ from ingest.glyph_repair import REPLACEMENT  # noqa: E402
 from ingest.ledger import lines_that_disagree  # noqa: E402
 from ingest.chapter_shape import is_heading  # noqa: E402
 from ingest.citations import links_that_lead_nowhere, quote_that_moved  # noqa: E402
+# A command of this repository may print any letter of any book (IN-09)
+from ingest.console import allow_any_letter  # noqa: E402
 
 # ANSI Color formatting
 ANSI_GREEN = "\033[92m"
@@ -1436,6 +1438,8 @@ def print_audit_table(results: List[DiagnosticResult], use_color: bool = True) -
 # Main Entrypoint
 # ----------------------------------------------------------------------
 def main() -> int:
+    # This command prints a piece of a paragraph it finds fault with, so it may print any letter (IN-09)
+    allow_any_letter()
     parser = argparse.ArgumentParser(description="Book Engine Dynamic System Health Audit")
     parser.add_argument("--no-color", action="store_true", help="Disable ANSI terminal colors")
     args = parser.parse_args()
