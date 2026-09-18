@@ -41,7 +41,7 @@ book-engine/
 ├── apps/
 │   └── desktop/                 # Tauri v2 desktop application
 │       ├── src/                 # React 18+ frontend (TipTap, Floating UI, Tailwind CSS)
-│       └── src-tauri/           # Rust backend (Tauri v2, rusqlite/FTS5, vault watcher)
+│       └── src-tauri/           # Rust backend (Tauri v2, rusqlite/FTS5, search index)
 ├── packages/
 │   └── ingestion/               # Python CLI & pipeline for deterministic book parsing
 │       ├── ingest/              # EPUB/PDF parser, anchor tagging, and salience scorer
