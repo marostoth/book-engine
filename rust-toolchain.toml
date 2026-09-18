@@ -1,0 +1,13 @@
+# One Rust for every computer that checks this repository (TL-05).
+#
+# The workflow used to install a Rust of its own, and it named 1.88 because that is the floor `rust-version` in
+# `apps/desktop/src-tauri/Cargo.toml` declares. The computer this was written on runs 1.98. Clippy's default rule
+# list is not the same on the two: `uninlined_format_args` is on in 1.88 and off in 1.98, so `npm run check` was
+# green here and the very first workflow run was red with 125 errors. Naming the toolchain in one file, which
+# rustup reads on both, is what stops that.
+#
+# `rust-version` in Cargo.toml stays at the floor: it says the lowest Rust this code compiles on, which is a
+# different question from the Rust the checks run on. The 125 are fixed, so the checks are clean on both.
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]

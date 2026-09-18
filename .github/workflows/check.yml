@@ -31,8 +31,11 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install the Rust of the backend
-        run: rustup toolchain install 1.88 --profile minimal --component rustfmt,clippy && rustup default 1.88
+      # The toolchain is named once, in `rust-toolchain.toml`, and rustup reads that file here and on the computer
+      # you write on. This step used to install a Rust of its own, and the first run of this workflow went red with
+      # 125 clippy errors that no one saw locally, because the two clippys do not run the same rules (TL-05).
+      - name: Install the Rust this repository names
+        run: rustup show && rustc --version && cargo clippy --version
 
       - name: Cache what cargo built
         uses: actions/cache@v4

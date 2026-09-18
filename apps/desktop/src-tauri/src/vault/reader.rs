@@ -36,7 +36,7 @@ pub fn read_book_meta_json(book_id: &str) -> Result<String> {
 pub fn get_inspectional_blueprint(book_id: &str) -> Result<crate::vault::InspectionalBlueprint> {
     let meta_json_str = read_book_meta_json(book_id)?;
     let val: serde_json::Value =
-        serde_json::from_str(&meta_json_str).with_context(|| format!("Failed to parse _meta.json for {}", book_id))?;
+        serde_json::from_str(&meta_json_str).with_context(|| format!("Failed to parse _meta.json for {book_id}"))?;
 
     if let Some(bp_val) = val.get("inspectional_blueprint") {
         if !bp_val.is_null() {
@@ -124,13 +124,13 @@ pub fn scan_library_books() -> std::result::Result<Vec<BookMetadata>, AppError> 
     }
 
     let dir_entries =
-        std::fs::read_dir(&books_dir).map_err(|e| AppError::Io(format!("Failed to read books directory: {}", e)))?;
+        std::fs::read_dir(&books_dir).map_err(|e| AppError::Io(format!("Failed to read books directory: {e}")))?;
 
     for entry in dir_entries {
         let entry = match entry {
             Ok(e) => e,
             Err(e) => {
-                eprintln!("Warning: Skipping unreadable entry in books dir: {}", e);
+                eprintln!("Warning: Skipping unreadable entry in books dir: {e}");
                 continue;
             }
         };

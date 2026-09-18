@@ -52,13 +52,13 @@ pub fn run() {
 
             // Ensure syntopicon directories exist on startup
             if let Err(e) = vault::ensure_syntopicon_dirs() {
-                eprintln!("Warning: Failed to ensure syntopicon directories on startup: {}", e);
+                eprintln!("Warning: Failed to ensure syntopicon directories on startup: {e}");
             }
 
             // Copy a cache that was filled before the vault kept the record. It writes only what the
             // vault does not have, so it costs nothing after the first startup (DS-01).
             match db::backfill_vault_blocking() {
-                Err(e) => eprintln!("Warning: Could not copy your study progress into the vault: {:#}", e),
+                Err(e) => eprintln!("Warning: Could not copy your study progress into the vault: {e:#}"),
                 Ok(report) => {
                     if !report.changed_nothing() {
                         eprintln!(
@@ -72,10 +72,7 @@ pub fn run() {
             // Put back whatever the cache is missing, from the permanent record in the vault. A cache
             // that was deleted, damaged or copied from another PC fills itself again (DS-01).
             match db::restore_progress_blocking() {
-                Err(e) => eprintln!(
-                    "Warning: Could not put your study progress back from the vault: {:#}",
-                    e
-                ),
+                Err(e) => eprintln!("Warning: Could not put your study progress back from the vault: {e:#}"),
                 Ok(report) => {
                     if !report.changed_nothing() {
                         eprintln!(
@@ -84,7 +81,7 @@ pub fn run() {
                         );
                     }
                     for line in &report.damaged_lines {
-                        eprintln!("Warning: a line of your study log could not be read: {}", line);
+                        eprintln!("Warning: a line of your study log could not be read: {line}");
                     }
                 }
             }

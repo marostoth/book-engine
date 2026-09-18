@@ -175,7 +175,7 @@ pub fn open_or_create_db() -> Result<Connection> {
 
     // Seed dictionary table if empty
     if let Err(e) = super::seed_lexicon::seed_dictionary_if_empty(&conn) {
-        eprintln!("Warning: Failed to seed offline dictionary: {}", e);
+        eprintln!("Warning: Failed to seed offline dictionary: {e}");
     }
 
     Ok(conn)

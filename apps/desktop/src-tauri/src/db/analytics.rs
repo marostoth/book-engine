@@ -22,10 +22,9 @@ pub fn get_review_heatmap_blocking(book_id: Option<&str>) -> Result<Vec<ReviewBl
     let sql = format!(
         "SELECT reviewed_at - reviewed_at % {REVIEW_BLOCK_SECONDS} as started_at, COUNT(*) as cnt
          FROM review_logs
-         {}
+         {where_clause}
          GROUP BY started_at
-         ORDER BY started_at ASC",
-        where_clause
+         ORDER BY started_at ASC"
     );
 
     let mut stmt = conn.prepare(&sql)?;
@@ -81,7 +80,7 @@ pub fn get_retention_metrics_blocking(book_id: Option<&str>) -> Result<Retention
 
     let total_cards: usize = conn
         .query_row(
-            &format!("SELECT COUNT(*) FROM fsrs_cards {}", where_clause),
+            &format!("SELECT COUNT(*) FROM fsrs_cards {where_clause}"),
             rusqlite::params_from_iter(params_vec.iter().cloned()),
             |r| r.get(0),
         )
@@ -100,7 +99,7 @@ pub fn get_retention_metrics_blocking(book_id: Option<&str>) -> Result<Retention
 
     let due_today: usize = conn
         .query_row(
-            &format!("SELECT COUNT(*) FROM fsrs_cards {}", due_where),
+            &format!("SELECT COUNT(*) FROM fsrs_cards {due_where}"),
             rusqlite::params_from_iter(due_params),
             |r| r.get(0),
         )
@@ -114,7 +113,7 @@ pub fn get_retention_metrics_blocking(book_id: Option<&str>) -> Result<Retention
     };
     let mastered_cards: usize = conn
         .query_row(
-            &format!("SELECT COUNT(*) FROM fsrs_cards {}", mastered_where),
+            &format!("SELECT COUNT(*) FROM fsrs_cards {mastered_where}"),
             rusqlite::params_from_iter(params_vec.iter().cloned()),
             |r| r.get(0),
         )
@@ -183,7 +182,7 @@ pub fn get_study_analytics_blocking(book_id: Option<&str>) -> Result<StudyAnalyt
     let mut review_count = 0;
     let mut relearning_count = 0;
 
-    let group_sql = format!("SELECT state, COUNT(*) FROM fsrs_cards {} GROUP BY state", where_clause);
+    let group_sql = format!("SELECT state, COUNT(*) FROM fsrs_cards {where_clause} GROUP BY state");
     if let Ok(mut stmt) = conn.prepare(&group_sql) {
         if let Ok(rows) = stmt.query_map(rusqlite::params_from_iter(params_vec.iter().cloned()), |r| {
             Ok((r.get::<_, i64>(0)?, r.get::<_, usize>(1)?))
@@ -216,7 +215,7 @@ pub fn get_study_analytics_blocking(book_id: Option<&str>) -> Result<StudyAnalyt
     // 3. Retention rate: (total_reviews - again_count) / total_reviews
     let total_reviews: usize = conn
         .query_row(
-            &format!("SELECT COUNT(*) FROM review_logs {}", where_clause),
+            &format!("SELECT COUNT(*) FROM review_logs {where_clause}"),
             rusqlite::params_from_iter(params_vec.iter().cloned()),
             |r| r.get(0),
         )
@@ -258,7 +257,7 @@ pub fn get_study_analytics_blocking(book_id: Option<&str>) -> Result<StudyAnalyt
     }
     let reviews_due: usize = conn
         .query_row(
-            &format!("SELECT COUNT(*) FROM fsrs_cards {}", due_where),
+            &format!("SELECT COUNT(*) FROM fsrs_cards {due_where}"),
             rusqlite::params_from_iter(due_params),
             |r| r.get(0),
         )
@@ -287,7 +286,7 @@ pub fn get_study_analytics_blocking(book_id: Option<&str>) -> Result<StudyAnalyt
     };
     let mastered_cards: usize = conn
         .query_row(
-            &format!("SELECT COUNT(*) FROM fsrs_cards {}", mastered_where),
+            &format!("SELECT COUNT(*) FROM fsrs_cards {mastered_where}"),
             rusqlite::params_from_iter(params_vec),
             |r| r.get(0),
         )

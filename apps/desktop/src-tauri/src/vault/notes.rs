@@ -31,7 +31,7 @@ pub fn scan_all_notes(book_id: &str) -> Result<Vec<ChapterNoteFile>> {
         let entry = match entry {
             Ok(e) => e,
             Err(e) => {
-                eprintln!("Warning: Skipping unreadable entry in notes dir: {}", e);
+                eprintln!("Warning: Skipping unreadable entry in notes dir: {e}");
                 continue;
             }
         };
@@ -215,8 +215,8 @@ pub fn compile_and_export_book_summary(book_id: &str) -> Result<String> {
         "Local Vault".to_string()
     };
 
-    let mut md = format!("# Executive Reading Summary: {}\n\n", book_title);
-    md.push_str(&format!("> **Author:** {}  \n", author));
+    let mut md = format!("# Executive Reading Summary: {book_title}\n\n");
+    md.push_str(&format!("> **Author:** {author}  \n"));
     md.push_str(&format!(
         "> **Exported:** {} via Book Engine Desktop  \n\n",
         chrono::Utc::now().format("%Y-%m-%d")
@@ -245,7 +245,7 @@ pub fn compile_and_export_book_summary(book_id: &str) -> Result<String> {
     md.push_str("\n---\n\n");
 
     for (ch_title, ch_items) in chapter_map.values() {
-        md.push_str(&format!("## {}\n\n", ch_title));
+        md.push_str(&format!("## {ch_title}\n\n"));
 
         let highlights: Vec<&&AggregatedNoteItem> = ch_items.iter().filter(|i| i.item_type == "highlight").collect();
         let notes: Vec<&&AggregatedNoteItem> = ch_items.iter().filter(|i| i.item_type == "note").collect();
@@ -253,7 +253,7 @@ pub fn compile_and_export_book_summary(book_id: &str) -> Result<String> {
         if !highlights.is_empty() {
             md.push_str("### Key Highlights & Quotes\n\n");
             for hl in highlights {
-                let anchor_str = hl.anchor.as_ref().map(|a| format!(" *({})*", a)).unwrap_or_default();
+                let anchor_str = hl.anchor.as_ref().map(|a| format!(" *({a})*")).unwrap_or_default();
                 md.push_str(&format!("- > \"{}\"{}\n", hl.text, anchor_str));
             }
             md.push('\n');
@@ -266,10 +266,10 @@ pub fn compile_and_export_book_summary(book_id: &str) -> Result<String> {
                 if let Some(heading) = &note.section_heading {
                     if heading != &last_heading {
                         last_heading = heading.clone();
-                        md.push_str(&format!("#### {}\n\n", last_heading));
+                        md.push_str(&format!("#### {last_heading}\n\n"));
                     }
                 }
-                let anchor_str = note.anchor.as_ref().map(|a| format!(" *({})*", a)).unwrap_or_default();
+                let anchor_str = note.anchor.as_ref().map(|a| format!(" *({a})*")).unwrap_or_default();
                 md.push_str(&format!("- {}{}\n", note.text, anchor_str));
             }
             md.push('\n');

@@ -64,6 +64,9 @@ Ensure the following runtimes are installed on your workstation:
 - **Rust & Cargo**: `1.88+` (with Tauri v2 prerequisites installed for your OS). Tauri 2.11.5 itself asks for
   1.77.2, but other crates of the same build ask for 1.88. `apps/desktop/src-tauri/Cargo.toml` says `1.88` in
   `rust-version`, so cargo tells you plainly instead of failing inside a dependency.
+  `rust-toolchain.toml` at the root then names the Rust the **checks** run on, and rustup reads it here and on the
+  build runner. Two clippys of different ages do not run the same rules, so without that file `npm run check` can
+  be green on your computer and red on the runner.
 - **Python**: `3.11+` with `pip`. The import reads `pyproject.toml` with `tomllib`, which arrived in 3.11.
 
 ---

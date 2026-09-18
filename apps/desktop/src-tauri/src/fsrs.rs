@@ -42,7 +42,7 @@ impl TryFrom<u8> for Rating {
             2 => Ok(Rating::Hard),
             3 => Ok(Rating::Good),
             4 => Ok(Rating::Easy),
-            other => Err(format!("Invalid rating {}. Expected 1, 2, 3, or 4.", other)),
+            other => Err(format!("Invalid rating {other}. Expected 1, 2, 3, or 4.")),
         }
     }
 }

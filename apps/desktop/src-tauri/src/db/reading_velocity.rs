@@ -105,8 +105,7 @@ pub fn get_reading_velocity_blocking(book_id: Option<&str>) -> Result<ReadingVel
     let sql = format!(
         "SELECT book_id, chapter_file, seconds_spent, completed, last_read_at
          FROM reading_sessions
-         {}",
-        where_clause
+         {where_clause}"
     );
 
     let mut stmt = conn.prepare(&sql)?;

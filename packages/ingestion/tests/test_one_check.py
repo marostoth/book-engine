@@ -22,6 +22,7 @@ DESKTOP_PACKAGE = REPO / "apps" / "desktop" / "package.json"
 WORKFLOW = REPO / ".github" / "workflows" / "check.yml"
 RUFF = REPO / "ruff.toml"
 RUSTFMT = REPO / "rustfmt.toml"
+TOOLCHAIN = REPO / "rust-toolchain.toml"
 ESLINT = REPO / "apps" / "desktop" / "eslint.config.js"
 PYPROJECT = REPO / "packages" / "ingestion" / "pyproject.toml"
 
@@ -162,13 +163,51 @@ def test_the_workflow_runs_the_one_command_and_nothing_of_its_own():
         assert part in text, f"the workflow does not run {part}"
 
 
-def test_the_workflow_asks_for_the_versions_the_readme_asks_for():
-    """A runner on an older Node or Rust would go red for a reason that is not the code (TL-06)."""
+def test_the_workflow_asks_for_the_node_the_readme_asks_for():
+    """A runner on an older Node would go red for a reason that is not the code (TL-06)."""
     text = WORKFLOW.read_text(encoding="utf-8")
     node = json.loads(ROOT_PACKAGE.read_text(encoding="utf-8"))["engines"]["node"]
-    rust = tomllib.loads((REPO / "apps" / "desktop" / "src-tauri" / "Cargo.toml").read_text(encoding="utf-8"))
-    assert re.search(r'node-version:\s*"' + re.escape(node.lstrip(">=")) + '"', text), text[:0] or node
-    assert f"rustup toolchain install {rust['package']['rust-version']}" in text
+    assert re.search(r'node-version:\s*"' + re.escape(node.lstrip(">=")) + '"', text), node
+
+
+def test_one_file_names_the_rust_that_every_computer_checks_with():
+    """The workflow installed a Rust of its own, 1.88, while this computer ran 1.98. The two clippys do not run the
+    same rules, so `npm run check` was green here and the first workflow run was red with 125 errors. rustup reads
+    this one file in both places."""
+    toolchain = tomllib.loads(TOOLCHAIN.read_text(encoding="utf-8"))["toolchain"]
+    assert toolchain["channel"], "rust-toolchain.toml must name a channel"
+    for part in ("rustfmt", "clippy"):
+        assert part in toolchain["components"], f"the named toolchain must bring {part}"
+
+
+def test_the_workflow_takes_the_rust_it_is_given_instead_of_naming_its_own():
+    """A version written in the workflow as well is a second answer, and the two drift apart."""
+    text = WORKFLOW.read_text(encoding="utf-8")
+    assert not re.search(r"rustup\s+(toolchain\s+install|default)\s+\d", text), (
+        "the workflow names a Rust of its own; rust-toolchain.toml is where it belongs"
+    )
+    assert "rustup show" in text, "the workflow must install what rust-toolchain.toml names"
+
+
+def test_the_clippy_rules_that_move_between_releases_are_named():
+    """`uninlined_format_args` is on by default in Rust 1.88 and off in 1.98. Naming it holds the answer still, so
+    the check cannot depend on which clippy the computer happens to have."""
+    cargo = tomllib.loads((REPO / "apps" / "desktop" / "src-tauri" / "Cargo.toml").read_text(encoding="utf-8"))
+    assert cargo["lints"]["clippy"]["uninlined_format_args"] == "warn"
+
+
+def test_the_rust_that_runs_the_checks_is_not_below_the_rust_the_code_needs():
+    """`rust-version` says the lowest Rust this code builds on. A toolchain below it could not build at all."""
+    cargo = tomllib.loads((REPO / "apps" / "desktop" / "src-tauri" / "Cargo.toml").read_text(encoding="utf-8"))
+    floor = tuple(int(part) for part in cargo["package"]["rust-version"].split("."))
+    channel = tomllib.loads(TOOLCHAIN.read_text(encoding="utf-8"))["toolchain"]["channel"]
+    if re.fullmatch(r"\d+(\.\d+)*", channel):
+        named = tuple(int(part) for part in channel.split("."))
+        assert named >= floor[: len(named)], (
+            f"{channel} is below the rust-version floor {cargo['package']['rust-version']}"
+        )
+    else:
+        assert channel in ("stable", "beta", "nightly"), channel
 
 
 def test_the_workflow_makes_a_book_before_it_runs_a_check_that_reads_one():

@@ -107,34 +107,28 @@ fn parse_scenario_section(trimmed: &str, book_dir: &Path) -> Option<RawCard> {
     }
 
     if !chapter_file.ends_with(".md") {
-        chapter_file = format!("{}.md", chapter_file);
+        chapter_file = format!("{chapter_file}.md");
     }
 
     // Format check: exactly 1 [x] and at least 2 [ ]
     let correct_count = options.iter().filter(|o| o.is_correct).count();
     let incorrect_count = options.iter().filter(|o| !o.is_correct).count();
     if correct_count != 1 || incorrect_count < 2 {
-        eprintln!(
-            "Rejecting scenario {}: must have exactly 1 [x] and at least 2 [ ]",
-            card_id
-        );
+        eprintln!("Rejecting scenario {card_id}: must have exactly 1 [x] and at least 2 [ ]");
         return None;
     }
 
     let rationale = rationale_lines.join(" ");
     let ch_path = book_dir.join(&chapter_file);
     if !ch_path.exists() {
-        eprintln!("Rejecting scenario {}: chapter {} not found", card_id, chapter_file);
+        eprintln!("Rejecting scenario {card_id}: chapter {chapter_file} not found");
         return None;
     }
 
     // With `\n` line endings only, so that a blank line ends the paragraph of the anchor (IN-06)
     let ch_text = read_text_file(&ch_path).ok()?;
     if !ch_text.contains(&anchor) {
-        eprintln!(
-            "Rejecting scenario {}: anchor {} not found in {}",
-            card_id, anchor, chapter_file
-        );
+        eprintln!("Rejecting scenario {card_id}: anchor {anchor} not found in {chapter_file}");
         return None;
     }
 
@@ -178,10 +172,7 @@ fn parse_scenario_section(trimmed: &str, book_dir: &Path) -> Option<RawCard> {
     }
 
     if !has_verbatim_quote {
-        eprintln!(
-            "Rejecting scenario {}: rationale quote not found verbatim in anchor {}",
-            card_id, anchor
-        );
+        eprintln!("Rejecting scenario {card_id}: rationale quote not found verbatim in anchor {anchor}");
         return None;
     }
 
@@ -273,7 +264,7 @@ fn parse_cloze_section(trimmed: &str, book_dir: &Path) -> Option<RawCard> {
     let chapter_file = if chapter_id.ends_with(".md") {
         chapter_id
     } else {
-        format!("{}.md", chapter_id)
+        format!("{chapter_id}.md")
     };
 
     if answer_key.is_empty() {
@@ -298,20 +289,14 @@ fn parse_cloze_section(trimmed: &str, book_dir: &Path) -> Option<RawCard> {
     let ch_text = match std::fs::read_to_string(&ch_path) {
         Ok(ch_text) => ch_text,
         Err(e) => {
-            eprintln!(
-                "Rejecting practice card {}: chapter {} could not be read ({})",
-                card_id, chapter_file, e
-            );
+            eprintln!("Rejecting practice card {card_id}: chapter {chapter_file} could not be read ({e})");
             return None;
         }
     };
     let clean_ans = answer_key.replace("**", "").trim().to_string();
     let clean_text = ch_text.replace("**", "");
     if !clean_text.contains(&clean_ans) && !ch_text.contains(&answer_key) {
-        eprintln!(
-            "Rejecting non-verbatim practice card {}: '{}' not found in {}",
-            card_id, answer_key, chapter_file
-        );
+        eprintln!("Rejecting non-verbatim practice card {card_id}: '{answer_key}' not found in {chapter_file}");
         return None;
     }
 

@@ -18,7 +18,7 @@ pub fn get_deck_stats_blocking(book_id: Option<&str>) -> Result<DeckStats> {
 
     let total_cards: usize = conn
         .query_row(
-            &format!("SELECT COUNT(*) FROM fsrs_cards {}", where_clause),
+            &format!("SELECT COUNT(*) FROM fsrs_cards {where_clause}"),
             rusqlite::params_from_iter(params_vec.iter().cloned()),
             |r| r.get(0),
         )
@@ -36,7 +36,7 @@ pub fn get_deck_stats_blocking(book_id: Option<&str>) -> Result<DeckStats> {
 
     let due_count: usize = conn
         .query_row(
-            &format!("SELECT COUNT(*) FROM fsrs_cards {}", due_where),
+            &format!("SELECT COUNT(*) FROM fsrs_cards {due_where}"),
             rusqlite::params_from_iter(due_params),
             |r| r.get(0),
         )
@@ -130,11 +130,11 @@ pub fn submit_card_review_blocking(card_id: &str, rating_val: u8) -> Result<crat
             },
         )
         .optional()?
-        .with_context(|| format!("Card '{}' not found in fsrs_cards", card_id))?;
+        .with_context(|| format!("Card '{card_id}' not found in fsrs_cards"))?;
     // The review log row names the book of the card. There is no fallback book id.
     let book_id = book_id
         .filter(|id| !id.trim().is_empty())
-        .with_context(|| format!("Card '{}' has no book id, so its review cannot be logged", card_id))?;
+        .with_context(|| format!("Card '{card_id}' has no book id, so its review cannot be logged"))?;
 
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
