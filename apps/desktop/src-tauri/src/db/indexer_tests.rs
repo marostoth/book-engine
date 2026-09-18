@@ -65,6 +65,25 @@ fn nothing() -> Vec<String> {
     Vec::new()
 }
 
+// A block that starts with a `#` used to count as a heading, so search left it out. Only a heading is left out
+// now, and a `#` of the book text that would start one is written by the import as `&#35;` (IN-08).
+#[test]
+fn a_paragraph_that_starts_with_a_hash_can_be_found() {
+    let sandbox = Sandbox::new();
+    write_book(&sandbox, "hashes", &["a paragraph this test replaces"]);
+    sandbox.write(
+        "books/hashes/ch-01.md",
+        "# Marmots Whistle At Dawn\n\n#MarketProfile is read by traders. ^p-001\n\n\
+         &#35; PRICES OF WHEAT ^p-002\n\n####### seven marks are text. ^p-003\n",
+    );
+    index();
+
+    assert_eq!(found("marketprofile"), ["hashes/ch-01"], "a hashtag is text of the book");
+    assert_eq!(found("wheat"), ["hashes/ch-01"], "a `#` the import wrote as `&#35;` is text too");
+    assert_eq!(found("seven"), ["hashes/ch-01"], "more than six marks make no heading");
+    assert_eq!(found("marmots"), nothing(), "a heading is left out, as before");
+}
+
 #[test]
 fn one_broken_book_does_not_stop_the_other_books() {
     let sandbox = Sandbox::new();

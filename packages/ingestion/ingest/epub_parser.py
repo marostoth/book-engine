@@ -11,7 +11,7 @@ from ebooklib import epub
 
 from ingest.book_id import book_id_of_name, plain_letters
 from ingest.chapter_shape import CHAPTER_TITLE, DIVISION_TITLE
-from ingest.markdown_text import escape_markdown_text
+from ingest.markdown_text import escape_heading_mark, escape_markdown_text
 from ingest.models import TOCItem
 
 
@@ -215,10 +215,19 @@ class _BlockWriter:
                 run.append(child)
         self.add_paragraph(run)
 
+    def add_text(self, block: str) -> None:
+        """Adds a block of book text, with no line that Markdown would read as a heading (IN-08).
+
+        A heading gets no paragraph anchor, so a paragraph that Markdown read as one could not be
+        searched, cited or marked. Preformatted text is written by `_preformatted_block`, which keeps
+        every character of the book, and a heading of the book is written as a heading below.
+        """
+        self.blocks.append(escape_heading_mark(block))
+
     def add_paragraph(self, nodes: Iterable[PageElement]) -> None:
         text = _inline_text(nodes, "<br>")
         if text:
-            self.blocks.append(text)
+            self.add_text(text)
 
     def add_block(self, element: Tag) -> None:
         name = element.name.lower()
@@ -239,7 +248,7 @@ class _BlockWriter:
             self.note_starts(element, with_inner_elements=True)
             term = _inline_text(element.children, "<br>")
             if term:
-                self.blocks.append(term if "**" in term else f"**{term}**")
+                self.add_text(term if "**" in term else f"**{term}**")
 
         # Blockquotes
         elif name == "blockquote":
@@ -251,7 +260,7 @@ class _BlockWriter:
             self.note_starts(element, with_inner_elements=True)
             list_lines = _list_lines(element, "")
             if list_lines:
-                self.blocks.append("\n".join(list_lines))
+                self.add_text("\n".join(list_lines))
 
         # Tables
         elif name == "table":
@@ -298,7 +307,7 @@ class _BlockWriter:
             if any(cells):
                 rows.append(" | ".join(cells))
         if rows:
-            self.blocks.append("\n".join(rows))
+            self.add_text("\n".join(rows))
 
 
 def _note_element_starts(element: Tag, block: int, element_blocks: Dict[str, int], with_inner_elements: bool) -> None:
@@ -331,7 +340,10 @@ def _is_book_text(node: PageElement) -> bool:
 
 def _list_lines(element: Tag, indent: str) -> List[str]:
     """The lines of a list: `- ` or `1. ` and the text of each item, and below it the items of its inner lists,
-    indented."""
+    indented.
+
+    An item keeps its own `#` mark, because Markdown reads a heading inside a list item too (IN-08).
+    """
     ordered = element.name.lower() == "ol"
     lines: List[str] = []
     for number, item in enumerate(element.find_all("li", recursive=False), start=1):
@@ -343,7 +355,7 @@ def _list_lines(element: Tag, indent: str) -> List[str]:
                 inner_lists.append(child)
             else:
                 text_nodes.append(child)
-        li_text = _inline_text(text_nodes, "<br>")
+        li_text = escape_heading_mark(_inline_text(text_nodes, "<br>"))
         if li_text:
             lines.append(f"{indent}{marker} {li_text}")
         for inner_list in inner_lists:

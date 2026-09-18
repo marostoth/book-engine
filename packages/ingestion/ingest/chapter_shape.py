@@ -26,10 +26,16 @@ HEADING_MARKS = re.compile(r"^#{1,6}[ \t]*")
 # chapter, such as "PART I. Of the Expense of Defence.".
 NAMING_HEADING = re.compile(r"^#{1,3}[ \t]")
 
+# A Markdown heading: one to six `#` marks, and then a space, a tab or the end of the line. A line with a
+# word right after its marks, or with more than six of them, is text: "#1 rule of the market", a hashtag,
+# "####### seven marks". Such a line used to count as a heading, so it got no paragraph anchor and no
+# reader could search it, cite it or mark it (IN-08).
+HEADING = re.compile(r"^#{1,6}(?:[ \t\n]|$)")
+
 
 def is_heading(block: str) -> bool:
     """True for a Markdown heading. Every other block is text, which gets a paragraph anchor."""
-    return block.startswith("#")
+    return bool(HEADING.match(block))
 
 
 def names_a_chapter(block: str) -> bool:

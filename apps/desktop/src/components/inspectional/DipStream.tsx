@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { BookMeta, ChapterMeta } from "../../lib/types";
 import { fetchChapter } from "../../lib/api";
+import { bookText, isHeadingBlock } from "../../lib/markdown";
 import { reportBackendError } from "../../lib/backendErrors";
 import { BookOpen, ArrowRight, Compass, Scissors, CornerDownRight } from "lucide-react";
 
@@ -47,12 +48,12 @@ export const DipStream: React.FC<DipStreamProps> = ({
 
         for (const b of blocks) {
           const trimmed = b.trim();
-          if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith("![")) continue;
+          if (!trimmed || isHeadingBlock(trimmed) || trimmed.startsWith("![")) continue;
           const match = trimmed.match(/^(.*?)(?:\s*(\^p-\d+))$/s);
           if (match) {
-            paragraphs.push({ text: match[1].trim(), anchor: match[2] });
+            paragraphs.push({ text: bookText(match[1].trim()), anchor: match[2] });
           } else if (!trimmed.startsWith("[^")) {
-            paragraphs.push({ text: trimmed });
+            paragraphs.push({ text: bookText(trimmed) });
           }
         }
 

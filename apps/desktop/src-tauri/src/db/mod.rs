@@ -12,6 +12,7 @@ pub mod backfill;
 pub mod restore;
 pub mod analytics;
 pub mod card_identity;
+pub mod chapter_blocks;
 pub mod deck_sync;
 pub mod removed_books;
 #[cfg(test)]
@@ -20,6 +21,8 @@ mod analytics_numbers_tests;
 mod analytics_tests;
 #[cfg(test)]
 mod backfill_tests;
+#[cfg(test)]
+mod chapter_blocks_tests;
 #[cfg(test)]
 mod deck_sync_tests;
 #[cfg(test)]

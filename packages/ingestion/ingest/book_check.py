@@ -15,6 +15,7 @@ import re
 from pathlib import Path
 from typing import List
 
+from ingest.chapter_shape import is_heading
 from ingest.glyph_repair import REPLACEMENT, unreadable_count
 
 #: The anchor at the end of a paragraph: `^p-012`
@@ -65,7 +66,9 @@ def book_problems(book_dir: Path) -> List[str]:
                 f"{chapter.name}: {characters_are} broken (U+FFFD), in {', '.join(blocks)}. "
                 "The book drew something there that nothing could read."
             )
-        paragraphs = [block for block in text.split("\n\n") if block.strip() and not block.startswith("#")]
+        paragraphs = [
+            block for block in text.split("\n\n") if block.strip() and not is_heading(block)
+        ]
         unanchored = [block for block in paragraphs if not ANCHOR_AT_END.search(block.strip())]
         if unanchored:
             paragraphs_have = "1 paragraph has" if len(unanchored) == 1 else f"{len(unanchored)} paragraphs have"

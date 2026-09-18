@@ -10,6 +10,10 @@ import time
 import sqlite3
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "packages" / "ingestion"))
+
+from ingest.chapter_shape import is_heading  # noqa: E402
+
 
 def find_db_path() -> Path:
     # 1. Check OS AppData
@@ -86,7 +90,7 @@ def ensure_index_populated(db_path: Path) -> None:
                     ch_id = md_file.stem
                     for block in content.split("\n\n"):
                         block = block.strip()
-                        if not block or block.startswith("#"):
+                        if not block or is_heading(block):
                             continue
                         anchor = ""
                         para_text = block

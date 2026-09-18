@@ -49,6 +49,7 @@ sys.path.insert(0, str(ROOT_DIR / "packages" / "ingestion"))
 from ingest.glyph_repair import REPLACEMENT  # noqa: E402
 # The import's own reading of the ledger, so the audit and the import never disagree (CQ-05)
 from ingest.ledger import lines_that_disagree  # noqa: E402
+from ingest.chapter_shape import is_heading  # noqa: E402
 from ingest.citations import links_that_lead_nowhere, quote_that_moved  # noqa: E402
 
 # ANSI Color formatting
@@ -236,7 +237,7 @@ def check_anchor_and_asset_integrity() -> DiagnosticResult:
             # Paragraph anchor format: ^p-[0-9]{3,}
             paragraphs = [
                 p for p in content.split("\n\n")
-                if p.strip() and not p.strip().startswith("#")
+                if p.strip() and not is_heading(p.strip())
             ]
             seen_anchors = set()
 
@@ -747,7 +748,7 @@ def check_inspectional_parity(vault_dir: Path = VAULT_DIR) -> DiagnosticResult:
             # Allow identical head/tail anchors only if chapter contains < 2 total paragraphs
             paragraphs = [
                 p.strip() for p in ch_content.split("\n\n")
-                if p.strip() and not p.strip().startswith("#") and not re.match(r"^\[\^.+\]:", p.strip())
+                if p.strip() and not is_heading(p.strip()) and not re.match(r"^\[\^.+\]:", p.strip())
             ]
             overlap = set(head_anchors) & set(tail_anchors)
             if overlap and len(paragraphs) >= 2:

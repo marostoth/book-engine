@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from ingest.anchors import ANCHOR_REGEX, clean_preview_text
+from ingest.chapter_shape import is_heading
 from ingest.line_endings import normalize_line_endings
 from ingest.vault_changes import VaultChanges
 
@@ -111,7 +112,7 @@ def read_book_text(book_dir: Path) -> Optional[BookText]:
             continue
         for block in (block.strip() for block in text.split("\n\n")):
             anchor = ANCHOR_REGEX.search(block)
-            if block and not block.startswith("#") and anchor:
+            if block and not is_heading(block) and anchor:
                 paragraphs.append(Paragraph(chapter_file, anchor.group(0).strip(), words_of(block)))
     return BookText([file for file, _ in chapters], dict(chapters), paragraphs)
 
