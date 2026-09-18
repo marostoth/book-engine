@@ -211,21 +211,71 @@ def test_the_workflow_asks_for_the_python_the_package_requires():
     assert re.search(r'python-version:\s*"' + re.escape(floor) + '"', WORKFLOW.read_text(encoding="utf-8")), floor
 
 
-def test_the_node_floor_can_read_the_syntax_the_frontend_tests_use():
-    """22.6.0 was chosen because `--experimental-strip-types` first appeared there. A flag arriving is not the same
-    as the tests running: Node 22.6.0 stops at the `!` of `let answer!: T` with a SyntaxError, and two test files
-    write it. The workflow found that, on its second run, after the Rust half was fixed. 22.19.0 reads them."""
-    written = [
-        path
-        for path in sorted((REPO / "apps" / "desktop" / "src").rglob("*.test.ts"))
-        if re.search(r"\b(?:let|var)\s+\w+!\s*:", path.read_text(encoding="utf-8"))
-    ]
+def node_floor() -> tuple[int, ...]:
+    """The oldest Node this repository says it runs on."""
     floor = json.loads(ROOT_PACKAGE.read_text(encoding="utf-8"))["engines"]["node"].lstrip(">=")
-    if written:
-        names = ", ".join(path.name for path in written)
-        assert tuple(int(part) for part in floor.split(".")) >= (22, 19, 0), (
-            f"{names} write `let x!: T`, which Node {floor} cannot strip"
-        )
+    return tuple(int(part) for part in floor.split("."))
+
+
+def test_the_node_floor_is_high_enough_for_the_test_runner():
+    """The floor was 22.6.0, where `--experimental-strip-types` first appeared, and that flag was how the frontend
+    tests ran. A flag arriving is not the same as the tests running: Node 22.6.0 stops at the `!` of
+    `let answer!: T` with a SyntaxError, and two test files write it. The workflow found that on its second run,
+    and 22.19.0 reads them (TL-05).
+
+    Vitest runs those tests now, and it transforms the TypeScript itself, so that first reason is gone (TL-03).
+    The floor is measured against the runner instead: vitest 5 asks for Node ^22.12.0 and jsdom for ^22.13.0, and
+    a newer version of either may ask for more. This reads what they ask for rather than trusting a number."""
+    floor = node_floor()
+    for name in ("vitest", "jsdom"):
+        manifest = next(REPO.glob(f"**/node_modules/{name}/package.json"), None)
+        if manifest is None:
+            pytest.skip(f"{name} is not installed here")
+        asks = json.loads(manifest.read_text(encoding="utf-8")).get("engines", {}).get("node", "")
+        on_the_22_line = re.search(r"\^22\.(\d+)\.(\d+)", asks)
+        if on_the_22_line:
+            needs = (22, int(on_the_22_line.group(1)), int(on_the_22_line.group(2)))
+            assert floor >= needs, (
+                f"{name} asks for Node {asks}, and package.json says this repository runs on "
+                f"{'.'.join(str(part) for part in floor)}"
+            )
+
+
+def test_the_frontend_test_runner_finds_its_test_files_by_itself():
+    """`npm test` used to name all 30 test files on one line. A file left off that line never ran and said nothing,
+    which is worse than no test at all, because it reads as cover that is not there. The runner takes a pattern
+    now, so a test file runs the day it is written (TL-03)."""
+    script = scripts_of(DESKTOP_PACKAGE)["test"]
+    assert ".test.ts" not in script, (
+        f"the frontend `test` script names test files by hand: {script!r}. One left off that line would never run."
+    )
+    assert "vitest" in script, f"the frontend `test` script does not run vitest: {script!r}"
+
+    config = (REPO / "apps" / "desktop" / "vite.config.ts").read_text(encoding="utf-8")
+    assert re.search(r'include:\s*\["src/\*\*/\*\.test\.\{ts,tsx\}"\]', config), (
+        "vite.config.ts does not tell vitest to find every test file under src by pattern"
+    )
+
+
+def test_every_frontend_test_file_is_somewhere_the_runner_looks():
+    """The pattern above is only worth having if it really reaches every test file that exists."""
+    source = REPO / "apps" / "desktop" / "src"
+    files = sorted(path for path in source.rglob("*.test.ts")) + sorted(source.rglob("*.test.tsx"))
+    assert files, "no frontend test files were found at all, so this test is checking nothing"
+
+    outside = [path.relative_to(source).as_posix() for path in files if not path.is_relative_to(source)]
+    assert not outside, f"these test files are outside the folder the runner looks in: {outside}"
+
+
+def test_the_components_of_this_app_have_tests():
+    """TL-03: every frontend test was of a plain function, and 62 components had none. A component test is the only
+    kind that can open a popover, click a button, or ask the page itself what a reader would see."""
+    source = REPO / "apps" / "desktop" / "src"
+    drawn = sorted(path.name for path in source.rglob("*.test.tsx"))
+    assert drawn, (
+        "no component is tested. Frontend tests that only call plain functions cannot catch a button that is "
+        "never drawn, a control nothing can reach, or book text that becomes an element (TL-03)."
+    )
 
 
 def test_one_file_names_the_rust_that_every_computer_checks_with():

@@ -1,4 +1,4 @@
-import test, { mock } from "node:test";
+import { test, vi, onTestFinished } from "vitest";
 import assert from "node:assert/strict";
 import type { BookMeta, ChapterMeta } from "./types.ts";
 import {
@@ -178,59 +178,67 @@ function watcher(delayMs = 1000) {
   return { watch, reports, setMiddle: (anchor: string | undefined) => (middle = anchor) };
 }
 
-test("a long scroll saves the place once, after the reader stops", (t) => {
-  mock.timers.enable({ apis: ["setTimeout"] });
-  t.after(() => mock.timers.reset());
+test("a long scroll saves the place once, after the reader stops", () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
   const { watch, reports, setMiddle } = watcher();
   watch.shown(humeTwo);
 
   for (let step = 1; step <= 20; step += 1) {
     setMiddle(`^p-0${10 + step}`);
     watch.moved();
-    mock.timers.tick(100);
+    vi.advanceTimersByTime(100);
   }
   assert.deepEqual(reports, [], "nothing is saved while the reader is still scrolling");
 
-  mock.timers.tick(1000);
+  vi.advanceTimersByTime(1000);
   assert.deepEqual(reports, ["hume/ch-02.md#^p-030"], "one save, with the paragraph where the scrolling stopped");
 });
 
-test("the place names the chapter whose words were on screen, not a chapter still loading", (t) => {
-  mock.timers.enable({ apis: ["setTimeout"] });
-  t.after(() => mock.timers.reset());
+test("the place names the chapter whose words were on screen, not a chapter still loading", () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
   const { watch, reports, setMiddle } = watcher();
 
   watch.shown(humeTwo);
   setMiddle("^p-045");
   watch.moved();
   // The reader picks chapter three. Its words have not arrived, so chapter two's words are still on screen.
-  mock.timers.tick(1000);
+  vi.advanceTimersByTime(1000);
   assert.deepEqual(reports, ["hume/ch-02.md#^p-045"], "a paragraph of chapter two must never be saved as chapter three");
 
   watch.shown(humeThree);
   setMiddle("^p-001");
   watch.moved();
-  mock.timers.tick(1000);
+  vi.advanceTimersByTime(1000);
   assert.deepEqual(reports, ["hume/ch-02.md#^p-045", "hume/ch-03.md#^p-001"]);
 });
 
-test("no place is saved while no chapter's words are on screen", (t) => {
-  mock.timers.enable({ apis: ["setTimeout"] });
-  t.after(() => mock.timers.reset());
+test("no place is saved while no chapter's words are on screen", () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
   const { watch, reports } = watcher();
 
   watch.moved();
-  mock.timers.tick(1000);
+  vi.advanceTimersByTime(1000);
   watch.shown(null);
   watch.moved();
-  mock.timers.tick(1000);
+  vi.advanceTimersByTime(1000);
 
   assert.deepEqual(reports, []);
 });
 
-test("leaving the reader saves the waiting place at once, and only once", (t) => {
-  mock.timers.enable({ apis: ["setTimeout"] });
-  t.after(() => mock.timers.reset());
+test("leaving the reader saves the waiting place at once, and only once", () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
   const { watch, reports, setMiddle } = watcher();
   watch.shown(humeTwo);
 
@@ -239,7 +247,7 @@ test("leaving the reader saves the waiting place at once, and only once", (t) =>
   watch.flush();
   assert.deepEqual(reports, ["hume/ch-02.md#^p-017"]);
 
-  mock.timers.tick(1000);
+  vi.advanceTimersByTime(1000);
   watch.flush();
   assert.deepEqual(reports, ["hume/ch-02.md#^p-017"], "a place that was saved is not saved again");
 });

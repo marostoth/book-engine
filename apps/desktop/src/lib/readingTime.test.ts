@@ -1,4 +1,4 @@
-import test from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import type { ChapterRef } from "./readingPlace.ts";
 import { createReadingTimer, LONGEST_TICK_MS, type ReadingPiece } from "./readingTime.ts";

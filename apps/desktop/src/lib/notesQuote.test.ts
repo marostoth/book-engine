@@ -1,4 +1,4 @@
-import test, { mock } from "node:test";
+import { test, vi, onTestFinished } from "vitest";
 import assert from "node:assert/strict";
 import { addQuoteToNotes, quoteBlock, type NotesLoadState } from "./notesQuote.ts";
 import { createNotesAutosave, type NotesTarget } from "./notesAutosave.ts";
@@ -9,9 +9,11 @@ const CHAPTER_TWO: NotesTarget = { bookId: "adler", notesFile: "ch-02-notes.md" 
 const QUOTE = { quote: "the art of reading", anchorId: "p-007" };
 
 /** The notes pane, as far as a quote is concerned: the two shipped modules, wired the way the pane wires them. */
-function pane(t: { after(fn: () => void): void }, loadState: NotesLoadState, notes: string) {
-  mock.timers.enable({ apis: ["setTimeout"] });
-  t.after(() => mock.timers.reset());
+function pane(loadState: NotesLoadState, notes: string) {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
 
   const saves: { target: NotesTarget; text: string }[] = [];
   const refusals: string[] = [];
@@ -43,12 +45,12 @@ function pane(t: { after(fn: () => void): void }, loadState: NotesLoadState, not
       autosave.flush();
       target = CHAPTER_TWO;
     },
-    wait: (ms: number) => mock.timers.tick(ms),
+    wait: (ms: number) => vi.advanceTimersByTime(ms),
   };
 }
 
-test("a quote is saved without waiting for the reader to type", (t) => {
-  const notes = pane(t, "ready", "# Reflections\n\n- my first thought\n");
+test("a quote is saved without waiting for the reader to type", () => {
+  const notes = pane("ready", "# Reflections\n\n- my first thought\n");
 
   notes.receive(QUOTE);
 
@@ -58,8 +60,8 @@ test("a quote is saved without waiting for the reader to type", (t) => {
   assert.match(notes.saves[0].text, /- my first thought/, "the reader's own text must stay");
 });
 
-test("a quote is still in the file after the reader moves to another chapter", (t) => {
-  const notes = pane(t, "ready", "# Reflections\n");
+test("a quote is still in the file after the reader moves to another chapter", () => {
+  const notes = pane("ready", "# Reflections\n");
 
   notes.receive(QUOTE);
   notes.close();
@@ -69,8 +71,8 @@ test("a quote is still in the file after the reader moves to another chapter", (
   assert.equal(written[0].target.notesFile, "ch-01-notes.md", "and into the chapter it was taken from");
 });
 
-test("a quote waits while the notes are still being read from the disk", (t) => {
-  const notes = pane(t, "loading", "");
+test("a quote waits while the notes are still being read from the disk", () => {
+  const notes = pane("loading", "");
 
   notes.receive(QUOTE);
   notes.wait(DELAY * 2);
@@ -80,8 +82,8 @@ test("a quote waits while the notes are still being read from the disk", (t) => 
   assert.deepEqual(notes.refusals, [], "waiting is not a refusal: the pane asks again when the notes are there");
 });
 
-test("the quote is added once the notes are there", (t) => {
-  const notes = pane(t, "ready", "# Reflections\n\n- what the notes file really holds\n");
+test("the quote is added once the notes are there", () => {
+  const notes = pane("ready", "# Reflections\n\n- what the notes file really holds\n");
 
   notes.receive(QUOTE);
 
@@ -90,8 +92,8 @@ test("the quote is added once the notes are there", (t) => {
   assert.match(notes.saves[0].text, /the art of reading/);
 });
 
-test("notes that did not load never take a quote", (t) => {
-  const notes = pane(t, "failed", "");
+test("notes that did not load never take a quote", () => {
+  const notes = pane("failed", "");
 
   notes.receive(QUOTE);
 
@@ -99,8 +101,8 @@ test("notes that did not load never take a quote", (t) => {
   assert.deepEqual(notes.refusals, ["The quote was not added to your notes."], "the reader must be told");
 });
 
-test("a quote sent while a keystroke is waiting keeps both", (t) => {
-  const notes = pane(t, "ready", "");
+test("a quote sent while a keystroke is waiting keeps both", () => {
+  const notes = pane("ready", "");
 
   notes.type("# Reflections\n\n- half a sentence");
   notes.receive(QUOTE);
@@ -111,8 +113,8 @@ test("a quote sent while a keystroke is waiting keeps both", (t) => {
   assert.match(last.text, /the art of reading/, "and the quote must be there too");
 });
 
-test("two quotes both reach the notes file", (t) => {
-  const notes = pane(t, "ready", "# Reflections\n");
+test("two quotes both reach the notes file", () => {
+  const notes = pane("ready", "# Reflections\n");
 
   notes.receive({ quote: "first quote", anchorId: "p-001" });
   notes.receive({ quote: "second quote", anchorId: "p-002" });
@@ -123,8 +125,8 @@ test("two quotes both reach the notes file", (t) => {
   assert.match(last.text, /second quote/);
 });
 
-test("no quote means nothing happens", (t) => {
-  const notes = pane(t, "ready", "# Reflections\n");
+test("no quote means nothing happens", () => {
+  const notes = pane("ready", "# Reflections\n");
 
   notes.receive(null);
   notes.wait(DELAY * 2);
@@ -137,8 +139,8 @@ test("a quote without a paragraph anchor is added without one", () => {
   assert.equal(quoteBlock({ quote: "a line with no anchor" }), '\n\n> "a line with no anchor"\n\n- Reflection: \n');
 });
 
-test("the quote block starts on a blank line, so it never joins the line before it", (t) => {
-  const notes = pane(t, "ready", "- a line with no newline at the end");
+test("the quote block starts on a blank line, so it never joins the line before it", () => {
+  const notes = pane("ready", "- a line with no newline at the end");
 
   notes.receive(QUOTE);
 

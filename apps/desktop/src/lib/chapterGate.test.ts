@@ -1,4 +1,4 @@
-import test from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import type { ChapterMeta, ReadingLevelMode } from "./types.ts";
 import type { PracticeCardItem } from "./practiceTypes.ts";

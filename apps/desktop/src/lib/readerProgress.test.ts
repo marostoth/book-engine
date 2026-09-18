@@ -1,4 +1,4 @@
-import test from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { createProgressTicker, scrollPercent, type ScrollBox } from "./readerProgress.ts";
 import type { ChapterRef } from "./readingPlace.ts";

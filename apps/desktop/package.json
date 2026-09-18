@@ -11,7 +11,7 @@
     "tsc": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "node --experimental-strip-types --test src/lib/analyticsText.test.ts src/lib/apiFailures.test.ts src/lib/notesWriters.test.ts src/lib/backendErrors.test.ts src/lib/bionic.test.ts src/lib/chapterGate.test.ts src/lib/citations.test.ts src/lib/elementaryPacer.test.ts src/lib/exitAssessment.test.ts src/lib/highlights.test.ts src/lib/libraryRescan.test.ts src/lib/markdown.test.ts src/lib/notesAutosave.test.ts src/lib/notesQuote.test.ts src/lib/practiceContract.test.ts src/lib/practiceSession.test.ts src/lib/preferences.test.ts src/lib/readerEditor.test.ts src/lib/readerLoads.test.ts src/lib/readerLocation.test.ts src/lib/readerProgress.test.ts src/lib/readerShortcuts.test.ts src/lib/readingPlace.test.ts src/lib/readingTime.test.ts src/lib/reviewDays.test.ts src/lib/searchIndex.test.ts src/lib/searchQuery.test.ts src/lib/searchSnippet.test.ts src/lib/tableOfContents.test.ts src/lib/vaultGate.test.ts"
+    "test": "vitest run"
   },
   "dependencies": {
     "@floating-ui/react": "^0.27.4",
@@ -34,6 +34,8 @@
     "@eslint/js": "^10.0.1",
     "@tailwindcss/typography": "^0.5.16",
     "@tauri-apps/cli": "^2.2.7",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
     "@types/markdown-it": "^14.2.0",
     "@types/node": "^22.13.4",
     "@types/react": "^18.3.18",
@@ -44,10 +46,12 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.7",
     "globals": "^17.12.0",
+    "jsdom": "^29.1.1",
     "postcss": "^8.5.2",
     "tailwindcss": "^3.4.17",
     "typescript": "~5.7.2",
     "typescript-eslint": "^8.70.0",
-    "vite": "^6.1.0"
+    "vite": "^6.1.0",
+    "vitest": "^5.0.1"
   }
 }

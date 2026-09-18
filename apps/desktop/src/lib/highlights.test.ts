@@ -1,4 +1,4 @@
-import test from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { getSchema } from "@tiptap/core";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";

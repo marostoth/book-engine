@@ -1,4 +1,4 @@
-import test from "node:test";
+import { test, onTestFinished } from "vitest";
 import assert from "node:assert/strict";
 
 /**
@@ -26,11 +26,13 @@ function fakeTauri(answers: Record<string, unknown>) {
   return calls;
 }
 
-test("the app asks the backend where the vault is", async (t) => {
+test("the app asks the backend where the vault is", async () => {
   const calls = fakeTauri({
     get_vault_status: { path: "D:\\Books\\vault", foundBy: "saved", message: "" },
   });
-  t.after(() => delete (globalThis as Record<string, unknown>).window);
+  onTestFinished(() => {
+    delete (globalThis as Record<string, unknown>).window;
+  });
   const { getVaultStatus } = await import("./api/vaultApi.ts");
 
   const status = await getVaultStatus();
@@ -40,7 +42,7 @@ test("the app asks the backend where the vault is", async (t) => {
   assert.equal(status.foundBy, "saved", "the app can tell the reader where the folder came from");
 });
 
-test("no vault comes back as an empty path and a message to show", async (t) => {
+test("no vault comes back as an empty path and a message to show", async () => {
   fakeTauri({
     get_vault_status: {
       path: "",
@@ -48,7 +50,9 @@ test("no vault comes back as an empty path and a message to show", async (t) => 
       message: 'Your vault folder was not found. Choose it in the app: it is the folder that has a "books" folder inside it.',
     },
   });
-  t.after(() => delete (globalThis as Record<string, unknown>).window);
+  onTestFinished(() => {
+    delete (globalThis as Record<string, unknown>).window;
+  });
   const { getVaultStatus } = await import("./api/vaultApi.ts");
 
   const status = await getVaultStatus();
@@ -57,11 +61,13 @@ test("no vault comes back as an empty path and a message to show", async (t) => 
   assert.match(status.message, /books/, "and the message says what to look for");
 });
 
-test("choosing a folder asks the backend to open the picker", async (t) => {
+test("choosing a folder asks the backend to open the picker", async () => {
   const calls = fakeTauri({
     choose_vault_folder: { path: "D:\\Books\\vault", foundBy: "saved", message: "" },
   });
-  t.after(() => delete (globalThis as Record<string, unknown>).window);
+  onTestFinished(() => {
+    delete (globalThis as Record<string, unknown>).window;
+  });
   const { chooseVaultFolder } = await import("./api/vaultApi.ts");
 
   const picked = await chooseVaultFolder();
@@ -70,21 +76,25 @@ test("choosing a folder asks the backend to open the picker", async (t) => {
   assert.equal(picked?.path, "D:\\Books\\vault");
 });
 
-test("closing the picker without choosing changes nothing", async (t) => {
+test("closing the picker without choosing changes nothing", async () => {
   fakeTauri({ choose_vault_folder: null });
-  t.after(() => delete (globalThis as Record<string, unknown>).window);
+  onTestFinished(() => {
+    delete (globalThis as Record<string, unknown>).window;
+  });
   const { chooseVaultFolder } = await import("./api/vaultApi.ts");
 
   assert.equal(await chooseVaultFolder(), null, "null means the reader closed the picker");
 });
 
-test("a folder that is not a vault is refused, and the message reaches the reader", async (t) => {
+test("a folder that is not a vault is refused, and the message reaches the reader", async () => {
   fakeTauri({
     choose_vault_folder: new Error(
       'D:\\Downloads is not a vault folder. A vault has a "books" folder inside it, with one folder per book.'
     ),
   });
-  t.after(() => delete (globalThis as Record<string, unknown>).window);
+  onTestFinished(() => {
+    delete (globalThis as Record<string, unknown>).window;
+  });
   const { chooseVaultFolder } = await import("./api/vaultApi.ts");
   const { errorText } = await import("./backendErrors.ts");
 
