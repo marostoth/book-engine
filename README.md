@@ -58,9 +58,13 @@ book-engine/
 
 Ensure the following runtimes are installed on your workstation:
 
-- **Node.js**: `18.0+` (LTS recommended) and `npm`
-- **Rust & Cargo**: `1.75+` (with Tauri v2 prerequisites installed for your OS)
-- **Python**: `3.11+` with `pip`
+- **Node.js**: `22.6.0+` and `npm`. The frontend tests are TypeScript files that Node runs itself, with
+  `--experimental-strip-types`, and that flag arrived in Node 22.6.0. The root `package.json` says the same in
+  `engines`, so `npm install` warns you when your Node is older.
+- **Rust & Cargo**: `1.88+` (with Tauri v2 prerequisites installed for your OS). Tauri 2.11.5 itself asks for
+  1.77.2, but other crates of the same build ask for 1.88. `apps/desktop/src-tauri/Cargo.toml` says `1.88` in
+  `rust-version`, so cargo tells you plainly instead of failing inside a dependency.
+- **Python**: `3.11+` with `pip`. The import reads `pyproject.toml` with `tomllib`, which arrived in 3.11.
 
 ---
 
@@ -131,7 +135,8 @@ The analytics show a dash for a number the app does not have, such as the retent
 
 ### 2. Desktop Application (`apps/desktop`)
 
-Install Node dependencies from the repository root:
+Install Node dependencies from the repository root. `apps/desktop` is a workspace of the root package, so this one
+command installs the frontend as well, and it writes one lock file, `package-lock.json`, at the root:
 
 ```bash
 npm install
@@ -192,15 +197,22 @@ cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
 npm --prefix apps/desktop test
 npm run build
 
-# 3. Verify paragraph anchor and footnote integrity in every book of the vault
+# 3. Put a book in the vault, if it is still empty. This makes a small sample book and imports it, so the
+#    checks below have something to read. Your own books are untouched, and nothing of this goes into git.
+python -m ingest.sample_generator --vault vault
+
+# 4. Verify paragraph anchor and footnote integrity in every book of the vault
 #    (name one book folder to check only that book; a folder with no book in it fails)
 python .agent/skills/audit-anchors.py
 
-# 4. Run SQLite FTS5 query latency benchmarks (must pass under 15ms)
+# 5. Verify that every practice card says what its chapter says
+python .agent/skills/audit-practice.py
+
+# 6. Run SQLite FTS5 query latency benchmarks (must pass under 15ms)
 #    (it measures a copy of your search index and never writes to the index itself)
 python .agent/skills/benchmark-fts.py
 
-# 5. Run ingestion pipeline automated test suite
+# 7. Run ingestion pipeline automated test suite
 python -m pytest packages/ingestion/tests/
 ```
 
