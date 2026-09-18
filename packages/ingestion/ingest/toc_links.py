@@ -83,6 +83,24 @@ def link_toc_to_chapters(items: Sequence[TOCItem], documents: Mapping[str, Impor
         link_toc_to_chapters(item.subitems, documents)
 
 
+def without_entries_that_lead_nowhere(items: Sequence[TOCItem]) -> List[TOCItem]:
+    """The contents without the entries that open nothing (CQ-04).
+
+    An entry gets no chapter file when its document made none: an endnote file whose notes moved into the chapters,
+    or a page that holds no text of the book, such as the license of Project Gutenberg that the import leaves out
+    (IN-02). A reader taps such an entry and nothing happens, so it goes.
+
+    An entry that only groups the entries below it, such as "Part I", has no file of its own and stays, because its
+    children still open. Its children are weighed first, so a group whose every child leads nowhere goes with them.
+    """
+    kept: List[TOCItem] = []
+    for item in items:
+        item.subitems = without_entries_that_lead_nowhere(item.subitems)
+        if item.href or item.subitems:
+            kept.append(item)
+    return kept
+
+
 def _linked_document(path: str, documents: Mapping[str, ImportedDocument]) -> Optional[ImportedDocument]:
     """The imported document that a link of the contents names, or None.
 
