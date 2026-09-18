@@ -26,6 +26,8 @@ pub mod indexer;
 #[cfg(test)]
 mod indexer_tests;
 pub mod models;
+#[cfg(test)]
+mod open_cost_tests;
 pub mod reading_velocity;
 #[cfg(test)]
 mod reading_velocity_tests;

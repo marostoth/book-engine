@@ -6,6 +6,7 @@ days older than the Rust it was built from, and its modularity check printed a c
 """
 
 import os
+import re
 import sqlite3
 from pathlib import Path
 from types import ModuleType
@@ -380,7 +381,7 @@ def test_the_benchmark_fails_when_a_query_finds_nothing(tmp_path: Path, monkeypa
 def test_the_benchmark_passes_when_every_query_finds_something(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     mod = benchmark()
     live = tmp_path / "index.db"
-    a_small_index(live, " ".join(query.rstrip("*") for query in mod.TEST_QUERIES))
+    a_small_index(live, " ".join(query.rstrip("*") for query in mod.WORD_QUERIES + mod.BROAD_QUERIES))
     monkeypatch.setattr(mod, "find_db_path", lambda: live)
 
     assert mod.run_benchmark() is True
@@ -394,7 +395,7 @@ def test_a_whole_benchmark_run_leaves_the_index_alone(tmp_path: Path, monkeypatc
     """
     mod = benchmark()
     live = tmp_path / "index.db"
-    a_small_index(live, " ".join(query.rstrip("*") for query in mod.TEST_QUERIES))
+    a_small_index(live, " ".join(query.rstrip("*") for query in mod.WORD_QUERIES + mod.BROAD_QUERIES))
     monkeypatch.setattr(mod, "find_db_path", lambda: live)
     before = live.read_bytes(), live.stat().st_mtime_ns
 
@@ -415,3 +416,123 @@ def test_the_rules_no_longer_forbid_reading_the_files():
     rules = (REPO / "AGENTS.md").read_text(encoding="utf-8")
     assert "Do not manually inspect files" not in rules
     assert "read the files a failed check names" in rules
+
+
+# ---------------------------------------------------------------------------
+# benchmark-fts.py: the speed it reports must be a speed a reader would feel (SI-04)
+# ---------------------------------------------------------------------------
+
+
+def an_index_of_filler(path: Path, words: str, filler_rows: int) -> None:
+    """One row holding `words`, and `filler_rows` rows of words that no query here matches."""
+    conn = sqlite3.connect(str(path))
+    try:
+        benchmark().make_tables(conn)
+        conn.execute(
+            "INSERT INTO search_index (book_id, chapter_id, chapter_title, chapter_file, anchor, content) "
+            "VALUES ('b1', 'ch-01', 'One', 'ch-01.md', '^p-001', ?)",
+            (words,),
+        )
+        for row in range(filler_rows):
+            conn.execute(
+                "INSERT INTO search_index (book_id, chapter_id, chapter_title, chapter_file, anchor, content) "
+                "VALUES ('b1', 'ch-02', 'Two', 'ch-02.md', ?, 'food cup dog sky rope')",
+                (f"^p-{row:03d}",),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def test_the_benchmark_fails_when_every_query_matches_almost_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+):
+    """TL-04 stopped a query that found nothing. It did not stop a query that found almost nothing.
+
+    For years every query here matched between 1 and 338 paragraphs of a 10,292 paragraph index, and the slowest
+    of them took 1.1 ms. The search a reader really waits for, a two-letter prefix, matches 87% of the index and
+    takes 54 ms. The benchmark passed a 15 ms limit the whole time, while never once measuring that.
+    """
+    mod = benchmark()
+    live = tmp_path / "index.db"
+    words = " ".join(query.rstrip("*") for query in mod.WORD_QUERIES + mod.BROAD_QUERIES)
+    an_index_of_filler(live, words, filler_rows=100)
+    monkeypatch.setattr(mod, "find_db_path", lambda: live)
+
+    assert mod.run_benchmark() is False
+    assert "measuring the easy case only" in capsys.readouterr().err
+
+
+def test_one_slow_query_among_fast_ones_is_over_the_limit(tmp_path: Path):
+    """An average is how this check passed for years, and an average is what hides one slow query among ten fast.
+
+    `queries_over` is asked directly, with made-up times, because a test cannot make one real query slow to order
+    on a machine that is doing other work. Nine queries at 1 ms and one at 100 ms average 10.9 ms, under the 15 ms
+    limit, so a check built on an average would call this fine and say nothing.
+    """
+    mod = benchmark()
+    timings = {f"fast-{n}*": [1.0] * 5 for n in range(9)}
+    timings["slow*"] = [100.0] * 5
+    queries = list(timings)
+
+    average = sum(t for times in timings.values() for t in times) / (len(queries) * 5)
+    assert average < mod.WORD_LIMIT_MS, "this test proves nothing unless the average really is under the limit"
+
+    assert mod.queries_over(timings, queries, mod.WORD_LIMIT_MS) == ["slow*"]
+    assert mod.queries_over(timings, queries, 200.0) == [], "nothing is over a limit nothing reaches"
+
+
+def test_the_broad_queries_are_as_short_as_the_app_allows(tmp_path: Path):
+    """A broad query is only broad because it is short. Swapping in a rare word would quietly measure the easy case.
+
+    The length is read out of `searchQuery.ts`, so the benchmark measures the shortest search the app will really
+    run. If SI-03's minimum ever moves, this fails instead of drifting.
+    """
+    mod = benchmark()
+    source = (REPO / "apps" / "desktop" / "src" / "lib" / "searchQuery.ts").read_text(encoding="utf-8")
+    shortest = int(re.search(r"MIN_SEARCH_CHARACTERS\s*=\s*(\d+)", source).group(1))
+
+    assert mod.BROAD_QUERIES, "the benchmark has no broad query, so it measures the easy case only"
+    for query in mod.BROAD_QUERIES:
+        letters = query.rstrip("*")
+        assert len(letters) == shortest, (
+            f"{query!r} is {len(letters)} letters, and the app lets a reader search {shortest}. A longer prefix "
+            f"matches less and is faster, which is how this benchmark passed while measuring nothing (SI-04)."
+        )
+        assert query.endswith("*"), f"{query!r} is not a prefix search, so it is not the broad case"
+
+
+def test_the_benchmark_names_each_query_it_finds_too_slow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys):
+    """The report has to name each query with its own time and its own match count."""
+    mod = benchmark()
+    live = tmp_path / "index.db"
+    an_index_of_filler(live, " ".join(q.rstrip("*") for q in mod.WORD_QUERIES + mod.BROAD_QUERIES), filler_rows=0)
+    monkeypatch.setattr(mod, "find_db_path", lambda: live)
+    monkeypatch.setattr(mod, "WORD_LIMIT_MS", 0.0)
+
+    assert mod.run_benchmark() is False
+    said = capsys.readouterr().err
+    for query in mod.WORD_QUERIES:
+        assert query in said, f"the report does not name {query}, so it is not judging each query on its own"
+
+
+def test_the_documents_name_the_limits_the_benchmark_really_holds():
+    """README, AGENTS.md and ARCHITECTURE.md all claimed a speed nobody had measured.
+
+    The README said "sub-millisecond search" and the other two "sub-15ms", while the only thing measured was a set
+    of queries matching one to nine paragraphs. A number in a document that no check enforces is a number that
+    drifts, which is the same fault as SI-05 and TL-05 in another place.
+    """
+    mod = benchmark()
+    word = f"{mod.WORD_LIMIT_MS:.0f}"
+    broad = f"{mod.BROAD_LIMIT_MS:.0f}"
+
+    assert "sub-millisecond" not in (REPO / "README.md").read_text(encoding="utf-8"), (
+        "the README still promises sub-millisecond search; the slowest real word measured is 5.2 ms (SI-04)"
+    )
+    for name in ("README.md", "AGENTS.md", "ARCHITECTURE.md"):
+        text = (REPO / name).read_text(encoding="utf-8")
+        assert f"{word} ms" in text or f"{word}ms" in text, f"{name} does not name the {word} ms limit for a word"
+        assert f"{broad} ms" in text or f"{broad}ms" in text, (
+            f"{name} does not name the {broad} ms limit for the broadest search the app allows"
+        )

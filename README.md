@@ -2,7 +2,7 @@
 
 A high-performance, local-first reading and study desktop application built with **Tauri v2**, **React 18+**, **TipTap/ProseMirror**, **SQLite FTS5**, and **Python**.
 
-Designed for deep reading of academic, technical, and dense literature with persistent paragraph anchoring, zero-hallucination extractive study generation, and sub-millisecond search.
+Designed for deep reading of academic, technical, and dense literature with persistent paragraph anchoring, zero-hallucination extractive study generation, and search that answers a word in under 15 ms.
 
 ---
 
@@ -250,8 +250,10 @@ python .agent/skills/audit-anchors.py
 # 5. Verify that every practice card says what its chapter says
 python .agent/skills/audit-practice.py
 
-# 6. Run SQLite FTS5 query latency benchmarks (must pass under 15ms)
-#    (it measures a copy of your search index and never writes to the index itself)
+# 6. Run SQLite FTS5 query latency benchmarks
+#    (a real word must answer in under 15 ms, and the broadest search the app allows,
+#     a two-letter prefix, in under 120 ms; it measures a copy of your search index
+#     and never writes to the index itself)
 python .agent/skills/benchmark-fts.py
 
 # 7. Run ingestion pipeline automated test suite

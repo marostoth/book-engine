@@ -1,6 +1,8 @@
 use anyhow::{anyhow, Context, Result};
 use rusqlite::Connection;
-use std::path::PathBuf;
+use std::collections::BTreeSet;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 /// The shape of the cache this build knows. `PRAGMA user_version` holds the shape of the file on disk.
 ///
@@ -34,13 +36,50 @@ pub fn get_db_path() -> Result<PathBuf> {
     Ok(base.join("index.db"))
 }
 
-/// Initializes database connection and creates FTS5, FSRS, review logs, and reading sessions tables
+/// The cache files this process has already given their tables to (SI-04).
+///
+/// Every one of the sixteen callers of `open_or_create_db` used to run the whole setup again: thirteen statements
+/// of `CREATE TABLE IF NOT EXISTS`, a `PRAGMA table_info` migration check, and a look at whether the dictionary
+/// needed seeding. Measured on the reader's real index, 10,292 paragraphs: a bare open is 0.19 ms and an open with
+/// the setup is 2.86 ms, so the setup cost 2.67 ms of every call, including every search.
+///
+/// It is keyed by path, not a plain "done once", because a test build gives every `Sandbox` its own cache file and
+/// each one needs its own tables.
+static PREPARED: Mutex<BTreeSet<PathBuf>> = Mutex::new(BTreeSet::new());
+
+#[cfg(test)]
+thread_local! {
+    /// How many times the setup has run on this thread, so a test can say it did not run twice. The saving is
+    /// time, and a test cannot hold a time still on a machine that is doing other work; it can hold this.
+    ///
+    /// Per thread, because cargo runs tests side by side and a shared counter would be counting other tests'
+    /// work. One `Sandbox` is active per thread, so a thread is exactly one test.
+    pub(crate) static SETUPS_RUN: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// True when this process has already made the tables in `db_path` and nothing has removed them since.
+///
+/// `PRAGMA user_version` is what says "nothing has removed them". The setup stamps it, so a file that has been
+/// deleted and opened again reads 0 and is made from nothing once more. Two tests do exactly that, on purpose, to
+/// prove the cache fills itself again from the vault (DS-01): `backfill_tests.rs` and `restore_tests.rs`.
+fn tables_already_made(db_path: &Path, on_disk: i64) -> bool {
+    on_disk == CACHE_SCHEMA_VERSION
+        && PREPARED
+            .lock()
+            .unwrap_or_else(|held| held.into_inner())
+            .contains(db_path)
+}
+
+/// Opens the cache. The tables are made on the first open of a file in this process, and not again (SI-04).
 pub fn open_or_create_db() -> Result<Connection> {
     let db_path = get_db_path()?;
     let conn =
         Connection::open(&db_path).with_context(|| format!("Failed to open SQLite database: {}", db_path.display()))?;
 
     conn.busy_timeout(std::time::Duration::from_secs(5))?;
+    // These two live in the connection, not in the file, so every connection sets them. They are two pragmas, not
+    // thirteen statements, and they do not touch the disk.
+    conn.execute_batch("PRAGMA synchronous = NORMAL; PRAGMA temp_store = MEMORY;")?;
 
     let on_disk: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
     if on_disk > CACHE_SCHEMA_VERSION {
@@ -52,6 +91,24 @@ pub fn open_or_create_db() -> Result<Connection> {
             CACHE_SCHEMA_VERSION
         ));
     }
+
+    // The check above runs on every open, so a file replaced by a newer build is still refused.
+    if tables_already_made(&db_path, on_disk) {
+        return Ok(conn);
+    }
+
+    make_the_tables(&conn, on_disk)?;
+    PREPARED.lock().unwrap_or_else(|held| held.into_inner()).insert(db_path);
+    Ok(conn)
+}
+
+/// Makes every table, index and column the cache holds, and stamps the file with the shape this build knows.
+///
+/// Each statement says `IF NOT EXISTS`, so running it on a file that already has them changes nothing. That is why
+/// it was safe to run sixteen times per second, and why nobody noticed it was costing 2.67 ms each time.
+fn make_the_tables(conn: &Connection, on_disk: i64) -> Result<()> {
+    #[cfg(test)]
+    SETUPS_RUN.with(|runs| runs.set(runs.get() + 1));
 
     conn.execute_batch(
         "PRAGMA journal_mode = WAL;
@@ -174,11 +231,11 @@ pub fn open_or_create_db() -> Result<Connection> {
     }
 
     // Seed dictionary table if empty
-    if let Err(e) = super::seed_lexicon::seed_dictionary_if_empty(&conn) {
+    if let Err(e) = super::seed_lexicon::seed_dictionary_if_empty(conn) {
         eprintln!("Warning: Failed to seed offline dictionary: {e}");
     }
 
-    Ok(conn)
+    Ok(())
 }
 
 /// Looks up an English term in the offline SQLite dictionary cache.
