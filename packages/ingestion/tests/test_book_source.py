@@ -165,7 +165,6 @@ def test_the_inbox_stops_a_book_whose_id_another_file_has_and_imports_it_with_it
     monkeypatch.setattr(inbox, "INBOX_DIR", tmp_path / "inbox")
     monkeypatch.setattr(inbox, "PROCESSED_DIR", tmp_path / "inbox" / "processed")
     monkeypatch.setattr(inbox, "VAULT_DIR", tmp_path / "vault")
-    monkeypatch.setattr(inbox, "LEDGER_FILE", tmp_path / "vault" / "_ledger.json")
     monkeypatch.setattr(sys, "argv", ["process-inbox.py"])
     make_pdf(tmp_path / "inbox" / OLD, "The 2020 edition says that marketing engages customers.")
     assert inbox.main() == 0

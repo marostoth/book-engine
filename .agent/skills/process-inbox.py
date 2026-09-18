@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import shutil
 import sys
 from datetime import datetime, timezone
@@ -18,14 +17,13 @@ sys.path.insert(0, str(ROOT_DIR / "packages" / "ingestion"))
 
 from ingest.book_build import BookLeftAsideError
 from ingest.book_check import BookCheckError
-from ingest.line_endings import write_text_file
+from ingest.ledger import read_ledger, write_ledger
 from ingest.pipeline import ingest_book
 from ingest.reimport import BookAlreadyInVaultError, BookIdTakenError
 
 INBOX_DIR = ROOT_DIR / "inbox"
 PROCESSED_DIR = INBOX_DIR / "processed"
 VAULT_DIR = ROOT_DIR / "vault"
-LEDGER_FILE = VAULT_DIR / "_ledger.json"
 
 SUPPORTED_EXTENSIONS = {".epub", ".pdf"}
 
@@ -37,30 +35,6 @@ def compute_sha256(file_path: Path) -> str:
         while chunk := f.read(65536):
             hasher.update(chunk)
     return hasher.hexdigest()
-
-
-def load_ledger(ledger_path: Path) -> List[Dict[str, Any]]:
-    """Loads existing ledger entries from vault/_ledger.json."""
-    if not ledger_path.exists():
-        return []
-    try:
-        content = ledger_path.read_text(encoding="utf-8")
-        data = json.loads(content)
-        if isinstance(data, list):
-            return data
-        elif isinstance(data, dict):
-            return list(data.values())
-    except Exception as e:
-        print(f"[WARN] Could not parse existing ledger: {e}", file=sys.stderr, flush=True)
-    return []
-
-
-def save_ledger(ledger_path: Path, entries: List[Dict[str, Any]]) -> None:
-    """Atomically writes ledger entries to vault/_ledger.json."""
-    ledger_path.parent.mkdir(parents=True, exist_ok=True)
-    temp_file = ledger_path.with_suffix(".tmp")
-    write_text_file(temp_file, json.dumps(entries, indent=2))
-    temp_file.replace(ledger_path)
 
 
 def print_status_table(rows: List[Dict[str, str]]) -> None:
@@ -150,7 +124,9 @@ def main() -> int:
         print("Inbox is clean. No new books to process.", flush=True)
         return 0
 
-    ledger_entries = load_ledger(LEDGER_FILE)
+    # One ledger module reads and writes `vault/_ledger.json`, and an import keeps its numbers
+    # true for a book it already knows (`ingest/ledger.py`, CQ-05)
+    ledger_entries = read_ledger(VAULT_DIR)
     processed_hashes: Dict[str, Dict[str, Any]] = {
         entry["sha256"]: entry for entry in ledger_entries if isinstance(entry, dict) and "sha256" in entry
     }
@@ -207,7 +183,7 @@ def main() -> int:
             ledger_entries = [e for e in ledger_entries if e.get("sha256") != file_hash]
             ledger_entries.append(ledger_record)
             processed_hashes[file_hash] = ledger_record
-            save_ledger(LEDGER_FILE, ledger_entries)
+            write_ledger(VAULT_DIR, ledger_entries)
 
             # Move binary to inbox/processed/ if in inbox
             if file_path.parent == INBOX_DIR:

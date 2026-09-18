@@ -14,6 +14,7 @@ from ingest.assets import extract_epub_assets, normalize_image_markdown
 from ingest.book_build import BookBuild
 from ingest.chapter_shape import HeldOverBlocks, chapter_name, holds_no_text
 from ingest.endnotes import EndnoteRegistry, relocate_chapter_footnotes
+from ingest.ledger import keep_numbers_true
 from ingest.anchors import inject_paragraph_anchors, extract_anchors, extract_inspectional_sampling, clean_preview_text
 from ingest.elementary import compute_elementary_metrics
 from ingest.salience import generate_chapter_practice_cards, generate_chapter_scenario_cards, format_practice_deck_markdown
@@ -69,6 +70,10 @@ def ingest_epub(
             f"## Open Inquiries\n\n- \n"
         )
         write_text_file(first_ch_notes, notes_template)
+
+    # The ledger keeps the numbers of a book it already knows, so they never say the numbers of an
+    # older import (CQ-05)
+    keep_numbers_true(vault_dir, book_meta.book_id, book_meta.total_chapters, book_meta.total_words)
 
     return book_meta
 
@@ -281,7 +286,10 @@ def ingest_pdf(
 ) -> BookMeta:
     """Ingest a PDF file into vault/books/<book-id>/ and vault/notes/<book-id>/."""
     parser = PDFParser(pdf_path, vault_dir, custom_book_id)
-    return parser.parse(target_chapters=target_chapters, replace=replace)
+    book_meta = parser.parse(target_chapters=target_chapters, replace=replace)
+    # The ledger keeps the numbers of a book it already knows (CQ-05)
+    keep_numbers_true(vault_dir, book_meta.book_id, book_meta.total_chapters, book_meta.total_words)
+    return book_meta
 
 
 def ingest_book(
