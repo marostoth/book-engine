@@ -21,6 +21,7 @@ def paragraph(topic: str) -> str:
 
 DOCUMENTS = {
     "cover.xhtml": "<div> </div>",
+    # A page of nothing but a division title. It is no chapter, so it joins the chapter after it (CQ-04).
     "book-1.xhtml": '<div class="chapter" id="book-1"><h2>BOOK I.\nOF THE CAUSES OF WEALTH.</h2></div>',
     "book-1-chapter-1.xhtml": (
         '<div class="chapter" id="b1-c1"><h2>CHAPTER I.\nOF THE DIVISION OF LABOUR.</h2>'
@@ -111,34 +112,39 @@ def entries(items, found=None):
 def test_chapter_titles_keep_the_words_after_a_line_break(imported):
     book_dir, meta = imported
 
+    # "BOOK I." held no text, so it is no chapter of its own, and the chapter it introduces carries its own
+    # name. "BOOK II." has a paragraph of its own and keeps its name (CQ-04).
     assert [chapter["title"] for chapter in meta["spine"]] == [
-        "BOOK I. OF THE CAUSES OF WEALTH.",
         "CHAPTER I. OF THE DIVISION OF LABOUR.",
         "CHAPTER II. OF THE RENT OF LAND.",
         "BOOK II. OF STOCK.",
         "CHAPTER II. OF MONEY.",
     ]
     # One heading line: the reader showed the second line as a paragraph, and the heading marks as text
-    assert (book_dir / "ch-02.md").read_text(encoding="utf-8").startswith("## CHAPTER I. OF THE DIVISION OF LABOUR.\n\n")
+    assert (book_dir / "ch-01.md").read_text(encoding="utf-8").startswith(
+        "## BOOK I. OF THE CAUSES OF WEALTH.\n\n## CHAPTER I. OF THE DIVISION OF LABOUR.\n\n"
+    )
 
 
 def test_every_entry_names_the_chapter_file_and_the_paragraph_where_it_starts(imported):
     _, meta = imported
 
     assert entries(meta["toc"]) == [
+        # The title page of BOOK I joined the chapter after it, so both entries open that chapter at the top
         ("BOOK I. OF THE CAUSES OF WEALTH.", "ch-01.md", None),
-        ("CHAPTER I. OF THE DIVISION OF LABOUR.", "ch-02.md", None),
-        ("CHAPTER II. OF THE RENT OF LAND.", "ch-03.md", None),
-        ("PART I. Of the Produce of Land.", "ch-03.md", "^p-002"),
-        ("PART II. Of the Price of Silver.", "ch-03.md", "^p-004"),
-        ("BOOK II. OF STOCK.", "ch-04.md", None),
-        ("CHAPTER I. OF THE DIVISION OF STOCK.", "ch-04.md", "^p-002"),
-        ("CHAPTER II. OF MONEY.", "ch-05.md", None),
-        # Its notes moved into the chapters, so no chapter file holds this entry
-        ("NOTES.", "", None),
+        ("CHAPTER I. OF THE DIVISION OF LABOUR.", "ch-01.md", None),
+        ("CHAPTER II. OF THE RENT OF LAND.", "ch-02.md", None),
+        ("PART I. Of the Produce of Land.", "ch-02.md", "^p-002"),
+        ("PART II. Of the Price of Silver.", "ch-02.md", "^p-004"),
+        ("BOOK II. OF STOCK.", "ch-03.md", None),
+        ("CHAPTER I. OF THE DIVISION OF STOCK.", "ch-03.md", "^p-002"),
+        ("CHAPTER II. OF MONEY.", "ch-04.md", None),
+        # The entry of the endnote file opened nothing, because its notes moved into the chapters, so it is
+        # gone: every entry left opens a chapter (CQ-04)
     ]
     chapter_files = {chapter["file_path"] for chapter in meta["spine"]}
     assert {href for _, href, _ in entries(meta["toc"]) if href} <= chapter_files
+    assert all(href for _, href, _ in entries(meta["toc"]))
 
 
 def test_each_anchor_of_an_entry_is_the_first_paragraph_after_its_heading(imported):
@@ -156,20 +162,23 @@ def test_each_anchor_of_an_entry_is_the_first_paragraph_after_its_heading(import
 
 
 def test_paragraphs_and_their_anchors_stay_the_same(imported):
-    # Guard: only heading lines change, so no paragraph anchor moves
+    # Guard: a title page joins the chapter after it with its heading only, so no paragraph anchor moves
     book_dir, _ = imported
 
     def paragraphs(name):
         return [block for block in (book_dir / name).read_text(encoding="utf-8").split("\n\n") if not block.startswith("#")]
 
-    assert paragraphs("ch-01.md") == []
-    assert paragraphs("ch-03.md") == [
+    assert paragraphs("ch-01.md") == [
+        "This paragraph is about pins, and it has enough words to be a real paragraph of the chapter. ^p-001",
+        "This paragraph is about workmen, and it has enough words to be a real paragraph of the chapter. ^p-002",
+    ]
+    assert paragraphs("ch-02.md") == [
         "This paragraph is about rent, and it has enough words to be a real paragraph of the chapter. ^p-001",
         "This paragraph is about corn, and it has enough words to be a real paragraph of the chapter. ^p-002",
         "This paragraph is about cattle, and it has enough words to be a real paragraph of the chapter. ^p-003",
         "This paragraph is about silver, and it has enough words to be a real paragraph of the chapter. ^p-004",
     ]
-    assert paragraphs("ch-04.md") == [
+    assert paragraphs("ch-03.md") == [
         "This paragraph is about stock, and it has enough words to be a real paragraph of the chapter. ^p-001",
         "This paragraph is about capital, and it has enough words to be a real paragraph of the chapter. ^p-002",
         "This paragraph is about revenue, and it has enough words to be a real paragraph of the chapter. ^p-003",

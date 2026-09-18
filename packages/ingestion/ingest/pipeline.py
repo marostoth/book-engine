@@ -12,6 +12,7 @@ from ebooklib import epub
 from ingest.models import BookMeta, BookSource, ChapterMeta, PracticeCard, TOCItem, InspectionalBlueprint, ScenarioCard
 from ingest.assets import extract_epub_assets, normalize_image_markdown
 from ingest.book_build import BookBuild
+from ingest.chapter_shape import HeldOverBlocks, chapter_name, holds_no_text
 from ingest.endnotes import EndnoteRegistry, relocate_chapter_footnotes
 from ingest.anchors import inject_paragraph_anchors, extract_anchors, extract_inspectional_sampling, clean_preview_text
 from ingest.elementary import compute_elementary_metrics
@@ -22,7 +23,7 @@ from ingest.markdown_text import unescape_markdown_text
 from ingest.pdf_parser import PDFParser
 from ingest.places import read_book_text
 from ingest.reimport import book_to_import
-from ingest.toc_links import ImportedDocument, element_anchors, link_toc_to_chapters
+from ingest.toc_links import ImportedDocument, element_anchors, link_toc_to_chapters, without_entries_that_lead_nowhere
 
 
 def ingest_epub(
@@ -102,6 +103,8 @@ def _build_epub_book(
     chapter_index = 1
     # The chapter file and the paragraphs of each imported source document, for the links of the contents (CQ-01)
     imported_documents: Dict[str, ImportedDocument] = {}
+    # A page that holds nothing but a title is no chapter, so its headings wait for the next one (CQ-04)
+    held_over = HeldOverBlocks()
 
     # Detect dedicated endnote files to avoid emitting them as separate empty chapters
     endnote_file_patterns = re.compile(r"(?:endnotes?|backmatter|footnotes?|notes)\.x?html?$", re.IGNORECASE)
@@ -141,6 +144,19 @@ def _build_epub_book(
         for b in blocks:
             normalized_blocks.append(normalize_image_markdown(b, asset_map))
 
+        # A page that holds nothing but a title is no chapter of its own: a reader would open it and find
+        # nothing to read. Its headings wait for the chapter they introduce (CQ-04).
+        if holds_no_text(normalized_blocks) and not footnotes:
+            held_over.hold(normalized_blocks, item_name)
+            continue
+
+        # The headings of the pages that held no text go in front of this chapter. Its own blocks move down
+        # by that many, so an element of its contents links still names its own block (CQ-04).
+        if held_over.has_any():
+            element_blocks = {name: block + held_over.shift() for name, block in element_blocks.items()}
+            normalized_blocks = held_over.in_front_of(normalized_blocks)
+            blocks = held_over.in_front_of(blocks)
+
         # Append relocated footnotes as anchored definitions at the end
         for fn_id, note_text in footnotes:
             normalized_blocks.append(f"[^{fn_id}]: {note_text}")
@@ -155,9 +171,11 @@ def _build_epub_book(
         words = len(re.findall(r"\b\w+\b", anchored_md))
         total_words += words
 
-        # Determine chapter title from heading or metadata. _meta.json holds the title as text (SEC-01).
-        ch_title_match = re.search(r"^#{1,3}\s+(.+)$", anchored_md, re.MULTILINE)
-        ch_title = unescape_markdown_text(ch_title_match.group(1).strip()) if ch_title_match else f"Chapter {chapter_index}"
+        # The name of the chapter. It says what a reader who opens it reads, so a page that carries the title
+        # of a division of the book and the first chapter after it is named after the chapter (CQ-04).
+        # _meta.json holds the name as text (SEC-01).
+        name = chapter_name(normalized_blocks[: len(blocks)])
+        ch_title = unescape_markdown_text(name) if name else f"Chapter {chapter_index}"
 
         # Write chapter file: ch-01.md, ch-02.md, ...
         ch_id = f"ch-{chapter_index:02d}"
@@ -168,6 +186,10 @@ def _build_epub_book(
             chapter_file=ch_filename,
             element_anchors=element_anchors(normalized_blocks[: len(blocks)], element_blocks, anchored_md),
         )
+        # A page that held no text has its heading at the top of this chapter, so its entry of the contents
+        # opens the top of it: an element that a document does not name gets the top (CQ-04)
+        for held_name in held_over.take_names():
+            imported_documents[posixpath.normpath(held_name)] = ImportedDocument(chapter_file=ch_filename)
 
         # Determine first and last anchors
         anchors_list = extract_anchors(anchored_md)
@@ -205,6 +227,8 @@ def _build_epub_book(
 
     # The contents open chapter files and paragraphs of the vault, not the source documents of the EPUB (CQ-01)
     link_toc_to_chapters(toc_items, imported_documents)
+    # An entry that opens nothing at all does nothing for a reader, so it goes (CQ-04)
+    toc_items = without_entries_that_lead_nowhere(toc_items)
 
     # Aggregate elementary metrics
     elementary_metrics = compute_elementary_metrics(" ".join(all_clean_text))

@@ -10,6 +10,7 @@ import ebooklib
 from ebooklib import epub
 
 from ingest.book_id import book_id_of_name, plain_letters
+from ingest.chapter_shape import CHAPTER_TITLE, DIVISION_TITLE
 from ingest.markdown_text import escape_markdown_text
 from ingest.models import TOCItem
 
@@ -33,9 +34,13 @@ def extract_metadata(book: epub.EpubBook, fallback_id: str) -> Tuple[str, str, s
 
 
 def normalize_toc_hierarchy(items: List[TOCItem]) -> List[TOCItem]:
-    """Structure flat or semi-flat TOC lists into hierarchical Books/Parts -> Chapters -> Sections."""
-    book_part_pattern = re.compile(r"^(?:BOOK|PART|VOLUME)\s+([IVXLCDM\d]+)", re.IGNORECASE)
-    chapter_pattern = re.compile(r"^(?:CHAPTER|CHAP\.)\s+([IVXLCDM\d]+)", re.IGNORECASE)
+    """Structure flat or semi-flat TOC lists into hierarchical Books/Parts -> Chapters -> Sections.
+
+    A division and a chapter are the same thing here as in a chapter file, so both rules live in
+    `ingest.chapter_shape` (CQ-04).
+    """
+    book_part_pattern = DIVISION_TITLE
+    chapter_pattern = CHAPTER_TITLE
 
     has_books = any(book_part_pattern.match(it.title.strip()) for it in items)
     has_chapters = any(chapter_pattern.match(it.title.strip()) for it in items)
