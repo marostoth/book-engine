@@ -52,7 +52,8 @@ DOCUMENTS = {
     "book-2-chapter-2.xhtml": (
         '<div class="chapter" id="b2-c2"><h2>CHAPTER II.\nOF MONEY.</h2>' + paragraph("money") + "</div>"
     ),
-    # An endnote file: the import moves its notes into the chapters, and makes no chapter of it
+    # A document of notes that nothing in this book cites. Its notes move nowhere, so it is a chapter of its
+    # own and its words stay (IN-07). `test_note_documents.py` has the book where the chapters do cite them.
     "notes.xhtml": '<div id="notes"><p id="n1">1. A note about pins and about the price of silver.</p></div>',
 }
 
@@ -113,12 +114,15 @@ def test_chapter_titles_keep_the_words_after_a_line_break(imported):
     book_dir, meta = imported
 
     # "BOOK I." held no text, so it is no chapter of its own, and the chapter it introduces carries its own
-    # name. "BOOK II." has a paragraph of its own and keeps its name (CQ-04).
+    # name. "BOOK II." has a paragraph of its own and keeps its name (CQ-04). `notes.xhtml` is the last chapter:
+    # nothing in this book cites its note, so the note is text of the book and is kept (IN-07). It has no heading
+    # of its own, so it gets the plain name that any chapter with no heading gets.
     assert [chapter["title"] for chapter in meta["spine"]] == [
         "CHAPTER I. OF THE DIVISION OF LABOUR.",
         "CHAPTER II. OF THE RENT OF LAND.",
         "BOOK II. OF STOCK.",
         "CHAPTER II. OF MONEY.",
+        "Chapter 5",
     ]
     # One heading line: the reader showed the second line as a paragraph, and the heading marks as text
     assert (book_dir / "ch-01.md").read_text(encoding="utf-8").startswith(
@@ -139,8 +143,10 @@ def test_every_entry_names_the_chapter_file_and_the_paragraph_where_it_starts(im
         ("BOOK II. OF STOCK.", "ch-03.md", None),
         ("CHAPTER I. OF THE DIVISION OF STOCK.", "ch-03.md", "^p-002"),
         ("CHAPTER II. OF MONEY.", "ch-04.md", None),
-        # The entry of the endnote file opened nothing, because its notes moved into the chapters, so it is
-        # gone: every entry left opens a chapter (CQ-04)
+        # Nothing in this book cites the note of `notes.xhtml`, so that note is text of the book. The import used
+        # to drop the document because its name ends in "notes", and the text went with it. It is a chapter now,
+        # and its contents entry opens it (IN-07).
+        ("NOTES.", "ch-05.md", None),
     ]
     chapter_files = {chapter["file_path"] for chapter in meta["spine"]}
     assert {href for _, href, _ in entries(meta["toc"]) if href} <= chapter_files
