@@ -20,7 +20,7 @@ from ingest.salience import (
     generate_chapter_scenario_cards,
 )
 from ingest.glyph_repair import repair_glyph_maps
-from ingest.pdf_sanitizer import clean_author_metadata, generate_pdf_slug, sanitize_pdf_markdown
+from ingest.pdf_sanitizer import book_language, clean_author_metadata, generate_pdf_slug, sanitize_pdf_markdown
 from ingest.assets import (
     filter_and_normalize_markdown_assets,
     cleanup_orphaned_assets,
@@ -77,6 +77,8 @@ class PDFParser:
         raw_author = doc.metadata.get("author") or ""
         title = raw_title.strip()
         author = clean_author_metadata(raw_author)
+        # The language the PDF says it is in. Every PDF used to be written down as English (IN-10).
+        language = book_language(doc)
 
         # Stop before anything is written when the vault already has this book (DS-09), or another book has its id (IN-03)
         try:
@@ -95,7 +97,7 @@ class PDFParser:
             build = BookBuild(self.vault_dir, book_id, from_book=bool(target_chapters))
             try:
                 book_meta, practice_deck_md, first_chapter = self._build_book(
-                    doc, build.folder, book_id, title, author, source, target_chapters
+                    doc, build.folder, book_id, title, author, language, source, target_chapters
                 )
                 build.put_in_vault(book_meta, practice_deck_md, old_text)
             finally:
@@ -120,6 +122,7 @@ class PDFParser:
         book_id: str,
         title: str,
         author: str,
+        language: str,
         source: BookSource,
         target_chapters: Optional[List[int]],
     ) -> Tuple[BookMeta, str, Optional[ChapterMeta]]:
@@ -302,7 +305,7 @@ class PDFParser:
             book_id=book_id,
             title=title,
             author=author,
-            language="en",
+            language=language,
             total_words=total_words,
             total_chapters=len(spine_metas),
             toc=toc_items,

@@ -25,7 +25,13 @@ from ingest.markdown_text import unescape_markdown_text
 from ingest.pdf_parser import PDFParser
 from ingest.places import read_book_text
 from ingest.reimport import book_to_import
-from ingest.toc_links import ImportedDocument, element_anchors, link_toc_to_chapters, without_entries_that_lead_nowhere
+from ingest.toc_links import (
+    ImportedDocument,
+    contents_of_chapters,
+    element_anchors,
+    link_toc_to_chapters,
+    without_entries_that_lead_nowhere,
+)
 
 
 def ingest_epub(
@@ -96,9 +102,6 @@ def _build_epub_book(
 
     # 3. Parse Table of Contents
     toc_items = parse_toc(book.toc)
-    if not toc_items:
-        # Fallback: create single-level TOC from spine
-        toc_items = []
 
     # 4. Process Chapter Documents
     spine_metas: List[ChapterMeta] = []
@@ -239,6 +242,11 @@ def _build_epub_book(
     link_toc_to_chapters(toc_items, imported_documents)
     # An entry that opens nothing at all does nothing for a reader, so it goes (CQ-04)
     toc_items = without_entries_that_lead_nowhere(toc_items)
+    # A book that carries no contents, or whose every entry opened nothing, gets one entry for each
+    # chapter, so a reader can always move through it. The comment here used to promise this and the
+    # code wrote an empty list (IN-10).
+    if not toc_items:
+        toc_items = contents_of_chapters(spine_metas)
 
     # Aggregate elementary metrics
     elementary_metrics = compute_elementary_metrics(" ".join(all_clean_text))

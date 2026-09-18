@@ -10,6 +10,11 @@ Three rules do the work:
   cards use, and a bold or italic marker at the very end does not make a half sentence whole.
 - A photo credit that landed inside a paragraph is lifted out, so the paragraph stays a paragraph.
 - Joining is repeated until nothing more joins, because one sentence can be cut into three parts.
+
+No rule here names a book. A whole passage of one book was written out here, sentence by sentence, to
+join one page of it, and a photo credit was known by the names of four real photographers of that book.
+Neither fired even once on the owner's two PDF books, so both are gone: a credit is known by the agency
+that owns the picture, and a cut sentence by the three rules above (IN-10).
 """
 
 from __future__ import annotations
@@ -95,52 +100,18 @@ def stitch_layout_blocks(markdown_text: str) -> str:
         markdown_text,
     )
 
-    # 2. Fix broken ligatures / kerning spaces
-    markdown_text = re.sub(r"\baccordin\s+(?:\*\*)?g(?:\*\*)?(?=\s|$)", "according", markdown_text)
-
-    # 3. Reconcile multi-column fractured blocks on the Emirates story
-    p_emirates = re.compile(
-        r"(Iain Masterton/Alamy Stock Photo)\s*\n\n"
-        r"(invests in traditional advertising[^\n]+?brand engagement and community\.)\s*\n\n"
-        r"(Emirates has launched a range of customer service initiatives[^\n]+?70 cities worldwide\.)\s*\n\n"
-        r"(Emirates uses online[^\n]+?digital advertising,\s*includ-)\s*\n\n"
-        r"(Before the COVID-19 pandemic[^\n]+?experienced it\.)\s*\n\n"
-        r"(Recognizing the impact of various kinds of digital technology[^\n]+?Although the airline still)\s*\n\n"
-        r"(ing iconic billboards in New York[’\']s Times Square[^\n]+?Emirates is not)\s*\n\n"
-        r"(Emirates is not just offering a way to connect people from Point A to Point B but aims to be the catalyst to connect with people[’\']s dreams, hopes, and aspirations\.)\s*\n\n"
-        r"(just offering a way to connect people from Point A to Point B but wants to be the catalyst[^\n]+?shaping the world\.)",
-        re.DOTALL,
-    )
-
-    def _replace_emirates(m: re.Match[str]) -> str:
-        credit = m.group(1)
-        invests = m.group(2)
-        initiatives = m.group(3)
-        uses = m.group(4)
-        covid = m.group(5)
-        recognizing = m.group(6)
-        billboards = m.group(7)
-        callout = m.group(8)
-        continuation = m.group(9)
-
-        para_digital = f"{recognizing} {invests}"
-        uses_clean = uses[:-1] if uses.endswith("-") else uses
-        para_campaign = f"{uses_clean}{billboards} {continuation}"
-        callout_quote = f"> **\"{callout}\"**"
-
-        return f"{credit}\n\n{initiatives}\n\n{covid}\n\n{para_digital}\n\n{para_campaign}\n\n{callout_quote}"
-
-    markdown_text = p_emirates.sub(_replace_emirates, markdown_text)
-
+    # 2. A photo credit is known by the agency that owns the picture, never by the name of one photographer.
+    # The rule used to list four real people from one book. Not one credit line of either PDF book needed
+    # them: the agency words found all 543 of Mind Over Markets and Principles of Marketing (IN-10).
     credit_pat = re.compile(
-        r"^(?:[A-Z][a-zA-Z\s,.'/-]+(?:\b(?:Photo|Stock Photo|Shutterstock|123RF|Reuters|Getty|Courtesy of|Adam Slama|Ted S\. Warren|Cathy Yeulet|Iain Masterton)[^\n]*))$",
+        r"^(?:[A-Z][a-zA-Z\s,.'/-]+(?:\b(?:Photo|Stock Photo|Shutterstock|123RF|Reuters|Getty|Alamy|Courtesy of)[^\n]*))$",
         re.MULTILINE,
     )
 
     blocks = [b.strip() for b in re.split(r"\n\s*\n", markdown_text) if b.strip()]
 
     credit_word = re.compile(
-        r"(?i)\b(?:AP Photo|Stock Photo|123RF|Shutterstock|Alamy|Reuters|Getty|Courtesy of|Adam Slama|Ted S\. Warren|Cathy Yeulet|Iain Masterton)\b"
+        r"(?i)\b(?:AP Photo|Stock Photo|123RF|Shutterstock|Alamy|Reuters|Getty|Courtesy of)\b"
     )
 
     def is_photo_caption_or_credit(b: str) -> bool:
