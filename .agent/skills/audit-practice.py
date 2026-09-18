@@ -11,6 +11,10 @@ from typing import Dict, List, Optional, Tuple
 
 SKILL_DIR = Path(__file__).resolve().parent
 ROOT_DIR = SKILL_DIR.parent.parent
+sys.path.insert(0, str(ROOT_DIR / "packages" / "ingestion"))
+
+from ingest.console import allow_any_letter  # noqa: E402
+
 VAULT_DIR = ROOT_DIR / "vault"
 NOTES_DIR = VAULT_DIR / "notes"
 BOOKS_DIR = VAULT_DIR / "books"
@@ -380,6 +384,8 @@ def print_summary_table(rows: List[Dict[str, str]]) -> None:
 
 
 def main() -> int:
+    # A command of this repository may print any letter of any book (IN-09)
+    allow_any_letter()
     target_notes = sorted(NOTES_DIR.glob("*/practice-deck.md"))
     if not target_notes:
         print("[-] No practice decks found in vault/notes/.", file=sys.stderr)

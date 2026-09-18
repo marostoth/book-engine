@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT_DIR / "packages" / "ingestion"))
 
 from ingest.book_build import BookLeftAsideError
 from ingest.book_check import BookCheckError
+from ingest.console import allow_any_letter, say_what_was_done
 from ingest.ledger import read_ledger, write_ledger
 from ingest.pipeline import ingest_book
 from ingest.reimport import BookAlreadyInVaultError, BookIdTakenError
@@ -37,8 +38,12 @@ def compute_sha256(file_path: Path) -> str:
     return hasher.hexdigest()
 
 
-def print_status_table(rows: List[Dict[str, str]]) -> None:
-    """Prints a clean ASCII status table summarizing processed books."""
+def status_table(rows: List[Dict[str, str]]) -> List[str]:
+    """A clean ASCII status table summarizing processed books, one line each.
+
+    The lines are made here and printed by `say_what_was_done`, because every book of the table is already in the
+    vault: a title the console cannot take may not turn that into a run that failed (IN-09).
+    """
     headers = [
         ("Book ID", "book_id", 18),
         ("Title", "title", 36),
@@ -55,10 +60,8 @@ def print_status_table(rows: List[Dict[str, str]]) -> None:
 
     sep = "+" + "+".join("-" * (w + 2) for w in col_widths) + "+"
 
-    print("\n" + sep, flush=True)
     header_line = "|" + "|".join(f" {headers[i][0].ljust(col_widths[i])} " for i in range(len(headers))) + "|"
-    print(header_line, flush=True)
-    print(sep, flush=True)
+    lines = ["\n" + sep, header_line, sep]
 
     for row in rows:
         row_cells = []
@@ -67,13 +70,17 @@ def print_status_table(rows: List[Dict[str, str]]) -> None:
             if len(val) > col_widths[i]:
                 val = val[: col_widths[i] - 3] + "..."
             row_cells.append(f" {val.ljust(col_widths[i])} ")
-        print("|" + "|".join(row_cells) + "|", flush=True)
+        lines.append("|" + "|".join(row_cells) + "|")
 
-    print(sep + "\n", flush=True)
+    lines.append(sep + "\n")
+    return lines
 
 
 def main() -> int:
     import argparse
+
+    # This command prints the title of every book it reads, so it may print any letter of any book (IN-09)
+    allow_any_letter()
 
     parser = argparse.ArgumentParser(description="Automated book intake and ledger manager.")
     parser.add_argument(
@@ -192,7 +199,8 @@ def main() -> int:
                     dest_path.unlink()
                 shutil.move(str(file_path), str(dest_path))
 
-            print(f"[+] Successfully ingested '{meta.title}' -> vault/books/{meta.book_id}", flush=True)
+            # The book is in the vault and in the ledger now, so saying so may not make this book fail (IN-09)
+            say_what_was_done([f"[+] Successfully ingested '{meta.title}' -> vault/books/{meta.book_id}"])
 
             report_rows.append({
                 "book_id": meta.book_id,
@@ -249,9 +257,9 @@ def main() -> int:
             })
             # Per specification: leave failed file in inbox/ for user inspection
 
-    # 4. Reporting: Print clean ASCII status table
+    # 4. Reporting: Print clean ASCII status table. Every book of it is in the vault already (IN-09).
     if report_rows:
-        print_status_table(report_rows)
+        say_what_was_done(status_table(report_rows))
 
     return 0
 

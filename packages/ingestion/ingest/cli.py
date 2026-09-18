@@ -8,11 +8,15 @@ from pathlib import Path
 from ingest.book_build import BookLeftAsideError
 from ingest.book_check import BookCheckError
 from ingest.book_id import InvalidBookIdError
+from ingest.console import allow_any_letter, say_what_was_done
+from ingest.models import BookMeta
 from ingest.pipeline import ingest_book
 from ingest.reimport import BookAlreadyInVaultError, BookIdTakenError
 
 
 def main() -> None:
+    # This command prints the title of the book, so it may print any letter of any book (IN-09)
+    allow_any_letter()
     parser = argparse.ArgumentParser(description="Ingest an EPUB or PDF document into the local vault.")
     parser.add_argument("file_path", type=Path, help="Path to source document (e.g. book.epub, book.pdf)")
     parser.add_argument("--vault", type=Path, default=Path("vault"), help="Path to local Markdown vault root")
@@ -36,10 +40,6 @@ def main() -> None:
         print(f"[*] Ingesting {args.file_path} into {args.vault}...")
         target_chapters = [args.chapter] if args.chapter is not None else None
         meta = ingest_book(args.file_path, args.vault, args.book_id, target_chapters=target_chapters, replace=args.force)
-        print(f"[+] Successfully ingested '{meta.title}' (ID: {meta.book_id})")
-        print(f"[+] Total chapters: {meta.total_chapters}, Total words: {meta.total_words}")
-        print(f"[+] Output written to: {args.vault / 'books' / meta.book_id}")
-        print(f"[+] Practice deck written to: {args.vault / 'notes' / meta.book_id / 'practice-deck.md'}")
     except BookIdTakenError as e:
         # Not a crash: the import stopped before it wrote anything (IN-03)
         print(f"[-] {e}", file=sys.stderr)
@@ -67,6 +67,19 @@ def main() -> None:
         import traceback
         traceback.print_exc()
         sys.exit(1)
+
+    # The whole book is in the vault now, so saying so may not make this command fail (IN-09)
+    say_what_was_done(_what_was_written(meta, args.vault))
+
+
+def _what_was_written(meta: BookMeta, vault: Path) -> list[str]:
+    """What the import wrote, one line each."""
+    return [
+        f"[+] Successfully ingested '{meta.title}' (ID: {meta.book_id})",
+        f"[+] Total chapters: {meta.total_chapters}, Total words: {meta.total_words}",
+        f"[+] Output written to: {vault / 'books' / meta.book_id}",
+        f"[+] Practice deck written to: {vault / 'notes' / meta.book_id / 'practice-deck.md'}",
+    ]
 
 
 if __name__ == "__main__":

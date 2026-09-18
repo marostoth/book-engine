@@ -9,6 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "packages" / "ingestion"))
 
 from ingest.book_check import book_problems  # noqa: E402
+from ingest.console import allow_any_letter  # noqa: E402
 
 
 def audit_book(book_dir: Path) -> bool:
@@ -21,5 +22,7 @@ def audit_book(book_dir: Path) -> bool:
     return not problems
 
 if __name__ == "__main__":
+    # A command of this repository may print any letter of any book (IN-09)
+    allow_any_letter()
     target = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("vault/books")
     sys.exit(0 if audit_book(target) else 1)
