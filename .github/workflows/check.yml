@@ -1,0 +1,75 @@
+# Every check of this repository, on every push and every pull request (TL-05). Nothing ran automatically before:
+# there was no workflow at all, no linter settings, and no one command that runs the lot. `npm run check` runs the
+# same three groups on your own computer, in the same order.
+name: check
+
+on:
+  push:
+  pull_request:
+
+# A second push to the same branch stops the run that the first one started.
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    # The backend is built for Windows, so the checks run on the computer the reader uses.
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The exact Node the README and `engines.node` ask for. It was 22.6.0, the release the type-stripping flag
+      # arrived in, which is a guess about a feature and not a measurement of this code: 22.6.0 stops at the `!` of
+      # `let answer!: T` in two test files. 22.19.0 runs them, and the runs here are what proves it (TL-05, TL-06).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.19.0"
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      # The toolchain is named once, in `rust-toolchain.toml`, and rustup reads that file here and on the computer
+      # you write on. This step used to install a Rust of its own, and the first run of this workflow went red with
+      # 125 clippy errors that no one saw locally, because the two clippys do not run the same rules (TL-05).
+      - name: Install the Rust this repository names
+        run: rustup show && rustc --version && cargo clippy --version
+
+      - name: Cache what cargo built
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            apps/desktop/src-tauri/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('apps/desktop/src-tauri/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      # Tauri needs these to build on Linux. They cost nothing on Windows and keep the file honest if the
+      # runner ever changes.
+      - name: Install the frontend, from the one lock file at the root (TL-06)
+        run: npm ci
+
+      # Joined with `&&`, never one command per line. A step of several lines reports only the exit code of the
+      # last one, so this step said "success" while the lock install had stopped at `numpy==2.5.3`, and the failure
+      # only showed three steps later as "No module named ruff" (TL-05).
+      - name: Install the Python the import and its checks need
+        run: python -m pip install -r packages/ingestion/requirements.lock && python -m pip install --no-deps -e packages/ingestion
+
+      # Three groups, named so a red run says which one went wrong without opening the log.
+      - name: Rust — format, clippy, tests
+        run: npm run check:rust
+
+      - name: Web — types, lint, tests
+        run: npm run check:web
+
+      - name: Python — ruff, format, mypy, pytest
+        run: npm run check:python
+
+      # A book to check, because a clone's vault is empty (TL-06), and then the checks that read one.
+      - name: The audits, on a book this run made
+        run: python -m ingest.sample_generator --vault vault && python .agent/skills/audit-anchors.py && python .agent/skills/audit-practice.py

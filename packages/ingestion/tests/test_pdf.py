@@ -1,21 +1,26 @@
 """Tests for PDF parser, slug generation, margin sanitization, and pipeline integration."""
 
-import tempfile
 from pathlib import Path
-import pymupdf
-import pytest
 
-from ingest.pdf_parser import PDFParser, generate_pdf_slug, sanitize_pdf_markdown
+import pymupdf
+from ingest.pdf_parser import generate_pdf_slug, sanitize_pdf_markdown
 from ingest.pipeline import ingest_book
 
 
 def test_generate_pdf_slug() -> None:
     # Test Kotler Marketing filename
     kotler_filename = "[MKTG] Kotler P., Armstrong G. Principles of Marketing 19ed 2023.pdf"
-    assert generate_pdf_slug(kotler_filename, "Principles of Marketing, Global Edition") == "principles-of-marketing-19ed"
+    assert (
+        generate_pdf_slug(kotler_filename, "Principles of Marketing, Global Edition") == "principles-of-marketing-19ed"
+    )
 
     # Test release year stripping and brackets
-    assert generate_pdf_slug("[AI] Russell S. Artificial Intelligence 4th ed 2020.pdf", "Artificial Intelligence: A Modern Approach") == "artificial-intelligence-4th-ed"
+    assert (
+        generate_pdf_slug(
+            "[AI] Russell S. Artificial Intelligence 4th ed 2020.pdf", "Artificial Intelligence: A Modern Approach"
+        )
+        == "artificial-intelligence-4th-ed"
+    )
 
     # Test simple filename
     assert generate_pdf_slug("deep-learning.pdf", "Deep Learning") == "deep-learning"
@@ -85,17 +90,23 @@ def test_pdf_parser_minimal_e2e(tmp_path: Path) -> None:
 
     # Chapter 2 (page 2)
     p2 = doc.new_page()
-    p2.insert_text((50, 50), "# Chapter 2: Strategy\n\nStrategic planning is the process of developing a strategic fit.")
+    p2.insert_text(
+        (50, 50), "# Chapter 2: Strategy\n\nStrategic planning is the process of developing a strategic fit."
+    )
 
     # Set TOC: [level, title, 1-based page]
-    doc.set_toc([
-        [1, "Chapter 1: Introduction", 1],
-        [1, "Chapter 2: Strategy", 2],
-    ])
-    doc.set_metadata({
-        "title": "Minimal Test Book",
-        "author": "Test Author",
-    })
+    doc.set_toc(
+        [
+            [1, "Chapter 1: Introduction", 1],
+            [1, "Chapter 2: Strategy", 2],
+        ]
+    )
+    doc.set_metadata(
+        {
+            "title": "Minimal Test Book",
+            "author": "Test Author",
+        }
+    )
     doc.save(str(pdf_path))
     doc.close()
 
@@ -289,6 +300,3 @@ def test_filter_and_normalize_markdown_assets_aspect_ratio(tmp_path: Path) -> No
     assert img_good.exists()
     assert "assets/sliver.png" not in cleaned
     assert not img_sliver.exists()
-
-
-

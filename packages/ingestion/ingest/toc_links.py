@@ -10,8 +10,8 @@ every book of The Wealth of Nations starts again at "CHAPTER I.".
 from __future__ import annotations
 
 import posixpath
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Dict, List, Mapping, Optional, Sequence
 from urllib.parse import unquote
 
 from ingest.anchors import ANCHOR_REGEX
@@ -24,12 +24,12 @@ class ImportedDocument:
 
     chapter_file: str
     # The paragraph where each element id of the document starts, or None for an element before the first paragraph
-    element_anchors: Mapping[str, Optional[str]] = field(default_factory=dict)
+    element_anchors: Mapping[str, str | None] = field(default_factory=dict)
 
 
 def element_anchors(
     blocks: Sequence[str], element_blocks: Mapping[str, int], anchored_markdown: str
-) -> Dict[str, Optional[str]]:
+) -> dict[str, str | None]:
     """The paragraph where each element of a document starts.
 
     `blocks` are the Markdown blocks of the document without its footnotes, `element_blocks` gives the block where each
@@ -40,13 +40,13 @@ def element_anchors(
     """
     # A block can hold a blank line, and a block whose picture was dropped is empty: count the Markdown blocks that
     # the anchors went to, as `inject_paragraph_anchors` splits them
-    starts: List[int] = []
+    starts: list[int] = []
     pieces = 0
     for block in blocks:
         starts.append(pieces)
         pieces += sum(1 for piece in block.split("\n\n") if piece.strip())
 
-    anchors: List[Optional[str]] = []
+    anchors: list[str | None] = []
     for piece in anchored_markdown.split("\n\n"):
         if piece.strip():
             match = ANCHOR_REGEX.search(piece.strip())
@@ -54,16 +54,16 @@ def element_anchors(
     # `pieces` counts only the text, so an entry never starts in the footnotes after it
     pieces = min(pieces, len(anchors))
 
-    first_from: List[Optional[str]] = [None] * (pieces + 1)
+    first_from: list[str | None] = [None] * (pieces + 1)
     for n in range(pieces - 1, -1, -1):
         first_from[n] = anchors[n] or first_from[n + 1]
-    last_before: List[Optional[str]] = [None] * (pieces + 1)
+    last_before: list[str | None] = [None] * (pieces + 1)
     for n in range(pieces):
         last_before[n + 1] = anchors[n] or last_before[n]
 
-    found: Dict[str, Optional[str]] = {}
-    for element_id, block in element_blocks.items():
-        start = min(starts[block], pieces) if block < len(starts) else pieces
+    found: dict[str, str | None] = {}
+    for element_id, block_of_element in element_blocks.items():
+        start = min(starts[block_of_element], pieces) if block_of_element < len(starts) else pieces
         found[element_id] = (first_from[start] or last_before[start]) if last_before[start] else None
     return found
 
@@ -83,7 +83,7 @@ def link_toc_to_chapters(items: Sequence[TOCItem], documents: Mapping[str, Impor
         link_toc_to_chapters(item.subitems, documents)
 
 
-def without_entries_that_lead_nowhere(items: Sequence[TOCItem]) -> List[TOCItem]:
+def without_entries_that_lead_nowhere(items: Sequence[TOCItem]) -> list[TOCItem]:
     """The contents without the entries that open nothing (CQ-04).
 
     An entry gets no chapter file when its document made none: an endnote file whose notes moved into the chapters,
@@ -93,7 +93,7 @@ def without_entries_that_lead_nowhere(items: Sequence[TOCItem]) -> List[TOCItem]
     An entry that only groups the entries below it, such as "Part I", has no file of its own and stays, because its
     children still open. Its children are weighed first, so a group whose every child leads nowhere goes with them.
     """
-    kept: List[TOCItem] = []
+    kept: list[TOCItem] = []
     for item in items:
         item.subitems = without_entries_that_lead_nowhere(item.subitems)
         if item.href or item.subitems:
@@ -101,7 +101,7 @@ def without_entries_that_lead_nowhere(items: Sequence[TOCItem]) -> List[TOCItem]
     return kept
 
 
-def contents_of_chapters(chapters: Sequence[ChapterMeta]) -> List[TOCItem]:
+def contents_of_chapters(chapters: Sequence[ChapterMeta]) -> list[TOCItem]:
     """The contents of a book that has none of its own: one entry for each chapter (IN-10).
 
     An EPUB may carry no table of contents at all, and every entry of another may open nothing. A reader then has
@@ -115,7 +115,7 @@ def contents_of_chapters(chapters: Sequence[ChapterMeta]) -> List[TOCItem]:
     ]
 
 
-def _linked_document(path: str, documents: Mapping[str, ImportedDocument]) -> Optional[ImportedDocument]:
+def _linked_document(path: str, documents: Mapping[str, ImportedDocument]) -> ImportedDocument | None:
     """The imported document that a link of the contents names, or None.
 
     The navigation document of an EPUB 3 book, and an NCX file next to the manifest, name documents as the manifest

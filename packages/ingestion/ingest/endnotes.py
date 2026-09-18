@@ -12,12 +12,11 @@ Two", keeps its words as text of the chapter.
 """
 
 from __future__ import annotations
+
 import re
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Set, Tuple
+
 from bs4 import BeautifulSoup, Tag
-import ebooklib
-from ebooklib import epub
 
 from ingest.line_endings import read_html
 
@@ -29,7 +28,20 @@ NOTE_LIST_KINDS = {"footnotes", "endnotes", "rearnotes", "doc-endnotes"}
 NOTE_REFERENCE_KINDS = {"noteref", "doc-noteref"}
 # Elements that are never a note: headings, and the parts of a book
 NOT_NOTES = {
-    "html", "body", "main", "article", "section", "nav", "header", "footer", "h1", "h2", "h3", "h4", "h5", "h6",
+    "html",
+    "body",
+    "main",
+    "article",
+    "section",
+    "nav",
+    "header",
+    "footer",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
 }
 # The text of a link that marks a note: a number or a sign such as *, maybe in brackets
 NOTE_MARK = re.compile(r"[\[(]?(?:\d{1,4}|[*†‡§¶]{1,3})[\])]?")
@@ -46,24 +58,33 @@ class NoteTarget:
     note_sized: bool
 
 
+def attribute(tag: Tag, name: str) -> str:
+    """The value of an attribute as one string. BeautifulSoup gives a list for a multi-valued attribute
+    such as `class`, and an element that has no such attribute gives nothing at all."""
+    value = tag.get(name)
+    if isinstance(value, list):
+        return " ".join(str(one) for one in value)
+    return str(value) if value is not None else ""
+
+
 class EndnoteRegistry:
     """Collects and indexes endnote definitions across all EPUB documents."""
 
     def __init__(self) -> None:
         # Key: (doc_name, element_id) -> target
-        self.exact_notes: Dict[Tuple[str, str], NoteTarget] = {}
+        self.exact_notes: dict[tuple[str, str], NoteTarget] = {}
         # Fallback Key: element_id -> target
-        self.id_notes: Dict[str, NoteTarget] = {}
+        self.id_notes: dict[str, NoteTarget] = {}
 
     def register_document(self, doc_name: str, html_content: str | bytes) -> None:
         """Scan a document for potential footnote/endnote target elements with id or name."""
         soup = read_html(html_content)
 
-        for el in soup.find_all(attrs={"id": True}):
-            self._register(doc_name, el["id"], el)
+        for el in soup.find_all(None, {"id": True}):
+            self._register(doc_name, attribute(el, "id"), el)
 
         for el in soup.find_all("a", attrs={"name": True}):
-            self._register(doc_name, el["name"], named_element(el))
+            self._register(doc_name, attribute(el, "name"), named_element(el))
 
     def _register(self, doc_name: str, name: str, element: Tag) -> None:
         text = self._extract_clean_note_text(element)
@@ -91,12 +112,12 @@ class EndnoteRegistry:
         text = re.sub(r"\s*(?:\[back\]|↩|↑|\^|return)\s*$", "", text).strip()
         return text
 
-    def resolve_note(self, source_doc: str, href: str) -> Optional[str]:
+    def resolve_note(self, source_doc: str, href: str) -> str | None:
         """Resolve a link href to its target note text."""
         target = self.resolve_target(source_doc, href)
         return target.text if target else None
 
-    def resolve_target(self, source_doc: str, href: str) -> Optional[NoteTarget]:
+    def resolve_target(self, source_doc: str, href: str) -> NoteTarget | None:
         """The element that a link href names, or None."""
         key = self.resolve_key(source_doc, href)
         if key is not None:
@@ -106,7 +127,7 @@ class EndnoteRegistry:
         fragment = href.split("#", 1)[1] if "#" in href else ""
         return self.id_notes.get(fragment)
 
-    def resolve_key(self, source_doc: str, href: str) -> Optional[Tuple[str, str]]:
+    def resolve_key(self, source_doc: str, href: str) -> tuple[str, str] | None:
         """The (document, element name) that a link href names, as the registry holds it, or None.
 
         A link that only the fragment id resolves gives None, because that match names no document. Code that has to
@@ -124,10 +145,7 @@ class EndnoteRegistry:
         else:
             # Normalize target_doc relative to source_doc directory
             source_dir = "/".join(source_doc.split("/")[:-1])
-            if source_dir:
-                normalized = f"{source_dir}/{target_doc}"
-            else:
-                normalized = target_doc
+            normalized = f"{source_dir}/{target_doc}" if source_dir else target_doc
             # Try both normalized and raw filename
             for cand in (target_doc, normalized, target_doc.split("/")[-1]):
                 if (cand, fragment) in self.exact_notes:
@@ -141,10 +159,8 @@ class EndnoteRegistry:
 
 
 def relocate_chapter_footnotes(
-    chapter_soup: BeautifulSoup,
-    source_doc: str,
-    registry: EndnoteRegistry
-) -> List[Tuple[str, str]]:
+    chapter_soup: BeautifulSoup, source_doc: str, registry: EndnoteRegistry
+) -> list[tuple[str, str]]:
     """Find in-text note links in chapter_soup, replace them with [^n], and return list of (footnote_id, note_text).
 
     Returns [(footnote_id, note_text), ...] in order of appearance.
@@ -152,15 +168,15 @@ def relocate_chapter_footnotes(
     A link that names no note stays in the chapter, so its words stay (IN-02). A note of this document that says that it
     is a note leaves the text of the chapter, because the chapter shows it as a footnote, as a reading system does.
     """
-    resolved_notes: List[Tuple[str, str]] = []
-    seen_notes: Dict[str, str] = {}  # note_key -> footnote_id
+    resolved_notes: list[tuple[str, str]] = []
+    seen_notes: dict[str, str] = {}  # note_key -> footnote_id
     note_counter = 1
     # The names of the elements of this document that became footnotes
-    shown_as_footnotes: List[str] = []
+    shown_as_footnotes: list[str] = []
 
     # Find all candidate <a> tags
     for a in chapter_soup.find_all("a", href=True):
-        href = a["href"]
+        href = attribute(a, "href")
         # Skip external http(s) links or mailto
         if href.startswith(("http://", "https://", "mailto:")):
             continue
@@ -204,7 +220,7 @@ def relocate_chapter_footnotes(
 
     for name in shown_as_footnotes:
         element = chapter_soup.find("a", attrs={"name": name})
-        element = named_element(element) if element is not None else chapter_soup.find(attrs={"id": name})
+        element = named_element(element) if element is not None else chapter_soup.find(None, {"id": name})
         if element is not None and declares_note(element):
             element.decompose()
 
@@ -216,7 +232,7 @@ def named_element(anchor: Tag) -> Tag:
     return anchor.parent if anchor.parent and anchor.parent.name in ("p", "li", "div", "dd") else anchor
 
 
-def kinds(element: Tag) -> Set[str]:
+def kinds(element: Tag) -> set[str]:
     """The kinds that an element says it has, in `epub:type` and in `role`."""
     return {kind.lower() for attribute in ("epub:type", "role") for kind in str(element.get(attribute) or "").split()}
 

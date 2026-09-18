@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import re
-from typing import List, Optional
 
 from ingest.book_id import book_id_of_name, plain_letters
 from ingest.text_repair import repair_page_text
 
 
-def generate_pdf_slug(filename: str, title: Optional[str] = None) -> str:
+def generate_pdf_slug(filename: str, title: str | None = None) -> str:
     """Derives a clean, normalized book identifier slug from filename and document metadata.
 
     Strips release tags (e.g. [MKTG]), 4-digit years (e.g. 2023), edition abbreviations,
@@ -92,7 +91,7 @@ def clean_chapter_markdown(markdown_text: str) -> str:
     markdown_text = re.sub(r"\b[A-Z](?:\s+[A-Z]){2,}\b", lambda m: m.group(0).replace(" ", ""), markdown_text)
 
     lines = markdown_text.splitlines()
-    pre_cleaned_lines: List[str] = []
+    pre_cleaned_lines: list[str] = []
 
     # 1. Strip isolated single-digit lines & chapter labels at the start of chapters before content
     seen_content = False
@@ -101,8 +100,10 @@ def clean_chapter_markdown(markdown_text: str) -> str:
 
         # Check for isolated single-digit lines or chapter labels at chapter start before content
         if not seen_content and (
-            re.match(r"^(?:#+\s*)?(?:\*\*)?\d+(?:\*\*)?\.?(?:\s*\^p-\d+)?$", stripped) or
-            re.match(r"^(?:#+\s*)?(?:\*\*)?(?:CHAPTER|PART)\s+\d+(?:\*\*)?\.?(?:\s*\^p-\d+)?$", stripped, flags=re.IGNORECASE)
+            re.match(r"^(?:#+\s*)?(?:\*\*)?\d+(?:\*\*)?\.?(?:\s*\^p-\d+)?$", stripped)
+            or re.match(
+                r"^(?:#+\s*)?(?:\*\*)?(?:CHAPTER|PART)\s+\d+(?:\*\*)?\.?(?:\s*\^p-\d+)?$", stripped, flags=re.IGNORECASE
+            )
         ):
             continue
 
@@ -121,6 +122,7 @@ def clean_chapter_markdown(markdown_text: str) -> str:
     # 2. Deduplicate identical title lines appearing within the first three paragraphs
     blocks = re.split(r"\n\s*\n", text)
     if len(blocks) >= 2:
+
         def _normalize_title_text(t: str) -> str:
             s = re.sub(r"^#+\s*", "", t).strip()
             s = re.sub(r"^[\*_`]+|[\*_`]+$", "", s).strip()
@@ -129,7 +131,7 @@ def clean_chapter_markdown(markdown_text: str) -> str:
             return re.sub(r"[^a-zA-Z0-9]", "", s).lower()
 
         seen_titles = set()
-        deduped_blocks: List[str] = []
+        deduped_blocks: list[str] = []
 
         for idx, block in enumerate(blocks):
             b_stripped = block.strip()
@@ -213,7 +215,7 @@ def sanitize_pdf_markdown(markdown_text: str) -> str:
     markdown_text = clean_chapter_markdown(markdown_text)
     markdown_text = deduplicate_figure_captions(markdown_text)
     lines = markdown_text.splitlines()
-    cleaned_lines: List[str] = []
+    cleaned_lines: list[str] = []
 
     for line in lines:
         stripped = line.strip()
@@ -294,7 +296,7 @@ def clean_author_metadata(raw_author: str) -> str:
         return "Unknown Author"
 
     parts = [p.strip() for p in re.split(r"[;\n]", raw_author) if p.strip()]
-    unique_authors: List[str] = []
+    unique_authors: list[str] = []
     seen = set()
     for part in parts:
         clean = part.rstrip(".,")

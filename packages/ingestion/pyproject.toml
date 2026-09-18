@@ -7,7 +7,11 @@ name = "book-engine-ingestion"
 version = "0.1.0"
 description = "Deterministic Ingestion & Content Pipeline for Local Book Engine"
 readme = "README.md"
-requires-python = ">=3.11"
+# 3.11 is where `tomllib` arrived, and the code itself needs nothing newer. The number here is 3.13 because
+# `requirements.lock` is the install this repository ships and the README tells you to run, it is made on 3.13, and
+# `numpy==2.5.3` in it has no build for 3.11. On 3.11 that install stops with "No matching distribution found",
+# after most of the lock is already in. pip refusing plainly is better than a half-installed environment (TL-05).
+requires-python = ">=3.13"
 # What the import itself needs to read a book. Nothing here is a tool for the people who work on the code:
 # a computer that only imports books gets the import, and nothing else (IN-11).
 dependencies = [
@@ -44,6 +48,18 @@ ignore_missing_imports = true
 # numpy comes with the import through onnxruntime, and its own type file uses a `type` statement, which Python
 # 3.11 does not have. Reading that file stopped mypy before it looked at one line of this package. Stepping over
 # it lets mypy check the package for Python 3.11, which is the oldest version the package says it runs on (IN-11).
+# ebooklib ships no types of its own and no marker that says it has none, so mypy cannot read it (TL-05).
+[[tool.mypy.overrides]]
+module = ["ebooklib", "ebooklib.*"]
+ignore_missing_imports = true
+
+# pymupdf gives no types for `Rect`, `Pixmap`, `get_text` and the rest, so strict mode calls every use of them
+# a call into the dark. They belong to pymupdf, and nothing in this package can annotate them. These four
+# modules are the ones that open a PDF; every other rule of strict mode still holds for them (TL-05).
+[[tool.mypy.overrides]]
+module = ["ingest.assets", "ingest.pdf_parser", "ingest.sample_generator", "ingest.vector_figures"]
+disallow_untyped_calls = false
+
 [[tool.mypy.overrides]]
 module = ["numpy", "numpy.*"]
 follow_imports = "skip"
@@ -51,5 +67,4 @@ follow_imports_for_stubs = true
 
 # The lines of this package are written to about 120 letters: only 69 of its 14,957 lines are longer. The rules
 # that ruff uses are left as they come, for TL-05 to choose with the one command that runs every check.
-[tool.ruff]
-line-length = 120
+# ruff's settings live in `ruff.toml` at the root, so they reach `.agent/skills` too (TL-05).

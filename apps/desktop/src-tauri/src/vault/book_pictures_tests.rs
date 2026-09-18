@@ -22,7 +22,10 @@ fn only_the_picture_folder_of_each_book_is_opened() {
     let books = sandbox.vault().join("books");
     assert_eq!(
         book_picture_folders(&sandbox.vault()).expect("list the picture folders"),
-        vec![books.join("economics").join("assets"), books.join("marketing").join("assets")]
+        vec![
+            books.join("economics").join("assets"),
+            books.join("marketing").join("assets")
+        ]
     );
 }
 
@@ -47,6 +50,12 @@ fn a_book_folder_or_picture_folder_that_is_a_link_is_not_opened() {
     // The junctions go first, so the sandbox clean-up never reaches the folder they point at.
     std::fs::remove_dir(books.join("linked-book")).expect("remove a junction");
     std::fs::remove_dir(books.join("linked-pictures").join("assets")).expect("remove a junction");
-    assert_eq!(folders.expect("list the picture folders"), vec![books.join("economics").join("assets")]);
-    assert!(outside.join("assets").join("secret.txt").exists(), "the folder a junction pointed at stays");
+    assert_eq!(
+        folders.expect("list the picture folders"),
+        vec![books.join("economics").join("assets")]
+    );
+    assert!(
+        outside.join("assets").join("secret.txt").exists(),
+        "the folder a junction pointed at stays"
+    );
 }

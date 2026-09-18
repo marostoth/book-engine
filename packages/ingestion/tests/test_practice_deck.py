@@ -21,9 +21,7 @@ def test_every_practice_deck_of_the_vault_of_the_tests(vault_of_the_tests: Path)
     assert len(decks) == 2, f"The vault of the tests has {len(decks)} practice decks, and it should have two"
 
     for deck_path in decks:
-        total, matches, mismatches, errors = mod.audit_book_practice_deck(
-            deck_path, vault_of_the_tests / "books"
-        )
+        total, matches, mismatches, errors = mod.audit_book_practice_deck(deck_path, vault_of_the_tests / "books")
         assert mismatches == 0, f"Deck {deck_path.name} failed with errors: {errors}"
         assert matches == total
         assert total > 0
@@ -72,7 +70,7 @@ def test_scenario_format_and_grounding_audit(tmp_path: Path):
     deck_path.write_text(valid_deck, encoding="utf-8")
 
     res = mod.audit_book_practice_deck(deck_path, books.parent)
-    total, matches, mismatches, errors = res
+    total, matches, mismatches, _errors = res
     assert total == 1
     assert matches == 1
     assert mismatches == 0

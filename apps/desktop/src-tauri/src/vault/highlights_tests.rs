@@ -4,8 +4,7 @@
 use crate::test_support::Sandbox;
 use crate::vault::models::HighlightItem;
 use crate::vault::{
-    load_chapter_highlights, read_chapter_highlights, read_notes_file, save_chapter_highlights,
-    write_notes_file,
+    load_chapter_highlights, read_chapter_highlights, read_notes_file, save_chapter_highlights, write_notes_file,
 };
 
 const BOOK: &str = "sample";
@@ -73,14 +72,19 @@ fn a_highlight_save_does_not_change_the_notes_file() {
 
     save_chapter_highlights(BOOK, CHAPTER, vec![highlight("hl-1", "atomically")]).expect("save a highlight");
 
-    assert_eq!(read_notes_file(BOOK, "ch-01-notes.md").expect("read the notes"), written);
+    assert_eq!(
+        read_notes_file(BOOK, "ch-01-notes.md").expect("read the notes"),
+        written
+    );
 }
 
 #[test]
 fn highlights_are_saved_and_read_back() {
     let _sandbox = Sandbox::new();
 
-    assert!(read_chapter_highlights(BOOK, CHAPTER).expect("a chapter with no file").is_empty());
+    assert!(read_chapter_highlights(BOOK, CHAPTER)
+        .expect("a chapter with no file")
+        .is_empty());
 
     let two = vec![highlight("hl-1", "atomically"), highlight("hl-2", "vector clocks")];
     save_chapter_highlights(BOOK, CHAPTER, two.clone()).expect("save two highlights");
@@ -91,10 +95,17 @@ fn highlights_are_saved_and_read_back() {
 #[test]
 fn a_chapter_without_highlights_gets_no_file() {
     let sandbox = Sandbox::new();
-    sandbox.write(NOTES_FILE, "# Reflections: Chapter 1\n\n- just writing, no highlights\n");
+    sandbox.write(
+        NOTES_FILE,
+        "# Reflections: Chapter 1\n\n- just writing, no highlights\n",
+    );
 
     assert!(load_chapter_highlights(BOOK, CHAPTER).expect("load").is_empty());
-    assert_eq!(names_in_notes_folder(&sandbox), vec!["ch-01-notes.md"], "no empty file may be made");
+    assert_eq!(
+        names_in_notes_folder(&sandbox),
+        vec!["ch-01-notes.md"],
+        "no empty file may be made"
+    );
 }
 
 #[test]
@@ -110,11 +121,26 @@ fn old_highlights_move_into_their_own_file_and_keep_the_notes_text() {
     assert_eq!(moved[0].created_at, "2026-09-11T12:00:00Z");
 
     let notes = read_notes_file(BOOK, "ch-01-notes.md").expect("read the notes");
-    assert!(!notes.contains("highlights-json"), "the machine comment must be gone:\n{notes}");
-    assert!(!notes.contains("## Highlights"), "the empty heading must be gone:\n{notes}");
-    assert!(notes.contains("# Reflections: Chapter 1"), "the title must stay:\n{notes}");
-    assert!(notes.contains("## Key Takeaways"), "the reader's headings must stay:\n{notes}");
-    assert!(notes.contains("- Specialization raises output. (^p-001)"), "the reader's text must stay:\n{notes}");
+    assert!(
+        !notes.contains("highlights-json"),
+        "the machine comment must be gone:\n{notes}"
+    );
+    assert!(
+        !notes.contains("## Highlights"),
+        "the empty heading must be gone:\n{notes}"
+    );
+    assert!(
+        notes.contains("# Reflections: Chapter 1"),
+        "the title must stay:\n{notes}"
+    );
+    assert!(
+        notes.contains("## Key Takeaways"),
+        "the reader's headings must stay:\n{notes}"
+    );
+    assert!(
+        notes.contains("- Specialization raises output. (^p-001)"),
+        "the reader's text must stay:\n{notes}"
+    );
 
     assert_eq!(
         names_in_notes_folder(&sandbox),
@@ -138,19 +164,29 @@ fn a_move_runs_only_once() {
 #[test]
 fn a_move_keeps_the_readers_own_text_under_a_highlights_heading() {
     let sandbox = Sandbox::new();
-    let notes = old_notes("atomically").replace(
-        "## Key Takeaways",
-        "- my own note about this quote\n\n## Key Takeaways",
-    );
+    let notes =
+        old_notes("atomically").replace("## Key Takeaways", "- my own note about this quote\n\n## Key Takeaways");
     sandbox.write(NOTES_FILE, &notes);
 
     load_chapter_highlights(BOOK, CHAPTER).expect("move the old highlights");
 
     let after = read_notes_file(BOOK, "ch-01-notes.md").expect("read the notes");
-    assert!(after.contains("## Highlights"), "a heading with the reader's text under it must stay:\n{after}");
-    assert!(after.contains("- my own note about this quote"), "the reader's text must stay:\n{after}");
-    assert!(!after.contains("highlights-json"), "the machine comment must still go:\n{after}");
-    assert!(!after.contains("> \"atomically\""), "the quote line the app wrote must go:\n{after}");
+    assert!(
+        after.contains("## Highlights"),
+        "a heading with the reader's text under it must stay:\n{after}"
+    );
+    assert!(
+        after.contains("- my own note about this quote"),
+        "the reader's text must stay:\n{after}"
+    );
+    assert!(
+        !after.contains("highlights-json"),
+        "the machine comment must still go:\n{after}"
+    );
+    assert!(
+        !after.contains("> \"atomically\""),
+        "the quote line the app wrote must go:\n{after}"
+    );
 }
 
 #[test]
@@ -161,9 +197,20 @@ fn a_damaged_old_comment_moves_nothing_and_changes_nothing() {
 
     let error = load_chapter_highlights(BOOK, CHAPTER).expect_err("a damaged comment must not be moved");
 
-    assert!(error.to_string().contains("ch-01-notes.md"), "the error must name the file: {error}");
-    assert_eq!(read_notes_file(BOOK, "ch-01-notes.md").expect("read back"), damaged, "the notes must be untouched");
-    assert_eq!(names_in_notes_folder(&sandbox), vec!["ch-01-notes.md"], "no highlights file may be made");
+    assert!(
+        error.to_string().contains("ch-01-notes.md"),
+        "the error must name the file: {error}"
+    );
+    assert_eq!(
+        read_notes_file(BOOK, "ch-01-notes.md").expect("read back"),
+        damaged,
+        "the notes must be untouched"
+    );
+    assert_eq!(
+        names_in_notes_folder(&sandbox),
+        vec!["ch-01-notes.md"],
+        "no highlights file may be made"
+    );
 }
 
 #[test]
@@ -175,7 +222,10 @@ fn a_damaged_highlights_file_is_never_saved_over() {
     let error = save_chapter_highlights(BOOK, CHAPTER, vec![highlight("hl-2", "new")])
         .expect_err("a damaged highlights file must refuse the save");
 
-    assert!(error.to_string().contains("ch-01-highlights.json"), "the error must name the file: {error}");
+    assert!(
+        error.to_string().contains("ch-01-highlights.json"),
+        "the error must name the file: {error}"
+    );
     let on_disk = std::fs::read_to_string(sandbox.vault().join(HIGHLIGHTS_FILE)).expect("read back");
     assert_eq!(on_disk, damaged, "the damaged file must stay exactly as it was");
 }
@@ -206,8 +256,14 @@ fn old_highlights_move_over_even_when_a_quote_holds_an_end_of_comment_marker() {
     assert_eq!(moved[0].exact, "the arrow --> points right");
 
     let notes = read_notes_file(BOOK, "ch-01-notes.md").expect("read the notes");
-    assert!(!notes.contains("highlights-json"), "the machine comment must be gone:\n{notes}");
-    assert!(notes.contains("## Key Takeaways"), "the reader's text must stay:\n{notes}");
+    assert!(
+        !notes.contains("highlights-json"),
+        "the machine comment must be gone:\n{notes}"
+    );
+    assert!(
+        notes.contains("## Key Takeaways"),
+        "the reader's text must stay:\n{notes}"
+    );
 }
 
 #[test]
@@ -216,7 +272,9 @@ fn old_highlights_move_over_when_a_later_quote_holds_the_marker() {
     let two = "[{\"id\":\"hl-1\",\"exact\":\"plain quote\",\"prefix\":\"\",\"suffix\":\"\",\"anchor\":\"^p-001\",\"createdAt\":\"2026-09-11T12:00:00Z\"},{\"id\":\"hl-2\",\"exact\":\"and --> here\",\"prefix\":\"\",\"suffix\":\"\",\"anchor\":\"^p-002\",\"createdAt\":\"2026-09-11T12:01:00Z\"}]";
     sandbox.write(
         NOTES_FILE,
-        &format!("# Reflections\n\n## Highlights\n\n<!-- highlights-json {two} -->\n\n## Key Takeaways\n\n- my own line\n"),
+        &format!(
+            "# Reflections\n\n## Highlights\n\n<!-- highlights-json {two} -->\n\n## Key Takeaways\n\n- my own line\n"
+        ),
     );
 
     let moved = load_chapter_highlights(BOOK, CHAPTER).expect("both highlights must move");
@@ -224,7 +282,10 @@ fn old_highlights_move_over_when_a_later_quote_holds_the_marker() {
     assert_eq!(moved.len(), 2, "no highlight may be dropped");
     assert_eq!(moved[1].exact, "and --> here");
     let notes = read_notes_file(BOOK, "ch-01-notes.md").expect("read the notes");
-    assert!(!notes.contains("highlights-json"), "the machine comment must be gone:\n{notes}");
+    assert!(
+        !notes.contains("highlights-json"),
+        "the machine comment must be gone:\n{notes}"
+    );
     assert!(notes.contains("- my own line"), "the reader's text must stay:\n{notes}");
 }
 
@@ -236,10 +297,15 @@ fn text_after_the_old_comment_is_never_swallowed() {
         "# Reflections\n\n## Highlights\n\n<!-- highlights-json [] -->\n\n## Key Takeaways\n\n- a line with [ and ] in it\n",
     );
 
-    assert!(load_chapter_highlights(BOOK, CHAPTER).expect("an empty list is fine").is_empty());
+    assert!(load_chapter_highlights(BOOK, CHAPTER)
+        .expect("an empty list is fine")
+        .is_empty());
 
     let notes = read_notes_file(BOOK, "ch-01-notes.md").expect("read the notes");
-    assert!(notes.contains("- a line with [ and ] in it"), "the reader's text must stay:\n{notes}");
+    assert!(
+        notes.contains("- a line with [ and ] in it"),
+        "the reader's text must stay:\n{notes}"
+    );
 }
 
 #[test]
@@ -256,7 +322,10 @@ fn old_highlights_move_over_when_the_stored_context_holds_the_marker() {
     assert_eq!(moved.len(), 1, "the highlight must come across");
     assert_eq!(moved[0].suffix, " and then --> onwards");
     let notes = read_notes_file(BOOK, "ch-01-notes.md").expect("read the notes");
-    assert!(!notes.contains("highlights-json"), "the machine comment must be gone:\n{notes}");
+    assert!(
+        !notes.contains("highlights-json"),
+        "the machine comment must be gone:\n{notes}"
+    );
     assert!(notes.contains("- my own line"), "the reader's text must stay:\n{notes}");
 }
 
@@ -272,9 +341,18 @@ fn a_heading_of_the_readers_own_that_starts_with_the_same_word_is_kept() {
     load_chapter_highlights(BOOK, CHAPTER).expect("move the old highlights");
 
     let after = read_notes_file(BOOK, "ch-01-notes.md").expect("read the notes");
-    assert!(after.contains("## Highlights and lowlights"), "the reader's own heading must stay:\n{after}");
-    assert!(after.contains("- what worked and what did not"), "the text under it must stay:\n{after}");
-    assert!(!after.contains("highlights-json"), "the machine comment must go:\n{after}");
+    assert!(
+        after.contains("## Highlights and lowlights"),
+        "the reader's own heading must stay:\n{after}"
+    );
+    assert!(
+        after.contains("- what worked and what did not"),
+        "the text under it must stay:\n{after}"
+    );
+    assert!(
+        !after.contains("highlights-json"),
+        "the machine comment must go:\n{after}"
+    );
 }
 
 #[test]
@@ -287,7 +365,18 @@ fn a_hand_edit_that_breaks_the_list_moves_nothing_and_changes_nothing() {
 
     let error = load_chapter_highlights(BOOK, CHAPTER).expect_err("a broken list must not be moved");
 
-    assert!(error.to_string().contains("ch-01-notes.md"), "the error must name the file: {error}");
-    assert_eq!(read_notes_file(BOOK, "ch-01-notes.md").expect("read back"), notes, "the notes must be untouched");
-    assert_eq!(names_in_notes_folder(&sandbox), vec!["ch-01-notes.md"], "no highlights file may be made");
+    assert!(
+        error.to_string().contains("ch-01-notes.md"),
+        "the error must name the file: {error}"
+    );
+    assert_eq!(
+        read_notes_file(BOOK, "ch-01-notes.md").expect("read back"),
+        notes,
+        "the notes must be untouched"
+    );
+    assert_eq!(
+        names_in_notes_folder(&sandbox),
+        vec!["ch-01-notes.md"],
+        "no highlights file may be made"
+    );
 }

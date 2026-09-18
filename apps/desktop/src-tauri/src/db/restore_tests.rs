@@ -95,7 +95,11 @@ fn running_it_again_changes_nothing() {
     let second = restore_progress_blocking().expect("second run");
 
     assert!(second.changed_nothing(), "a second run must add nothing: {second:?}");
-    assert_eq!(count("SELECT COUNT(*) FROM review_logs"), 1, "the review must not be doubled");
+    assert_eq!(
+        count("SELECT COUNT(*) FROM review_logs"),
+        1,
+        "the review must not be doubled"
+    );
     assert_eq!(
         count("SELECT seconds_spent FROM reading_sessions"),
         900,
@@ -166,7 +170,10 @@ fn a_review_the_cache_already_has_is_not_added_again() {
 
     let report = restore_progress_blocking().expect("put the progress back");
 
-    assert_eq!(report.reviews_added, 0, "the same second of the same card is the same review");
+    assert_eq!(
+        report.reviews_added, 0,
+        "the same second of the same card is the same review"
+    );
     assert_eq!(count("SELECT COUNT(*) FROM review_logs"), 1);
 }
 
@@ -333,13 +340,23 @@ fn a_review_made_in_the_app_is_written_to_the_vault() {
     let schedule = super::fsrs_store::submit_card_review_blocking(&card_id, 3).expect("review the card");
 
     let log = read_book_log(BOOK).expect("read the study log");
-    assert_eq!(log.reviews.len(), 1, "the review must be in the vault, not only in the cache");
+    assert_eq!(
+        log.reviews.len(),
+        1,
+        "the review must be in the vault, not only in the cache"
+    );
     let line = &log.reviews[0];
     assert_eq!(line.card_id, card_id);
     assert_eq!(line.book_id, BOOK);
     assert_eq!(line.rating, Some(3));
-    let standing = line.schedule.as_ref().expect("a review the app made carries its schedule");
-    assert_eq!(standing.due, schedule.due, "the vault holds the schedule the app gave the reader");
+    let standing = line
+        .schedule
+        .as_ref()
+        .expect("a review the app made carries its schedule");
+    assert_eq!(
+        standing.due, schedule.due,
+        "the vault holds the schedule the app gave the reader"
+    );
     assert_eq!(standing.stability, schedule.stability);
     assert_eq!(standing.reps, schedule.reps);
 }
@@ -383,7 +400,11 @@ fn throwing_away_the_cache_loses_no_study_progress() {
     assert_eq!(due, schedule.due);
     assert_eq!(last_review, schedule.last_review);
     assert_eq!(reps, schedule.reps);
-    assert_eq!(count("SELECT seconds_spent FROM reading_sessions"), 60, "every second of reading is back");
+    assert_eq!(
+        count("SELECT seconds_spent FROM reading_sessions"),
+        60,
+        "every second of reading is back"
+    );
     assert_eq!(count("SELECT completed FROM reading_sessions"), 1);
 }
 
@@ -464,7 +485,10 @@ fn reading_time_follows_the_chapters_that_a_new_import_renamed() {
         ],
         "each chapter has its own time, and ch-01.md has none"
     );
-    assert_eq!(report.chapters_restored, 3, "ch-01.md removed, ch-02.md changed, ch-03.md added: {report:?}");
+    assert_eq!(
+        report.chapters_restored, 3,
+        "ch-01.md removed, ch-02.md changed, ch-03.md added: {report:?}"
+    );
     let again = restore_progress_blocking().expect("start the app again");
     assert!(again.changed_nothing(), "the cache follows the log once: {again:?}");
 }
@@ -539,5 +563,8 @@ fn a_damaged_reading_line_takes_no_reading_time_away_from_the_cache() {
         rows.contains(&("ch-01.md".to_string(), 300, 1, 1_758_000_100)),
         "the cache keeps its reading time: {rows:?}"
     );
-    assert!(rows.iter().any(|row| row.0 == "ch-02.md" && row.1 == 300), "and gets the good line: {rows:?}");
+    assert!(
+        rows.iter().any(|row| row.0 == "ch-02.md" && row.1 == 300),
+        "and gets the good line: {rows:?}"
+    );
 }

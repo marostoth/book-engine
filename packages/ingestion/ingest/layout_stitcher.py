@@ -20,8 +20,6 @@ that owns the picture, and a cut sentence by the three rules above (IN-10).
 from __future__ import annotations
 
 import re
-from typing import List, Tuple
-
 
 # The same rule the practice cards use (`ingest/scenarios.py`): a sentence ends with . ! or ?, and a
 # closing quote or bracket may follow.
@@ -47,9 +45,35 @@ MAX_ROUNDS = 8
 # a scrap of another line.
 WORD_ENDINGS = frozenset(
     {
-        "s", "es", "ed", "er", "ers", "ing", "ings", "ly", "ies", "ier", "iest", "est",
-        "ive", "ity", "ties", "ment", "ments", "ness", "tion", "tions", "sion", "sions",
-        "ance", "ence", "ous", "ful", "less", "ward", "wards",
+        "s",
+        "es",
+        "ed",
+        "er",
+        "ers",
+        "ing",
+        "ings",
+        "ly",
+        "ies",
+        "ier",
+        "iest",
+        "est",
+        "ive",
+        "ity",
+        "ties",
+        "ment",
+        "ments",
+        "ness",
+        "tion",
+        "tions",
+        "sion",
+        "sions",
+        "ance",
+        "ence",
+        "ous",
+        "ful",
+        "less",
+        "ward",
+        "wards",
     }
 )
 
@@ -110,9 +134,7 @@ def stitch_layout_blocks(markdown_text: str) -> str:
 
     blocks = [b.strip() for b in re.split(r"\n\s*\n", markdown_text) if b.strip()]
 
-    credit_word = re.compile(
-        r"(?i)\b(?:AP Photo|Stock Photo|123RF|Shutterstock|Alamy|Reuters|Getty|Courtesy of)\b"
-    )
+    credit_word = re.compile(r"(?i)\b(?:AP Photo|Stock Photo|123RF|Shutterstock|Alamy|Reuters|Getty|Courtesy of)\b")
 
     def is_photo_caption_or_credit(b: str) -> bool:
         if credit_pat.match(b):
@@ -126,7 +148,7 @@ def stitch_layout_blocks(markdown_text: str) -> str:
                 return True
         return False
 
-    def lift_credits(b: str) -> Tuple[str, List[str]]:
+    def lift_credits(b: str) -> tuple[str, list[str]]:
         """Splits a paragraph into its own words and the photo credits that landed inside it.
 
         A credit is a line of its own, so a paragraph that merely mentions a photo agency in a
@@ -136,8 +158,8 @@ def stitch_layout_blocks(markdown_text: str) -> str:
         lines = b.splitlines()
         if len(lines) < 2:
             return b, []
-        kept: List[str] = []
-        credits: List[str] = []
+        kept: list[str] = []
+        credits: list[str] = []
         for line in lines:
             one = line.strip()
             if one and len(one) < 120 and (credit_pat.match(one) or credit_word.search(one)):
@@ -152,17 +174,14 @@ def stitch_layout_blocks(markdown_text: str) -> str:
     def is_marginal_term(b: str) -> bool:
         return b.startswith("###### ") and len(b.splitlines()) == 1 and len(b) < 60
 
-    def is_marginal_definition_text(blocks: List[str], idx: int) -> bool:
+    def is_marginal_definition_text(blocks: list[str], idx: int) -> bool:
         b = blocks[idx]
-        if idx > 0 and is_marginal_term(blocks[idx - 1]):
-            if not b.startswith("#") and len(b) < 250:
-                return True
-        return False
+        return bool(idx > 0 and is_marginal_term(blocks[idx - 1]) and not b.startswith("#") and len(b) < 250)
 
     def is_image_block(b: str) -> bool:
         return bool(re.match(r"^!\[.*?\]\(.*?\)$", b))
 
-    def is_interleaved(blocks: List[str], idx: int) -> bool:
+    def is_interleaved(blocks: list[str], idx: int) -> bool:
         b = blocks[idx]
         return (
             is_photo_caption_or_credit(b)
@@ -174,7 +193,7 @@ def stitch_layout_blocks(markdown_text: str) -> str:
         )
 
     def is_dangling(b: str) -> bool:
-        if not b or b.startswith("#") or b.startswith(">") or b.startswith("!["):
+        if not b or b.startswith(("#", ">", "![")):
             return False
         if is_photo_caption_or_credit(b) or is_figure_label(b):
             return False
@@ -182,7 +201,7 @@ def stitch_layout_blocks(markdown_text: str) -> str:
         return not finishes_a_sentence(b) or b.endswith("-")
 
     def is_continuation(b: str) -> bool:
-        if not b or b.startswith("#") or b.startswith(">") or b.startswith("!["):
+        if not b or b.startswith(("#", ">", "![")):
             return False
         # A photo credit or a figure label needs no test here: the scan above steps over both, so
         # neither can ever be the block this looks at.
@@ -192,13 +211,13 @@ def stitch_layout_blocks(markdown_text: str) -> str:
             return True
         return bool(re.match(r"^steps[—\-]", b))
 
-    def try_to_join(blocks: List[str], i: int, curr: str, lifted: List[str]):
+    def try_to_join(blocks: list[str], i: int, curr: str, lifted: list[str]) -> tuple[list[str], int] | None:
         """The blocks to write and the next index, when `curr` is a half sentence. Else None."""
         if not is_dangling(curr):
             return None
         # Scan ahead across interleaved items
         j = i + 1
-        interleaved_items: List[str] = list(lifted)
+        interleaved_items: list[str] = list(lifted)
         while j < len(blocks) and is_interleaved(blocks, j):
             interleaved_items.append(blocks[j])
             j += 1
@@ -214,10 +233,10 @@ def stitch_layout_blocks(markdown_text: str) -> str:
         else:
             joined = f"{curr} {next_narrative}"
         # The whole sentence first, then whatever stood in the middle of it
-        return [joined] + interleaved_items, j + 1
+        return [joined, *interleaved_items], j + 1
 
-    def one_round(blocks: List[str]) -> List[str]:
-        stitched_blocks: List[str] = []
+    def one_round(blocks: list[str]) -> list[str]:
+        stitched_blocks: list[str] = []
         i = 0
         while i < len(blocks):
             curr = blocks[i]
@@ -225,7 +244,7 @@ def stitch_layout_blocks(markdown_text: str) -> str:
             # A photo credit inside a paragraph hides the half sentence it cut, so the paragraph is
             # tried without its credits first. The credits move out only when that lets the sentence
             # join again; a paragraph that joins nothing keeps every line where the page had it.
-            plans = [(curr, [])]
+            plans: list[tuple[str, list[str]]] = [(curr, [])]
             if not curr.startswith(("#", ">", "![", "|")):
                 prose, credits = lift_credits(curr)
                 if credits:

@@ -28,8 +28,15 @@ fn saved_notes_are_read_back_and_leave_no_temp_file_behind() {
     write_notes_file(BOOK, NOTES_FILE, "# Notes\n\n- first line\n").expect("first write");
     write_notes_file(BOOK, NOTES_FILE, "# Notes\n\n- second line\n").expect("second write");
 
-    assert_eq!(read_notes_file(BOOK, NOTES_FILE).expect("read back"), "# Notes\n\n- second line\n");
-    assert_eq!(files_next_to_the_notes(&sandbox), vec![NOTES_FILE], "a finished save must leave only the file itself");
+    assert_eq!(
+        read_notes_file(BOOK, NOTES_FILE).expect("read back"),
+        "# Notes\n\n- second line\n"
+    );
+    assert_eq!(
+        files_next_to_the_notes(&sandbox),
+        vec![NOTES_FILE],
+        "a finished save must leave only the file itself"
+    );
 }
 
 /// While one thread saves the notes, another reads the file over and over. A save must be one
@@ -62,7 +69,10 @@ fn a_reader_never_sees_a_half_written_notes_file() {
     }
     writer.join().expect("the writing thread");
 
-    println!("looked at the file {reads} times while it was saved; {} cut-off sizes seen", cut_off.len());
+    println!(
+        "looked at the file {reads} times while it was saved; {} cut-off sizes seen",
+        cut_off.len()
+    );
     assert!(
         cut_off.is_empty(),
         "a reader saw a file that is neither the old notes ({old_len} bytes) nor the new notes ({new_len} bytes): {cut_off:?}"
@@ -80,13 +90,20 @@ fn a_reader_never_sees_a_half_written_notes_file() {
 fn a_renamed_book_folder_opens_under_its_folder_name() {
     let sandbox = Sandbox::new();
     sandbox.write_sample_book();
-    std::fs::rename(sandbox.vault().join("books/sample"), sandbox.vault().join("books/economics"))
-        .expect("rename the book folder");
+    std::fs::rename(
+        sandbox.vault().join("books/sample"),
+        sandbox.vault().join("books/economics"),
+    )
+    .expect("rename the book folder");
 
     let library = scan_library_books().expect("read the library");
     let ids: Vec<&str> = library.iter().map(|book| book.id.as_str()).collect();
     assert_eq!(ids, ["economics"], "the library names the book by its folder");
-    let listed: Vec<String> = scan_available_books().expect("list the books").into_iter().map(|book| book.book_id).collect();
+    let listed: Vec<String> = scan_available_books()
+        .expect("list the books")
+        .into_iter()
+        .map(|book| book.book_id)
+        .collect();
     assert_eq!(listed, ["economics"], "list_books names it the same way");
 
     let chapter = read_chapter_file(ids[0], "ch-01.md").expect("the chapter opens under the name the library gives");
@@ -100,13 +117,22 @@ fn a_renamed_book_folder_opens_under_its_folder_name() {
 fn a_chapter_and_its_notes_are_read_with_unix_line_endings() {
     let sandbox = Sandbox::new();
     sandbox.write_sample_book();
-    let chapter = "# Chapter 1\n\nThe tide turns at noon.[^1] ^p-001\n\n[^1]: The port office prints the tide tables. ^p-002\n";
+    let chapter =
+        "# Chapter 1\n\nThe tide turns at noon.[^1] ^p-001\n\n[^1]: The port office prints the tide tables. ^p-002\n";
     let notes = "# Reflections: Chapter 1\n\n## Key Takeaways\n\n- \n";
     for (name, line_ending) in [("windows", "\r\n"), ("old mac", "\r")] {
         sandbox.write("books/sample/ch-01.md", &chapter.replace('\n', line_ending));
         sandbox.write("notes/sample/ch-01-notes.md", &notes.replace('\n', line_ending));
 
-        assert_eq!(read_chapter_file(BOOK, "ch-01.md").expect("read the chapter"), chapter, "{name} line endings");
-        assert_eq!(read_notes_file(BOOK, NOTES_FILE).expect("read the notes"), notes, "{name} line endings");
+        assert_eq!(
+            read_chapter_file(BOOK, "ch-01.md").expect("read the chapter"),
+            chapter,
+            "{name} line endings"
+        );
+        assert_eq!(
+            read_notes_file(BOOK, NOTES_FILE).expect("read the notes"),
+            notes,
+            "{name} line endings"
+        );
     }
 }

@@ -31,7 +31,6 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 # Base paths relative to repository root
 SKILLS_DIR = Path(__file__).resolve().parent
@@ -46,13 +45,15 @@ CARGO_TOML = DESKTOP_DIR / "src-tauri" / "Cargo.toml"
 
 # The import's own rule for a character that nothing could read (CQ-02)
 sys.path.insert(0, str(ROOT_DIR / "packages" / "ingestion"))
-from ingest.glyph_repair import REPLACEMENT  # noqa: E402
-# The import's own reading of the ledger, so the audit and the import never disagree (CQ-05)
-from ingest.ledger import lines_that_disagree  # noqa: E402
 from ingest.chapter_shape import is_heading  # noqa: E402
 from ingest.citations import links_that_lead_nowhere, quote_that_moved  # noqa: E402
+
 # A command of this repository may print any letter of any book (IN-09)
 from ingest.console import allow_any_letter  # noqa: E402
+from ingest.glyph_repair import REPLACEMENT  # noqa: E402
+
+# The import's own reading of the ledger, so the audit and the import never disagree (CQ-05)
+from ingest.ledger import lines_that_disagree  # noqa: E402
 
 # ANSI Color formatting
 ANSI_GREEN = "\033[92m"
@@ -70,7 +71,7 @@ class DiagnosticResult:
         target: str,
         metric: str,
         passed: bool,
-        errors: Optional[List[str]] = None,
+        errors: list[str] | None = None,
         duration_s: float = 0.0,
     ) -> None:
         self.name = name
@@ -95,7 +96,7 @@ def compute_sha256(path: Path) -> str:
 # ----------------------------------------------------------------------
 def check_ledger_and_vault_parity() -> DiagnosticResult:
     start_time = time.perf_counter()
-    errors: List[str] = []
+    errors: list[str] = []
 
     if not LEDGER_PATH.exists():
         return DiagnosticResult(
@@ -119,17 +120,17 @@ def check_ledger_and_vault_parity() -> DiagnosticResult:
             duration_s=time.perf_counter() - start_time,
         )
 
-    discovered_books = {
-        d.name
-        for d in BOOKS_DIR.iterdir()
-        if d.is_dir() and not d.name.startswith(".")
-    } if BOOKS_DIR.exists() else set()
+    discovered_books = (
+        {d.name for d in BOOKS_DIR.iterdir() if d.is_dir() and not d.name.startswith(".")}
+        if BOOKS_DIR.exists()
+        else set()
+    )
 
-    discovered_binaries = {
-        f.name
-        for f in INBOX_PROCESSED_DIR.iterdir()
-        if f.is_file() and not f.name.startswith(".")
-    } if INBOX_PROCESSED_DIR.exists() else set()
+    discovered_binaries = (
+        {f.name for f in INBOX_PROCESSED_DIR.iterdir() if f.is_file() and not f.name.startswith(".")}
+        if INBOX_PROCESSED_DIR.exists()
+        else set()
+    )
 
     ledger_book_ids = set()
     ledger_filenames = set()
@@ -206,7 +207,7 @@ def check_ledger_and_vault_parity() -> DiagnosticResult:
 # ----------------------------------------------------------------------
 def check_anchor_and_asset_integrity() -> DiagnosticResult:
     start_time = time.perf_counter()
-    errors: List[str] = []
+    errors: list[str] = []
     total_chapters = 0
     total_anchors = 0
     total_assets = 0
@@ -241,10 +242,7 @@ def check_anchor_and_asset_integrity() -> DiagnosticResult:
                 )
 
             # Paragraph anchor format: ^p-[0-9]{3,}
-            paragraphs = [
-                p for p in content.split("\n\n")
-                if p.strip() and not is_heading(p.strip())
-            ]
+            paragraphs = [p for p in content.split("\n\n") if p.strip() and not is_heading(p.strip())]
             seen_anchors = set()
 
             for p in paragraphs:
@@ -301,7 +299,7 @@ def check_anchor_and_asset_integrity() -> DiagnosticResult:
 # ----------------------------------------------------------------------
 def check_zero_hallucination_practice() -> DiagnosticResult:
     start_time = time.perf_counter()
-    errors: List[str] = []
+    errors: list[str] = []
 
     practice_skill_path = SKILLS_DIR / "audit-practice.py"
     if not practice_skill_path.exists():
@@ -399,7 +397,7 @@ def check_backend_safety() -> DiagnosticResult:
         ("cargo check", ["cargo", "check", "--manifest-path", str(CARGO_TOML)], 90),
         ("cargo test", ["cargo", "test", "--manifest-path", str(CARGO_TOML)], 600),
     ]
-    errors: List[str] = []
+    errors: list[str] = []
     metric = "Cargo check clean, cargo test passed"
     for label, cmd, timeout_s in steps:
         try:
@@ -410,6 +408,7 @@ def check_backend_safety() -> DiagnosticResult:
                 encoding="utf-8",
                 errors="replace",
                 timeout=timeout_s,
+                check=False,
             )
         except Exception as e:
             errors.append(f"Failed to execute {label}: {e}")
@@ -450,15 +449,17 @@ def check_frontend_safety() -> DiagnosticResult:
         )
 
     try:
-        proc = subprocess.run(
+        # The command is written here, letter for letter, and `npm` is a script that needs a shell on Windows.
+        proc = subprocess.run(  # noqa: S602
             "npm run tsc",
             shell=True,
             cwd=str(DESKTOP_DIR),
             capture_output=True,
             text=True,
             timeout=90,
+            check=False,
         )
-        passed = (proc.returncode == 0)
+        passed = proc.returncode == 0
         errors = []
         if not passed:
             err_output = proc.stderr.strip() or proc.stdout.strip()
@@ -503,8 +504,9 @@ def check_fts_benchmark() -> DiagnosticResult:
             capture_output=True,
             text=True,
             timeout=30,
+            check=False,
         )
-        passed = (proc.returncode == 0)
+        passed = proc.returncode == 0
         output = proc.stdout + proc.stderr
 
         avg_m = re.search(r"Average Latency:\s+([0-9.]+)\s+ms", output)
@@ -537,11 +539,11 @@ def check_fts_benchmark() -> DiagnosticResult:
 # ----------------------------------------------------------------------
 # 7. Desktop Runtime Launch Smoke Test
 # ----------------------------------------------------------------------
-def newest_backend_change() -> Tuple[float, str]:
+def newest_backend_change() -> tuple[float, str]:
     """When the Rust of the app last changed, and which file changed then."""
     newest, name = 0.0, ""
     backend = DESKTOP_DIR / "src-tauri"
-    for source in list((backend / "src").rglob("*.rs")) + [backend / "Cargo.toml"]:
+    for source in [*list((backend / "src").rglob("*.rs")), backend / "Cargo.toml"]:
         if not source.is_file():
             continue
         when = source.stat().st_mtime
@@ -559,13 +561,13 @@ def check_desktop_runtime_launch() -> DiagnosticResult:
     app starts when nobody had built the code that the check was run against.
     """
     start_time = time.perf_counter()
-    errors: List[str] = []
+    errors: list[str] = []
 
     # Of the two binaries, take the one that was built last, not the release one by habit.
     release_exe = DESKTOP_DIR / "src-tauri" / "target" / "release" / "book-engine-desktop.exe"
     debug_exe = DESKTOP_DIR / "src-tauri" / "target" / "debug" / "book-engine-desktop.exe"
     built = [exe for exe in (release_exe, debug_exe) if exe.exists()]
-    target_exe: Optional[Path] = max(built, key=lambda exe: exe.stat().st_mtime) if built else None
+    target_exe: Path | None = max(built, key=lambda exe: exe.stat().st_mtime) if built else None
 
     if not target_exe:
         return DiagnosticResult(
@@ -638,6 +640,7 @@ def check_desktop_runtime_launch() -> DiagnosticResult:
                 ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
+                check=False,
             )
         else:
             try:
@@ -752,7 +755,9 @@ def check_inspectional_parity(vault_dir: Path = VAULT_DIR) -> DiagnosticResult:
             # Verify required fields exist
             for req_field in ("head_anchors", "tail_anchors", "head_text_preview", "tail_text_preview"):
                 if req_field not in sampling or sampling[req_field] is None:
-                    errors.append(f"{book_dir.name}/{ch.get('id', 'unknown')}: Missing required sampling field '{req_field}'.")
+                    errors.append(
+                        f"{book_dir.name}/{ch.get('id', 'unknown')}: Missing required sampling field '{req_field}'."
+                    )
 
             head_anchors = sampling.get("head_anchors", [])
             tail_anchors = sampling.get("tail_anchors", [])
@@ -791,7 +796,8 @@ def check_inspectional_parity(vault_dir: Path = VAULT_DIR) -> DiagnosticResult:
 
             # Allow identical head/tail anchors only if chapter contains < 2 total paragraphs
             paragraphs = [
-                p.strip() for p in ch_content.split("\n\n")
+                p.strip()
+                for p in ch_content.split("\n\n")
                 if p.strip() and not is_heading(p.strip()) and not re.match(r"^\[\^.+\]:", p.strip())
             ]
             overlap = set(head_anchors) & set(tail_anchors)
@@ -805,7 +811,9 @@ def check_inspectional_parity(vault_dir: Path = VAULT_DIR) -> DiagnosticResult:
                 if re.search(r"\^p-\d+", preview):
                     errors.append(f"{book_dir.name}/{ch_file_rel}: {label} contains unparsed anchor tag ('^p-xxx').")
                 if re.search(r"\[\^\w+\]", preview):
-                    errors.append(f"{book_dir.name}/{ch_file_rel}: {label} contains unstripped footnote reference ('[^x]').")
+                    errors.append(
+                        f"{book_dir.name}/{ch_file_rel}: {label} contains unstripped footnote reference ('[^x]')."
+                    )
                 if re.search(r"(^|\n)#+\s", preview):
                     errors.append(f"{book_dir.name}/{ch_file_rel}: {label} contains markdown heading prefix ('#').")
 
@@ -844,7 +852,11 @@ def check_inspectional_parity(vault_dir: Path = VAULT_DIR) -> DiagnosticResult:
                 errors.append(f"{book_dir.name}: Exit assessment in inspectional.json must be a JSON object.")
             elif isinstance(exit_assessment, dict):
                 for req_key in ("classification", "unityStatement", "partsStructure", "completedAt"):
-                    if req_key not in exit_assessment or exit_assessment[req_key] is None or (isinstance(exit_assessment[req_key], str) and not exit_assessment[req_key].strip()):
+                    if (
+                        req_key not in exit_assessment
+                        or exit_assessment[req_key] is None
+                        or (isinstance(exit_assessment[req_key], str) and not exit_assessment[req_key].strip())
+                    ):
                         errors.append(
                             f"{book_dir.name}: Exit assessment populated but missing or empty required field '{req_key}'."
                         )
@@ -858,7 +870,9 @@ def check_inspectional_parity(vault_dir: Path = VAULT_DIR) -> DiagnosticResult:
         )
 
     passed = len(errors) == 0
-    metric = f"{total_sampling_pairs} head/tail pairs across {total_sampled_chapters} chapters ({len(sampled_books)} books)"
+    metric = (
+        f"{total_sampling_pairs} head/tail pairs across {total_sampled_chapters} chapters ({len(sampled_books)} books)"
+    )
 
     return DiagnosticResult(
         name="8. Inspectional Parity",
@@ -878,7 +892,7 @@ def audit_analytical_parity(vault_dir: Path) -> tuple[bool, str]:
     notes_dir = vault_dir / "notes"
     books_dir = vault_dir / "books"
 
-    errors: List[str] = []
+    errors: list[str] = []
     total_terms = 0
     total_args = 0
     total_critiques = 0
@@ -913,8 +927,13 @@ def audit_analytical_parity(vault_dir: Path) -> tuple[bool, str]:
         inquiries = data.get("inquiries", [])
 
         # Cache chapter markdown contents
-        chapter_cache: Dict[str, str] = {}
-        def get_chapter_content(chap_file: str) -> Optional[str]:
+        chapter_cache: dict[str, str] = {}
+
+        def get_chapter_content(
+            chap_file: str,
+            chapter_cache: dict[str, str] = chapter_cache,
+            book_source_dir: Path = book_source_dir,
+        ) -> str | None:
             if chap_file in chapter_cache:
                 return chapter_cache[chap_file]
             target_path = book_source_dir / chap_file
@@ -928,7 +947,7 @@ def audit_analytical_parity(vault_dir: Path) -> tuple[bool, str]:
                 return None
 
         # Helper to validate an AnchoredCitation
-        def validate_citation(cite: dict, context_label: str):
+        def validate_citation(cite: dict, context_label: str, book_id: str = book_id):
             if not isinstance(cite, dict):
                 errors.append(f"{book_id}: {context_label} citation must be an object.")
                 return
@@ -973,7 +992,7 @@ def audit_analytical_parity(vault_dir: Path) -> tuple[bool, str]:
 
             premises = a.get("premises", [])
             for idx, p in enumerate(premises):
-                validate_citation(p, f"Argument '{a.get('title', a_id)}' premise {idx+1}")
+                validate_citation(p, f"Argument '{a.get('title', a_id)}' premise {idx + 1}")
             total_args += 1
 
         # 3. Critiques validation
@@ -984,27 +1003,37 @@ def audit_analytical_parity(vault_dir: Path) -> tuple[bool, str]:
 
             # Grounding constraint: at least one non-null
             if not target_arg and not cite:
-                errors.append(f"{book_id}/critique-{c_id}: Grounding constraint violated. Must link targetArgumentId or citation.")
+                errors.append(
+                    f"{book_id}/critique-{c_id}: Grounding constraint violated. Must link targetArgumentId or citation."
+                )
 
             # Validate target argument ID
             if target_arg and target_arg not in argument_ids:
-                errors.append(f"{book_id}/critique-{c_id}: targetArgumentId '{target_arg}' does not match any argument in analytical.json.")
+                errors.append(
+                    f"{book_id}/critique-{c_id}: targetArgumentId '{target_arg}' does not match any argument in analytical.json."
+                )
 
             # Validate citation if present
             if cite:
                 validate_citation(cite, f"Critique '{c_id}'")
 
             # Rule 9 comprehension precondition
-            understands = c.get("understandingDeclared") if "understandingDeclared" in c else c.get("understanding_declared")
+            understands = (
+                c.get("understandingDeclared") if "understandingDeclared" in c else c.get("understanding_declared")
+            )
             if not understands:
-                errors.append(f"{book_id}/critique-{c_id}: Rule 9 comprehension not declared (understandingDeclared must be true).")
+                errors.append(
+                    f"{book_id}/critique-{c_id}: Rule 9 comprehension not declared (understandingDeclared must be true)."
+                )
 
             # Rule 12 defect vectors on disagreement
             judgment = c.get("judgment")
             if judgment == "disagree":
                 defects = c.get("defects", [])
                 if not defects:
-                    errors.append(f"{book_id}/critique-{c_id}: Disagreement requires at least one defect vector (Rule 12).")
+                    errors.append(
+                        f"{book_id}/critique-{c_id}: Disagreement requires at least one defect vector (Rule 12)."
+                    )
 
             total_critiques += 1
 
@@ -1022,7 +1051,9 @@ def audit_analytical_parity(vault_dir: Path) -> tuple[bool, str]:
             sol_args = inq.get("solutionArgumentIds") or inq.get("solution_argument_ids") or []
             for s_id in sol_args:
                 if s_id not in argument_ids:
-                    errors.append(f"{book_id}/inquiry-{inq_id}: solutionArgumentId '{s_id}' does not match any argument in analytical.json.")
+                    errors.append(
+                        f"{book_id}/inquiry-{inq_id}: solutionArgumentId '{s_id}' does not match any argument in analytical.json."
+                    )
 
             total_inquiries += 1
 
@@ -1059,7 +1090,7 @@ def check_analytical_parity(vault_dir: Path) -> DiagnosticResult:
     )
 
 
-def audit_syntopicon_parity(vault_dir: Path) -> Tuple[bool, str]:
+def audit_syntopicon_parity(vault_dir: Path) -> tuple[bool, str]:
     """Audits Level 4 Syntopicon registry, cross-vault citation anchors, and controversy referential parity."""
     topics_dir = vault_dir / "syntopicon" / "topics"
     books_dir = vault_dir / "books"
@@ -1067,20 +1098,20 @@ def audit_syntopicon_parity(vault_dir: Path) -> Tuple[bool, str]:
     if not topics_dir.exists():
         return False, f"Topics directory '{topics_dir}' does not exist."
 
-    topic_files = sorted(list(topics_dir.glob("*.json")))
+    topic_files = sorted(topics_dir.glob("*.json"))
     if not topic_files:
         return False, f"Zero syntopical topics found in '{topics_dir}'. At least 1 verified topic required."
 
-    errors: List[str] = []
+    errors: list[str] = []
     total_topics = 0
     total_terms = 0
     total_questions = 0
     total_controversies = 0
     total_books_involved: set[str] = set()
 
-    chapter_cache: Dict[Tuple[str, str], Optional[str]] = {}
+    chapter_cache: dict[tuple[str, str], str | None] = {}
 
-    def get_chapter_content(b_id: str, c_file: str) -> Optional[str]:
+    def get_chapter_content(b_id: str, c_file: str) -> str | None:
         key = (b_id, c_file)
         if key in chapter_cache:
             return chapter_cache[key]
@@ -1096,7 +1127,7 @@ def audit_syntopicon_parity(vault_dir: Path) -> Tuple[bool, str]:
             chapter_cache[key] = None
             return None
 
-    def validate_cross_citation(cite: dict, context_label: str) -> Optional[str]:
+    def validate_cross_citation(cite: dict, context_label: str) -> str | None:
         if not isinstance(cite, dict):
             errors.append(f"{context_label}: Citation must be a JSON object.")
             return None
@@ -1189,7 +1220,9 @@ def audit_syntopicon_parity(vault_dir: Path) -> Tuple[bool, str]:
             q_ref = c.get("questionId") or c.get("question_id")
 
             if not q_ref or q_ref not in question_ids:
-                errors.append(f"Topic '{t_id}' / Controversy '{c_title}': questionId '{q_ref}' does not match any framed question in topic.")
+                errors.append(
+                    f"Topic '{t_id}' / Controversy '{c_title}': questionId '{q_ref}' does not match any framed question in topic."
+                )
 
             perspectives = c.get("perspectives", [])
             if not perspectives:
@@ -1210,11 +1243,13 @@ def audit_syntopicon_parity(vault_dir: Path) -> Tuple[bool, str]:
             total_controversies += 1
 
         if len(topic_books) < 2:
-            errors.append(f"Topic '{t_id}': Multi-book invariant violated. Cites {len(topic_books)} book(s) ({topic_books}), but requires >= 2 distinct books.")
+            errors.append(
+                f"Topic '{t_id}': Multi-book invariant violated. Cites {len(topic_books)} book(s) ({topic_books}), but requires >= 2 distinct books."
+            )
 
     # Audit Syntopicon Dossier Reports (Rule 5)
     reports_dir = vault_dir / "syntopicon" / "reports"
-    report_files = sorted(list(reports_dir.glob("*.md"))) if reports_dir.exists() else []
+    report_files = sorted(reports_dir.glob("*.md")) if reports_dir.exists() else []
     total_reports = 0
 
     known_topic_ids = set()
@@ -1222,7 +1257,7 @@ def audit_syntopicon_parity(vault_dir: Path) -> Tuple[bool, str]:
         try:
             d = json.loads(tf.read_text(encoding="utf-8"))
             known_topic_ids.add(d.get("id") or tf.stem)
-        except Exception:
+        except Exception:  # noqa: S110 -- a topic file that cannot be read is reported by the loop below
             pass
 
     for rf in report_files:
@@ -1241,13 +1276,12 @@ def audit_syntopicon_parity(vault_dir: Path) -> Tuple[bool, str]:
                 topic_id_in_report = t_match.group(1).strip().strip('"').strip("'")
 
         if not topic_id_in_report:
-            if rf.name.endswith("-synthesis.md"):
-                topic_id_in_report = rf.name[:-len("-synthesis.md")]
-            else:
-                topic_id_in_report = rf.stem
+            topic_id_in_report = rf.name[: -len("-synthesis.md")] if rf.name.endswith("-synthesis.md") else rf.stem
 
         if topic_id_in_report not in known_topic_ids:
-            errors.append(f"Dossier '{rf.name}': References topic_id '{topic_id_in_report}' which does not exist in vault/syntopicon/topics/.")
+            errors.append(
+                f"Dossier '{rf.name}': References topic_id '{topic_id_in_report}' which does not exist in vault/syntopicon/topics/."
+            )
 
         total_reports += 1
 
@@ -1289,7 +1323,7 @@ def check_elementary_reading_parity(vault_dir: Path) -> DiagnosticResult:
     """Validates Level 1 Elementary Reading metrics, readability sanity bounds, and spine word count parity."""
     start_time = time.perf_counter()
     books_dir = vault_dir / "books"
-    errors: List[str] = []
+    errors: list[str] = []
     total_books = 0
     total_words = 0
     total_minutes = 0
@@ -1378,10 +1412,10 @@ def check_elementary_reading_parity(vault_dir: Path) -> DiagnosticResult:
 def check_modularity_and_vault_isolation() -> DiagnosticResult:
     """Enforces Directive 1.1 (zero ephemeral DB leaks in vault) and Directive 4 (<= 300 line modular ceiling)."""
     start_time = time.perf_counter()
-    errors: List[str] = []
+    errors: list[str] = []
 
     # 1. Check vault for leaked databases or ephemeral files (Directive 1.1)
-    db_leaks: List[str] = []
+    db_leaks: list[str] = []
     for ext in [".db", ".sqlite", ".sqlite3", ".wal", ".shm"]:
         for p in VAULT_DIR.rglob(f"*{ext}"):
             db_leaks.append(str(p.relative_to(ROOT_DIR)))
@@ -1389,7 +1423,7 @@ def check_modularity_and_vault_isolation() -> DiagnosticResult:
         errors.append(f"Directive 1.1 violation: Ephemeral database file(s) leaked in vault: {', '.join(db_leaks)}")
 
     # 2. Check line counts of ingestion modules and desktop source files (Directive 4)
-    over_limit: List[str] = []
+    over_limit: list[str] = []
     src_files = 0
     ingest_dir = ROOT_DIR / "packages" / "ingestion" / "ingest"
     if ingest_dir.exists():
@@ -1409,7 +1443,7 @@ def check_modularity_and_vault_isolation() -> DiagnosticResult:
                 lines = len(p.read_text(encoding="utf-8", errors="ignore").splitlines())
                 if lines > 300:
                     over_limit.append(f"{p.relative_to(desktop_src_dir)} ({lines} lines)")
-            except Exception:
+            except Exception:  # noqa: S110 -- a file this check cannot read is not a file over the line
                 pass
 
     # The Rust of the app, and the scripts of this folder, are source files too (TL-04). The check read neither,
@@ -1445,7 +1479,7 @@ def check_modularity_and_vault_isolation() -> DiagnosticResult:
 # ----------------------------------------------------------------------
 # ASCII Summary Table Formatter
 # ----------------------------------------------------------------------
-def print_audit_table(results: List[DiagnosticResult], use_color: bool = True) -> None:
+def print_audit_table(results: list[DiagnosticResult], use_color: bool = True) -> None:
     headers = [
         ("Vector / Diagnostic Check", 34),
         ("Target / Scope", 30),
@@ -1463,11 +1497,7 @@ def print_audit_table(results: List[DiagnosticResult], use_color: bool = True) -
     print(title.center(len(sep)), flush=True)
     print(bar, flush=True)
     print(sep, flush=True)
-    header_line = (
-        "|"
-        + "|".join(f" {headers[i][0].ljust(col_widths[i])} " for i in range(len(headers)))
-        + "|"
-    )
+    header_line = "|" + "|".join(f" {headers[i][0].ljust(col_widths[i])} " for i in range(len(headers))) + "|"
     print(header_line, flush=True)
     print(sep, flush=True)
 
@@ -1509,7 +1539,7 @@ def main() -> int:
 
     print("[*] Initializing Dynamic System Health Audit across workspace...", flush=True)
 
-    results: List[DiagnosticResult] = []
+    results: list[DiagnosticResult] = []
 
     print("    -> Evaluating Dynamic Ledger & Vault Parity...", flush=True)
     results.append(check_ledger_and_vault_parity())
@@ -1555,7 +1585,9 @@ def main() -> int:
     failed_results = [r for r in results if not r.passed]
 
     if failed_results:
-        print(f"\n[-] Diagnostic Invariant Violations Detected ({len(failed_results)} vector(s) failed):", file=sys.stderr)
+        print(
+            f"\n[-] Diagnostic Invariant Violations Detected ({len(failed_results)} vector(s) failed):", file=sys.stderr
+        )
         for fr in failed_results:
             print(f"\n  [FAILED] {fr.name}:", file=sys.stderr)
             for err in fr.errors[:10]:
@@ -1563,11 +1595,19 @@ def main() -> int:
             if len(fr.errors) > 10:
                 print(f"    ... and {len(fr.errors) - 10} more error(s)", file=sys.stderr)
 
-        status_msg = f"{ANSI_RED}[!] SYSTEM HEALTH: FAIL ({len(failed_results)} check(s) failed){ANSI_RESET}" if use_color else f"[!] SYSTEM HEALTH: FAIL ({len(failed_results)} check(s) failed)"
+        status_msg = (
+            f"{ANSI_RED}[!] SYSTEM HEALTH: FAIL ({len(failed_results)} check(s) failed){ANSI_RESET}"
+            if use_color
+            else f"[!] SYSTEM HEALTH: FAIL ({len(failed_results)} check(s) failed)"
+        )
         print("\n" + status_msg + "\n", file=sys.stderr)
         return 1
 
-    pass_msg = f"{ANSI_GREEN}[+] SYSTEM HEALTH: 100% PASS. All {len(results)} diagnostic vectors passed.{ANSI_RESET}" if use_color else f"[+] SYSTEM HEALTH: 100% PASS. All {len(results)} diagnostic vectors passed."
+    pass_msg = (
+        f"{ANSI_GREEN}[+] SYSTEM HEALTH: 100% PASS. All {len(results)} diagnostic vectors passed.{ANSI_RESET}"
+        if use_color
+        else f"[+] SYSTEM HEALTH: 100% PASS. All {len(results)} diagnostic vectors passed."
+    )
     print("\n" + pass_msg + "\n", flush=True)
     return 0
 

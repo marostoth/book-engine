@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, List, Optional, Pattern, Sequence, Tuple
+from re import Pattern
+from typing import Any
 
 # A number in a title: 12, XII or twelve
 _NUMBER = (
@@ -43,7 +45,7 @@ PAGES_PER_PART_WITHOUT_OUTLINE = 35
 class BookPart:
     """One part of the book: its outline titles, its pages and its kind."""
 
-    titles: Tuple[str, ...]
+    titles: tuple[str, ...]
     first_page: int  # 0-based
     end_page: int  # 0-based, the page after the last page of the part
     kind: str = CHAPTER
@@ -54,7 +56,7 @@ class BookPart:
         return " / ".join(self.titles)
 
     @property
-    def pages(self) -> List[int]:
+    def pages(self) -> list[int]:
         return list(range(self.first_page, self.end_page))
 
     @property
@@ -75,7 +77,7 @@ class _Start:
     opens: str = ""
 
 
-def _usable_entries(toc: Sequence[Sequence[Any]], page_count: int) -> List[Tuple[int, str, int]]:
+def _usable_entries(toc: Sequence[Sequence[Any]], page_count: int) -> list[tuple[int, str, int]]:
     """(level, title, 0-based page) for the outline entries that have a title and a page of this book."""
     entries = []
     for entry in toc:
@@ -85,7 +87,7 @@ def _usable_entries(toc: Sequence[Sequence[Any]], page_count: int) -> List[Tuple
     return entries
 
 
-def _chapter_level(entries: Sequence[Tuple[int, str, int]]) -> Tuple[int, Optional[Pattern[str]]]:
+def _chapter_level(entries: Sequence[tuple[int, str, int]]) -> tuple[int, Pattern[str] | None]:
     """The outline level of the chapters, and the title pattern that found them (None when no title looks like one)."""
     for pattern in (CHAPTER_TITLE, NUMBERED_TITLE):
         levels = Counter(level for level, title, _ in entries if pattern.search(title))
@@ -94,7 +96,8 @@ def _chapter_level(entries: Sequence[Tuple[int, str, int]]) -> Tuple[int, Option
     # No title looks like a chapter: the chapters are one level below the entries named like parts, if the outline
     # has such entries with entries inside them, or else on the first level that has more than one entry.
     part_levels = Counter(
-        level for index, (level, title, _) in enumerate(entries)
+        level
+        for index, (level, title, _) in enumerate(entries)
         if PART_TITLE.search(title) and index + 1 < len(entries) and entries[index + 1][0] > level
     )
     if part_levels:
@@ -103,25 +106,25 @@ def _chapter_level(entries: Sequence[Tuple[int, str, int]]) -> Tuple[int, Option
     return next((level for level in sorted(counts) if counts[level] > 1), min(counts)), None
 
 
-def _most_common(levels: Counter) -> int:
+def _most_common(levels: Counter[int]) -> int:
     """The level that holds the most entries; of two levels that hold as many, the one nearer the top."""
     most = max(levels.values())
-    return min(level for level, count in levels.items() if count == most)
+    return int(min(level for level, count in levels.items() if count == most))
 
 
-def _is_chapter_title(title: str, pattern: Optional[Pattern[str]]) -> bool:
+def _is_chapter_title(title: str, pattern: Pattern[str] | None) -> bool:
     return pattern is not None and bool(pattern.search(title)) and not APPENDIX_TITLE.search(title)
 
 
-def _starts(entries: Sequence[Tuple[int, str, int]], level: int, pattern: Optional[Pattern[str]]) -> List[_Start]:
+def _starts(entries: Sequence[tuple[int, str, int]], level: int, pattern: Pattern[str] | None) -> list[_Start]:
     """Where each part starts, in outline order."""
 
     def is_chapter(entry_level: int, title: str) -> bool:
         return entry_level == level and (pattern is None or _is_chapter_title(title, pattern))
 
     all_chapters = sum(1 for entry_level, title, _ in entries if is_chapter(entry_level, title))
-    starts: List[_Start] = []
-    inside_part_level: Optional[int] = None
+    starts: list[_Start] = []
+    inside_part_level: int | None = None
     for index, (entry_level, title, page) in enumerate(entries):
         if inside_part_level is not None and entry_level > inside_part_level:
             continue  # a section of a part
@@ -129,7 +132,7 @@ def _starts(entries: Sequence[Tuple[int, str, int]], level: int, pattern: Option
         if entry_level > level:
             continue
         inner = []
-        for inner_entry in entries[index + 1:]:
+        for inner_entry in entries[index + 1 :]:
             if inner_entry[0] <= entry_level:
                 break
             inner.append(inner_entry)
@@ -144,7 +147,7 @@ def _starts(entries: Sequence[Tuple[int, str, int]], level: int, pattern: Option
     return starts
 
 
-def outline_parts(toc: Sequence[Sequence[Any]], page_count: int) -> Tuple[List[BookPart], List[int]]:
+def outline_parts(toc: Sequence[Sequence[Any]], page_count: int) -> tuple[list[BookPart], list[int]]:
     """The parts of the book in page order, and the 0-based pages that no part covers.
 
     `toc` is the outline as PyMuPDF gives it: [level, title, 1-based page, ...] per entry.
@@ -158,7 +161,7 @@ def outline_parts(toc: Sequence[Sequence[Any]], page_count: int) -> Tuple[List[B
         return parts, []
 
     level, pattern = _chapter_level(entries)
-    grouped: List[List[_Start]] = []
+    grouped: list[list[_Start]] = []
     for start in sorted(_starts(entries, level, pattern), key=lambda start: start.page):  # stable sort
         if grouped and grouped[-1][0].page == start.page:
             grouped[-1].append(start)
@@ -168,7 +171,7 @@ def outline_parts(toc: Sequence[Sequence[Any]], page_count: int) -> Tuple[List[B
     chapter_places = [
         place for place, group in enumerate(grouped) if any(_is_chapter_title(start.title, pattern) for start in group)
     ]
-    kinds: List[str] = []
+    kinds: list[str] = []
     for place, group in enumerate(grouped):
         if any(APPENDIX_TITLE.search(start.title) for start in group):
             kinds.append(APPENDIX)
@@ -197,7 +200,7 @@ def outline_parts(toc: Sequence[Sequence[Any]], page_count: int) -> Tuple[List[B
 
 def describe_pages(pages: Sequence[int]) -> str:
     """Names 0-based pages for people, with 1-based numbers: "page 1" or "pages 1-6, 9"."""
-    runs: List[List[int]] = []
+    runs: list[list[int]] = []
     for page in sorted(set(pages)):
         if runs and page == runs[-1][1] + 1:
             runs[-1][1] = page

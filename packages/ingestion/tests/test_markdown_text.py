@@ -1,17 +1,15 @@
 """Book text in chapter Markdown: text that looks like HTML is written so that the app shows it as text (SEC-01)."""
 
 from pathlib import Path
-from typing import List
 
 from bs4 import BeautifulSoup
 from ebooklib import epub
-
 from ingest.epub_parser import html_to_markdown_blocks
 from ingest.markdown_text import escape_markdown_text, unescape_markdown_text
 from ingest.pipeline import ingest_epub
 
 
-def blocks(body: str) -> List[str]:
+def blocks(body: str) -> list[str]:
     """The Markdown blocks that the EPUB import writes for an XHTML body."""
     return html_to_markdown_blocks(BeautifulSoup(f"<html><body>{body}</body></html>", "html.parser"))
 
@@ -51,8 +49,23 @@ def test_text_that_cannot_start_a_tag_or_a_character_reference_stays_as_it_is() 
 
 
 def test_written_text_reads_back_as_the_book_has_it() -> None:
-    texts = ["plain", "<img src=x>", "</p>", "<!-- note -->", "<?php", "2 < 3", "AT&T", "R&D;", "&lt;", "&amp;lt;", "&#60;",
-             "<&lt;", "&<b>", "&&lt;", "&amp;<b"]
+    texts = [
+        "plain",
+        "<img src=x>",
+        "</p>",
+        "<!-- note -->",
+        "<?php",
+        "2 < 3",
+        "AT&T",
+        "R&D;",
+        "&lt;",
+        "&amp;lt;",
+        "&#60;",
+        "<&lt;",
+        "&<b>",
+        "&&lt;",
+        "&amp;<b",
+    ]
     for text in texts:
         assert unescape_markdown_text(escape_markdown_text(text)) == text, text
 

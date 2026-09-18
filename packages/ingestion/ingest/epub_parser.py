@@ -1,12 +1,13 @@
 """EPUB document parser and structure extractor."""
 
 from __future__ import annotations
+
 import re
-from pathlib import Path
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
-from bs4 import BeautifulSoup, CData, NavigableString, Tag
-from bs4.element import PageElement, PreformattedString
-import ebooklib
+from collections.abc import Iterable, Iterator
+from typing import Any
+
+from bs4 import BeautifulSoup, CData, Tag
+from bs4.element import NavigableString, PageElement, PreformattedString
 from ebooklib import epub
 
 from ingest.book_id import book_id_of_name, plain_letters
@@ -15,7 +16,7 @@ from ingest.markdown_text import escape_heading_mark, escape_markdown_text
 from ingest.models import TOCItem
 
 
-def extract_metadata(book: epub.EpubBook, fallback_id: str) -> Tuple[str, str, str, str]:
+def extract_metadata(book: epub.EpubBook, fallback_id: str) -> tuple[str, str, str, str]:
     """Extract (book_id, title, author, language) from EPUB metadata."""
     title_meta = book.get_metadata("DC", "title")
     title = title_meta[0][0] if title_meta else fallback_id.replace("-", " ").title()
@@ -33,7 +34,7 @@ def extract_metadata(book: epub.EpubBook, fallback_id: str) -> Tuple[str, str, s
     return book_id_of_name(safe_book_id, book_id), title, author, language
 
 
-def normalize_toc_hierarchy(items: List[TOCItem]) -> List[TOCItem]:
+def normalize_toc_hierarchy(items: list[TOCItem]) -> list[TOCItem]:
     """Structure flat or semi-flat TOC lists into hierarchical Books/Parts -> Chapters -> Sections.
 
     A division and a chapter are the same thing here as in a chapter file, so both rules live in
@@ -48,8 +49,8 @@ def normalize_toc_hierarchy(items: List[TOCItem]) -> List[TOCItem]:
     if not (has_books and has_chapters):
         return items
 
-    normalized: List[TOCItem] = []
-    current_book: Optional[TOCItem] = None
+    normalized: list[TOCItem] = []
+    current_book: TOCItem | None = None
 
     for it in items:
         title = it.title.strip()
@@ -57,40 +58,28 @@ def normalize_toc_hierarchy(items: List[TOCItem]) -> List[TOCItem]:
         is_chapter = bool(chapter_pattern.match(title))
 
         if is_book:
-            current_book = TOCItem(
-                id=it.id,
-                title=it.title,
-                href=it.href,
-                level=1,
-                subitems=list(it.subitems)
-            )
+            current_book = TOCItem(id=it.id, title=it.title, href=it.href, level=1, subitems=list(it.subitems))
             for s in current_book.subitems:
                 s.level = 2
                 for ss in s.subitems:
                     ss.level = 3
             normalized.append(current_book)
         elif is_chapter and current_book is not None:
-            ch_copy = TOCItem(
-                id=it.id,
-                title=it.title,
-                href=it.href,
-                level=2,
-                subitems=list(it.subitems)
-            )
+            ch_copy = TOCItem(id=it.id, title=it.title, href=it.href, level=2, subitems=list(it.subitems))
             for s in ch_copy.subitems:
                 s.level = 3
                 for ss in s.subitems:
                     ss.level = 4
             current_book.subitems.append(ch_copy)
         else:
-            if current_book is not None and not is_chapter and not is_book and "license" not in title.lower() and "gutenberg" not in title.lower():
-                ch_copy = TOCItem(
-                    id=it.id,
-                    title=it.title,
-                    href=it.href,
-                    level=2,
-                    subitems=list(it.subitems)
-                )
+            if (
+                current_book is not None
+                and not is_chapter
+                and not is_book
+                and "license" not in title.lower()
+                and "gutenberg" not in title.lower()
+            ):
+                ch_copy = TOCItem(id=it.id, title=it.title, href=it.href, level=2, subitems=list(it.subitems))
                 for s in ch_copy.subitems:
                     s.level = 3
                 current_book.subitems.append(ch_copy)
@@ -102,51 +91,59 @@ def normalize_toc_hierarchy(items: List[TOCItem]) -> List[TOCItem]:
     return normalized
 
 
-def parse_toc(toc_list: Any, level: int = 1) -> List[TOCItem]:
+def parse_toc(toc_list: Any, level: int = 1) -> list[TOCItem]:
     """Recursively parse ebooklib's book.toc into hierarchical TOCItem list."""
-    items: List[TOCItem] = []
+    items: list[TOCItem] = []
     if not toc_list:
         return items
 
     for entry in toc_list:
-        if isinstance(entry, tuple) or isinstance(entry, list):
+        if isinstance(entry, (tuple, list)):
             # Form: (parent_link_or_section, [subitems])
             parent = entry[0]
             children_raw = entry[1] if len(entry) > 1 else []
             subitems = parse_toc(children_raw, level + 1)
 
             if isinstance(parent, epub.Link):
-                items.append(TOCItem(
-                    id=parent.uid or parent.href.replace(".", "_"),
-                    title=parent.title,
-                    href=parent.href,
-                    level=level,
-                    subitems=subitems
-                ))
+                items.append(
+                    TOCItem(
+                        id=parent.uid or parent.href.replace(".", "_"),
+                        title=parent.title,
+                        href=parent.href,
+                        level=level,
+                        subitems=subitems,
+                    )
+                )
             elif isinstance(parent, epub.Section):
-                items.append(TOCItem(
-                    id=parent.href.replace(".", "_") if parent.href else f"sec_{len(items)}",
-                    title=parent.title,
-                    href=parent.href or "",
-                    level=level,
-                    subitems=subitems
-                ))
+                items.append(
+                    TOCItem(
+                        id=parent.href.replace(".", "_") if parent.href else f"sec_{len(items)}",
+                        title=parent.title,
+                        href=parent.href or "",
+                        level=level,
+                        subitems=subitems,
+                    )
+                )
         elif isinstance(entry, epub.Link):
-            items.append(TOCItem(
-                id=entry.uid or entry.href.replace(".", "_"),
-                title=entry.title,
-                href=entry.href,
-                level=level,
-                subitems=[]
-            ))
+            items.append(
+                TOCItem(
+                    id=entry.uid or entry.href.replace(".", "_"),
+                    title=entry.title,
+                    href=entry.href,
+                    level=level,
+                    subitems=[],
+                )
+            )
         elif isinstance(entry, epub.Section):
-            items.append(TOCItem(
-                id=entry.href.replace(".", "_") if entry.href else f"sec_{len(items)}",
-                title=entry.title,
-                href=entry.href or "",
-                level=level,
-                subitems=[]
-            ))
+            items.append(
+                TOCItem(
+                    id=entry.href.replace(".", "_") if entry.href else f"sec_{len(items)}",
+                    title=entry.title,
+                    href=entry.href or "",
+                    level=level,
+                    subitems=[],
+                )
+            )
 
     if level == 1:
         return normalize_toc_hierarchy(items)
@@ -162,10 +159,50 @@ SKIPPED_TAGS = {"head", "script", "style", "template", "nav"}
 BOILERPLATE_CLASSES = {"pg-boilerplate"}
 # Elements that a browser shows as blocks, so that their text never runs into the text around them (IN-02)
 BLOCK_TAGS = {
-    "address", "article", "aside", "blockquote", "body", "caption", "center", "dd", "details", "dialog", "div", "dl",
-    "dt", "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hgroup",
-    "hr", "li", "main", "menu", "nav", "ol", "p", "pre", "section", "summary", "table", "tbody", "td", "tfoot", "th",
-    "thead", "tr", "ul",
+    "address",
+    "article",
+    "aside",
+    "blockquote",
+    "body",
+    "caption",
+    "center",
+    "dd",
+    "details",
+    "dialog",
+    "div",
+    "dl",
+    "dt",
+    "fieldset",
+    "figcaption",
+    "figure",
+    "footer",
+    "form",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "header",
+    "hgroup",
+    "hr",
+    "li",
+    "main",
+    "menu",
+    "nav",
+    "ol",
+    "p",
+    "pre",
+    "section",
+    "summary",
+    "table",
+    "tbody",
+    "td",
+    "tfoot",
+    "th",
+    "thead",
+    "tr",
+    "ul",
 }
 HEADINGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
 # While inline text is written, a `<br>` is LINE_BREAK, and the edge of a block inside the text, such as a paragraph of
@@ -174,7 +211,7 @@ LINE_BREAK = "\n"
 BLOCK_EDGE = "\x1f"
 
 
-def html_to_markdown_blocks(soup: BeautifulSoup, element_blocks: Optional[Dict[str, int]] = None) -> List[str]:
+def html_to_markdown_blocks(soup: BeautifulSoup, element_blocks: dict[str, int] | None = None) -> list[str]:
     """Convert HTML content into a list of clean Markdown blocks (paragraphs, headers, etc.).
 
     With `element_blocks`, it also notes the block where each element with an id, or an `<a name>`, starts, because
@@ -192,8 +229,8 @@ def html_to_markdown_blocks(soup: BeautifulSoup, element_blocks: Optional[Dict[s
 class _BlockWriter:
     """Writes the Markdown blocks of HTML elements, and notes the block where each element starts."""
 
-    def __init__(self, element_blocks: Optional[Dict[str, int]]) -> None:
-        self.blocks: List[str] = []
+    def __init__(self, element_blocks: dict[str, int] | None) -> None:
+        self.blocks: list[str] = []
         self.element_blocks = element_blocks
 
     def note_starts(self, element: Tag, with_inner_elements: bool) -> None:
@@ -203,7 +240,7 @@ class _BlockWriter:
     def add_blocks_of(self, container: Tag) -> None:
         """Adds the blocks of the content of `container`. Text and inline elements between two blocks make a
         paragraph."""
-        run: List[PageElement] = []
+        run: list[PageElement] = []
         for child in container.children:
             if isinstance(child, Tag) and _is_block(child):
                 self.add_paragraph(run)
@@ -288,7 +325,7 @@ class _BlockWriter:
         blocks."""
         inner = _BlockWriter(None)
         inner.add_blocks_of(quote)
-        lines: List[str] = []
+        lines: list[str] = []
         for block in inner.blocks:
             if lines:
                 lines.append(">")
@@ -301,7 +338,7 @@ class _BlockWriter:
         caption = table.find("caption", recursive=False)
         if caption is not None:
             self.add_paragraph(caption.children)
-        rows: List[str] = []
+        rows: list[str] = []
         for tr in table.find_all("tr"):
             cells = [_inline_text(cell.children, "<br>") for cell in tr.find_all(["td", "th"])]
             if any(cells):
@@ -310,7 +347,7 @@ class _BlockWriter:
             self.add_text("\n".join(rows))
 
 
-def _note_element_starts(element: Tag, block: int, element_blocks: Dict[str, int], with_inner_elements: bool) -> None:
+def _note_element_starts(element: Tag, block: int, element_blocks: dict[str, int], with_inner_elements: bool) -> None:
     """Notes `block` as the start of `element`, and with `with_inner_elements` of every element inside it."""
     for el in [element, *element.find_all(True)] if with_inner_elements else [element]:
         name = el.get("id") or (el.get("name") if el.name == "a" else None)
@@ -338,18 +375,18 @@ def _is_book_text(node: PageElement) -> bool:
     return isinstance(node, NavigableString) and (isinstance(node, CData) or not isinstance(node, PreformattedString))
 
 
-def _list_lines(element: Tag, indent: str) -> List[str]:
+def _list_lines(element: Tag, indent: str) -> list[str]:
     """The lines of a list: `- ` or `1. ` and the text of each item, and below it the items of its inner lists,
     indented.
 
     An item keeps its own `#` mark, because Markdown reads a heading inside a list item too (IN-08).
     """
     ordered = element.name.lower() == "ol"
-    lines: List[str] = []
+    lines: list[str] = []
     for number, item in enumerate(element.find_all("li", recursive=False), start=1):
         marker = f"{number}." if ordered else "-"
-        text_nodes: List[PageElement] = []
-        inner_lists: List[Tag] = []
+        text_nodes: list[PageElement] = []
+        inner_lists: list[Tag] = []
         for child in item.children:
             if isinstance(child, Tag) and child.name.lower() in ("ul", "ol"):
                 inner_lists.append(child)
@@ -363,7 +400,7 @@ def _list_lines(element: Tag, indent: str) -> List[str]:
     return lines
 
 
-def _preformatted_block(pre: Tag) -> Optional[str]:
+def _preformatted_block(pre: Tag) -> str | None:
     """Preformatted text, such as code, as a `<pre>` block with the lines and the spaces of the book (IN-02).
 
     The reader reads Markdown marks in every block, so `*`, a backtick, `[` and a `#` that starts a line are written as
@@ -444,4 +481,4 @@ def _marked(inner: str, mark: str) -> str:
     if not core:
         return inner
     start = len(inner) - len(inner.lstrip())
-    return f"{inner[:start]}{mark}{core}{mark}{inner[start + len(core):]}"
+    return f"{inner[:start]}{mark}{core}{mark}{inner[start + len(core) :]}"

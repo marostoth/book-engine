@@ -16,12 +16,20 @@ fn write_book(sandbox: &Sandbox, id: &str, chapters: &[&str]) {
 /// Writes a book like `write_book` into the folder `books/<folder>`, with a `_meta.json` that names it `book_id`.
 fn write_book_in_folder(sandbox: &Sandbox, folder: &str, book_id: &str, chapters: &[&str]) {
     let spine: Vec<String> = (1..=chapters.len())
-        .map(|n| format!(r#"{{ "id": "ch-{n:02}", "title": "Chapter {n}", "file_path": "ch-{n:02}.md", "order": {n} }}"#))
+        .map(|n| {
+            format!(r#"{{ "id": "ch-{n:02}", "title": "Chapter {n}", "file_path": "ch-{n:02}.md", "order": {n} }}"#)
+        })
         .collect();
-    sandbox.write(&format!("books/{folder}/_meta.json"), &book_meta(book_id, &spine.join(", ")));
+    sandbox.write(
+        &format!("books/{folder}/_meta.json"),
+        &book_meta(book_id, &spine.join(", ")),
+    );
     for (index, text) in chapters.iter().enumerate() {
         let n = index + 1;
-        sandbox.write(&format!("books/{folder}/ch-{n:02}.md"), &format!("# Chapter {n}\n\n{text} ^p-001\n"));
+        sandbox.write(
+            &format!("books/{folder}/ch-{n:02}.md"),
+            &format!("# Chapter {n}\n\n{text} ^p-001\n"),
+        );
     }
 }
 
@@ -48,7 +56,11 @@ fn found(query: &str) -> Vec<String> {
 
 /// The files that a run could not read, each with its reason, in the order the run gives them.
 fn problems(summary: &IndexSummary) -> Vec<(String, String)> {
-    summary.problems.iter().map(|problem| (problem.file.clone(), problem.reason.clone())).collect()
+    summary
+        .problems
+        .iter()
+        .map(|problem| (problem.file.clone(), problem.reason.clone()))
+        .collect()
 }
 
 fn problem(file: &str, reason: &str) -> (String, String) {
@@ -78,8 +90,16 @@ fn a_paragraph_that_starts_with_a_hash_can_be_found() {
     );
     index();
 
-    assert_eq!(found("marketprofile"), ["hashes/ch-01"], "a hashtag is text of the book");
-    assert_eq!(found("wheat"), ["hashes/ch-01"], "a `#` the import wrote as `&#35;` is text too");
+    assert_eq!(
+        found("marketprofile"),
+        ["hashes/ch-01"],
+        "a hashtag is text of the book"
+    );
+    assert_eq!(
+        found("wheat"),
+        ["hashes/ch-01"],
+        "a `#` the import wrote as `&#35;` is text too"
+    );
     assert_eq!(found("seven"), ["hashes/ch-01"], "more than six marks make no heading");
     assert_eq!(found("marmots"), nothing(), "a heading is left out, as before");
 }
@@ -91,25 +111,44 @@ fn one_broken_book_does_not_stop_the_other_books() {
     index();
 
     // The reader adds a chapter to one book, and another book gets a damaged _meta.json.
-    write_book(&sandbox, "healthy", &["Glaciers carved the fjords.", "Volcanoes raised the islands."]);
+    write_book(
+        &sandbox,
+        "healthy",
+        &["Glaciers carved the fjords.", "Volcanoes raised the islands."],
+    );
     sandbox.write("books/broken/_meta.json", DAMAGED_META);
-    sandbox.write("books/broken/ch-01.md", "# Chapter 1\n\nMarmots whistle at dawn. ^p-001\n");
+    sandbox.write(
+        "books/broken/ch-01.md",
+        "# Chapter 1\n\nMarmots whistle at dawn. ^p-001\n",
+    );
 
     let summary = index();
     assert_eq!(found("volcanoes"), ["healthy/ch-02"], "the healthy book is up to date");
     assert_eq!(found("glaciers"), ["healthy/ch-01"]);
     assert_eq!(found("marmots"), nothing(), "the damaged book is not read");
-    assert_eq!(problems(&summary), [problem("books/broken/_meta.json", &damaged_meta_reason())], "the file is named");
+    assert_eq!(
+        problems(&summary),
+        [problem("books/broken/_meta.json", &damaged_meta_reason())],
+        "the file is named"
+    );
 }
 
 #[test]
 fn a_chapter_that_is_not_utf8_text_does_not_stop_its_book() {
     let sandbox = Sandbox::new();
-    write_book(&sandbox, "mixed", &["Otters float on kelp.", "Cafe tables line the square."]);
+    write_book(
+        &sandbox,
+        "mixed",
+        &["Otters float on kelp.", "Cafe tables line the square."],
+    );
     index();
 
     // The reader edits chapter 1, and chapter 2 is saved again in an old code page, where é is the byte 0xE9.
-    write_book(&sandbox, "mixed", &["Otters float on kelp and sleep.", "Cafe tables line the square."]);
+    write_book(
+        &sandbox,
+        "mixed",
+        &["Otters float on kelp and sleep.", "Cafe tables line the square."],
+    );
     std::fs::write(
         sandbox.vault().join("books/mixed/ch-02.md"),
         b"# Chapter 2\n\nCaf\xe9 tables line the square. ^p-001\n",
@@ -117,9 +156,20 @@ fn a_chapter_that_is_not_utf8_text_does_not_stop_its_book() {
     .expect("write chapter 2");
 
     let summary = index();
-    assert_eq!(found("sleep"), ["mixed/ch-01"], "the other chapter of the book is up to date");
-    assert_eq!(found("tables"), ["mixed/ch-02"], "the chapter keeps the text that search read last");
-    assert_eq!(problems(&summary), [problem("books/mixed/ch-02.md", "is not UTF-8 text")]);
+    assert_eq!(
+        found("sleep"),
+        ["mixed/ch-01"],
+        "the other chapter of the book is up to date"
+    );
+    assert_eq!(
+        found("tables"),
+        ["mixed/ch-02"],
+        "the chapter keeps the text that search read last"
+    );
+    assert_eq!(
+        problems(&summary),
+        [problem("books/mixed/ch-02.md", "is not UTF-8 text")]
+    );
 }
 
 #[test]
@@ -133,7 +183,10 @@ fn a_book_that_cannot_be_read_keeps_its_search_results() {
     let summary = index();
     // A file in OneDrive can be locked or offline for a moment, so search keeps what it read last.
     assert_eq!(found("pins"), ["broken/ch-01"], "the book keeps its search results");
-    assert_eq!(problems(&summary), [problem("books/broken/_meta.json", &damaged_meta_reason())]);
+    assert_eq!(
+        problems(&summary),
+        [problem("books/broken/_meta.json", &damaged_meta_reason())]
+    );
 }
 
 #[test]
@@ -152,7 +205,11 @@ fn a_deleted_book_leaves_search() {
 
     let summary = index();
     assert_eq!(found("puffins"), nothing(), "a deleted book leaves search");
-    assert_eq!(found("lemmings"), nothing(), "a folder with no _meta.json leaves search");
+    assert_eq!(
+        found("lemmings"),
+        nothing(),
+        "a folder with no _meta.json leaves search"
+    );
     assert_eq!(found("herons"), ["kept/ch-01"], "the other book stays");
     assert!(summary.problems.is_empty(), "{:?}", summary.problems);
 
@@ -165,7 +222,11 @@ fn a_deleted_book_leaves_search() {
 #[test]
 fn a_chapter_that_leaves_its_book_leaves_search() {
     let sandbox = Sandbox::new();
-    write_book(&sandbox, "atlas", &["Deserts cover a third of the land.", "Rivers carry silt to the sea."]);
+    write_book(
+        &sandbox,
+        "atlas",
+        &["Deserts cover a third of the land.", "Rivers carry silt to the sea."],
+    );
     index();
     assert_eq!(found("rivers"), ["atlas/ch-02"]);
 
@@ -174,7 +235,11 @@ fn a_chapter_that_leaves_its_book_leaves_search() {
     write_book(&sandbox, "atlas", &["Deserts cover a third of the land."]);
 
     let summary = index();
-    assert_eq!(found("rivers"), nothing(), "the chapter the book no longer lists leaves search");
+    assert_eq!(
+        found("rivers"),
+        nothing(),
+        "the chapter the book no longer lists leaves search"
+    );
     assert_eq!(found("deserts"), ["atlas/ch-01"]);
     assert!(summary.problems.is_empty(), "{:?}", summary.problems);
 }
@@ -182,7 +247,11 @@ fn a_chapter_that_leaves_its_book_leaves_search() {
 #[test]
 fn a_chapter_file_that_is_missing_is_named_and_leaves_search() {
     let sandbox = Sandbox::new();
-    write_book(&sandbox, "atlas", &["Deserts cover a third of the land.", "Rivers carry silt to the sea."]);
+    write_book(
+        &sandbox,
+        "atlas",
+        &["Deserts cover a third of the land.", "Rivers carry silt to the sea."],
+    );
     index();
     assert_eq!(found("rivers"), ["atlas/ch-02"]);
 
@@ -190,15 +259,25 @@ fn a_chapter_file_that_is_missing_is_named_and_leaves_search() {
     std::fs::remove_file(sandbox.vault().join("books/atlas/ch-02.md")).expect("remove chapter 2");
 
     let summary = index();
-    assert_eq!(found("rivers"), nothing(), "the text is gone, so search does not find it");
+    assert_eq!(
+        found("rivers"),
+        nothing(),
+        "the text is gone, so search does not find it"
+    );
     assert_eq!(found("deserts"), ["atlas/ch-01"]);
-    assert_eq!(problems(&summary), [problem("books/atlas/ch-02.md", "is missing, but _meta.json lists it")]);
+    assert_eq!(
+        problems(&summary),
+        [problem("books/atlas/ch-02.md", "is missing, but _meta.json lists it")]
+    );
 }
 
 #[test]
 fn a_chapter_list_that_cannot_be_used_is_named() {
     let sandbox = Sandbox::new();
-    sandbox.write("books/no-list/_meta.json", r#"{ "book_id": "no-list", "title": "No List" }"#);
+    sandbox.write(
+        "books/no-list/_meta.json",
+        r#"{ "book_id": "no-list", "title": "No List" }"#,
+    );
     sandbox.write(
         "books/no-id/_meta.json",
         &book_meta(
@@ -210,11 +289,18 @@ fn a_chapter_list_that_cannot_be_used_is_named() {
     sandbox.write("books/no-id/ch-02.md", "# Chapter 2\n\nBeavers build dams. ^p-001\n");
 
     let summary = index();
-    assert_eq!(found("beavers"), ["no-id/ch-02"], "the chapter with an id and a file is read");
+    assert_eq!(
+        found("beavers"),
+        ["no-id/ch-02"],
+        "the chapter with an id and a file is read"
+    );
     assert_eq!(
         problems(&summary),
         [
-            problem("books/no-id/_meta.json", "lists a chapter with no \"id\" or no \"file_path\" (number 1 in \"spine\")"),
+            problem(
+                "books/no-id/_meta.json",
+                "lists a chapter with no \"id\" or no \"file_path\" (number 1 in \"spine\")"
+            ),
             problem("books/no-list/_meta.json", "has no chapter list (\"spine\")"),
         ]
     );
@@ -226,10 +312,19 @@ fn a_chapter_list_that_cannot_be_used_is_named() {
 #[test]
 fn search_and_the_library_know_a_book_by_its_folder_name() {
     let sandbox = Sandbox::new();
-    write_book_in_folder(&sandbox, "smith", "wealth-of-nations", &["Pins are made in eighteen steps."]);
+    write_book_in_folder(
+        &sandbox,
+        "smith",
+        "wealth-of-nations",
+        &["Pins are made in eighteen steps."],
+    );
 
     index();
-    let library: Vec<String> = scan_library_books().expect("read the library").into_iter().map(|book| book.id).collect();
+    let library: Vec<String> = scan_library_books()
+        .expect("read the library")
+        .into_iter()
+        .map(|book| book.id)
+        .collect();
     assert_eq!(library, ["smith"]);
     assert_eq!(found("pins"), ["smith/ch-01"]);
 }
@@ -240,11 +335,21 @@ fn search_and_the_library_know_a_book_by_its_folder_name() {
 fn a_renamed_book_folder_is_named_with_its_old_name() {
     let sandbox = Sandbox::new();
     // Renamed: the notes have the name in _meta.json, and no book folder has that name.
-    write_book_in_folder(&sandbox, "smith", "wealth-of-nations", &["Pins are made in eighteen steps."]);
+    write_book_in_folder(
+        &sandbox,
+        "smith",
+        "wealth-of-nations",
+        &["Pins are made in eighteen steps."],
+    );
     sandbox.write("notes/wealth-of-nations/ch-01-notes.md", "# Notes\n");
     // A copy of a book that is still in the vault: the notes belong to that book.
     write_book(&sandbox, "hume", &["Custom is the great guide of human life."]);
-    write_book_in_folder(&sandbox, "hume-copy", "hume", &["Custom is the great guide of human life."]);
+    write_book_in_folder(
+        &sandbox,
+        "hume-copy",
+        "hume",
+        &["Custom is the great guide of human life."],
+    );
     sandbox.write("notes/hume/ch-01-notes.md", "# Notes\n");
     // No notes have the name in _meta.json, so nothing is hidden.
     write_book_in_folder(&sandbox, "fresh", "draft", &["Nothing was read here yet."]);
@@ -252,7 +357,10 @@ fn a_renamed_book_folder_is_named_with_its_old_name() {
     let summary = index();
     assert_eq!(
         summary.renamed_books,
-        [RenamedBook { folder: "smith".to_string(), old_name: "wealth-of-nations".to_string() }]
+        [RenamedBook {
+            folder: "smith".to_string(),
+            old_name: "wealth-of-nations".to_string()
+        }]
     );
     assert!(summary.problems.is_empty(), "{:?}", summary.problems);
 }
@@ -278,8 +386,10 @@ fn search_finds_each_paragraph_of_a_chapter_with_any_line_ending() {
             .map(|hit| (hit.book_id, hit.anchor))
             .collect();
         hits.sort();
-        let expected: Vec<(String, String)> =
-            ["old-mac", "unix", "windows"].iter().map(|id| (id.to_string(), anchor.to_string())).collect();
+        let expected: Vec<(String, String)> = ["old-mac", "unix", "windows"]
+            .iter()
+            .map(|id| (id.to_string(), anchor.to_string()))
+            .collect();
         assert_eq!(hits, expected, "every book finds {word:?} in its own paragraph");
     }
 }

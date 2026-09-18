@@ -6,13 +6,17 @@
     "apps/desktop"
   ],
   "engines": {
-    "node": ">=22.6.0"
+    "node": ">=22.19.0"
   },
   "scripts": {
     "predev": "kill-port 5173",
     "dev": "npm --prefix apps/desktop run dev",
     "build": "npm --prefix apps/desktop run build",
-    "tauri": "npm --prefix apps/desktop run tauri"
+    "tauri": "npm --prefix apps/desktop run tauri",
+    "check": "npm run check:rust && npm run check:web && npm run check:python",
+    "check:rust": "cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml --check && cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml",
+    "check:web": "npm --prefix apps/desktop run tsc && npm --prefix apps/desktop run lint && npm --prefix apps/desktop test",
+    "check:python": "python -m ruff check packages/ingestion .agent/skills && python -m ruff format --check packages/ingestion .agent/skills && python -m mypy --config-file packages/ingestion/pyproject.toml packages/ingestion/ingest && python -m pytest packages/ingestion/tests -q"
   },
   "devDependencies": {
     "kill-port": "^2.0.1"

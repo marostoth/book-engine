@@ -14,12 +14,10 @@ import json
 import re
 import zipfile
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 import ebooklib
 import pytest
 from ebooklib import epub
-
 from ingest.endnotes import EndnoteRegistry
 from ingest.line_endings import read_html
 from ingest.note_documents import (
@@ -82,15 +80,14 @@ CHAPTER_CITING = (
 NOTE = '<div id="n1"><p>Smith writes of the pin maker in the first chapter of the first book of his work.</p></div>'
 
 
-def make_epub(path: Path, documents: Dict[str, str], entries: List[Tuple[str, str]], inside: str = "") -> Path:
+def make_epub(path: Path, documents: dict[str, str], entries: list[tuple[str, str]], inside: str = "") -> Path:
     """An EPUB with a document for each body of `documents`, and a contents of `(href, title)` entries.
 
     `inside` puts the documents in a folder of their own, as a book made by a converter does (`Text/ch01.xhtml`).
     """
     where = f"{inside}/" if inside else ""
     manifest = "".join(
-        f'<item id="d{n}" href="{where}{name}" media-type="application/xhtml+xml"/>'
-        for n, name in enumerate(documents)
+        f'<item id="d{n}" href="{where}{name}" media-type="application/xhtml+xml"/>' for n, name in enumerate(documents)
     )
     spine = "".join(f'<itemref idref="d{n}"/>' for n in range(len(documents)))
     links = "".join(f'<li><a href="{where}{href}">{title}</a></li>' for href, title in entries)
@@ -104,18 +101,18 @@ def make_epub(path: Path, documents: Dict[str, str], entries: List[Tuple[str, st
     return path
 
 
-def import_book(folder: Path, documents: Dict[str, str], entries: List[Tuple[str, str]] = (), inside: str = ""):
+def import_book(folder: Path, documents: dict[str, str], entries: list[tuple[str, str]] = (), inside: str = ""):
     """Imports a book into a new vault in `folder`, and gives its `_meta.json` as a dict and its folder."""
     ingest_epub(make_epub(folder / f"{BOOK_ID}.epub", documents, list(entries), inside), folder / "vault")
     book_dir = folder / "vault" / "books" / BOOK_ID
     return json.loads((book_dir / "_meta.json").read_text(encoding="utf-8")), book_dir
 
 
-def chapters_of(meta) -> List[Tuple[str, str]]:
+def chapters_of(meta) -> list[tuple[str, str]]:
     return [(chapter["file_path"], chapter["title"]) for chapter in meta["spine"]]
 
 
-def read_the_book(folder: Path, documents: Dict[str, str], inside: str = ""):
+def read_the_book(folder: Path, documents: dict[str, str], inside: str = ""):
     """The book and a registry over all its documents, as the import builds them, with nothing written."""
     book = epub.read_epub(str(make_epub(folder / f"{BOOK_ID}.epub", documents, [], inside)))
     registry = EndnoteRegistry()
@@ -169,9 +166,7 @@ def test_a_document_of_notes_that_nothing_cites_keeps_its_words(tmp_path: Path):
 
 
 def test_a_document_whose_notes_the_chapters_cite_makes_no_chapter(tmp_path: Path):
-    meta, book_dir = import_book(
-        tmp_path, {"ch01.xhtml": CHAPTER_CITING, "notes.xhtml": f"<h2>NOTES</h2>{NOTE}"}
-    )
+    meta, book_dir = import_book(tmp_path, {"ch01.xhtml": CHAPTER_CITING, "notes.xhtml": f"<h2>NOTES</h2>{NOTE}"})
 
     assert chapters_of(meta) == [("ch-01.md", "CHAPTER I. OF THE DIVISION OF LABOUR")]
     # The note is not lost: it sits at the foot of the chapter that cites it, once
@@ -248,7 +243,9 @@ def test_the_import_says_which_document_made_no_chapter(tmp_path: Path, capsys: 
 
 
 def test_only_a_note_that_another_document_cites_counts(tmp_path: Path):
-    own = f'<h2>CHAPTER I</h2><p>A page with a note of its own.<a href="#m1"><sup>1</sup></a></p><p id="m1">Its note.</p>'
+    own = (
+        '<h2>CHAPTER I</h2><p>A page with a note of its own.<a href="#m1"><sup>1</sup></a></p><p id="m1">Its note.</p>'
+    )
     book, registry = read_the_book(
         tmp_path, {"ch01.xhtml": CHAPTER_CITING, "ch02.xhtml": own, "notes.xhtml": f"<h2>NOTES</h2>{NOTE}"}
     )
@@ -261,10 +258,7 @@ def test_only_a_note_that_another_document_cites_counts(tmp_path: Path):
 def test_a_link_out_of_the_book_names_no_note(tmp_path: Path):
     # The last part of this web address is the name of a document of the book, so only refusing the address
     # itself keeps it from naming that document's note
-    outward = (
-        "<h2>CHAPTER I</h2>"
-        '<p>A page.<a href="https://example.invalid/notes.xhtml#n1"><sup>1</sup></a></p>'
-    )
+    outward = '<h2>CHAPTER I</h2><p>A page.<a href="https://example.invalid/notes.xhtml#n1"><sup>1</sup></a></p>'
     book, registry = read_the_book(tmp_path, {"ch01.xhtml": outward, "notes.xhtml": f"<h2>NOTES</h2>{NOTE}"})
 
     assert notes_another_document_shows(book, registry) == set()
@@ -319,7 +313,9 @@ def test_a_note_whose_document_cannot_be_told_still_becomes_a_footnote(tmp_path:
 
 def test_a_document_says_it_is_all_notes_only_when_it_is_the_whole_document(tmp_path: Path):
     assert says_it_is_all_notes(read_html('<html><body epub:type="endnotes"><p>A note.</p></body></html>'))
-    assert says_it_is_all_notes(read_html('<html><body><section role="doc-endnotes"><p>A note.</p></section></body></html>'))
+    assert says_it_is_all_notes(
+        read_html('<html><body><section role="doc-endnotes"><p>A note.</p></section></body></html>')
+    )
     assert not says_it_is_all_notes(
         read_html('<html><body><p>Prose.</p><ol epub:type="endnotes"><li>A note.</li></ol></body></html>')
     )

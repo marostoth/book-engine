@@ -3,12 +3,10 @@
 import subprocess
 import sys
 from pathlib import Path
-import pytest
-
-from ingest.sample_generator import create_sample_epub
-from ingest.pipeline import ingest_epub
 
 from conftest import SKILLS
+from ingest.pipeline import ingest_epub
+from ingest.sample_generator import create_sample_epub
 
 
 def test_full_pipeline_ingestion(tmp_path: Path):
@@ -64,9 +62,7 @@ def test_full_pipeline_ingestion(tmp_path: Path):
     # 6. Execute anchor integrity audit skill
     audit_script = (SKILLS / "audit-anchors.py").resolve()
     result = subprocess.run(
-        [sys.executable, str(audit_script), str(book_dir)],
-        capture_output=True,
-        text=True
+        [sys.executable, str(audit_script), str(book_dir)], capture_output=True, text=True, check=False
     )
     assert result.returncode == 0, f"audit-anchors.py failed:\n{result.stdout}\n{result.stderr}"
     assert "2 chapters of 1 book(s) passed paragraph anchor and footnote integrity audits" in result.stdout

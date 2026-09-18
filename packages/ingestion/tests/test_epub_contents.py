@@ -7,11 +7,9 @@ Book I, and an entry with no matching title opened nothing. The book in these te
 """
 
 import json
-from pathlib import Path
 
 import pytest
 from ebooklib import epub
-
 from ingest.pipeline import ingest_epub
 
 
@@ -125,8 +123,10 @@ def test_chapter_titles_keep_the_words_after_a_line_break(imported):
         "Chapter 5",
     ]
     # One heading line: the reader showed the second line as a paragraph, and the heading marks as text
-    assert (book_dir / "ch-01.md").read_text(encoding="utf-8").startswith(
-        "## BOOK I. OF THE CAUSES OF WEALTH.\n\n## CHAPTER I. OF THE DIVISION OF LABOUR.\n\n"
+    assert (
+        (book_dir / "ch-01.md")
+        .read_text(encoding="utf-8")
+        .startswith("## BOOK I. OF THE CAUSES OF WEALTH.\n\n## CHAPTER I. OF THE DIVISION OF LABOUR.\n\n")
     )
 
 
@@ -164,7 +164,11 @@ def test_each_anchor_of_an_entry_is_the_first_paragraph_after_its_heading(import
         at = next(n for n, block in enumerate(blocks) if block.endswith(" " + anchor))
         assert blocks[at - 1].lstrip("#").strip() == title, (title, blocks[at - 1])
         checked.append(title)
-    assert checked == ["PART I. Of the Produce of Land.", "PART II. Of the Price of Silver.", "CHAPTER I. OF THE DIVISION OF STOCK."]
+    assert checked == [
+        "PART I. Of the Produce of Land.",
+        "PART II. Of the Price of Silver.",
+        "CHAPTER I. OF THE DIVISION OF STOCK.",
+    ]
 
 
 def test_paragraphs_and_their_anchors_stay_the_same(imported):
@@ -172,7 +176,9 @@ def test_paragraphs_and_their_anchors_stay_the_same(imported):
     book_dir, _ = imported
 
     def paragraphs(name):
-        return [block for block in (book_dir / name).read_text(encoding="utf-8").split("\n\n") if not block.startswith("#")]
+        return [
+            block for block in (book_dir / name).read_text(encoding="utf-8").split("\n\n") if not block.startswith("#")
+        ]
 
     assert paragraphs("ch-01.md") == [
         "This paragraph is about pins, and it has enough words to be a real paragraph of the chapter. ^p-001",

@@ -11,7 +11,6 @@ of a working copy of this package as pymupdf is. A computer that had no Pillow c
 import importlib.metadata
 import tomllib
 from pathlib import Path
-from typing import Dict, List
 
 from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
@@ -21,9 +20,9 @@ LOCK = PACKAGE / "requirements.lock"
 INSTALL = "python -m pip install -r packages/ingestion/requirements.lock"
 
 
-def locked() -> Dict[str, Requirement]:
+def locked() -> dict[str, Requirement]:
     """Every package in the lock, by its name."""
-    packages: Dict[str, Requirement] = {}
+    packages: dict[str, Requirement] = {}
     for line in LOCK.read_text(encoding="utf-8").splitlines():
         if line.strip() and not line.startswith("#"):
             requirement = Requirement(line)
@@ -43,7 +42,7 @@ def needed_here(requirement: Requirement) -> bool:
     return requirement.marker is None or requirement.marker.evaluate({"extra": ""})
 
 
-def every_dependency() -> List[str]:
+def every_dependency() -> list[str]:
     """Every package `pyproject.toml` asks for: the ones the import needs, and the ones the work on it needs."""
     project = tomllib.loads((PACKAGE / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     asked = list(project["dependencies"])

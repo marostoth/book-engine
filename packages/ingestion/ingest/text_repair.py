@@ -17,7 +17,6 @@ from __future__ import annotations
 import re
 import string
 from collections import Counter
-from typing import Dict, List
 
 # The book's own highlight. In the vault a <mark> means "the reader highlighted this", so a book
 # must never bring one of its own.
@@ -44,9 +43,9 @@ WORD = re.compile(r"[A-Za-z][A-Za-z'’]*")
 CAPITALS = string.ascii_uppercase
 
 
-def words_of(text: str) -> Dict[str, int]:
+def words_of(text: str) -> dict[str, int]:
     """How many times the text uses each word, in lower case."""
-    counts: Counter = Counter()
+    counts: Counter[str] = Counter()
     for word in WORD.findall(text):
         counts[word.lower()] += 1
     return counts
@@ -74,18 +73,14 @@ def close_cut_words(text: str) -> str:
     return CUT_WORD.sub(_close, text)
 
 
-def letter_that_fits(stem: str, counts: Dict[str, int]) -> str:
+def letter_that_fits(stem: str, counts: dict[str, int]) -> str:
     """The one capital letter that turns `stem` into a word the text uses, or "" when unsure.
 
     Exactly one letter must make a word that the text uses more than once, and the text must use
     that whole word more often than the bare stem. Anything less is a guess, so nothing is changed.
     """
     bare = counts.get(stem.lower(), 0)
-    fits = [
-        letter
-        for letter in CAPITALS
-        if counts.get((letter + stem).lower(), 0) > max(1, bare)
-    ]
+    fits = [letter for letter in CAPITALS if counts.get((letter + stem).lower(), 0) > max(1, bare)]
     return fits[0] if len(fits) == 1 else ""
 
 
@@ -111,12 +106,12 @@ def repair_page_text(text: str) -> str:
     return first_letter_back(text)
 
 
-def repairs_of(text: str) -> List[str]:
+def repairs_of(text: str) -> list[str]:
     """What `repair_page_text` would change in this text, as short lines for the import log.
 
     It walks the same steps in the same order, so each count is the count of the real repair.
     """
-    lines: List[str] = []
+    lines: list[str] = []
 
     marks = len(MARK.findall(text))
     if marks:
@@ -134,9 +129,7 @@ def repairs_of(text: str) -> List[str]:
     text = close_cut_words(text)
 
     counts = words_of(text)
-    letters = sum(
-        1 for match in LOST_FIRST_LETTER.finditer(text) if letter_that_fits(match.group(3), counts)
-    )
+    letters = sum(1 for match in LOST_FIRST_LETTER.finditer(text) if letter_that_fits(match.group(3), counts))
     if letters:
         lines.append(f"{letters} first letter(s) put back")
 

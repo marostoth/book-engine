@@ -2,7 +2,7 @@
 
 from ebooklib import epub
 from ingest.epub_parser import parse_toc
-from ingest.models import TOCItem, BookMeta, ChapterMeta
+from ingest.models import BookMeta, ChapterMeta, TOCItem
 
 
 def test_parse_nested_toc():
@@ -12,9 +12,9 @@ def test_parse_nested_toc():
             [
                 epub.Link("ch01.xhtml", "Chapter 1: Clocks", "ch01"),
                 epub.Link("ch02.xhtml", "Chapter 2: Consensus", "ch02"),
-            ]
+            ],
         ),
-        epub.Link("notes.xhtml", "Endnotes", "notes")
+        epub.Link("notes.xhtml", "Endnotes", "notes"),
     ]
 
     items = parse_toc(toc_structure)
@@ -47,9 +47,13 @@ def test_book_meta_serialization():
         total_words=1250,
         total_chapters=2,
         toc=[
-            TOCItem(id="p1", title="Part 1", href="", level=1, subitems=[
-                TOCItem(id="c1", title="Chapter 1", href="ch01.xhtml", level=2)
-            ])
+            TOCItem(
+                id="p1",
+                title="Part 1",
+                href="",
+                level=1,
+                subitems=[TOCItem(id="c1", title="Chapter 1", href="ch01.xhtml", level=2)],
+            )
         ],
         spine=[
             ChapterMeta(
@@ -61,9 +65,9 @@ def test_book_meta_serialization():
                 anchor_count=10,
                 first_anchor="^p-001",
                 last_anchor="^p-010",
-                footnotes_count=2
+                footnotes_count=2,
             )
-        ]
+        ],
     )
 
     json_str = meta.model_dump_json(indent=2)

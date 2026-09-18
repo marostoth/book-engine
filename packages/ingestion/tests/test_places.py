@@ -7,7 +7,6 @@ gone, and the files of the reader that cannot be read.
 
 import json
 from pathlib import Path
-from typing import Dict, List
 
 from ingest.places import NewPlaces, Place, move_reader_files, read_book_text
 
@@ -29,7 +28,7 @@ C = [
 ]
 
 
-def write_book(vault: Path, chapters: Dict[str, List[str]]) -> None:
+def write_book(vault: Path, chapters: dict[str, list[str]]) -> None:
     """Writes the chapters of a book as the import does: `_meta.json`, and chapter files whose paragraphs end with an
     anchor. The chapter files of an earlier text go first."""
     book = vault / "books" / BOOK
@@ -45,7 +44,7 @@ def write_book(vault: Path, chapters: Dict[str, List[str]]) -> None:
     (book / "_meta.json").write_text(json.dumps({"book_id": BOOK, "spine": spine}), encoding="utf-8")
 
 
-def places(tmp_path: Path, old: Dict[str, List[str]], new: Dict[str, List[str]]) -> NewPlaces:
+def places(tmp_path: Path, old: dict[str, list[str]], new: dict[str, list[str]]) -> NewPlaces:
     vault = tmp_path / "vault"
     write_book(vault, old)
     old_text = read_book_text(vault / "books" / BOOK)
@@ -53,7 +52,7 @@ def places(tmp_path: Path, old: Dict[str, List[str]], new: Dict[str, List[str]])
     return NewPlaces(old_text, read_book_text(vault / "books" / BOOK))
 
 
-def new_import(tmp_path: Path, old: Dict[str, List[str]], new: Dict[str, List[str]], reader_files: Dict[str, str]):
+def new_import(tmp_path: Path, old: dict[str, list[str]], new: dict[str, list[str]], reader_files: dict[str, str]):
     """A vault with the old text and the reader's files, after a new import of the new text. Gives the notes folder."""
     vault = tmp_path / "vault"
     write_book(vault, old)

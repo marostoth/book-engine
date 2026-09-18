@@ -6,19 +6,16 @@ import os
 import shutil
 import stat
 from pathlib import Path
-from typing import Dict
 
 import pytest
-
+from conftest import SKILLS
 from ingest.book_build import BookBuild, BookLeftAsideError
 from ingest.book_check import book_problems
 from ingest.pipeline import ingest_book
 from ingest.sample_generator import create_sample_epub
 
-from conftest import SKILLS
 
-
-def vault_files(vault: Path) -> Dict[str, str]:
+def vault_files(vault: Path) -> dict[str, str]:
     return {
         path.relative_to(vault).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
         for path in sorted(vault.rglob("*"))

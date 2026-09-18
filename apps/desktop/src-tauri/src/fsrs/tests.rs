@@ -11,7 +11,10 @@ const DAY: i64 = 86_400;
 const T0: i64 = 1_767_225_600; // 2026-01-01 00:00 UTC
 
 fn assert_close(actual: f64, expected: f64, what: &str) {
-    assert!((actual - expected).abs() < 5e-6, "{what}: got {actual}, expected {expected}");
+    assert!(
+        (actual - expected).abs() < 5e-6,
+        "{what}: got {actual}, expected {expected}"
+    );
 }
 
 /// Rates a new card (`None`) or the card from an earlier review at time `now`.
@@ -48,10 +51,34 @@ fn test_forgetting_curve_and_interval_match_fsrs5() {
 
 #[test]
 fn test_new_card_ratings_match_fsrs5() {
-    assert_card(&review(None, Rating::Again, T0), CardState::Learning, 600, 0.40255, 7.1949);
-    assert_card(&review(None, Rating::Hard, T0), CardState::Review, DAY, 1.18385, 6.488305);
-    assert_card(&review(None, Rating::Good, T0), CardState::Review, 3 * DAY, 3.173, 5.282434);
-    assert_card(&review(None, Rating::Easy, T0), CardState::Review, 16 * DAY, 15.69105, 3.224502);
+    assert_card(
+        &review(None, Rating::Again, T0),
+        CardState::Learning,
+        600,
+        0.40255,
+        7.1949,
+    );
+    assert_card(
+        &review(None, Rating::Hard, T0),
+        CardState::Review,
+        DAY,
+        1.18385,
+        6.488305,
+    );
+    assert_card(
+        &review(None, Rating::Good, T0),
+        CardState::Review,
+        3 * DAY,
+        3.173,
+        5.282434,
+    );
+    assert_card(
+        &review(None, Rating::Easy, T0),
+        CardState::Review,
+        16 * DAY,
+        15.69105,
+        3.224502,
+    );
 }
 
 #[test]

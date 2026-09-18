@@ -25,7 +25,9 @@ static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 ///
 /// At every moment the file at `path` is either the whole old file or the whole new file.
 pub fn write_file(path: &Path, bytes: impl AsRef<[u8]>) -> Result<()> {
-    let dir = path.parent().ok_or_else(|| anyhow!("{} has no folder", path.display()))?;
+    let dir = path
+        .parent()
+        .ok_or_else(|| anyhow!("{} has no folder", path.display()))?;
     fs::create_dir_all(dir).with_context(|| format!("Failed to create folder: {}", dir.display()))?;
 
     let temp = temp_path(path);
@@ -44,7 +46,10 @@ pub fn write_file(path: &Path, bytes: impl AsRef<[u8]>) -> Result<()> {
 
 /// A temporary name in the same folder as the target, so the rename stays on the same disk.
 fn temp_path(path: &Path) -> PathBuf {
-    let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
     let id = NEXT_TEMP.fetch_add(1, Ordering::Relaxed);
     path.with_file_name(format!(".{name}.saving-{}-{id}", std::process::id()))
 }
@@ -52,8 +57,7 @@ fn temp_path(path: &Path) -> PathBuf {
 /// Writes the whole file and waits until the disk has it, so the rename can never publish
 /// bytes that are still only in memory.
 fn write_and_flush(temp: &Path, bytes: &[u8]) -> Result<()> {
-    let mut file = File::create(temp)
-        .with_context(|| format!("Failed to create {}", temp.display()))?;
+    let mut file = File::create(temp).with_context(|| format!("Failed to create {}", temp.display()))?;
     file.write_all(bytes)
         .with_context(|| format!("Failed to fill {}", temp.display()))?;
     file.sync_all()
@@ -74,8 +78,7 @@ fn rename_over(temp: &Path, path: &Path) -> Result<()> {
             }
         }
     }
-    Err(last.expect("the loop runs at least once"))
-        .context("the file may be open in another program")
+    Err(last.expect("the loop runs at least once")).context("the file may be open in another program")
 }
 
 #[cfg(test)]
@@ -101,7 +104,11 @@ mod tests {
         write_file(&path, "hello").expect("write a new file");
 
         assert_eq!(fs::read_to_string(&path).expect("read back"), "hello");
-        assert_eq!(names_in(path.parent().expect("folder")), vec!["new.md"], "no temporary file may stay");
+        assert_eq!(
+            names_in(path.parent().expect("folder")),
+            vec!["new.md"],
+            "no temporary file may stay"
+        );
     }
 
     #[test]
@@ -113,7 +120,11 @@ mod tests {
         write_file(&path, "second").expect("second write");
 
         assert_eq!(fs::read_to_string(&path).expect("read back"), "second");
-        assert_eq!(names_in(path.parent().expect("folder")), vec!["new.md"], "no temporary file may stay");
+        assert_eq!(
+            names_in(path.parent().expect("folder")),
+            vec!["new.md"],
+            "no temporary file may stay"
+        );
     }
 
     #[test]
@@ -125,15 +136,26 @@ mod tests {
 
         let error = write_file(&path, "this cannot replace a folder").expect_err("the write must fail");
 
-        assert!(error.to_string().contains("busy.md"), "the error must name the file: {error}");
+        assert!(
+            error.to_string().contains("busy.md"),
+            "the error must name the file: {error}"
+        );
         assert!(path.is_dir(), "what was there must still be there");
-        assert_eq!(names_in(&dir), vec!["busy.md"], "no temporary file may stay after a failed write");
+        assert_eq!(
+            names_in(&dir),
+            vec!["busy.md"],
+            "no temporary file may stay after a failed write"
+        );
     }
 
     #[test]
     fn two_writes_at_the_same_time_do_not_share_a_temporary_name() {
         let sandbox = Sandbox::new();
         let path = sandbox.vault().join("notes").join("sample").join("new.md");
-        assert_ne!(temp_path(&path), temp_path(&path), "each write needs its own temporary name");
+        assert_ne!(
+            temp_path(&path),
+            temp_path(&path),
+            "each write needs its own temporary name"
+        );
     }
 }

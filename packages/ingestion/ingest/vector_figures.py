@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import pymupdf
-from ingest.assets import pad_and_clamp_rect, PADDING
+
+from ingest.assets import pad_and_clamp_rect
 
 
 def figure_file_name(chapter_idx: int, major: int, minor: int) -> str:
@@ -20,7 +21,7 @@ def figure_file_name(chapter_idx: int, major: int, minor: int) -> str:
     return f"fig-{chapter_idx:02d}-{major}-{minor}.png"
 
 
-def _extract_figure_heading(block_text: str) -> Optional[Tuple[int, int, str]]:
+def _extract_figure_heading(block_text: str) -> tuple[int, int, str] | None:
     """Extracts (major, minor, title) from a figure caption block, filtering narrative text."""
     m = re.search(
         r"(?:^|\n)(?:>\s*)?(?:FIGURE|Figure)\s+(\d+)[\.\s]+(\d+)\s*\n?(.*)",
@@ -50,15 +51,16 @@ def _has_discrete_image(page: pymupdf.Page, heading_rect: pymupdf.Rect) -> bool:
     for img in page.get_images():
         if img[2] >= 250 and img[3] >= 150:
             for r in page.get_image_rects(img[0]):
-                if r.width >= 200 and r.height >= 120:
-                    if abs(r.y0 - heading_rect.y0) < 250 or abs(r.y1 - heading_rect.y1) < 250:
-                        return True
+                if (r.width >= 200 and r.height >= 120) and (
+                    abs(r.y0 - heading_rect.y0) < 250 or abs(r.y1 - heading_rect.y1) < 250
+                ):
+                    return True
     return False
 
 
-def _is_stop_block(b_dict: dict, heading_rect: pymupdf.Rect, page_rect: pymupdf.Rect) -> bool:
+def _is_stop_block(b_dict: dict[str, Any], heading_rect: pymupdf.Rect, page_rect: pymupdf.Rect) -> bool:
     """Determines if a text block is a section heading, chapter header, or body narrative stop."""
-    text = "".join(s["text"] for l in b_dict.get("lines", []) for s in l.get("spans", [])).strip()
+    text = "".join(s["text"] for one in b_dict.get("lines", []) for s in one.get("spans", [])).strip()
     if not text:
         return False
     bbox = pymupdf.Rect(b_dict["bbox"])
@@ -66,22 +68,20 @@ def _is_stop_block(b_dict: dict, heading_rect: pymupdf.Rect, page_rect: pymupdf.
     shares_col = max(bbox.x0, heading_rect.x0) < min(bbox.x1, heading_rect.x1) + 20 or bbox.width > 350
     if not shares_col:
         return False
-    max_font = max((s["size"] for l in b_dict.get("lines", []) for s in l.get("spans", [])), default=0.0)
+    max_font = max((s["size"] for one in b_dict.get("lines", []) for s in one.get("spans", [])), default=0.0)
     if max_font >= 12.0:
         return True
     if re.match(r"(?i)^(?:chapter\b|part\b|objective\b|learning objective|case\b|table\b|#)", text):
         return True
     if re.match(r"^[A-Z\s,:\-–—]{4,}$", text):
         return True
-    if len(text) > 85 and bbox.width > 180:
-        return True
-    return False
+    return bool(len(text) > 85 and bbox.width > 180)
 
 
 def _compute_diagram_bounds(
     page: pymupdf.Page,
     heading_rect: pymupdf.Rect,
-) -> Optional[Tuple[pymupdf.Rect, float, float]]:
+) -> tuple[pymupdf.Rect, float, float] | None:
     """Computes diagram bounding box from caption, vector drawings, and live text blocks,
     strictly clamped by adjacent heading and body text stop boundaries without column clipping.
     """
@@ -91,17 +91,15 @@ def _compute_diagram_bounds(
     max_y1 = page.rect.height
     for b in dict_blocks:
         bbox = pymupdf.Rect(b["bbox"])
-        if bbox.y0 >= heading_rect.y1 - 5 and _is_stop_block(b, heading_rect, page.rect):
-            if bbox.y0 < max_y1:
-                max_y1 = bbox.y0
+        if bbox.y0 >= heading_rect.y1 - 5 and _is_stop_block(b, heading_rect, page.rect) and bbox.y0 < max_y1:
+            max_y1 = bbox.y0
 
     # 2. Hard stop above heading_rect if diagram extends above
     min_y0 = 0.0
     for b in dict_blocks:
         bbox = pymupdf.Rect(b["bbox"])
-        if bbox.y1 <= heading_rect.y0 + 5 and _is_stop_block(b, heading_rect, page.rect):
-            if bbox.y1 > min_y0:
-                min_y0 = bbox.y1
+        if bbox.y1 <= heading_rect.y0 + 5 and _is_stop_block(b, heading_rect, page.rect) and bbox.y1 > min_y0:
+            min_y0 = bbox.y1
 
     union_r = pymupdf.Rect(heading_rect)
     has_elements = False
@@ -111,20 +109,28 @@ def _compute_diagram_bounds(
         r = d["rect"]
         if r.width >= 0.85 * page.rect.width and r.height >= 0.85 * page.rect.height:
             continue
-        if r.y0 >= min_y0 - 2 and r.y1 <= max_y1 + 2:
-            if r.y1 >= heading_rect.y0 - 350 and r.y0 <= heading_rect.y1 + 350:
-                union_r = union_r | r
-                has_elements = True
+        if (
+            r.y0 >= min_y0 - 2
+            and r.y1 <= max_y1 + 2
+            and r.y1 >= heading_rect.y0 - 350
+            and r.y0 <= heading_rect.y1 + 350
+        ):
+            union_r = union_r | r
+            has_elements = True
 
     # Check raster image slices within vertical bounds and proximity
     for img in page.get_images():
         for r in page.get_image_rects(img[0]):
             if r.width >= 0.85 * page.rect.width and r.height >= 0.85 * page.rect.height:
                 continue
-            if r.y0 >= min_y0 - 2 and r.y1 <= max_y1 + 2:
-                if r.y1 >= heading_rect.y0 - 350 and r.y0 <= heading_rect.y1 + 350:
-                    union_r = union_r | r
-                    has_elements = True
+            if (
+                r.y0 >= min_y0 - 2
+                and r.y1 <= max_y1 + 2
+                and r.y1 >= heading_rect.y0 - 350
+                and r.y0 <= heading_rect.y1 + 350
+            ):
+                union_r = union_r | r
+                has_elements = True
 
     if not has_elements:
         return None
@@ -132,10 +138,14 @@ def _compute_diagram_bounds(
     # Incorporate internal diagram text labels
     for b in dict_blocks:
         bbox = pymupdf.Rect(b["bbox"])
-        if bbox.y0 >= min_y0 - 2 and bbox.y1 <= max_y1 + 2:
-            if bbox.y1 >= union_r.y0 - 10 and bbox.y0 <= union_r.y1 + 10:
-                if not _is_stop_block(b, heading_rect, page.rect):
-                    union_r = union_r | bbox
+        if (
+            bbox.y0 >= min_y0 - 2
+            and bbox.y1 <= max_y1 + 2
+            and bbox.y1 >= union_r.y0 - 10
+            and bbox.y0 <= union_r.y1 + 10
+            and not _is_stop_block(b, heading_rect, page.rect)
+        ):
+            union_r = union_r | bbox
 
     # Cap total height at 0.70 * page.rect.height
     max_height = 0.70 * page.rect.height
@@ -150,25 +160,24 @@ def _compute_diagram_bounds(
 
 def mask_page_figure_zones(
     page: pymupdf.Page,
-    extra_rects: Optional[List[pymupdf.Rect]] = None,
+    extra_rects: list[pymupdf.Rect] | None = None,
 ) -> None:
     """No-op: Text redactions are permanently abolished to preserve reading prose integrity."""
     return
 
 
-
 def detect_and_rasterize_vector_figures(
     doc: pymupdf.Document,
-    page_numbers: List[int],
+    page_numbers: list[int],
     chapter_idx: int,
     assets_dir: Path,
     dpi: int = 200,
     padding: float = 12.0,
-    markdown_text: Optional[str] = None,
-) -> Dict[Tuple[int, int], Tuple[Any, ...]]:
+    markdown_text: str | None = None,
+) -> dict[tuple[int, int], tuple[Any, ...]]:
     """Detects vector diagrams without discrete images, rasterizes pristine snapshots, and returns asset map."""
     assets_dir.mkdir(parents=True, exist_ok=True)
-    figure_map: Dict[Tuple[int, int], Tuple[Any, ...]] = {}
+    figure_map: dict[tuple[int, int], tuple[Any, ...]] = {}
 
     for page_num in page_numbers:
         if page_num < 0 or page_num >= len(doc):
@@ -203,9 +212,7 @@ def detect_and_rasterize_vector_figures(
                 continue
             diag_rect, min_y0, max_y1 = bounds_res
 
-            clip_rect = pad_and_clamp_rect(
-                diag_rect, page.rect, padding=padding, min_y0=min_y0, max_y1=max_y1
-            )
+            clip_rect = pad_and_clamp_rect(diag_rect, page.rect, padding=padding, min_y0=min_y0, max_y1=max_y1)
             if clip_rect.is_empty:
                 continue
 
@@ -223,7 +230,7 @@ def detect_and_rasterize_vector_figures(
 
 def replace_vector_diagram_streams(
     markdown_text: str,
-    figure_map: Dict[Tuple[int, int], Tuple[Any, ...]],
+    figure_map: dict[tuple[int, int], tuple[Any, ...]],
 ) -> str:
     """Replaces unformatted markdown table/text streams with rasterized figure image tags."""
     updated_md = markdown_text
@@ -238,7 +245,7 @@ def replace_vector_diagram_streams(
             re.IGNORECASE,
         )
 
-        def _replace_table(match: re.Match[str]) -> str:
+        def _replace_table(match: re.Match[str], img_tag: str = img_tag) -> str:
             m_text = match.group(0).strip()
             anchor_m = re.search(r"\^p-\d+", m_text)
             if anchor_m:
@@ -254,7 +261,7 @@ def replace_vector_diagram_streams(
             re.IGNORECASE,
         )
 
-        def _replace_caption(match: re.Match[str]) -> str:
+        def _replace_caption(match: re.Match[str], img_tag: str = img_tag) -> str:
             m_text = match.group(0).strip()
             anchor_m = re.search(r"\^p-\d+$", m_text)
             if anchor_m:

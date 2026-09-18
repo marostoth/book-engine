@@ -15,12 +15,10 @@ from pathlib import Path
 
 import pymupdf
 import pytest
-
+from conftest import SKILLS
 from ingest.pipeline import ingest_book
 from ingest.reimport import BookAlreadyInVaultError, BookIdTakenError
 from ingest.sample_generator import create_sample_epub
-
-from conftest import SKILLS
 
 BOOK_ID = "principles-of-marketing"
 OLD = "Principles of Marketing 2020.pdf"
@@ -96,7 +94,7 @@ def test_the_command_line_names_the_other_file_and_imports_the_book_with_its_own
 
     def run(*extra: str) -> subprocess.CompletedProcess:
         command = [sys.executable, "-m", "ingest.cli", str(files / NEW), "--vault", str(vault), *extra]
-        return subprocess.run(command, capture_output=True, text=True, encoding="utf-8")
+        return subprocess.run(command, capture_output=True, text=True, encoding="utf-8", check=False)
 
     before = files_under(vault)
     stopped = run("--force")
@@ -113,7 +111,9 @@ def test_the_command_line_names_the_other_file_and_imports_the_book_with_its_own
     assert title_of(vault, own_id) == "Principles of Marketing 2023"
 
 
-def test_only_a_book_id_given_with_force_replaces_the_book_from_the_other_file(vault: Path, files: Path, capsys) -> None:
+def test_only_a_book_id_given_with_force_replaces_the_book_from_the_other_file(
+    vault: Path, files: Path, capsys
+) -> None:
     with pytest.raises(BookIdTakenError, match=OLD):
         ingest_book(files / NEW, vault, book_id=BOOK_ID)
 

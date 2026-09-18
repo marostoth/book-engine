@@ -58,13 +58,22 @@ book-engine/
 
 Ensure the following runtimes are installed on your workstation:
 
-- **Node.js**: `22.6.0+` and `npm`. The frontend tests are TypeScript files that Node runs itself, with
-  `--experimental-strip-types`, and that flag arrived in Node 22.6.0. The root `package.json` says the same in
-  `engines`, so `npm install` warns you when your Node is older.
+- **Node.js**: `22.19.0+` and `npm`. The frontend tests are TypeScript files that Node runs itself, with
+  `--experimental-strip-types`. That flag arrived in Node 22.6.0, and 22.6.0 is what this file used to ask for, but
+  the flag arriving is not the same as the tests running: 22.6.0 stops at the `!` of `let answer!: T` in
+  `readerLoads.test.ts` and `exitAssessment.test.ts` with a `SyntaxError`. 22.19.0 reads them, and it is the
+  version the tests are proven on. The root `package.json` says the same in `engines`, so `npm install` warns you
+  when your Node is older, and `.github/workflows/check.yml` installs that exact version.
 - **Rust & Cargo**: `1.88+` (with Tauri v2 prerequisites installed for your OS). Tauri 2.11.5 itself asks for
   1.77.2, but other crates of the same build ask for 1.88. `apps/desktop/src-tauri/Cargo.toml` says `1.88` in
   `rust-version`, so cargo tells you plainly instead of failing inside a dependency.
-- **Python**: `3.11+` with `pip`. The import reads `pyproject.toml` with `tomllib`, which arrived in 3.11.
+  `rust-toolchain.toml` at the root then names the Rust the **checks** run on, and rustup reads it here and on the
+  build runner. Two clippys of different ages do not run the same rules, so without that file `npm run check` can
+  be green on your computer and red on the runner.
+- **Python**: `3.13+` with `pip`. The import reads `pyproject.toml` with `tomllib`, which arrived in 3.11, and the
+  code needs nothing newer than that. The floor is 3.13 because `packages/ingestion/requirements.lock` is made on
+  3.13 and `numpy==2.5.3` in it has no build for 3.11: on 3.11 the install in the next section stops partway with
+  "No matching distribution found". `requires-python` says the same, so pip refuses plainly instead.
 
 ---
 
@@ -185,7 +194,15 @@ The built app runs only its own code. A tag in a book cannot run a script, the w
 
 ### 3. Verification & Benchmarking Suite
 
-Run the full verification suite before committing changes:
+Run the full verification suite before committing changes. One command runs the lot, and stops at the first
+failure (TL-05):
+
+```bash
+npm run check
+```
+
+The same three groups run on every push, in `.github/workflows/check.yml`. To run one group on its own, or to see
+what `npm run check` is made of:
 
 ```bash
 # 1. Verify Rust backend compilation, strict typing, and unit tests

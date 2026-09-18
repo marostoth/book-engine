@@ -259,11 +259,7 @@ pub const SEED_LEXICON: &[(&str, &str, &str, &str, &str)] = &[
 
 /// Checks if `dictionary_entries` is empty; if so, batch seeds the curated entries.
 pub fn seed_dictionary_if_empty(conn: &Connection) -> Result<usize> {
-    let count: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM dictionary_entries",
-        [],
-        |row| row.get(0),
-    )?;
+    let count: i64 = conn.query_row("SELECT COUNT(*) FROM dictionary_entries", [], |row| row.get(0))?;
 
     if count > 0 {
         return Ok(0);
@@ -271,7 +267,7 @@ pub fn seed_dictionary_if_empty(conn: &Connection) -> Result<usize> {
 
     let mut stmt = conn.prepare(
         "INSERT OR IGNORE INTO dictionary_entries (word, part_of_speech, pronunciation, definition, etymology)
-         VALUES (?1, ?2, ?3, ?4, ?5)"
+         VALUES (?1, ?2, ?3, ?4, ?5)",
     )?;
 
     let mut inserted = 0;

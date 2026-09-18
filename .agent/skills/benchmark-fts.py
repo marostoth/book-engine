@@ -19,12 +19,11 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import List, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "packages" / "ingestion"))
 
-from ingest.chapter_shape import is_heading  # noqa: E402
-from ingest.console import allow_any_letter  # noqa: E402
+from ingest.chapter_shape import is_heading
+from ingest.console import allow_any_letter
 
 TEST_QUERIES = [
     "linearizability*",
@@ -100,8 +99,8 @@ def fill_from_vault(conn: sqlite3.Connection, vault_books: Path) -> None:
         for md_file in sorted(book_dir.glob("*.md")):
             content = md_file.read_text(encoding="utf-8")
             ch_id = md_file.stem
-            for block in content.split("\n\n"):
-                block = block.strip()
+            for raw_block in content.split("\n\n"):
+                block = raw_block.strip()
                 if not block or is_heading(block):
                     continue
                 anchor = ""
@@ -145,7 +144,9 @@ def index_to_measure(live: Path, into: Path) -> str:
 
     vault_books = Path("vault/books")
     if not vault_books.is_dir() or not any(p.is_dir() for p in vault_books.iterdir()):
-        raise SystemExit(f"[-] {live} holds no paragraph and vault/books holds no book, so there is nothing to measure.")
+        raise SystemExit(
+            f"[-] {live} holds no paragraph and vault/books holds no book, so there is nothing to measure."
+        )
     conn = sqlite3.connect(str(into))
     try:
         make_tables(conn)
@@ -167,7 +168,7 @@ def run_benchmark() -> bool:
         paragraphs = cursor.execute("SELECT count(*) FROM search_index").fetchone()[0]
 
         # What each query finds. A query that finds nothing measures nothing, however fast it comes back.
-        found: List[Tuple[str, int]] = []
+        found: list[tuple[str, int]] = []
         for q in TEST_QUERIES:
             cursor.execute("SELECT count(*) FROM search_index WHERE search_index MATCH ?", (q,))
             found.append((q, cursor.fetchone()[0]))

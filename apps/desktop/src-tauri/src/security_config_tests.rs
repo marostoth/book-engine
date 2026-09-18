@@ -30,7 +30,11 @@ fn policy() -> Vec<(String, Vec<String>)> {
 }
 
 fn sources(directive: &str) -> Vec<String> {
-    policy().into_iter().find(|(name, _)| name == directive).map(|(_, sources)| sources).unwrap_or_default()
+    policy()
+        .into_iter()
+        .find(|(name, _)| name == directive)
+        .map(|(_, sources)| sources)
+        .unwrap_or_default()
 }
 
 /// A tag that a book or a hostile file puts into the page, such as `<img src=x onerror=...>`, runs nothing, and no page
@@ -43,7 +47,15 @@ fn only_the_files_of_the_app_run_as_scripts() {
     assert_eq!(sources("base-uri"), ["'none'"]);
     assert_eq!(sources("form-action"), ["'none'"]);
     let never = [
-        "'unsafe-eval'", "'unsafe-hashes'", "'wasm-unsafe-eval'", "'strict-dynamic'", "*", "data:", "blob:", "http:", "https:",
+        "'unsafe-eval'",
+        "'unsafe-hashes'",
+        "'wasm-unsafe-eval'",
+        "'strict-dynamic'",
+        "*",
+        "data:",
+        "blob:",
+        "http:",
+        "https:",
     ];
     for (directive, sources) in policy() {
         for source in sources {
@@ -91,7 +103,11 @@ fn the_window_reaches_no_server_but_the_fonts_and_the_app() {
 #[test]
 fn the_asset_protocol_opens_no_file_on_its_own() {
     let asset_protocol = &security()["assetProtocol"];
-    assert_eq!(asset_protocol["enable"], Value::Bool(true), "the reader shows book pictures through it");
+    assert_eq!(
+        asset_protocol["enable"],
+        Value::Bool(true),
+        "the reader shows book pictures through it"
+    );
     assert_eq!(asset_protocol["scope"], Value::Array(Vec::new()));
 }
 
@@ -100,7 +116,10 @@ fn the_asset_protocol_opens_no_file_on_its_own() {
 /// others) would stop working, in the built app only.
 #[test]
 fn the_page_has_no_style_element_that_would_turn_off_inline_styles() {
-    assert!(!PAGE.to_ascii_lowercase().contains("<style"), "index.html must not hold a <style> element");
+    assert!(
+        !PAGE.to_ascii_lowercase().contains("<style"),
+        "index.html must not hold a <style> element"
+    );
 }
 
 /// The Tauri plugins that the app needs, sorted by name.
@@ -130,5 +149,9 @@ fn plugins_in_manifest() -> Vec<&'static str> {
 /// (SEC-04). A new plugin goes into `NEEDED_PLUGINS` with the job that it does.
 #[test]
 fn the_app_loads_only_the_plugins_that_it_needs() {
-    assert_eq!(plugins_in_manifest(), NEEDED_PLUGINS, "Cargo.toml must name only the plugins that the app needs");
+    assert_eq!(
+        plugins_in_manifest(),
+        NEEDED_PLUGINS,
+        "Cargo.toml must name only the plugins that the app needs"
+    );
 }

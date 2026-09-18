@@ -27,7 +27,9 @@ fn is_simple_name(name: &str) -> bool {
     !name.is_empty()
         && name.len() <= LONGEST_NAME
         && !name.starts_with('-')
-        && name.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
 }
 
 /// True for `ch-`, 2 or more digits and then `ending`, as the importer names chapters: `ch-01.md`, `ch-01-notes.md`.
@@ -164,8 +166,8 @@ fn vault_path(parts: &[&str]) -> Result<PathBuf> {
 /// vault can be a link to another place. A part of the path that is not there yet cannot be a link, so the check
 /// follows the path up to its last part that is there.
 fn check_in_vault(vault: &Path, path: &Path) -> Result<()> {
-    let real_vault = std::fs::canonicalize(vault)
-        .with_context(|| format!("Failed to find the vault folder {}", vault.display()))?;
+    let real_vault =
+        std::fs::canonicalize(vault).with_context(|| format!("Failed to find the vault folder {}", vault.display()))?;
     let mut there = path;
     let real = loop {
         match std::fs::canonicalize(there) {
@@ -181,7 +183,10 @@ fn check_in_vault(vault: &Path, path: &Path) -> Result<()> {
         }
     };
     if !real.starts_with(&real_vault) {
-        bail!("{} leads out of the vault through a link, so the app does not use it.", path.display());
+        bail!(
+            "{} leads out of the vault through a link, so the app does not use it.",
+            path.display()
+        );
     }
     Ok(())
 }

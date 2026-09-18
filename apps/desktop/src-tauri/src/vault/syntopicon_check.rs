@@ -69,7 +69,10 @@ pub fn place_of(citation: &CrossBookCitation) -> Option<String> {
 
 /// Only the letters and digits of `text`, in lower case. The rule that `words_of` in `ingest/places.py` uses.
 fn letters_and_digits(text: &str) -> String {
-    text.chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect()
+    text.chars()
+        .filter(|c| c.is_alphanumeric())
+        .flat_map(char::to_lowercase)
+        .collect()
 }
 
 /// The paragraph of `chapter` whose last word is `anchor`, with the anchor taken off. A chapter imported before
@@ -78,10 +81,14 @@ pub fn paragraph_at(chapter: &str, anchor: &str) -> Option<String> {
     if !is_an_anchor(anchor) {
         return None;
     }
-    chapter.replace("\r\n", "\n").split("\n\n").map(str::trim).find_map(|block| {
-        let text = block.strip_suffix(anchor)?;
-        (text.is_empty() || text.ends_with(char::is_whitespace)).then(|| text.trim_end().to_string())
-    })
+    chapter
+        .replace("\r\n", "\n")
+        .split("\n\n")
+        .map(str::trim)
+        .find_map(|block| {
+            let text = block.strip_suffix(anchor)?;
+            (text.is_empty() || text.ends_with(char::is_whitespace)).then(|| text.trim_end().to_string())
+        })
 }
 
 /// True when the paragraph holds the quote, counting letters and digits only.

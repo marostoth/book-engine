@@ -41,11 +41,19 @@ export type ReadingLevelMode = "elementary" | "inspectional" | "analytical" | "s
 
 export type InspectionalSubView = "blueprint" | "dips";
 
+/** One group of the synthetic index: a term of the book and the paragraphs that hold it. */
+export interface IndexCluster {
+  term?: string;
+  name?: string;
+  weight?: number;
+  anchors?: string[];
+}
+
 /** The blueprint the importer makes. The reader's exit assessment is not part of it (DS-09). */
 export interface InspectionalBlueprint {
-  front_matter: FrontMatterMetadata | Record<string, any>;
+  front_matter: FrontMatterMetadata | Record<string, unknown>;
   pivotal_chapters: string[];
-  synthetic_index_clusters: Array<Record<string, any>>;
+  synthetic_index_clusters: IndexCluster[];
 }
 
 export interface ChapterMeta {

@@ -6,7 +6,6 @@ book that the app can open (SEC-03).
 
 import pytest
 from ebooklib import epub
-
 from ingest.book_id import InvalidBookIdError, check_book_id
 from ingest.epub_parser import extract_metadata
 from ingest.pdf_sanitizer import generate_pdf_slug
@@ -29,8 +28,25 @@ def test_every_book_id_the_importer_makes_follows_the_rule() -> None:
 
 @pytest.mark.parametrize(
     "book_id",
-    ["", ".", "..", "../x", "..\\x", "a/b", "a\\b", "/x", "C:\\Windows", "C:", "Sample", "a b", "a.b", "-x", "x\n",
-     "caf\u00e9", "a" * 256],
+    [
+        "",
+        ".",
+        "..",
+        "../x",
+        "..\\x",
+        "a/b",
+        "a\\b",
+        "/x",
+        "C:\\Windows",
+        "C:",
+        "Sample",
+        "a b",
+        "a.b",
+        "-x",
+        "x\n",
+        "caf\u00e9",
+        "a" * 256,
+    ],
 )
 def test_an_id_that_could_lead_out_of_the_vault_breaks_the_rule(book_id: str) -> None:
     with pytest.raises(InvalidBookIdError, match="book id"):

@@ -16,10 +16,8 @@ import sys
 import zipfile
 from pathlib import Path
 from types import ModuleType
-from typing import List
 
 import pytest
-
 from ingest.console import allow_any_letter, say_what_was_done
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -97,7 +95,7 @@ class StreamThatCannotChange:
     """A stream of a kind that has no way to change its encoding, such as one a test or a tool holds."""
 
     def __init__(self) -> None:
-        self.said: List[str] = []
+        self.said: list[str] = []
         self.encoding = "cp1252"
 
     def write(self, text: str) -> int:
@@ -264,7 +262,12 @@ def cp1252_command(*more: str) -> subprocess.CompletedProcess:
     env = dict(os.environ, PYTHONIOENCODING="cp1252")
     return subprocess.run(
         [sys.executable, "-m", "ingest.cli", *more],
-        cwd=PACKAGE, capture_output=True, env=env, encoding="utf-8", errors="replace",
+        cwd=PACKAGE,
+        capture_output=True,
+        env=env,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
     )
 
 
@@ -364,8 +367,9 @@ def test_the_table_of_the_inbox_skill_is_made_before_it_is_printed(monkeypatch) 
     skill = load_skill("process-inbox")
     held = StreamThatCannotChange()
     monkeypatch.setattr(sys, "stdout", held)
-    lines = skill.status_table([{"book_id": "voyna", "title": TITLE, "chapters": "2",
-                                "anchors": "PASS", "status": "Success"}])
+    lines = skill.status_table(
+        [{"book_id": "voyna", "title": TITLE, "chapters": "2", "anchors": "PASS", "status": "Success"}]
+    )
     assert held.said == [], "making the table prints nothing"
     assert any(TITLE in line for line in lines)
 
@@ -398,7 +402,7 @@ def test_the_inbox_skill_ends_well_when_the_console_will_not_change(inbox_skill,
 # ------------------------------------------------------------------ every command keeps the rule
 
 
-def commands() -> List[Path]:
+def commands() -> list[Path]:
     """Every command of the repository: a Python file that can be run on its own.
 
     The list is read from the files, so a command written later is looked at too.

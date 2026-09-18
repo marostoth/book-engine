@@ -15,7 +15,6 @@ import subprocess
 import sys
 import tomllib
 from pathlib import Path
-from typing import Dict, List, Set
 
 import pytest
 from packaging.requirements import Requirement
@@ -44,7 +43,7 @@ ANOTHER_NAME = {
 TOOLS_OF_THE_WORK = {"pytest", "pillow", "mypy", "ruff"}
 
 
-def lists_of_the_package() -> Dict[str, List[str]]:
+def lists_of_the_package() -> dict[str, list[str]]:
     """The two lists of `pyproject.toml`: what the import needs, and what the work on it needs."""
     project = tomllib.loads((PACKAGE / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     groups = {"dependencies": list(project["dependencies"])}
@@ -53,17 +52,17 @@ def lists_of_the_package() -> Dict[str, List[str]]:
     return groups
 
 
-def names_in(asked: List[str]) -> Set[str]:
+def names_in(asked: list[str]) -> set[str]:
     """The name of every package in one list of `pyproject.toml`."""
     return {canonicalize_name(Requirement(line).name) for line in asked}
 
 
-def imported_by(folder: Path) -> Dict[str, List[str]]:
+def imported_by(folder: Path) -> dict[str, list[str]]:
     """Every package from outside this repository that the folder imports, with the files that import it."""
-    outside: Dict[str, List[str]] = {}
+    outside: dict[str, list[str]] = {}
     for path in sorted(folder.glob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        found: Set[str] = set()
+        found: set[str] = set()
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 found.update(alias.name.split(".")[0] for alias in node.names)
@@ -75,7 +74,7 @@ def imported_by(folder: Path) -> Dict[str, List[str]]:
     return outside
 
 
-def could_be_called(module: str) -> Set[str]:
+def could_be_called(module: str) -> set[str]:
     """The names this module could be installed by: what this computer says, else the written answer."""
     from_here = importlib.metadata.packages_distributions().get(module)
     if from_here:

@@ -1,6 +1,6 @@
-use anyhow::{Context, Result};
 use super::json_store::read_json_file;
 use super::models::VocabularyEntry;
+use anyhow::{Context, Result};
 
 /// Returns all saved vocabulary terms for the specified book from `vault/notes/<book-id>/vocabulary.json`.
 /// A book with no file yet has no terms. A damaged file gives an error, never an empty list.
@@ -38,8 +38,7 @@ pub fn save_vocabulary_term(book_id: &str, entry: VocabularyEntry) -> Result<()>
         entries.push(entry);
     }
 
-    let serialized = serde_json::to_string_pretty(&entries)
-        .context("Failed to serialize vocabulary list to JSON")?;
+    let serialized = serde_json::to_string_pretty(&entries).context("Failed to serialize vocabulary list to JSON")?;
 
     super::safe_write::write_file(&vocab_file, &serialized)
 }
@@ -47,12 +46,13 @@ pub fn save_vocabulary_term(book_id: &str, entry: VocabularyEntry) -> Result<()>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
     use crate::test_support::Sandbox;
+    use std::fs;
 
     const VOCAB_FILE: &str = "notes/sample/vocabulary.json";
     const TRUNCATED: &str = r#"[{"word":"pin","definition":"a small metal p"#;
-    const ONE_TERM: &str = r#"[{"word":"pin","definition":"a small metal pin","anchor":"^p-001","savedAt":"2026-09-14T00:00:00Z"}]"#;
+    const ONE_TERM: &str =
+        r#"[{"word":"pin","definition":"a small metal pin","anchor":"^p-001","savedAt":"2026-09-14T00:00:00Z"}]"#;
 
     fn entry(word: &str) -> VocabularyEntry {
         VocabularyEntry {
@@ -93,7 +93,10 @@ mod tests {
         let error = save_vocabulary_term("sample", entry("labour"))
             .expect_err("a damaged vocabulary file must refuse the save");
 
-        assert!(error.to_string().contains("vocabulary.json"), "the error must name the file: {error}");
+        assert!(
+            error.to_string().contains("vocabulary.json"),
+            "the error must name the file: {error}"
+        );
         let on_disk = fs::read_to_string(sandbox.vault().join(VOCAB_FILE)).expect("read vocabulary file");
         assert_eq!(on_disk, TRUNCATED, "the damaged file must stay exactly as it was");
     }
@@ -104,7 +107,10 @@ mod tests {
         sandbox.write(VOCAB_FILE, TRUNCATED);
 
         let error = get_book_vocabulary("sample").expect_err("a damaged file must not read as no terms");
-        assert!(error.to_string().contains("vocabulary.json"), "the error must name the file: {error}");
+        assert!(
+            error.to_string().contains("vocabulary.json"),
+            "the error must name the file: {error}"
+        );
     }
 
     #[test]
@@ -115,7 +121,11 @@ mod tests {
         save_vocabulary_term("sample", entry("labour")).expect_err("save must fail");
 
         let copies = corrupt_copies(&sandbox);
-        assert_eq!(copies.len(), 1, "expected one copy of the damaged file, found {copies:?}");
+        assert_eq!(
+            copies.len(),
+            1,
+            "expected one copy of the damaged file, found {copies:?}"
+        );
         let copy = sandbox.vault().join("notes").join("sample").join(&copies[0]);
         assert_eq!(fs::read_to_string(copy).expect("read copy"), TRUNCATED);
     }
@@ -145,7 +155,10 @@ mod tests {
     #[test]
     fn a_missing_saved_at_keeps_the_saved_terms() {
         let sandbox = Sandbox::new();
-        sandbox.write(VOCAB_FILE, r#"[{"word":"pin","definition":"a small metal pin","anchor":"^p-001"}]"#);
+        sandbox.write(
+            VOCAB_FILE,
+            r#"[{"word":"pin","definition":"a small metal pin","anchor":"^p-001"}]"#,
+        );
 
         save_vocabulary_term("sample", entry("labour")).expect("a term without savedAt must save");
 
@@ -163,7 +176,10 @@ mod tests {
         );
 
         let saved = get_book_vocabulary("sample").expect("read vocabulary back");
-        assert_eq!(saved[0].saved_at, "2026-09-14T00:00:00Z", "the save time must not be dropped");
+        assert_eq!(
+            saved[0].saved_at, "2026-09-14T00:00:00Z",
+            "the save time must not be dropped"
+        );
     }
 
     /// A word saved before the app kept the chapter of a word still reads, and keeps its place (RD-04).
@@ -180,7 +196,10 @@ mod tests {
         let saved = get_book_vocabulary("sample").expect("read vocabulary back");
         assert_eq!(saved.len(), 2, "the old term must stay");
         assert_eq!(saved[0].chapter_file, "", "an unknown chapter reads as empty");
-        assert_eq!(saved[0].anchor, "^p-001", "the anchor of the old term must not be dropped");
+        assert_eq!(
+            saved[0].anchor, "^p-001",
+            "the anchor of the old term must not be dropped"
+        );
         assert_eq!(saved[1].chapter_file, "ch-01.md", "a new term keeps its chapter");
     }
 
@@ -203,6 +222,8 @@ mod tests {
     #[test]
     fn a_missing_file_reads_as_no_terms() {
         let _sandbox = Sandbox::new();
-        assert!(get_book_vocabulary("sample").expect("missing file is not an error").is_empty());
+        assert!(get_book_vocabulary("sample")
+            .expect("missing file is not an error")
+            .is_empty());
     }
 }

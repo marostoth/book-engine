@@ -59,24 +59,23 @@ pub fn load_chapter_highlights(book_id: &str, chapter_file: &str) -> Result<Vec<
     // highlights are in their own file and the notes file still holds the old comment.
     write_highlights(&path, &old)?;
     let notes = super::reader::read_notes_file(book_id, &notes_file_name(chapter_file))?;
-    write_notes_file(book_id, &notes_file_name(chapter_file), &without_highlights_section(&notes, &old))?;
+    write_notes_file(
+        book_id,
+        &notes_file_name(chapter_file),
+        &without_highlights_section(&notes, &old),
+    )?;
     Ok(old)
 }
 
 /// Saves the highlights of a chapter. A damaged highlights file stops the save (DS-04).
-pub fn save_chapter_highlights(
-    book_id: &str,
-    chapter_file: &str,
-    highlights: Vec<HighlightItem>,
-) -> Result<()> {
+pub fn save_chapter_highlights(book_id: &str, chapter_file: &str, highlights: Vec<HighlightItem>) -> Result<()> {
     let path = highlights_path(book_id, chapter_file)?;
     read_json_file::<Vec<HighlightItem>>(&path)?;
     write_highlights(&path, &highlights)
 }
 
 fn write_highlights(path: &std::path::Path, highlights: &[HighlightItem]) -> Result<()> {
-    let serialized = serde_json::to_string_pretty(highlights)
-        .context("Failed to serialize the highlights to JSON")?;
+    let serialized = serde_json::to_string_pretty(highlights).context("Failed to serialize the highlights to JSON")?;
     write_file(path, &serialized)
 }
 
@@ -90,9 +89,8 @@ fn read_old_comment(book_id: &str, chapter_file: &str) -> Result<Option<Vec<High
     }
 
     let notes = super::reader::read_notes_file(book_id, &notes_file)?;
-    let context = || {
-        format!("The saved highlights in {book_id}/{notes_file} could not be read, so they were left as they are")
-    };
+    let context =
+        || format!("The saved highlights in {book_id}/{notes_file} could not be read, so they were left as they are");
     let Some(json) = comment_json(&notes).with_context(context)? else {
         return Ok(None);
     };
@@ -114,8 +112,8 @@ fn comment_json(notes: &str) -> Result<Option<&str>> {
     };
     let body = &notes[marker + COMMENT_START.len()..];
     let open = list_start(body).ok_or_else(|| anyhow!("the saved highlights do not start with a list"))?;
-    let close = open
-        + json_array_end(&body[open..]).ok_or_else(|| anyhow!("the list of saved highlights is not closed"))?;
+    let close =
+        open + json_array_end(&body[open..]).ok_or_else(|| anyhow!("the list of saved highlights is not closed"))?;
     Ok(Some(&body[open..=close]))
 }
 
@@ -179,7 +177,11 @@ fn without_highlights_section(notes: &str, moved: &[HighlightItem]) -> String {
 
     let quoted: Vec<String> = moved.iter().map(|h| format!("\"{}\"", h.exact)).collect();
     let is_moved_quote = |line: &str| {
-        let body = line.trim().trim_start_matches("- ").trim_start_matches('>').trim_start();
+        let body = line
+            .trim()
+            .trim_start_matches("- ")
+            .trim_start_matches('>')
+            .trim_start();
         !body.is_empty() && quoted.iter().any(|quote| body.starts_with(quote.as_str()))
     };
 
@@ -197,7 +199,10 @@ fn drop_empty_highlights_heading(lines: &[&str]) -> String {
         .position(|line| line.trim_start().starts_with("## "))
         .map(|pos| heading + 1 + pos)
         .unwrap_or(lines.len());
-    if lines[heading + 1..section_end].iter().any(|line| !line.trim().is_empty()) {
+    if lines[heading + 1..section_end]
+        .iter()
+        .any(|line| !line.trim().is_empty())
+    {
         return lines.join("\n");
     }
 

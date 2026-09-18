@@ -2,21 +2,17 @@
 
 import json
 from pathlib import Path
-import pytest
 
+from conftest import load_skill
+from ingest.anchors import clean_preview_text
 from ingest.models import (
     BookMeta,
-    ChapterMeta,
     ElementaryMetrics,
     InspectionalBlueprint,
     InspectionalSampling,
 )
-from ingest.anchors import clean_preview_text, extract_inspectional_sampling
-from ingest.elementary import compute_elementary_metrics
-from ingest.sample_generator import create_sample_epub
 from ingest.pipeline import ingest_epub
-
-from conftest import load_skill
+from ingest.sample_generator import create_sample_epub
 
 
 def test_elementary_metrics_schema():
@@ -61,9 +57,7 @@ def test_inspectional_blueprint_schema():
             "publisher_blurb": "A landmark work on computing.",
         },
         pivotal_chapters=["ch-01", "ch-04"],
-        synthetic_index_clusters=[
-            {"term": "Consensus", "anchors": ["^p-001", "^p-015"]}
-        ],
+        synthetic_index_clusters=[{"term": "Consensus", "anchors": ["^p-001", "^p-015"]}],
     )
     data = blueprint.model_dump()
     assert data["front_matter"]["has_preface"] is True
@@ -75,26 +69,28 @@ def test_inspectional_blueprint_schema():
 
 def test_backward_compatibility_with_legacy_meta():
     """Ensure older _meta.json without Phase 0 fields parses without error."""
-    legacy_json = json.dumps({
-        "book_id": "legacy-book",
-        "title": "Legacy Book",
-        "author": "Old Author",
-        "language": "en",
-        "total_words": 1000,
-        "total_chapters": 1,
-        "toc": [],
-        "spine": [
-            {
-                "id": "ch-01",
-                "title": "Chapter 1",
-                "file_path": "ch-01.md",
-                "order": 1,
-                "word_count": 1000,
-                "anchor_count": 10,
-                "footnotes_count": 0,
-            }
-        ],
-    })
+    legacy_json = json.dumps(
+        {
+            "book_id": "legacy-book",
+            "title": "Legacy Book",
+            "author": "Old Author",
+            "language": "en",
+            "total_words": 1000,
+            "total_chapters": 1,
+            "toc": [],
+            "spine": [
+                {
+                    "id": "ch-01",
+                    "title": "Chapter 1",
+                    "file_path": "ch-01.md",
+                    "order": 1,
+                    "word_count": 1000,
+                    "anchor_count": 10,
+                    "footnotes_count": 0,
+                }
+            ],
+        }
+    )
     book_meta = BookMeta.model_validate_json(legacy_json)
     assert book_meta.book_id == "legacy-book"
     assert book_meta.elementary_metrics is None
@@ -104,10 +100,7 @@ def test_backward_compatibility_with_legacy_meta():
 
 def test_clean_preview_text():
     """Verify clean_preview_text strips formatting, citations, and anchors."""
-    raw = (
-        "# Heading\n\n"
-        "In **distributed** systems, _linearizability_ is key[^1] `code`. ^p-042"
-    )
+    raw = "# Heading\n\nIn **distributed** systems, _linearizability_ is key[^1] `code`. ^p-042"
     cleaned = clean_preview_text(raw)
     assert "#" not in cleaned
     assert "*" not in cleaned
@@ -218,6 +211,3 @@ def test_audit_inspectional_parity_checks_the_exit_assessment_next_to_the_notes(
     passed, err = mod.audit_inspectional_parity(vault_dir)
     assert passed is False
     assert "unityStatement" in err
-
-
-

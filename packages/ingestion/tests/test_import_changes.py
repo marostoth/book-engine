@@ -16,18 +16,15 @@ import subprocess
 import sys
 import zipfile
 from pathlib import Path
-from typing import Dict, List
-
-import pymupdf
-import pytest
 
 import ingest
 import ingest.cli
 import ingest.pdf_parser
 import ingest.pipeline
-from ingest.pipeline import ingest_book
-
+import pymupdf
+import pytest
 from conftest import SKILLS
+from ingest.pipeline import ingest_book
 
 BOOK = "harbour-notes"
 CONTAINER = """<?xml version="1.0"?>
@@ -75,7 +72,7 @@ def picture() -> bytes:
     return pixmap.tobytes("png")
 
 
-def make_epub(path: Path, chapters: Dict[str, List[str]], picture_in: str = "") -> Path:
+def make_epub(path: Path, chapters: dict[str, list[str]], picture_in: str = "") -> Path:
     """An EPUB book with one document for each chapter. The chapter `picture_in` ends with a picture."""
     bodies = []
     for title, paragraphs in chapters.items():
@@ -102,7 +99,7 @@ def make_epub(path: Path, chapters: Dict[str, List[str]], picture_in: str = "") 
     return path
 
 
-def make_pdf(path: Path, chapters: Dict[str, str]) -> Path:
+def make_pdf(path: Path, chapters: dict[str, str]) -> Path:
     """A PDF book with one page for each chapter, and an outline entry for each page."""
     doc = pymupdf.open()
     for title, text in chapters.items():
@@ -122,7 +119,7 @@ PDF_CHAPTERS = {
 }
 
 
-def vault_files(vault: Path) -> Dict[str, str]:
+def vault_files(vault: Path) -> dict[str, str]:
     """The SHA-256 of every file in the vault, by its path in the vault."""
     return {
         path.relative_to(vault).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()

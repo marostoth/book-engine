@@ -45,12 +45,18 @@ export const DEFAULT_PREFERENCES: ReaderPreferences = {
   dailyTarget: 20,
 };
 
+/** What a stored file holds under one name. A file an older app wrote holds whatever it held. */
+function group(stored: Record<string, unknown>, name: string): Record<string, unknown> {
+  const value = stored[name];
+  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+}
+
 export function migratePreferences(raw: unknown): ReaderPreferences {
   if (!raw || typeof raw !== "object") {
     return { ...DEFAULT_PREFERENCES };
   }
 
-  const stored = raw as Record<string, any>;
+  const stored = raw as Record<string, unknown>;
 
   // Fallback for v1 legacy preferences
   const legacyGatekeeper =
@@ -66,23 +72,23 @@ export function migratePreferences(raw: unknown): ReaderPreferences {
     ...DEFAULT_PREFERENCES.study,
     gatekeeperMode: legacyGatekeeper,
     dailyTargetCards: legacyTarget,
-    ...(typeof stored.study === "object" && stored.study !== null ? stored.study : {}),
-  };
+    ...group(stored, "study"),
+  } as typeof DEFAULT_PREFERENCES.study;
 
   const elementary = {
     ...DEFAULT_PREFERENCES.elementary,
-    ...(typeof stored.elementary === "object" && stored.elementary !== null ? stored.elementary : {}),
-  };
+    ...group(stored, "elementary"),
+  } as typeof DEFAULT_PREFERENCES.elementary;
 
   const inspectional = {
     ...DEFAULT_PREFERENCES.inspectional,
-    ...(typeof stored.inspectional === "object" && stored.inspectional !== null ? stored.inspectional : {}),
-  };
+    ...group(stored, "inspectional"),
+  } as typeof DEFAULT_PREFERENCES.inspectional;
 
   const general = {
     ...DEFAULT_PREFERENCES.general,
-    ...(typeof stored.general === "object" && stored.general !== null ? stored.general : {}),
-  };
+    ...group(stored, "general"),
+  } as typeof DEFAULT_PREFERENCES.general;
 
   return {
     elementary,

@@ -30,10 +30,11 @@ import json
 import re
 import sys
 from collections import Counter
+from collections.abc import Iterator
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any
 
 from ingest.anchors import ANCHOR_REGEX, clean_preview_text
 from ingest.chapter_shape import is_heading
@@ -67,9 +68,9 @@ class Paragraph:
 class BookText:
     """The chapter files of a book in book order, their titles, and every paragraph with an anchor."""
 
-    chapter_files: List[str]
-    titles: Dict[str, str]
-    paragraphs: List[Paragraph]
+    chapter_files: list[str]
+    titles: dict[str, str]
+    paragraphs: list[Paragraph]
 
 
 @dataclass(frozen=True)
@@ -77,7 +78,7 @@ class Place:
     """Where a chapter or a paragraph of the old text is in the new text."""
 
     chapter_file: str
-    anchor: Optional[str] = None
+    anchor: str | None = None
     #: True when the new text does not have the old text, so this is the nearest place that it has.
     near: bool = False
 
@@ -88,7 +89,7 @@ def words_of(block: str) -> str:
     return words or re.sub(r"[\W_]+", "", ANCHOR_REGEX.sub("", block).casefold())
 
 
-def read_book_text(book_dir: Path) -> Optional[BookText]:
+def read_book_text(book_dir: Path) -> BookText | None:
     """The chapters and paragraphs of the book in `book_dir`, or None with no book or no readable `_meta.json`."""
     meta_path = Path(book_dir) / "_meta.json"
     try:
@@ -104,7 +105,7 @@ def read_book_text(book_dir: Path) -> Optional[BookText]:
         )
         return None
 
-    paragraphs: List[Paragraph] = []
+    paragraphs: list[Paragraph] = []
     for chapter_file, _ in chapters:
         try:
             text = normalize_line_endings((Path(book_dir) / chapter_file).read_bytes().decode("utf-8"))
@@ -129,15 +130,15 @@ def _likeness(old_words: str, new_words: str) -> float:
     return matcher.ratio()
 
 
-def _pair_changed(old: List[Paragraph], new: List[Paragraph], old_range: range, new_range: range) -> Dict[int, int]:
+def _pair_changed(old: list[Paragraph], new: list[Paragraph], old_range: range, new_range: range) -> dict[int, int]:
     """Pairs the paragraphs of a changed stretch of the book in book order. Two old paragraphs can pair with the one new
     paragraph that joins them."""
-    pairs: Dict[int, int] = {}
+    pairs: dict[int, int] = {}
     everywhere = len(old_range) * len(new_range) <= MOST_PAIRS
     start = 0
     for i in old_range:
         end = len(new_range) if everywhere else min(len(new_range), start + WINDOW)
-        best: Optional[int] = None
+        best: int | None = None
         best_likeness = 0.0
         for k in range(start, end):
             likeness = _likeness(old[i].words, new[new_range[k]].words)
@@ -151,13 +152,13 @@ def _pair_changed(old: List[Paragraph], new: List[Paragraph], old_range: range, 
     return pairs
 
 
-def _pair_paragraphs(old: List[Paragraph], new: List[Paragraph]) -> Dict[int, int]:
+def _pair_paragraphs(old: list[Paragraph], new: list[Paragraph]) -> dict[int, int]:
     """The place in `new` of each paragraph of `old` that the new text still has."""
-    pairs: Dict[int, int] = {}
+    pairs: dict[int, int] = {}
     matcher = SequenceMatcher(None, [p.words for p in old], [p.words for p in new], autojunk=False)
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         if tag == "equal":
-            pairs.update(zip(range(i1, i2), range(j1, j2)))
+            pairs.update(zip(range(i1, i2), range(j1, j2), strict=False))
         elif tag == "replace":
             pairs.update(_pair_changed(old, new, range(i1, i2), range(j1, j2)))
 
@@ -183,11 +184,11 @@ class NewPlaces:
         self.chapters = _chapter_places(old, new, pairs)
         self.paragraphs = _paragraph_places(old, new, pairs, self.chapters)
 
-    def of_chapter(self, chapter_file: str) -> Optional[Place]:
+    def of_chapter(self, chapter_file: str) -> Place | None:
         """The new place of an old chapter file, or None when the old text has no such chapter."""
         return self.chapters.get(chapter_file)
 
-    def of(self, chapter_file: str, anchor: Optional[str]) -> Optional[Place]:
+    def of(self, chapter_file: str, anchor: str | None) -> Place | None:
         """The new place of a paragraph. An anchor that the old chapter does not have stays, and its chapter moves."""
         place = self.paragraphs.get((chapter_file, anchor)) if anchor else None
         if place is not None:
@@ -201,14 +202,14 @@ class NewPlaces:
         )
 
 
-def _chapter_places(old: BookText, new: BookText, pairs: Dict[int, int]) -> Dict[str, Place]:
+def _chapter_places(old: BookText, new: BookText, pairs: dict[int, int]) -> dict[str, Place]:
     """Each old chapter goes to the new chapter that holds most of its paragraphs, or that has its title."""
-    votes: Dict[str, Counter] = {chapter: Counter() for chapter in old.chapter_files}
+    votes: dict[str, Counter[str]] = {chapter: Counter() for chapter in old.chapter_files}
     for i, j in pairs.items():
         votes[old.paragraphs[i].chapter_file][new.paragraphs[j].chapter_file] += 1
     order = {chapter: n for n, chapter in enumerate(new.chapter_files)}
 
-    places: Dict[str, Place] = {}
+    places: dict[str, Place] = {}
     for chapter in old.chapter_files:
         if votes[chapter]:
             places[chapter] = Place(max(votes[chapter], key=lambda c: (votes[chapter][c], -order[c])))
@@ -231,32 +232,32 @@ def _chapter_places(old: BookText, new: BookText, pairs: Dict[int, int]) -> Dict
 
 
 def _paragraph_places(
-    old: BookText, new: BookText, pairs: Dict[int, int], chapters: Dict[str, Place]
-) -> Dict[Tuple[str, str], Place]:
+    old: BookText, new: BookText, pairs: dict[int, int], chapters: dict[str, Place]
+) -> dict[tuple[str, str], Place]:
     """Each old paragraph goes to its new paragraph, or near its text.
 
     Near is the nearest paragraph before it in its chapter, or else after it. A chapter that the new text has only by
     its title gives its first paragraph. A paragraph of a chapter whose text is all gone goes to the nearest paragraph
     before it in the book, or else after it.
     """
-    places: Dict[Tuple[str, str], Place] = {}
+    places: dict[tuple[str, str], Place] = {}
     for i, j in pairs.items():
         places[(old.paragraphs[i].chapter_file, old.paragraphs[i].anchor)] = Place(
             new.paragraphs[j].chapter_file, new.paragraphs[j].anchor
         )
-    first_anchor: Dict[str, str] = {}
+    first_anchor: dict[str, str] = {}
     for paragraph in new.paragraphs:
         first_anchor.setdefault(paragraph.chapter_file, paragraph.anchor)
     keys = [(paragraph.chapter_file, paragraph.anchor) for paragraph in old.paragraphs]
 
     # The old chapter and the new place of the nearest paragraph before and after each paragraph that has a place
     found = dict(places)
-    before: List[Optional[Tuple[str, Place]]] = []
-    last: Optional[Tuple[str, Place]] = None
+    before: list[tuple[str, Place] | None] = []
+    last: tuple[str, Place] | None = None
     for key in keys:
         before.append(last)
         last = (key[0], found[key]) if key in found else last
-    after: List[Optional[Tuple[str, Place]]] = []
+    after: list[tuple[str, Place] | None] = []
     last = None
     for key in reversed(keys):
         after.append(last)
@@ -272,15 +273,15 @@ def _paragraph_places(
             nearest = in_chapter[0][1]
         elif chapter is not None and not chapter.near:
             nearest = Place(chapter.chapter_file, first_anchor.get(chapter.chapter_file))
-        elif before[n] is not None or after[n] is not None:
-            nearest = (before[n] or after[n])[1]
+        elif (neighbour := before[n] or after[n]) is not None:
+            nearest = neighbour[1]
         else:
             continue
         places[key] = Place(nearest.chapter_file, nearest.anchor, near=True)
     return places
 
 
-def _chapter_order(path: Path) -> Tuple[int, str]:
+def _chapter_order(path: Path) -> tuple[int, str]:
     number = re.match(r"ch-(\d+)", path.name)
     return (int(number.group(1)) if number else 0, path.name)
 
@@ -293,25 +294,25 @@ class ReaderMoves:
         self.topics_dir = Path(vault_dir) / "syntopicon" / "topics"
         self.book_id = book_id
         self.places = places
-        self.writes: Dict[Path, str] = {}
-        self.removals: List[Path] = []
-        self.changed: List[str] = []
-        self.near: List[str] = []
-        self.elsewhere: List[str] = []
-        self.unreadable: List[str] = []
-        self.stayed: List[str] = []
+        self.writes: dict[Path, str] = {}
+        self.removals: list[Path] = []
+        self.changed: list[str] = []
+        self.near: list[str] = []
+        self.elsewhere: list[str] = []
+        self.unreadable: list[str] = []
+        self.stayed: list[str] = []
 
     def _name(self, path: Path) -> str:
         return path.name if path.parent == self.notes_dir else f"syntopicon/topics/{path.name}"
 
-    def _read(self, path: Path) -> Optional[str]:
+    def _read(self, path: Path) -> str | None:
         try:
             return path.read_bytes().decode("utf-8")
         except (OSError, UnicodeDecodeError) as error:
             self.unreadable.append(f"{self._name(path)} ({error})")
             return None
 
-    def _read_json(self, path: Path) -> Tuple[Optional[str], Any]:
+    def _read_json(self, path: Path) -> tuple[str | None, Any]:
         text = self._read(path)
         if text is None:
             return None, None
@@ -321,7 +322,7 @@ class ReaderMoves:
             self.unreadable.append(f"{self._name(path)} ({error})")
             return None, None
 
-    def _note_near(self, place: Optional[Place], what: str) -> None:
+    def _note_near(self, place: Place | None, what: str) -> None:
         if place is not None and place.near and what not in self.near:
             self.near.append(what)
 
@@ -333,7 +334,7 @@ class ReaderMoves:
     def bookmark(self) -> None:
         path = self.notes_dir / "bookmark.json"
         text, bookmark = self._read_json(path) if path.is_file() else (None, None)
-        if not isinstance(bookmark, dict) or not isinstance(bookmark.get("chapterFile"), str):
+        if text is None or not isinstance(bookmark, dict) or not isinstance(bookmark.get("chapterFile"), str):
             return
         anchor = bookmark.get("anchor") if isinstance(bookmark.get("anchor"), str) else None
         place = self.places.of(bookmark["chapterFile"], anchor)
@@ -370,8 +371,8 @@ class ReaderMoves:
     def chapter_files(self) -> None:
         """The notes and the highlights of each chapter go to the files of its new chapter."""
         said = (len(self.near), len(self.elsewhere))
-        notes: Dict[Path, List[Tuple[Path, str]]] = {}
-        highlights: Dict[Path, List[Tuple[Path, List[Any]]]] = {}
+        notes: dict[Path, list[tuple[Path, str]]] = {}
+        highlights: dict[Path, list[tuple[Path, list[Any]]]] = {}
         for path in sorted(self.notes_dir.iterdir(), key=_chapter_order):
             match = NOTES_FILE.match(path.name) or HIGHLIGHTS_FILE.match(path.name)
             chapter = f"{match.group(1)}.md" if match and path.is_file() else ""
@@ -386,8 +387,9 @@ class ReaderMoves:
         # A file at a new name that no chapter of the old text names, such as a file of a chapter that an older import
         # had, keeps its own text first. When one of them cannot be read, no notes or highlights move at all, so no
         # text is written over and none is lost.
-        sources = {source for parts in [*notes.values(), *highlights.values()] for source, _ in parts}
-        kept: Dict[Path, Any] = {}
+        every_part: list[list[tuple[Path, Any]]] = [*notes.values(), *highlights.values()]
+        sources = {source for parts in every_part for source, _ in parts}
+        kept: dict[Path, Any] = {}
         for target in [*notes, *highlights]:
             if target in sources or not target.exists():
                 continue
@@ -406,15 +408,15 @@ class ReaderMoves:
                 texts.insert(0, kept[target])
             joined = "\n\n".join(text.rstrip("\r\n") for text in texts) + "\n" if len(texts) > 1 else texts[0]
             self._put(target, parts, joined)
-        for target, parts in highlights.items():
-            items = [*kept.get(target, []), *(item for _, part in parts for item in part)]
+        for target, held in highlights.items():
+            items = [*kept.get(target, []), *(item for _, part in held for item in part)]
             old = _json_or_none(self._read(target)) if target.exists() and target in sources else None
             if items != old:
-                self._put(target, parts, json.dumps(items, indent=2, ensure_ascii=False))
+                self._put(target, held, json.dumps(items, indent=2, ensure_ascii=False))
         targets = set(notes) | set(highlights)
         self.removals.extend(sorted((source for source in sources if source not in targets), key=_chapter_order))
 
-    def _put(self, target: Path, parts: List[Tuple[Path, Any]], text: str) -> None:
+    def _put(self, target: Path, parts: list[tuple[Path, Any]], text: str) -> None:
         """Writes `text` to `target` when it is new there, and names the files whose text went into it."""
         if target.exists() and self._read(target) == text:
             return
@@ -422,13 +424,13 @@ class ReaderMoves:
         self.writes[target] = text
         self.changed.append(target.name if names == [target.name] else f"{', '.join(names)} (now {target.name})")
 
-    def _notes(self, path: Path, chapter: str, place: Place, notes: Dict[Path, List[Tuple[Path, str]]]) -> None:
+    def _notes(self, path: Path, chapter: str, place: Place, notes: dict[Path, list[tuple[Path, str]]]) -> None:
         text = self._read(path)
         if text is None:
             return
         self._note_near(place, path.name)
 
-        def moved_anchor(match: re.Match) -> str:
+        def moved_anchor(match: re.Match[str]) -> str:
             anchor = f"^{match.group(2)}"
             paragraph = self.places.paragraphs.get((chapter, anchor))
             if paragraph is None:
@@ -437,21 +439,25 @@ class ReaderMoves:
                 self.elsewhere.append(f"{path.name} {anchor} (now {paragraph.chapter_file} {paragraph.anchor})")
                 return match.group(0)
             self._note_near(paragraph, f"{path.name} {anchor}")
+            if paragraph.anchor is None:
+                return match.group(0)
             return match.group(1) + paragraph.anchor[1:]
 
         target = self.notes_dir / f"{place.chapter_file[:-3]}-notes.md"
         notes.setdefault(target, []).append((path, ANCHOR_IN_TEXT.sub(moved_anchor, text)))
 
-    def _highlights(self, path: Path, chapter: str, place: Place, highlights: Dict[Path, list]) -> None:
+    def _highlights(self, path: Path, chapter: str, place: Place, highlights: dict[Path, list[Any]]) -> None:
         _, items = self._read_json(path)
         if not isinstance(items, list):
             if items is not None:
                 self.unreadable.append(f"{path.name} (not a list of highlights)")
             return
-        moved: Dict[Path, List[Any]] = {}
+        moved: dict[Path, list[Any]] = {}
         for item in items:
             anchor = item.get("anchor") if isinstance(item, dict) and isinstance(item.get("anchor"), str) else None
-            item_place = self.places.of(chapter, anchor) if anchor else place
+            # `of` gives nothing when the new text has no such chapter, and this used to read `.chapter_file`
+            # off that nothing (TL-05). The chapter's own place is the answer, as it is on the line below.
+            item_place = (self.places.of(chapter, anchor) or place) if anchor else place
             if not CHAPTER_FILE.match(item_place.chapter_file):
                 item_place = place
             self._note_near(item_place, f"{path.name} {anchor or ''}".rstrip())
@@ -463,7 +469,7 @@ class ReaderMoves:
         for target, target_items in moved.items():
             highlights.setdefault(target, []).append((path, target_items))
 
-    def citations(self, path: Path, book_id: Optional[str]) -> None:
+    def citations(self, path: Path, book_id: str | None) -> None:
         """Every citation in a JSON file: an object with `chapterFile` and `anchor`, of the book `book_id` if given."""
         text, data = self._read_json(path) if path.is_file() else (None, None)
         if text is None:
@@ -516,14 +522,14 @@ class ReaderMoves:
                 print(f"[!] {sentence}: {', '.join(names)}.", file=sys.stderr, flush=True)
 
 
-def _json_or_none(text: Optional[str]) -> Any:
+def _json_or_none(text: str | None) -> Any:
     try:
         return json.loads(text) if text is not None else None
     except ValueError:
         return None
 
 
-def _objects(value: Any) -> Iterator[dict]:
+def _objects(value: Any) -> Iterator[dict[str, Any]]:
     """Every JSON object in `value`, also inside lists and other objects."""
     if isinstance(value, dict):
         yield value
@@ -535,8 +541,8 @@ def _objects(value: Any) -> Iterator[dict]:
 
 
 def reader_moves(
-    vault_dir: Path, book_id: str, old: Optional[BookText], new_book_dir: Optional[Path] = None
-) -> Optional[ReaderMoves]:
+    vault_dir: Path, book_id: str, old: BookText | None, new_book_dir: Path | None = None
+) -> ReaderMoves | None:
     """What moves in the reader's files for a book, from the chapters and paragraphs of `old` to the same text in the
     new book, or None when nothing moves.
 
@@ -571,7 +577,7 @@ def reader_moves(
     return moves
 
 
-def move_reader_files(vault_dir: Path, book_id: str, old: Optional[BookText]) -> None:
+def move_reader_files(vault_dir: Path, book_id: str, old: BookText | None) -> None:
     """Moves what the reader's files for a book point to, from `old` to the same text in the book folder, and tells the
     reader about it. An import calls `reader_moves` in `ingest.book_build` instead, so the moves go in with the book."""
     moves = reader_moves(vault_dir, book_id, old)

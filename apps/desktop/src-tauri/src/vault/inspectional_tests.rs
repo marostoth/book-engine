@@ -65,7 +65,11 @@ fn inspectional_path(sandbox: &Sandbox) -> std::path::PathBuf {
 fn a_saved_exit_assessment_comes_back() {
     let sandbox = Sandbox::new();
     sandbox.write("books/sample/_meta.json", META);
-    assert_eq!(load_exit_assessment(BOOK).expect("load"), None, "a book the reader has not assessed has none");
+    assert_eq!(
+        load_exit_assessment(BOOK).expect("load"),
+        None,
+        "a book the reader has not assessed has none"
+    );
 
     save_exit_assessment(BOOK, assessment()).expect("save");
 
@@ -86,7 +90,10 @@ fn a_new_import_of_the_book_keeps_the_exit_assessment() {
 
 #[test]
 fn saving_an_exit_assessment_never_writes_the_book_file() {
-    for (name, meta) in [("with a blueprint", META), ("with no blueprint", META_WITHOUT_BLUEPRINT)] {
+    for (name, meta) in [
+        ("with a blueprint", META),
+        ("with no blueprint", META_WITHOUT_BLUEPRINT),
+    ] {
         let sandbox = Sandbox::new();
         let windows_text = meta.replace('\n', "\r\n");
         sandbox.write("books/sample/_meta.json", &windows_text);
@@ -111,7 +118,10 @@ fn a_book_with_no_blueprint_keeps_the_blueprint_the_app_builds() {
     save_exit_assessment(BOOK, assessment()).expect("save");
 
     let after = get_inspectional_blueprint(BOOK).expect("blueprint after");
-    assert_eq!(after.pivotal_chapters, built.pivotal_chapters, "the key chapters must not go");
+    assert_eq!(
+        after.pivotal_chapters, built.pivotal_chapters,
+        "the key chapters must not go"
+    );
     assert_eq!(after.front_matter, built.front_matter, "the blurb must not go");
 }
 
@@ -120,16 +130,29 @@ fn an_exit_assessment_an_older_build_saved_in_the_book_file_moves_next_to_the_no
     let sandbox = Sandbox::new();
     let older = META.replace(
         "\"exit_assessment\": null",
-        &format!("\"exit_assessment\": {}", serde_json::to_string(&assessment()).expect("assessment as JSON")),
+        &format!(
+            "\"exit_assessment\": {}",
+            serde_json::to_string(&assessment()).expect("assessment as JSON")
+        ),
     );
     sandbox.write("books/sample/_meta.json", &older);
 
     assert_eq!(load_exit_assessment(BOOK).expect("load"), Some(assessment()));
-    assert_eq!(fs::read_to_string(meta_path(&sandbox)).expect("read _meta.json"), older, "the book file is not changed");
-    assert!(inspectional_path(&sandbox).exists(), "the assessment is copied next to the notes");
+    assert_eq!(
+        fs::read_to_string(meta_path(&sandbox)).expect("read _meta.json"),
+        older,
+        "the book file is not changed"
+    );
+    assert!(
+        inspectional_path(&sandbox).exists(),
+        "the assessment is copied next to the notes"
+    );
 
     sandbox.write("books/sample/_meta.json", META);
-    assert_eq!(load_exit_assessment(BOOK).expect("load after an import"), Some(assessment()));
+    assert_eq!(
+        load_exit_assessment(BOOK).expect("load after an import"),
+        Some(assessment())
+    );
 }
 
 #[test]
@@ -137,21 +160,35 @@ fn a_damaged_file_is_kept_and_never_saved_over() {
     let sandbox = Sandbox::new();
     let older = META.replace(
         "\"exit_assessment\": null",
-        &format!("\"exit_assessment\": {}", serde_json::to_string(&assessment()).expect("assessment as JSON")),
+        &format!(
+            "\"exit_assessment\": {}",
+            serde_json::to_string(&assessment()).expect("assessment as JSON")
+        ),
     );
     sandbox.write("books/sample/_meta.json", &older);
     let damaged = "{\"exitAssessment\": {\"classification\": \"Practical";
     sandbox.write("notes/sample/inspectional.json", damaged);
 
     let load = load_exit_assessment(BOOK).expect_err("a damaged file must not read as no assessment");
-    assert!(load.to_string().contains(INSPECTIONAL_FILE), "the error must name the file: {load}");
+    assert!(
+        load.to_string().contains(INSPECTIONAL_FILE),
+        "the error must name the file: {load}"
+    );
     save_exit_assessment(BOOK, assessment()).expect_err("a damaged file must stop the save");
 
-    assert_eq!(fs::read_to_string(inspectional_path(&sandbox)).expect("read the file"), damaged);
+    assert_eq!(
+        fs::read_to_string(inspectional_path(&sandbox)).expect("read the file"),
+        damaged
+    );
     let copies = fs::read_dir(sandbox.vault().join("notes").join(BOOK))
         .expect("read notes folder")
         .flatten()
-        .filter(|entry| entry.file_name().to_string_lossy().starts_with("inspectional.json.corrupt-"))
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with("inspectional.json.corrupt-")
+        })
         .count();
     assert_eq!(copies, 1, "the damaged bytes are kept in one copy");
 }
@@ -159,13 +196,19 @@ fn a_damaged_file_is_kept_and_never_saved_over() {
 #[test]
 fn answers_this_build_does_not_know_are_kept() {
     let sandbox = Sandbox::new();
-    sandbox.write("notes/sample/inspectional.json", "{\n  \"dipNotes\": [\"The preface names the three parts.\"]\n}");
+    sandbox.write(
+        "notes/sample/inspectional.json",
+        "{\n  \"dipNotes\": [\"The preface names the three parts.\"]\n}",
+    );
 
     save_exit_assessment(BOOK, assessment()).expect("save");
 
     let saved: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(inspectional_path(&sandbox)).expect("read the file")).expect("parse");
-    assert_eq!(saved["dipNotes"], serde_json::json!(["The preface names the three parts."]));
+    assert_eq!(
+        saved["dipNotes"],
+        serde_json::json!(["The preface names the three parts."])
+    );
     assert_eq!(saved["exitAssessment"]["unityStatement"], assessment().unity_statement);
 }
 
@@ -180,5 +223,9 @@ fn a_saved_exit_assessment_leaves_no_temp_file_behind() {
         .flatten()
         .map(|entry| entry.file_name().to_string_lossy().to_string())
         .collect();
-    assert_eq!(names, vec![INSPECTIONAL_FILE], "a finished save must leave only the file itself");
+    assert_eq!(
+        names,
+        vec![INSPECTIONAL_FILE],
+        "a finished save must leave only the file itself"
+    );
 }

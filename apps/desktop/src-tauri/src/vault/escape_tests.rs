@@ -39,7 +39,11 @@ fn names_to(folder: &Path, target: &Path) -> Vec<String> {
     let to: Vec<_> = target.components().collect();
     let shared = from.iter().zip(&to).take_while(|(a, b)| a == b).count();
     let mut parts = vec!["..".to_string(); from.len() - shared];
-    parts.extend(to[shared..].iter().map(|part| part.as_os_str().to_string_lossy().to_string()));
+    parts.extend(
+        to[shared..]
+            .iter()
+            .map(|part| part.as_os_str().to_string_lossy().to_string()),
+    );
 
     let mut names = vec![parts.join("/")];
     if cfg!(windows) {
@@ -67,7 +71,11 @@ impl NotRefused {
     }
 
     fn assert_none(self) {
-        assert!(self.0.is_empty(), "these calls were not refused:\n{}", self.0.join("\n"));
+        assert!(
+            self.0.is_empty(),
+            "these calls were not refused:\n{}",
+            self.0.join("\n")
+        );
     }
 }
 
@@ -155,23 +163,50 @@ fn a_file_outside_the_vault_is_not_written() {
     }
     // The highlights of a chapter `escaped.md` are in `escaped-highlights.json`.
     for name in names_to(&notes.join("sample"), &outside.join("escaped.md")) {
-        not_refused.check("save_chapter_highlights", &name, save_chapter_highlights("sample", &name, Vec::new()));
+        not_refused.check(
+            "save_chapter_highlights",
+            &name,
+            save_chapter_highlights("sample", &name, Vec::new()),
+        );
     }
     for id in names_to(&notes, &outside) {
         let id = id.as_str();
-        not_refused.check("write_notes_file", id, write_notes_file(id, "ch-01-notes.md", "written"));
-        not_refused.check("save_chapter_highlights", id, save_chapter_highlights(id, "ch-01.md", Vec::new()));
+        not_refused.check(
+            "write_notes_file",
+            id,
+            write_notes_file(id, "ch-01-notes.md", "written"),
+        );
+        not_refused.check(
+            "save_chapter_highlights",
+            id,
+            save_chapter_highlights(id, "ch-01.md", Vec::new()),
+        );
         not_refused.check("save_bookmark", id, save_bookmark(id, "ch-01.md", None));
         not_refused.check("save_exit_assessment", id, save_exit_assessment(id, assessment()));
         not_refused.check("save_vocabulary_term", id, save_vocabulary_term(id, term()));
-        not_refused.check("save_analytical_store", id, save_analytical_store(id, AnalyticalStore::default()));
-        not_refused.check("compile_and_export_book_summary", id, compile_and_export_book_summary(id));
-        not_refused.check("record_reading_session", id, record_reading_session_blocking(id, "ch-01.md", 60, false));
+        not_refused.check(
+            "save_analytical_store",
+            id,
+            save_analytical_store(id, AnalyticalStore::default()),
+        );
+        not_refused.check(
+            "compile_and_export_book_summary",
+            id,
+            compile_and_export_book_summary(id),
+        );
+        not_refused.check(
+            "record_reading_session",
+            id,
+            record_reading_session_blocking(id, "ch-01.md", 60, false),
+        );
     }
 
     let written = files_in(&outside);
     not_refused.assert_none();
-    assert!(written.is_empty(), "no file may be written outside the vault: {written:?}");
+    assert!(
+        written.is_empty(),
+        "no file may be written outside the vault: {written:?}"
+    );
 }
 
 /// `sync_practice_deck` makes no cards from a deck outside the vault, and `get_study_analytics` does not count the words
@@ -182,8 +217,11 @@ fn practice_and_analytics_use_no_book_outside_the_vault() {
     sandbox.write_sample_book();
     let outside = outside(&sandbox);
     fs::copy(sandbox.vault().join("books/sample/ch-01.md"), outside.join("ch-01.md")).expect("copy the chapter");
-    fs::copy(sandbox.vault().join("notes/sample/practice-deck.md"), outside.join("practice-deck.md"))
-        .expect("copy the deck");
+    fs::copy(
+        sandbox.vault().join("notes/sample/practice-deck.md"),
+        outside.join("practice-deck.md"),
+    )
+    .expect("copy the deck");
     fs::write(outside.join("_meta.json"), OUTSIDE_META).expect("write a book file outside the vault");
     let mut not_refused = NotRefused::default();
 
@@ -227,7 +265,11 @@ fn a_topic_outside_the_vault_is_not_read_or_written() {
 
     let written = files_in(&outside);
     not_refused.assert_none();
-    assert_eq!(written, ["secret.json"], "no topic or report may be written outside the vault");
+    assert_eq!(
+        written,
+        ["secret.json"],
+        "no topic or report may be written outside the vault"
+    );
 }
 
 /// A book folder or a notes folder that is a link to a place outside the vault is not used: the link is followed

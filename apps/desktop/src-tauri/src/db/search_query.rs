@@ -120,8 +120,14 @@ fn word_term(word: &str) -> Option<String> {
     let term = fts5_string(body, prefix)?;
     let parts: Vec<&str> = body.split('-').collect();
     let hyphenated = parts.len() > 1
-        && parts.iter().all(|part| !part.is_empty() && part.chars().all(char::is_alphanumeric));
-    let joined = if hyphenated { fts5_string(&parts.concat(), prefix) } else { None };
+        && parts
+            .iter()
+            .all(|part| !part.is_empty() && part.chars().all(char::is_alphanumeric));
+    let joined = if hyphenated {
+        fts5_string(&parts.concat(), prefix)
+    } else {
+        None
+    };
     Some(match joined {
         Some(joined) => format!("({term} OR {joined})"),
         None => term,
@@ -163,7 +169,10 @@ mod tests {
             ("war AND NOT peace", Some(r#""war"* NOT "peace"*"#)),
             ("OR war AND", Some(r#""war"*"#)),
             ("NOT war", None),
-            ("don't well-known", Some(r#""don't" AND ("well-known"* OR "wellknown"*)"#)),
+            (
+                "don't well-known",
+                Some(r#""don't" AND ("well-known"* OR "wellknown"*)"#),
+            ),
             ("e-mail NOT spam", Some(r#"("e-mail"* OR "email"*) NOT "spam"*"#)),
             ("U.S.-based -war", Some(r#""U.S.-based"* AND "-war"*"#)),
             ("C++ U.S.", Some(r#""C++" AND "U.S.""#)),

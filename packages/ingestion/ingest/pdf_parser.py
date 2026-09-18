@@ -2,42 +2,40 @@
 
 from __future__ import annotations
 
-import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import pymupdf
 import pymupdf4llm
 
-from ingest.anchors import extract_anchors, inject_paragraph_anchors, extract_inspectional_sampling, clean_preview_text
+from ingest.anchors import clean_preview_text, extract_anchors, extract_inspectional_sampling, inject_paragraph_anchors
+from ingest.assets import (
+    cleanup_orphaned_assets,
+    filter_and_normalize_markdown_assets,
+    suppress_page_images,
+)
 from ingest.book_build import BookBuild
-from ingest.models import BookMeta, BookSource, ChapterMeta, PracticeCard, TOCItem, InspectionalBlueprint, ScenarioCard
 from ingest.elementary import compute_elementary_metrics
+from ingest.glyph_repair import repair_glyph_maps
+from ingest.layout_stitcher import stitch_layout_blocks
+from ingest.line_endings import write_text_file
+from ingest.models import BookMeta, BookSource, ChapterMeta, InspectionalBlueprint, PracticeCard, ScenarioCard, TOCItem
+from ingest.pdf_outline import CHAPTER, describe_pages, outline_parts
+from ingest.pdf_sanitizer import book_language, clean_author_metadata, generate_pdf_slug, sanitize_pdf_markdown
+from ingest.places import read_book_text
+from ingest.reimport import book_to_import
 from ingest.salience import (
     format_practice_deck_markdown,
     generate_chapter_practice_cards,
     generate_chapter_scenario_cards,
 )
-from ingest.glyph_repair import repair_glyph_maps
-from ingest.pdf_sanitizer import book_language, clean_author_metadata, generate_pdf_slug, sanitize_pdf_markdown
-from ingest.assets import (
-    filter_and_normalize_markdown_assets,
-    cleanup_orphaned_assets,
-    suppress_page_images,
-)
 from ingest.vector_figures import (
     detect_and_rasterize_vector_figures,
     replace_vector_diagram_streams,
 )
-from ingest.layout_stitcher import stitch_layout_blocks
-from ingest.line_endings import write_text_file
-from ingest.pdf_outline import CHAPTER, describe_pages, outline_parts
-from ingest.places import read_book_text
-from ingest.reimport import book_to_import
 
-
-__all__ = ["PDFParser", "generate_pdf_slug", "sanitize_pdf_markdown", "clean_author_metadata"]
+__all__ = ["PDFParser", "clean_author_metadata", "generate_pdf_slug", "sanitize_pdf_markdown"]
 
 
 class PDFParser:
@@ -47,7 +45,7 @@ class PDFParser:
         self,
         pdf_path: Path,
         vault_dir: Path,
-        custom_book_id: Optional[str] = None,
+        custom_book_id: str | None = None,
     ) -> None:
         self.pdf_path = Path(pdf_path).resolve()
         self.vault_dir = Path(vault_dir).resolve()
@@ -56,7 +54,7 @@ class PDFParser:
         if not self.pdf_path.exists():
             raise FileNotFoundError(f"Source PDF not found: {self.pdf_path}")
 
-    def parse(self, target_chapters: Optional[List[int]] = None, replace: bool = False) -> BookMeta:
+    def parse(self, target_chapters: list[int] | None = None, replace: bool = False) -> BookMeta:
         """Parses the PDF document into structured Markdown chapters, assets, and metadata.
 
         A book that the vault already has is replaced only when `replace` is true (see `ingest.reimport`).
@@ -73,8 +71,9 @@ class PDFParser:
             print(f"[*] Character map repaired: {line}")
 
         # Extract title and author metadata
-        raw_title = doc.metadata.get("title") or self.pdf_path.stem
-        raw_author = doc.metadata.get("author") or ""
+        about = doc.metadata or {}
+        raw_title = about.get("title") or self.pdf_path.stem
+        raw_author = about.get("author") or ""
         title = raw_title.strip()
         author = clean_author_metadata(raw_author)
         # The language the PDF says it is in. Every PDF used to be written down as English (IN-10).
@@ -83,7 +82,9 @@ class PDFParser:
         # Stop before anything is written when the vault already has this book (DS-09), or another book has its id (IN-03)
         try:
             name_id = generate_pdf_slug(self.pdf_path.name, title)
-            book_id, source = book_to_import(self.vault_dir, self.pdf_path, name_id, self.custom_book_id or None, replace)
+            book_id, source = book_to_import(
+                self.vault_dir, self.pdf_path, name_id, self.custom_book_id or None, replace
+            )
         except Exception:
             doc.close()
             raise
@@ -111,7 +112,10 @@ class PDFParser:
         first_ch_notes = self.vault_dir / "notes" / book_id / notes_file
         if not first_ch_notes.exists():
             first_title = first_chapter.title if first_chapter else "Chapter 1"
-            write_text_file(first_ch_notes, f"# Reflections: {title} - {first_title}\n\n## Key Takeaways\n\n- \n\n## Open Inquiries\n\n- \n")
+            write_text_file(
+                first_ch_notes,
+                f"# Reflections: {title} - {first_title}\n\n## Key Takeaways\n\n- \n\n## Open Inquiries\n\n- \n",
+            )
 
         return book_meta
 
@@ -124,8 +128,8 @@ class PDFParser:
         author: str,
         language: str,
         source: BookSource,
-        target_chapters: Optional[List[int]],
-    ) -> Tuple[BookMeta, str, Optional[ChapterMeta]]:
+        target_chapters: list[int] | None,
+    ) -> tuple[BookMeta, str, ChapterMeta | None]:
         """Builds the parts, the pictures and `_meta.json` of the book in `book_dir`. Gives the practice deck and the
         first chapter."""
         total_pages = len(doc)
@@ -142,11 +146,11 @@ class PDFParser:
             )
 
         # 2. Sequential Extraction: Iterate part-by-part (Memory-Safe)
-        spine_metas: List[ChapterMeta] = []
-        toc_items: List[TOCItem] = []
-        all_practice_cards: List[PracticeCard] = []
-        all_scenarios: List[ScenarioCard] = []
-        all_clean_text: List[str] = []
+        spine_metas: list[ChapterMeta] = []
+        toc_items: list[TOCItem] = []
+        all_practice_cards: list[PracticeCard] = []
+        all_scenarios: list[ScenarioCard] = []
+        all_clean_text: list[str] = []
         total_words = 0
 
         for chapter_idx, part in enumerate(parts, start=1):
@@ -179,7 +183,9 @@ class PDFParser:
                     clean_t = clean_preview_text(anchored_md)
                     if clean_t:
                         all_clean_text.append(clean_t)
-                    all_practice_cards.extend(generate_chapter_practice_cards(ch_id, anchored_md, min_items=5, max_items=8))
+                    all_practice_cards.extend(
+                        generate_chapter_practice_cards(ch_id, anchored_md, min_items=5, max_items=8)
+                    )
                     all_scenarios.extend(generate_chapter_scenario_cards(anchored_md, ch_id, max_items=3))
                 continue
 
@@ -188,13 +194,10 @@ class PDFParser:
                 flush=True,
             )
 
-
             page_numbers = list(range(start_page, end_page))
 
             # 3. Pristine Snapshot Pass: Vector diagram rasterization directly from unredacted doc
-            vec_figures = detect_and_rasterize_vector_figures(
-                doc, page_numbers, chapter_idx, assets_dir
-            )
+            vec_figures = detect_and_rasterize_vector_figures(doc, page_numbers, chapter_idx, assets_dir)
 
             # 4. Non-Destructive Markdown Conversion directly from source doc (Zero Redaction)
             raw_chapter_md = pymupdf4llm.to_markdown(
@@ -273,9 +276,7 @@ class PDFParser:
 
             # 6. Salience Scoring & Deterministic Cloze Deck, for the parts the owner chose (IN-01)
             if part.makes_cards:
-                chapter_cards = generate_chapter_practice_cards(
-                    ch_id, anchored_md, min_items=5, max_items=8
-                )
+                chapter_cards = generate_chapter_practice_cards(ch_id, anchored_md, min_items=5, max_items=8)
                 all_practice_cards.extend(chapter_cards)
                 all_scenarios.extend(generate_chapter_scenario_cards(anchored_md, ch_id, max_items=3))
 
@@ -285,11 +286,13 @@ class PDFParser:
         cleanup_orphaned_assets(book_dir, assets_dir, [ch.file_path for ch in spine_metas])
 
         # The first and the last chapter are pivotal, not the cover or the index
-        chapter_metas = [meta for meta, part in zip(spine_metas, parts) if part.kind == CHAPTER] or spine_metas
+        chapter_metas = [
+            meta for meta, part in zip(spine_metas, parts, strict=False) if part.kind == CHAPTER
+        ] or spine_metas
         pivotal_chapters = [chapter_metas[0].id] if chapter_metas else []
         if len(chapter_metas) > 1:
             pivotal_chapters.append(chapter_metas[-1].id)
-        preface = next((meta for meta, part in zip(spine_metas, parts) if part.is_preface), None)
+        preface = next((meta for meta, part in zip(spine_metas, parts, strict=False) if part.is_preface), None)
 
         inspectional_blueprint = InspectionalBlueprint(
             front_matter={
@@ -318,4 +321,3 @@ class PDFParser:
 
         practice_deck_md = format_practice_deck_markdown(title, all_practice_cards, all_scenarios)
         return book_meta, practice_deck_md, (chapter_metas[0] if chapter_metas else None)
-

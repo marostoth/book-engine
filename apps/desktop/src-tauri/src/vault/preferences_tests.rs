@@ -28,7 +28,10 @@ fn saved_settings_come_back() {
     save_preferences(&chosen).expect("save the settings");
 
     assert_eq!(load_preferences().expect("read the settings"), Some(chosen));
-    assert!(settings_file(&sandbox).exists(), "the settings must be at the top of the vault");
+    assert!(
+        settings_file(&sandbox).exists(),
+        "the settings must be at the top of the vault"
+    );
 }
 
 #[test]
@@ -65,7 +68,10 @@ fn a_damaged_settings_file_is_kept_and_never_saved_over() {
     sandbox.write(PREFERENCES_FILE, damaged);
 
     let error = load_preferences().expect_err("damaged settings must not read as no settings");
-    assert!(error.to_string().contains(PREFERENCES_FILE), "the error must name the file: {error}");
+    assert!(
+        error.to_string().contains(PREFERENCES_FILE),
+        "the error must name the file: {error}"
+    );
 
     save_preferences(&settings(json!({ "general": { "theme": "paper" } })))
         .expect_err("a save must not write the default settings over the reader's own");
@@ -74,7 +80,12 @@ fn a_damaged_settings_file_is_kept_and_never_saved_over() {
     let copies = fs::read_dir(sandbox.vault())
         .expect("list the vault")
         .filter_map(Result::ok)
-        .filter(|entry| entry.file_name().to_string_lossy().starts_with("preferences.json.corrupt-"))
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with("preferences.json.corrupt-")
+        })
         .count();
     assert_eq!(copies, 1, "one copy of the damaged file must be kept");
 }
@@ -85,5 +96,8 @@ fn a_file_that_holds_no_settings_object_is_refused() {
     sandbox.write(PREFERENCES_FILE, "[\"paper\"]");
 
     load_preferences().expect_err("a list is not settings, and must not read as no settings");
-    assert_eq!(fs::read_to_string(settings_file(&sandbox)).expect("read"), "[\"paper\"]");
+    assert_eq!(
+        fs::read_to_string(settings_file(&sandbox)).expect("read"),
+        "[\"paper\"]"
+    );
 }

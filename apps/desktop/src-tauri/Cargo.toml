@@ -9,6 +9,13 @@ edition = "2021"
 # instead of failing somewhere inside a dependency (TL-06).
 rust-version = "1.88"
 
+# Clippy's own default list is not the same on every release, and a rule that moves between them is a check that
+# answers differently on two computers. `uninlined_format_args` is on by default in 1.88 and off in 1.98, which is
+# how the first run of the workflow found 125 errors that `npm run check` never showed here. Naming it holds the
+# answer still, whatever clippy the toolchain brings (TL-05).
+[lints.clippy]
+uninlined_format_args = "warn"
+
 [lib]
 name = "book_engine_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]

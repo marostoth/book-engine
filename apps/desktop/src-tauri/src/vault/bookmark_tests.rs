@@ -14,7 +14,9 @@ fn bookmark_file(sandbox: &Sandbox, book_id: &str) -> PathBuf {
 fn write_bookmark(sandbox: &Sandbox, book_id: &str, chapter_file: &str, saved_at: &str) {
     sandbox.write(
         &format!("notes/{book_id}/{BOOKMARK_FILE}"),
-        &format!("{{\n  \"chapterFile\": \"{chapter_file}\",\n  \"anchor\": \"^p-004\",\n  \"savedAt\": \"{saved_at}\"\n}}"),
+        &format!(
+            "{{\n  \"chapterFile\": \"{chapter_file}\",\n  \"anchor\": \"^p-004\",\n  \"savedAt\": \"{saved_at}\"\n}}"
+        ),
     );
 }
 
@@ -24,11 +26,23 @@ fn a_saved_place_comes_back() {
     sandbox.write_sample_book();
 
     save_bookmark("sample", "ch-03.md", Some("^p-012")).expect("save the place");
-    let place = load_bookmark("sample").expect("read the place").expect("a place was saved");
+    let place = load_bookmark("sample")
+        .expect("read the place")
+        .expect("a place was saved");
 
-    assert_eq!(place.chapter_file, "ch-03.md", "the book must open at the chapter where the reader stopped");
-    assert_eq!(place.anchor.as_deref(), Some("^p-012"), "and at the paragraph where they stopped");
-    assert!(bookmark_file(&sandbox, "sample").exists(), "the place must be in the vault, next to the book's notes");
+    assert_eq!(
+        place.chapter_file, "ch-03.md",
+        "the book must open at the chapter where the reader stopped"
+    );
+    assert_eq!(
+        place.anchor.as_deref(),
+        Some("^p-012"),
+        "and at the paragraph where they stopped"
+    );
+    assert!(
+        bookmark_file(&sandbox, "sample").exists(),
+        "the place must be in the vault, next to the book's notes"
+    );
 }
 
 #[test]
@@ -37,7 +51,11 @@ fn a_book_the_reader_has_not_read_has_no_place() {
     sandbox.write_sample_book();
 
     assert_eq!(load_bookmark("sample").expect("no file is not an error"), None);
-    assert_eq!(last_bookmark().expect("no files are not an error"), None, "so the app opens the first book");
+    assert_eq!(
+        last_bookmark().expect("no files are not an error"),
+        None,
+        "so the app opens the first book"
+    );
 }
 
 #[test]
@@ -51,7 +69,10 @@ fn a_place_with_no_paragraph_on_screen_saves_the_chapter_only() {
     assert_eq!(place.chapter_file, "ch-02.md");
     assert_eq!(place.anchor, None, "a blank paragraph is no paragraph");
     let text = fs::read_to_string(bookmark_file(&sandbox, "sample")).expect("read the file");
-    assert!(!text.contains("anchor"), "the file must not hold an empty paragraph: {text}");
+    assert!(
+        !text.contains("anchor"),
+        "the file must not hold an empty paragraph: {text}"
+    );
 }
 
 #[test]
@@ -109,7 +130,10 @@ fn a_damaged_bookmark_is_kept_and_never_saved_over() {
     sandbox.write(&format!("notes/sample/{BOOKMARK_FILE}"), damaged);
 
     let error = load_bookmark("sample").expect_err("a damaged bookmark must not read as no bookmark");
-    assert!(error.to_string().contains(BOOKMARK_FILE), "the error must name the file: {error}");
+    assert!(
+        error.to_string().contains(BOOKMARK_FILE),
+        "the error must name the file: {error}"
+    );
 
     save_bookmark("sample", "ch-02.md", Some("^p-003")).expect_err("a save must not write over it");
     assert_eq!(
@@ -126,7 +150,9 @@ fn a_damaged_bookmark_does_not_hide_the_other_books() {
     sandbox.write(&format!("notes/hume/{BOOKMARK_FILE}"), "not a bookmark");
     write_bookmark(&sandbox, "smith", "ch-11.md", "2026-09-14T09:15:00.000Z");
 
-    let last = last_bookmark().expect("a damaged file must not stop the search").expect("there are bookmarks");
+    let last = last_bookmark()
+        .expect("a damaged file must not stop the search")
+        .expect("there are bookmarks");
     assert_eq!(last.book_id, "adler", "the newest bookmark that can be read wins");
 }
 

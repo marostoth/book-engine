@@ -3,15 +3,13 @@
 import os
 import stat
 from pathlib import Path
-from typing import Dict, Optional
-
-import pytest
 
 import ingest.vault_changes as vault_changes
+import pytest
 from ingest.vault_changes import VaultChanges
 
 
-def everything(folder: Path) -> Dict[str, Optional[bytes]]:
+def everything(folder: Path) -> dict[str, bytes | None]:
     """Every file with its bytes, and every folder with None, by its path in `folder`."""
     return {
         path.relative_to(folder).as_posix(): path.read_bytes() if path.is_file() else None

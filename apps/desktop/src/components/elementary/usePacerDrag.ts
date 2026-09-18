@@ -28,7 +28,9 @@ export function usePacerDrag({
   const lastLineIdxRef = useRef<number>(currentLineIndex);
   const lastProgressRef = useRef<number>(0);
 
-  lastLineIdxRef.current = currentLineIndex;
+  useEffect(() => {
+    lastLineIdxRef.current = currentLineIndex;
+  });
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault();

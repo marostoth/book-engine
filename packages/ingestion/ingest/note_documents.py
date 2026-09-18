@@ -21,14 +21,12 @@ a note read twice is the smaller harm.
 
 from __future__ import annotations
 
-from typing import Optional, Set, Tuple
-
 import ebooklib
 from bs4 import BeautifulSoup, Tag
 from ebooklib import epub
 
 from ingest.chapter_shape import is_heading
-from ingest.endnotes import NOTE_LIST_KINDS, EndnoteRegistry, is_note_reference, kinds, named_element
+from ingest.endnotes import NOTE_LIST_KINDS, EndnoteRegistry, attribute, is_note_reference, kinds, named_element
 from ingest.epub_parser import html_to_markdown_blocks
 from ingest.line_endings import read_html
 
@@ -36,26 +34,26 @@ from ingest.line_endings import read_html
 LEAVES_THE_BOOK = ("http://", "https://", "mailto:")
 
 
-def element_named(soup: BeautifulSoup, name: str) -> Optional[Tag]:
+def element_named(soup: BeautifulSoup, name: str) -> Tag | None:
     """The element of a document that a link fragment names: by `id`, or the block an `<a name>` sits in."""
-    found = soup.find(attrs={"id": name})
+    found = soup.find(None, {"id": name})
     if found is not None:
         return found
     anchor = soup.find("a", attrs={"name": name})
     return named_element(anchor) if anchor is not None else None
 
 
-def notes_another_document_shows(book: epub.EpubBook, registry: EndnoteRegistry) -> Set[Tuple[str, str]]:
+def notes_another_document_shows(book: epub.EpubBook, registry: EndnoteRegistry) -> set[tuple[str, str]]:
     """Every (document, element name) that a link in some other document of the book names as a note.
 
     A note that only its own document cites is left out: that note already goes to the foot of its own chapter.
     """
-    shown: Set[Tuple[str, str]] = set()
+    shown: set[tuple[str, str]] = set()
     for item in book.get_items_of_type(ebooklib.ITEM_DOCUMENT):
         source = item.get_name()
         soup = read_html(item.get_content())
         for link in soup.find_all("a", href=True):
-            href = link["href"]
+            href = attribute(link, "href")
             if href.startswith(LEAVES_THE_BOOK):
                 continue
             key = registry.resolve_key(source, href)
@@ -82,10 +80,10 @@ def says_it_is_all_notes(soup: BeautifulSoup) -> bool:
     return len(inside) == 1 and bool(kinds(inside[0]) & NOTE_LIST_KINDS)
 
 
-def documents_of_only_notes(book: epub.EpubBook, registry: EndnoteRegistry) -> Set[str]:
+def documents_of_only_notes(book: epub.EpubBook, registry: EndnoteRegistry) -> set[str]:
     """The names of the documents of the book that hold nothing but notes, so they make no chapter."""
     shown = notes_another_document_shows(book, registry)
-    only_notes: Set[str] = set()
+    only_notes: set[str] = set()
     for item in book.get_items_of_type(ebooklib.ITEM_DOCUMENT):
         name = item.get_name()
         soup = read_html(item.get_content())
@@ -93,8 +91,8 @@ def documents_of_only_notes(book: epub.EpubBook, registry: EndnoteRegistry) -> S
             only_notes.add(name)
             continue
 
-        taken = [element_named(soup, note) for document, note in shown if document == name]
-        taken = [element for element in taken if element is not None]
+        found = [element_named(soup, note) for document, note in shown if document == name]
+        taken = [element for element in found if element is not None]
         if not taken:
             continue
         for element in taken:

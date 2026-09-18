@@ -42,7 +42,9 @@ export function getFallbackReadingVelocity(bookId?: string): ReadingVelocityStat
   if (storedSessions) {
     try {
       return JSON.parse(storedSessions);
-    } catch {}
+    } catch {
+      // A stored value this browser cannot read is no value, and the answer below is the empty one.
+    }
   }
 
   return {

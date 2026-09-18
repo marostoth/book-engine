@@ -7,7 +7,6 @@ import re
 import sys
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 SKILL_DIR = Path(__file__).resolve().parent
 ROOT_DIR = SKILL_DIR.parent.parent
@@ -28,17 +27,180 @@ OPTION_LINE = re.compile(r"^- \[([ xX])\] \(([A-Za-z])\) (.*)$")
 # The rules of a cloze card, as packages/ingestion/ingest/cloze.py makes it (LE-07). Small words: an answer needs
 # another word, and it neither starts nor ends with one of these.
 STOPWORDS = frozenset(
-    """
-    a about above across after again against all along also although am among an and any are around as at be because
-    been before behind being below beside besides between beyond both but by can could did do does doing down during
-    each either else even ever every few for from further had has have having he hence her here hers herself him
-    himself his how however i if in inside into is it its itself just may me might more most much must my myself
-    near neither no nor not now of off on once only onto or other otherwise our ours ourselves out outside over own
-    per rather same shall she should since so some such than that the their theirs them themselves then there
-    therefore these they this those though through thus to too toward towards under unless until up upon us very via
-    was we were what whatever when where whether which while who whom whose why will with within without would yet
-    you your yours yourself yourselves
-    """.split()
+    [
+        "a",
+        "about",
+        "above",
+        "across",
+        "after",
+        "again",
+        "against",
+        "all",
+        "along",
+        "also",
+        "although",
+        "am",
+        "among",
+        "an",
+        "and",
+        "any",
+        "are",
+        "around",
+        "as",
+        "at",
+        "be",
+        "because",
+        "been",
+        "before",
+        "behind",
+        "being",
+        "below",
+        "beside",
+        "besides",
+        "between",
+        "beyond",
+        "both",
+        "but",
+        "by",
+        "can",
+        "could",
+        "did",
+        "do",
+        "does",
+        "doing",
+        "down",
+        "during",
+        "each",
+        "either",
+        "else",
+        "even",
+        "ever",
+        "every",
+        "few",
+        "for",
+        "from",
+        "further",
+        "had",
+        "has",
+        "have",
+        "having",
+        "he",
+        "hence",
+        "her",
+        "here",
+        "hers",
+        "herself",
+        "him",
+        "himself",
+        "his",
+        "how",
+        "however",
+        "i",
+        "if",
+        "in",
+        "inside",
+        "into",
+        "is",
+        "it",
+        "its",
+        "itself",
+        "just",
+        "may",
+        "me",
+        "might",
+        "more",
+        "most",
+        "much",
+        "must",
+        "my",
+        "myself",
+        "near",
+        "neither",
+        "no",
+        "nor",
+        "not",
+        "now",
+        "of",
+        "off",
+        "on",
+        "once",
+        "only",
+        "onto",
+        "or",
+        "other",
+        "otherwise",
+        "our",
+        "ours",
+        "ourselves",
+        "out",
+        "outside",
+        "over",
+        "own",
+        "per",
+        "rather",
+        "same",
+        "shall",
+        "she",
+        "should",
+        "since",
+        "so",
+        "some",
+        "such",
+        "than",
+        "that",
+        "the",
+        "their",
+        "theirs",
+        "them",
+        "themselves",
+        "then",
+        "there",
+        "therefore",
+        "these",
+        "they",
+        "this",
+        "those",
+        "though",
+        "through",
+        "thus",
+        "to",
+        "too",
+        "toward",
+        "towards",
+        "under",
+        "unless",
+        "until",
+        "up",
+        "upon",
+        "us",
+        "very",
+        "via",
+        "was",
+        "we",
+        "were",
+        "what",
+        "whatever",
+        "when",
+        "where",
+        "whether",
+        "which",
+        "while",
+        "who",
+        "whom",
+        "whose",
+        "why",
+        "will",
+        "with",
+        "within",
+        "without",
+        "would",
+        "yet",
+        "you",
+        "your",
+        "yours",
+        "yourself",
+        "yourselves",
+    ]
 )
 MIN_ANSWER_CHARS = 3
 MAX_ANSWER_CHARS = 50
@@ -66,12 +228,12 @@ def is_near_copy(first: str, second: str) -> bool:
 
 def scenario_stem(block: str) -> str:
     """The text of a quiz card after **Scenario:**, one line per line, up to its options. The app reads it the same way."""
-    lines: List[str] = []
+    lines: list[str] = []
     in_stem = False
     for line in block.splitlines():
         stripped = line.strip()
         if stripped.startswith("**Scenario:**"):
-            lines.append(stripped[len("**Scenario:**"):].strip())
+            lines.append(stripped[len("**Scenario:**") :].strip())
             in_stem = True
         elif stripped.startswith(("- ", ">", "<!--")):
             in_stem = False
@@ -98,7 +260,7 @@ def shown_text(text: str) -> str:
     return re.sub(r"\s+", " ", text.replace("&lt;", "<").replace("&amp;", "&"))
 
 
-def answer_problem(answer: str) -> Optional[str]:
+def answer_problem(answer: str) -> str | None:
     """Why a text cannot be the answer of a cloze card, or None."""
     words = WORD.findall(answer)
     if not MIN_ANSWER_CHARS <= len(answer) <= MAX_ANSWER_CHARS:
@@ -121,7 +283,7 @@ def shows_answer(text: str, answer: str) -> bool:
     return re.search(r"(?<!\w)" + re.escape(answer) + r"(?!\w)", text, re.IGNORECASE) is not None
 
 
-def extract_scramble_clauses(text: str) -> List[str]:
+def extract_scramble_clauses(text: str) -> list[str]:
     """Extracts scrambled clause components separated by pipes or semicolons."""
     delimiter = "|" if "|" in text else (";" if ";" in text else None)
     if delimiter:
@@ -131,9 +293,15 @@ def extract_scramble_clauses(text: str) -> List[str]:
 
 class DeckAuditResult:
     """Audit result supporting 4-tuple unpacking for audit-system.py parity."""
+
     def __init__(
-        self, total: int, matches: int, mismatches: int, errors: List[str],
-        cloze_count: int = 0, scenario_count: int = 0
+        self,
+        total: int,
+        matches: int,
+        mismatches: int,
+        errors: list[str],
+        cloze_count: int = 0,
+        scenario_count: int = 0,
     ) -> None:
         self.total = total
         self.matches = matches
@@ -164,16 +332,12 @@ def audit_book_practice_deck(deck_path: Path, books_dir: Path) -> DeckAuditResul
     mismatches = 0
     cloze_count = 0
     scenario_count = 0
-    errors: List[str] = []
+    errors: list[str] = []
 
     for block in card_blocks:
         trimmed = block.strip()
-        is_cloze = trimmed.startswith("### card-") or trimmed.startswith("### Card:")
-        is_scenario = (
-            trimmed.startswith("### Scenario:")
-            or trimmed.startswith("### scenario-")
-            or trimmed.startswith("### sc-")
-        )
+        is_cloze = trimmed.startswith(("### card-", "### Card:"))
+        is_scenario = trimmed.startswith(("### Scenario:", "### scenario-", "### sc-"))
 
         if not is_cloze and not is_scenario:
             continue
@@ -198,7 +362,9 @@ def audit_book_practice_deck(deck_path: Path, books_dir: Path) -> DeckAuditResul
             exact_source = src_m.group(1).strip() if src_m else ""
             cloze_text = cloze_m.group(1).strip() if cloze_m else (prompt_m.group(1).strip() if prompt_m else "")
             item_type = type_m.group(1).strip().lower() if type_m else ("scramble" if scramble_m else "cloze")
-            scramble_text = scramble_m.group(1).strip() if scramble_m else (cloze_text if item_type == "scramble" else "")
+            scramble_text = (
+                scramble_m.group(1).strip() if scramble_m else (cloze_text if item_type == "scramble" else "")
+            )
 
             ch_filename = f"{ch_id}.md" if not ch_id.endswith(".md") else ch_id
             ch_file = book_dir / ch_filename
@@ -242,7 +408,9 @@ def audit_book_practice_deck(deck_path: Path, books_dir: Path) -> DeckAuditResul
                 else:
                     if [a or b for a, b in blanks] != [answer]:
                         card_valid = False
-                        errors.append(f"{card_id}: The prompt must have one blank, and the blank must hold the answer key")
+                        errors.append(
+                            f"{card_id}: The prompt must have one blank, and the blank must hold the answer key"
+                        )
                     if answer not in cited:
                         card_valid = False
                         errors.append(
@@ -260,7 +428,11 @@ def audit_book_practice_deck(deck_path: Path, books_dir: Path) -> DeckAuditResul
                         card_valid = False
                         errors.append(f"{card_id}: The prompt shows the answer outside the blank")
                     filled = BLANK.sub(lambda m: m.group(1) if m.group(1) is not None else m.group(2), cloze_text)
-                    if exact_source and not is_scramble and " ".join(filled.split()) != " ".join(shown_text(exact_source).split()):
+                    if (
+                        exact_source
+                        and not is_scramble
+                        and " ".join(filled.split()) != " ".join(shown_text(exact_source).split())
+                    ):
                         card_valid = False
                         errors.append(f"{card_id}: The prompt does not show its exact source as the reader shows it")
 
@@ -318,9 +490,11 @@ def audit_book_practice_deck(deck_path: Path, books_dir: Path) -> DeckAuditResul
                 continue
 
             card_valid = True
-            opt_lines = [l.strip() for l in trimmed.splitlines() if l.strip().startswith(("- [ ]", "- [x]", "- [X]"))]
-            correct_opts = [l for l in opt_lines if l.startswith(("- [x]", "- [X]"))]
-            incorrect_opts = [l for l in opt_lines if l.startswith("- [ ]")]
+            opt_lines = [
+                one.strip() for one in trimmed.splitlines() if one.strip().startswith(("- [ ]", "- [x]", "- [X]"))
+            ]
+            correct_opts = [one for one in opt_lines if one.startswith(("- [x]", "- [X]"))]
+            incorrect_opts = [one for one in opt_lines if one.startswith("- [ ]")]
             if len(correct_opts) != 1 or len(incorrect_opts) < 2:
                 card_valid = False
                 errors.append(f"{card_id}: Format validation failed: exactly 1 [x] and >= 2 [ ] required")
@@ -328,11 +502,11 @@ def audit_book_practice_deck(deck_path: Path, books_dir: Path) -> DeckAuditResul
             # Rationale grounding verification
             rat_lines = []
             for line in trimmed.splitlines():
-                l = line.strip()
-                if l.startswith("> **Rationale:**"):
-                    rat_lines.append(l.replace("> **Rationale:**", "").strip())
-                elif l.startswith(">") and rat_lines:
-                    rat_lines.append(l.lstrip(">").strip())
+                one = line.strip()
+                if one.startswith("> **Rationale:**"):
+                    rat_lines.append(one.replace("> **Rationale:**", "").strip())
+                elif one.startswith(">") and rat_lines:
+                    rat_lines.append(one.lstrip(">").strip())
             rationale = " ".join(rat_lines).strip()
 
             paragraphs = [p for p in ch_content.split("\n\n") if anchor_id in p]
@@ -356,7 +530,9 @@ def audit_book_practice_deck(deck_path: Path, books_dir: Path) -> DeckAuditResul
                             break
                 if not quote_matched:
                     card_valid = False
-                    errors.append(f"{card_id}: Rationale does not contain a verbatim quote matching cited anchor {anchor_id}")
+                    errors.append(
+                        f"{card_id}: Rationale does not contain a verbatim quote matching cited anchor {anchor_id}"
+                    )
 
             # The card asks which sentence comes right after its quoted passage. Every option is text of the chapter,
             # the right option comes right after the passage, and no two options say much the same thing (LE-06).
@@ -376,12 +552,16 @@ def audit_book_practice_deck(deck_path: Path, books_dir: Path) -> DeckAuditResul
                     card_valid = False
                     errors.append(f"{card_id}: Option ({key}) is not text of {ch_filename}")
             rights = [text for mark, _, text in options if mark in "xX"]
-            if has_passage and len(rights) == 1 and paragraphs:
-                if f"{book_text(passage[1:-1])} {book_text(rights[0])}" not in book_text(paragraphs[0]):
-                    card_valid = False
-                    errors.append(f"{card_id}: The right option does not come right after the passage in {anchor_id}")
+            if (
+                has_passage
+                and len(rights) == 1
+                and paragraphs
+                and f"{book_text(passage[1:-1])} {book_text(rights[0])}" not in book_text(paragraphs[0])
+            ):
+                card_valid = False
+                errors.append(f"{card_id}: The right option does not come right after the passage in {anchor_id}")
             for index, (_, key, text) in enumerate(options):
-                for _, other_key, other_text in options[index + 1:]:
+                for _, other_key, other_text in options[index + 1 :]:
                     if is_near_copy(book_text(text), book_text(other_text)):
                         card_valid = False
                         errors.append(f"{card_id}: Options ({key}) and ({other_key}) say much the same thing")
@@ -394,10 +574,16 @@ def audit_book_practice_deck(deck_path: Path, books_dir: Path) -> DeckAuditResul
     return DeckAuditResult(total_cards, verbatim_matches, mismatches, errors, cloze_count, scenario_count)
 
 
-def print_summary_table(rows: List[Dict[str, str]]) -> None:
+def print_summary_table(rows: list[dict[str, str]]) -> None:
     """Prints a clean ASCII summary table for verbatim audit results."""
-    headers = [("Book ID", "book_id", 30), ("Total Cards", "total", 13), ("Matches", "matches", 10), ("Mismatches", "mismatches", 12), ("Status", "status", 10)]
-    widths = [max(len(str(r.get(k, ""))) for r in rows + [{k: t}]) for t, k, _ in headers]
+    headers = [
+        ("Book ID", "book_id", 30),
+        ("Total Cards", "total", 13),
+        ("Matches", "matches", 10),
+        ("Mismatches", "mismatches", 12),
+        ("Status", "status", 10),
+    ]
+    widths = [max(len(str(r.get(k, ""))) for r in [*rows, {k: t}]) for t, k, _ in headers]
     sep = "+" + "+".join("-" * (w + 2) for w in widths) + "+"
     print("\n" + sep)
     print("|" + "|".join(f" {headers[i][0].ljust(widths[i])} " for i in range(len(headers))) + "|")
@@ -416,9 +602,9 @@ def main() -> int:
         print("[-] No practice decks found in vault/notes/. Nothing was checked.", file=sys.stderr)
         return 1
 
-    rows: List[Dict[str, str]] = []
+    rows: list[dict[str, str]] = []
     total_mismatches = 0
-    all_errors: List[str] = []
+    all_errors: list[str] = []
     total_cloze = 0
     total_scenario = 0
 
@@ -429,7 +615,15 @@ def main() -> int:
         total_scenario += res.scenario_count
         total_mismatches += mismatches
         all_errors.extend(errors)
-        rows.append({"book_id": deck_path.parent.name, "total": str(total), "matches": str(matches), "mismatches": str(mismatches), "status": "PASS" if mismatches == 0 else "FAIL"})
+        rows.append(
+            {
+                "book_id": deck_path.parent.name,
+                "total": str(total),
+                "matches": str(matches),
+                "mismatches": str(mismatches),
+                "status": "PASS" if mismatches == 0 else "FAIL",
+            }
+        )
 
     print_summary_table(rows)
     if all_errors:
@@ -438,7 +632,10 @@ def main() -> int:
             print(f"    [FAIL] {err}", file=sys.stderr)
         return 1
 
-    print(f"[+] {total_cloze} cloze cards, {total_scenario} scenario cards verified across {len(target_notes)} books.", flush=True)
+    print(
+        f"[+] {total_cloze} cloze cards, {total_scenario} scenario cards verified across {len(target_notes)} books.",
+        flush=True,
+    )
     return 0
 
 

@@ -1,30 +1,34 @@
 """End-to-end ingestion pipeline orchestrator."""
 
 from __future__ import annotations
-import json
+
 import posixpath
 import re
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+
 import ebooklib
 from ebooklib import epub
 
-from ingest.models import BookMeta, BookSource, ChapterMeta, PracticeCard, TOCItem, InspectionalBlueprint, ScenarioCard
+from ingest.anchors import clean_preview_text, extract_anchors, extract_inspectional_sampling, inject_paragraph_anchors
 from ingest.assets import extract_epub_assets, normalize_image_markdown
 from ingest.book_build import BookBuild
 from ingest.chapter_shape import HeldOverBlocks, chapter_name, holds_no_text
-from ingest.endnotes import EndnoteRegistry, relocate_chapter_footnotes
-from ingest.note_documents import documents_of_only_notes
-from ingest.ledger import keep_numbers_true
-from ingest.anchors import inject_paragraph_anchors, extract_anchors, extract_inspectional_sampling, clean_preview_text
 from ingest.elementary import compute_elementary_metrics
-from ingest.salience import generate_chapter_practice_cards, generate_chapter_scenario_cards, format_practice_deck_markdown
-from ingest.epub_parser import extract_metadata, parse_toc, html_to_markdown_blocks
+from ingest.endnotes import EndnoteRegistry, relocate_chapter_footnotes
+from ingest.epub_parser import extract_metadata, html_to_markdown_blocks, parse_toc
+from ingest.ledger import keep_numbers_true
 from ingest.line_endings import read_html, write_text_file
 from ingest.markdown_text import unescape_markdown_text
+from ingest.models import BookMeta, BookSource, ChapterMeta, InspectionalBlueprint, PracticeCard, ScenarioCard
+from ingest.note_documents import documents_of_only_notes
 from ingest.pdf_parser import PDFParser
 from ingest.places import read_book_text
 from ingest.reimport import book_to_import
+from ingest.salience import (
+    format_practice_deck_markdown,
+    generate_chapter_practice_cards,
+    generate_chapter_scenario_cards,
+)
 from ingest.toc_links import (
     ImportedDocument,
     contents_of_chapters,
@@ -37,7 +41,7 @@ from ingest.toc_links import (
 def ingest_epub(
     epub_path: Path,
     vault_dir: Path,
-    custom_book_id: Optional[str] = None,
+    custom_book_id: str | None = None,
     replace: bool = False,
 ) -> BookMeta:
     """Ingest an EPUB file into vault/books/<book-id>/ and vault/notes/<book-id>/.
@@ -72,9 +76,7 @@ def ingest_epub(
     if not first_ch_notes.exists():
         first_title = book_meta.spine[0].title if book_meta.spine else "Chapter 1"
         notes_template = (
-            f"# Reflections: {title} - {first_title}\n\n"
-            f"## Key Takeaways\n\n- \n\n"
-            f"## Open Inquiries\n\n- \n"
+            f"# Reflections: {title} - {first_title}\n\n## Key Takeaways\n\n- \n\n## Open Inquiries\n\n- \n"
         )
         write_text_file(first_ch_notes, notes_template)
 
@@ -87,7 +89,7 @@ def ingest_epub(
 
 def _build_epub_book(
     book: epub.EpubBook, book_dir: Path, book_id: str, title: str, author: str, language: str, source: BookSource
-) -> Tuple[BookMeta, str]:
+) -> tuple[BookMeta, str]:
     """Builds the chapters, the pictures and `_meta.json` of an EPUB book in `book_dir`, and gives its practice deck."""
     assets_dir = book_dir / "assets"
     assets_dir.mkdir(parents=True, exist_ok=True)
@@ -104,14 +106,14 @@ def _build_epub_book(
     toc_items = parse_toc(book.toc)
 
     # 4. Process Chapter Documents
-    spine_metas: List[ChapterMeta] = []
-    all_practice_cards: List[PracticeCard] = []
-    all_scenarios: List[ScenarioCard] = []
-    all_clean_text: List[str] = []
+    spine_metas: list[ChapterMeta] = []
+    all_practice_cards: list[PracticeCard] = []
+    all_scenarios: list[ScenarioCard] = []
+    all_clean_text: list[str] = []
     total_words = 0
     chapter_index = 1
     # The chapter file and the paragraphs of each imported source document, for the links of the contents (CQ-01)
-    imported_documents: Dict[str, ImportedDocument] = {}
+    imported_documents: dict[str, ImportedDocument] = {}
     # A page that holds nothing but a title is no chapter, so its headings wait for the next one (CQ-04)
     held_over = HeldOverBlocks()
 
@@ -147,13 +149,13 @@ def _build_epub_book(
         footnotes = relocate_chapter_footnotes(soup, item_name, registry)
 
         # Convert HTML to Markdown blocks, and note the block where each element starts
-        element_blocks: Dict[str, int] = {}
+        element_blocks: dict[str, int] = {}
         blocks = html_to_markdown_blocks(soup, element_blocks)
         if not blocks:
             continue
 
         # Normalize images in blocks
-        normalized_blocks: List[str] = []
+        normalized_blocks: list[str] = []
         for b in blocks:
             normalized_blocks.append(normalize_image_markdown(b, asset_map))
 
@@ -252,7 +254,7 @@ def _build_epub_book(
     elementary_metrics = compute_elementary_metrics(" ".join(all_clean_text))
 
     # Construct default inspectional blueprint
-    pivotal_chapters: List[str] = []
+    pivotal_chapters: list[str] = []
     if spine_metas:
         pivotal_chapters.append(spine_metas[0].id)
         if len(spine_metas) > 1:
@@ -293,8 +295,8 @@ def _build_epub_book(
 def ingest_pdf(
     pdf_path: Path,
     vault_dir: Path,
-    custom_book_id: Optional[str] = None,
-    target_chapters: Optional[List[int]] = None,
+    custom_book_id: str | None = None,
+    target_chapters: list[int] | None = None,
     replace: bool = False,
 ) -> BookMeta:
     """Ingest a PDF file into vault/books/<book-id>/ and vault/notes/<book-id>/."""
@@ -308,8 +310,8 @@ def ingest_pdf(
 def ingest_book(
     file_path: Path,
     vault_dir: Path,
-    book_id: Optional[str] = None,
-    target_chapters: Optional[List[int]] = None,
+    book_id: str | None = None,
+    target_chapters: list[int] | None = None,
     replace: bool = False,
 ) -> BookMeta:
     """Entry point dispatching to appropriate ingestion handler based on file suffix.
@@ -323,4 +325,3 @@ def ingest_book(
         return ingest_pdf(file_path, vault_dir, book_id, target_chapters=target_chapters, replace=replace)
     else:
         raise NotImplementedError(f"Unsupported file format '{suffix}'. Only .epub and .pdf are currently implemented.")
-

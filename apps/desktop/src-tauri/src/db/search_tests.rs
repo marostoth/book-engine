@@ -136,8 +136,25 @@ fn search_shorter_than_two_characters_finds_nothing() {
 fn unusual_search_returns_no_error() {
     let _sandbox = indexed_sandbox();
     let queries = [
-        "AND", "OR OR", "NOT", "war AND", "OR peace", "\"", "\"\"", "--", "war*", "(war)", "e-", "-e-mail-",
-        "don'", "NEAR(war peace)", "content:war", "^war", "war + peace", "\"war\" \"peace", "war\"peace",
+        "AND",
+        "OR OR",
+        "NOT",
+        "war AND",
+        "OR peace",
+        "\"",
+        "\"\"",
+        "--",
+        "war*",
+        "(war)",
+        "e-",
+        "-e-mail-",
+        "don'",
+        "NEAR(war peace)",
+        "content:war",
+        "^war",
+        "war + peace",
+        "\"war\" \"peace",
+        "war\"peace",
     ];
     for query in queries {
         if let Err(e) = search_vault_blocking(query) {
@@ -156,15 +173,33 @@ fn a_book_imported_after_the_first_index_is_found_by_the_next_index() {
     sandbox.write("books/imported/_meta.json", IMPORTED_META);
     sandbox.write("books/imported/ch-01.md", IMPORTED_CHAPTER);
 
-    let library: Vec<String> = scan_library_books().expect("read the library").into_iter().map(|book| book.id).collect();
-    assert!(library.contains(&"imported".to_string()), "the library lists the new book at once: {library:?}");
-    assert_eq!(found("glaciers"), Vec::<String>::new(), "search does not know the book before the next index");
+    let library: Vec<String> = scan_library_books()
+        .expect("read the library")
+        .into_iter()
+        .map(|book| book.id)
+        .collect();
+    assert!(
+        library.contains(&"imported".to_string()),
+        "the library lists the new book at once: {library:?}"
+    );
+    assert_eq!(
+        found("glaciers"),
+        Vec::<String>::new(),
+        "search does not know the book before the next index"
+    );
 
     let summary = index_vault_blocking().expect("index the vault again");
-    assert_eq!(summary.chapters_indexed, 1, "only the new chapter is read, not the book that was there");
+    assert_eq!(
+        summary.chapters_indexed, 1,
+        "only the new chapter is read, not the book that was there"
+    );
     assert_eq!(summary.paragraphs_indexed, 2);
     assert_eq!(found("glaciers"), ["^p-001"]);
-    assert_eq!(found("war"), ["^p-001", "^p-003"], "the book that was there is still found");
+    assert_eq!(
+        found("war"),
+        ["^p-001", "^p-003"],
+        "the book that was there is still found"
+    );
 }
 
 #[test]

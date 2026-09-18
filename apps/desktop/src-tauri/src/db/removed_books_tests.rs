@@ -19,7 +19,10 @@ fn write_hume(sandbox: &Sandbox) {
         r#"{ "book_id": "hume", "title": "An Enquiry", "author": "David Hume", "spine": [
              { "id": "ch-01", "title": "Custom", "file_path": "ch-01.md", "order": 1 } ] }"#,
     );
-    sandbox.write("books/hume/ch-01.md", "# Custom\n\nCustom is the great guide of human life. ^p-001\n");
+    sandbox.write(
+        "books/hume/ch-01.md",
+        "# Custom\n\nCustom is the great guide of human life. ^p-001\n",
+    );
     let card = |n: usize, cloze: &str, answer: &str| {
         format!(
             "\n### card-ch-01-{n:03}\n- **Chapter:** ch-01\n- **Anchor:** ^p-001\n- **Cloze:** {cloze}\n- **Answer Key:** ``{answer}``\n"
@@ -50,7 +53,9 @@ fn practice_one_card(book: &str) {
 fn all_books() -> (usize, usize, u64) {
     let analytics = get_study_analytics_blocking(None).expect("study analytics");
     let reviews = analytics.review_blocks.iter().map(|block| block.count).sum();
-    let seconds = get_reading_velocity_blocking(None).expect("reading velocity").total_seconds;
+    let seconds = get_reading_velocity_blocking(None)
+        .expect("reading velocity")
+        .total_seconds;
     (analytics.state_counts.total_cards, reviews, seconds)
 }
 
@@ -93,7 +98,16 @@ fn cards_of(book: &str) -> Vec<(String, i64, f64, i64, i64, i64)> {
         )
         .expect("prepare the card query");
     let rows = statement
-        .query_map([book], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)))
+        .query_map([book], |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+                row.get(5)?,
+            ))
+        })
         .expect("query the cards");
     rows.map(|row| row.expect("read a card")).collect()
 }
@@ -117,7 +131,11 @@ fn a_deleted_book_leaves_all_books_analytics_and_practice() {
 
     assert_eq!(all_books(), (2, 1, 60), "only the book in the vault counts");
     assert_eq!(get_deck_stats_blocking(None).expect("deck stats").total_cards, 2);
-    assert_eq!(books_in_practice(), ["sample"], "practice gives no card of the deleted book");
+    assert_eq!(
+        books_in_practice(),
+        ["sample"],
+        "practice gives no card of the deleted book"
+    );
     assert_eq!(
         files_in(&sandbox.vault().join("notes")),
         notes_before,

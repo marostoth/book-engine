@@ -15,8 +15,10 @@ report of failure. `say_what_was_done` prints such lines and keeps the command w
 
 from __future__ import annotations
 
+import contextlib
 import sys
-from typing import IO, Iterable, List
+from collections.abc import Iterable
+from typing import IO
 
 
 def allow_any_letter() -> None:
@@ -46,7 +48,7 @@ def say_what_was_done(sentences: Iterable[str], *, to_errors: bool = False) -> N
     Every sentence is made first and printed after, so a fault in making one is a fault of the command and is
     never swallowed here.
     """
-    lines: List[str] = list(sentences)
+    lines: list[str] = list(sentences)
     where: IO[str] = sys.stderr if to_errors else sys.stdout
     try:
         for line in lines:
@@ -57,11 +59,10 @@ def say_what_was_done(sentences: Iterable[str], *, to_errors: bool = False) -> N
 
 def _say_the_stream_could_not(error: BaseException) -> None:
     """One line of plain letters about a stream that could not take what a command wanted to say."""
-    try:
+    # Nothing is left to say it with, and the work is still done.
+    with contextlib.suppress(Exception):
         print(
             f"[!] The work is done. This console or log could not print what was done ({type(error).__name__}).",
             file=sys.stderr,
             flush=True,
         )
-    except Exception:  # nothing is left to say it with, and the work is still done
-        pass

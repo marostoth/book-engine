@@ -18,13 +18,12 @@ looked at, and the font's own `/CharSet` names them `/C0 /C2 /C3 /onequarter /th
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Optional
 
 #: The character that a reader puts where nothing names the character that the book drew.
 REPLACEMENT = "�"
 
 #: What each glyph of a font really is, by the font's own glyph name.
-FONT_GLYPHS: Dict[str, Dict[str, str]] = {
+FONT_GLYPHS: dict[str, dict[str, str]] = {
     "AdvP4C4E74": {
         "onequarter": "=",
         "thorn": "+",
@@ -36,7 +35,7 @@ FONT_GLYPHS: Dict[str, Dict[str, str]] = {
 }
 
 #: The same, by character code, for a code that the font's encoding leaves unnamed.
-FONT_CODES: Dict[str, Dict[int, str]] = {
+FONT_CODES: dict[str, dict[int, str]] = {
     "AdvP4C4E74": {
         0x01: "×",
         0x02: "×",
@@ -59,9 +58,9 @@ def font_family(base_font: str) -> str:
     return name.split("+", 1)[1] if "+" in name else name
 
 
-def parse_differences(body: str) -> Dict[int, str]:
+def parse_differences(body: str) -> dict[int, str]:
     """Which glyph each code names, from a `/Differences` array such as `[ 2/C2 188/onequarter ]`."""
-    names: Dict[int, str] = {}
+    names: dict[int, str] = {}
     code = 0
     for number, glyph in _DIFFERENCE.findall(body):
         if glyph:
@@ -72,9 +71,9 @@ def parse_differences(body: str) -> Dict[int, str]:
     return names
 
 
-def parse_to_unicode(cmap: str) -> Dict[int, str]:
+def parse_to_unicode(cmap: str) -> dict[int, str]:
     """Which character each code is named as, from a `ToUnicode` map. Only one-byte codes are read."""
-    named: Dict[int, str] = {}
+    named: dict[int, str] = {}
     for code_text, target in _BF_CHAR.findall(cmap):
         if len(code_text) > 2:
             continue
@@ -83,7 +82,7 @@ def parse_to_unicode(cmap: str) -> Dict[int, str]:
     return named
 
 
-def to_unicode_cmap(named: Dict[int, str]) -> bytes:
+def to_unicode_cmap(named: dict[int, str]) -> bytes:
     """A `ToUnicode` map that names each code in `named`."""
     lines = [
         "/CIDInit /ProcSet findresource begin",
@@ -102,7 +101,7 @@ def to_unicode_cmap(named: Dict[int, str]) -> bytes:
     return ("\n".join(lines) + "\n").encode("ascii")
 
 
-def _differences_of(doc: object, font_xref: int) -> Dict[int, str]:
+def _differences_of(doc: object, font_xref: int) -> dict[int, str]:
     """The `/Differences` array of the font at `font_xref`, when it has one."""
     encoding = doc.xref_get_key(font_xref, "Encoding")  # type: ignore[attr-defined]
     if not encoding or encoding[0] != "xref":
@@ -111,7 +110,7 @@ def _differences_of(doc: object, font_xref: int) -> Dict[int, str]:
     return parse_differences(body) if kind == "array" else {}
 
 
-def _to_unicode_of(doc: object, font_xref: int) -> Optional[Dict[int, str]]:
+def _to_unicode_of(doc: object, font_xref: int) -> dict[int, str] | None:
     """The `ToUnicode` map of the font at `font_xref`. None when the font has none."""
     reference = doc.xref_get_key(font_xref, "ToUnicode")  # type: ignore[attr-defined]
     if not reference or reference[0] != "xref":
@@ -120,9 +119,9 @@ def _to_unicode_of(doc: object, font_xref: int) -> Optional[Dict[int, str]]:
     return parse_to_unicode(stream.decode("latin-1")) if stream else None
 
 
-def _font_xrefs(doc: object) -> List[int]:
+def _font_xrefs(doc: object) -> list[int]:
     """Every object of the document that is a font of a family in the table."""
-    found: List[int] = []
+    found: list[int] = []
     for xref in range(1, doc.xref_length()):  # type: ignore[attr-defined]
         base = doc.xref_get_key(xref, "BaseFont")  # type: ignore[attr-defined]
         if base and base[0] == "name" and font_family(base[1]) in FONT_CODES:
@@ -130,7 +129,7 @@ def _font_xrefs(doc: object) -> List[int]:
     return found
 
 
-def right_text_of(doc: object, font_xref: int, family: str) -> Dict[int, str]:
+def right_text_of(doc: object, font_xref: int, family: str) -> dict[int, str]:
     """Which character each code of this font really is."""
     named = dict(FONT_CODES[family])
     glyphs = FONT_GLYPHS[family]
@@ -140,20 +139,20 @@ def right_text_of(doc: object, font_xref: int, family: str) -> Dict[int, str]:
     return named
 
 
-def names_them_right(named: Optional[Dict[int, str]], right: Dict[int, str]) -> bool:
+def names_them_right(named: dict[int, str] | None, right: dict[int, str]) -> bool:
     """True when a `ToUnicode` map already names every character of the font correctly."""
     if named is None:
         return False
     return all(named.get(code) == text for code, text in right.items())
 
 
-def repair_glyph_maps(doc: object) -> List[str]:
+def repair_glyph_maps(doc: object) -> list[str]:
     """Give every font of the document that names its characters wrongly a correct map.
 
     Call this on the open document before any text is read. A font that is already right is left
     alone. Gives one line for each font it repaired.
     """
-    repaired: List[str] = []
+    repaired: list[str] = []
     for font_xref in _font_xrefs(doc):
         base = doc.xref_get_key(font_xref, "BaseFont")[1]  # type: ignore[attr-defined]
         right = right_text_of(doc, font_xref, font_family(base))

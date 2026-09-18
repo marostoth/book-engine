@@ -1,0 +1,55 @@
+# One ruff settings file, at the root of the repository, so it reaches `packages/ingestion` and `.agent/skills`
+# alike (TL-05). It used to live in `packages/ingestion/pyproject.toml`, which ruff never reads for a file outside
+# that folder, so the scripts of `.agent/skills` were checked at ruff's own 88 columns and reported 292 lines as
+# too long when only 39 of them are longer than 120.
+
+line-length = 120
+target-version = "py311"
+
+[lint]
+# Named on purpose, not left to ruff's own list, which grows with every release and would fail this repository's
+# one check for a reason nobody here wrote.
+select = [
+    "E",    # pycodestyle: the shape of a line
+    "W",    # pycodestyle: whitespace
+    "F",    # pyflakes: names that are not there, imports nobody uses
+    "I",    # isort: the order of the imports
+    "UP",   # pyupgrade: what this Python version can say more plainly
+    "B",    # bugbear: the traps, such as a closure that reads a loop variable
+    "C4",   # comprehensions
+    "SIM",  # simplify
+    "PIE",  # small, plain mistakes
+    "ISC",  # two strings joined by nothing but a line break
+    "RUF",  # ruff's own
+    "PLW",  # pylint's warnings
+    "S",    # bandit: the unsafe calls
+]
+
+ignore = [
+    # This repository reads real books, so its text holds a curly apostrophe, a dotless i and other letters that
+    # RUF001 calls ambiguous. They are the letters the books use, and `ingest/cloze.py` matches them on purpose.
+    # Replacing them with the plain ASCII ones would break the reading of every book that writes them.
+    "RUF001",
+    # Every one of the 27 places ISC004 named is one long sentence, wrapped over two lines inside a list, and not
+    # one of them is a comma that somebody forgot. Wrapping a sentence that way is how this repository writes its
+    # messages and its book-like test text. ISC001, ISC002 and ISC003 stay on.
+    "ISC004",
+    # In the three places PLW2901 named, the body changes the value the loop gave it and then uses it, and the
+    # name stays the same on purpose: a line that a rule tidied is still that line, and an item that moved is
+    # still that item. A second name for each would say less, not more.
+    "PLW2901",
+    # `ruff format` is in the one check, and it holds every line it can reach to the 120 columns above. What is
+    # left for E501 is what the formatter cannot split: one long string, one long comment, one long URL. Ruff says
+    # so itself, and it is why its own guidance is to leave E501 off when the formatter runs. Sixty-two lines are
+    # in that state here, the longest of them 286 characters, and most are book-like text a test compares letter
+    # for letter. `ruff format --check` is what keeps the width honest.
+    "E501",
+]
+
+[lint.per-file-ignores]
+# A test says what it means with `assert`, which is the one thing bandit's S101 forbids. A test also runs the
+# Python that is running it, and the commands of this repository, which is not the untrusted input S603 is about.
+"packages/ingestion/tests/*" = ["S101", "S603", "S607"]
+# These scripts are the checks themselves: they run the other commands of this repository and read the answer, and
+# the one that rebuilds the index says what it checks with `assert`.
+".agent/skills/*" = ["S101", "S603", "S607"]

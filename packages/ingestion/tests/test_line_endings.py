@@ -15,11 +15,9 @@ from pathlib import Path
 
 import pymupdf
 from bs4 import Comment
-
+from conftest import SKILLS
 from ingest.line_endings import normalize_line_endings, read_html
 from ingest.pipeline import ingest_book
-
-from conftest import SKILLS
 
 BOOK_ID = "harbour-tides"
 LINE_ENDINGS = {"unix": "\n", "windows": "\r\n", "old mac": "\r"}
@@ -127,13 +125,17 @@ def test_a_book_with_any_line_ending_imports_as_the_same_book(tmp_path: Path) ->
 
     for name, vault in vaults.items():
         assert audit.audit_book(vault / "books" / BOOK_ID), f"{name} line endings: every paragraph has its anchor"
-        assert vault_files(vault) == vault_files(vaults["unix"]), f"{name} line endings: the same book as with unix ones"
+        assert vault_files(vault) == vault_files(vaults["unix"]), (
+            f"{name} line endings: the same book as with unix ones"
+        )
 
 
 def test_a_note_with_line_breaks_is_one_footnote_line(tmp_path: Path) -> None:
     # The reader reads a footnote as one line, so the rest of a note with a line break showed as a paragraph
     for name, line_ending in LINE_ENDINGS.items():
-        chapter = (import_book(tmp_path / name, line_ending) / "books" / BOOK_ID / "ch-01.md").read_text(encoding="utf-8")
+        chapter = (import_book(tmp_path / name, line_ending) / "books" / BOOK_ID / "ch-01.md").read_text(
+            encoding="utf-8"
+        )
         notes = [line for line in chapter.split("\n") if line.startswith("[^1]:")]
         assert len(notes) == 1 and re.fullmatch(
             r"\[\^1\]: The tables come from the port office, and they are printed each year\. \^p-\d{3}", notes[0]

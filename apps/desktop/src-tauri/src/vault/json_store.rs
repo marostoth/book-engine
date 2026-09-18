@@ -56,7 +56,9 @@ pub fn read_json_file<T: DeserializeOwned>(path: &Path) -> Result<Option<T>> {
 /// Copies damaged bytes to `<file name>.corrupt-<time>` in the same folder and returns that path.
 /// The same damaged bytes give one copy only, however many times the file is read.
 fn keep_damaged_copy(path: &Path, bytes: &[u8]) -> Result<PathBuf> {
-    let dir = path.parent().ok_or_else(|| anyhow!("{} has no folder", path.display()))?;
+    let dir = path
+        .parent()
+        .ok_or_else(|| anyhow!("{} has no folder", path.display()))?;
     let name = path
         .file_name()
         .and_then(|n| n.to_str())
@@ -107,7 +109,12 @@ mod tests {
         sandbox.write("notes/sample/note.json", "\u{feff}{\"text\":\"hello\"}");
 
         let read: Option<Note> = read_json_file(&note_path(&sandbox)).expect("a byte order mark must be allowed");
-        assert_eq!(read, Some(Note { text: "hello".to_string() }));
+        assert_eq!(
+            read,
+            Some(Note {
+                text: "hello".to_string()
+            })
+        );
     }
 
     #[test]
@@ -118,9 +125,16 @@ mod tests {
         let error = read_json_file::<Note>(&note_path(&sandbox)).expect_err("damaged must not parse");
         let message = error.to_string();
         assert!(message.contains("note.json"), "the error must name the file: {message}");
-        assert!(message.contains("A copy is at"), "the error must name the copy: {message}");
+        assert!(
+            message.contains("A copy is at"),
+            "the error must name the copy: {message}"
+        );
 
-        let copy = message.rsplit("A copy is at ").next().expect("copy path").trim_end_matches('.');
+        let copy = message
+            .rsplit("A copy is at ")
+            .next()
+            .expect("copy path")
+            .trim_end_matches('.');
         assert_eq!(fs::read_to_string(copy).expect("read copy"), "{\"text\":\"hel");
     }
 

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ingest.line_endings import write_text_file
 
@@ -28,7 +28,7 @@ def ledger_path(vault_dir: Path) -> Path:
     return Path(vault_dir) / LEDGER_NAME
 
 
-def read_ledger(vault_dir: Path) -> List[Dict[str, Any]]:
+def read_ledger(vault_dir: Path) -> list[dict[str, Any]]:
     """The lines of the ledger, or an empty list when it is missing or unreadable."""
     path = ledger_path(vault_dir)
     if not path.is_file():
@@ -44,7 +44,7 @@ def read_ledger(vault_dir: Path) -> List[Dict[str, Any]]:
     return []
 
 
-def write_ledger(vault_dir: Path, lines: List[Dict[str, Any]]) -> None:
+def write_ledger(vault_dir: Path, lines: list[dict[str, Any]]) -> None:
     """Writes the ledger, in one step, so a stopped run never leaves half a file."""
     path = ledger_path(vault_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -53,7 +53,7 @@ def write_ledger(vault_dir: Path, lines: List[Dict[str, Any]]) -> None:
     nearly.replace(path)
 
 
-def book_numbers(vault_dir: Path, book_id: str) -> Optional[Dict[str, int]]:
+def book_numbers(vault_dir: Path, book_id: str) -> dict[str, int] | None:
     """The number of chapters and words that a book of the vault says it has, or None when it has none.
 
     A book that is not there, and one whose `_meta.json` cannot be read or does not hold the two
@@ -91,13 +91,13 @@ def keep_numbers_true(vault_dir: Path, book_id: str, chapters: int, words: int) 
     return changed
 
 
-def lines_that_disagree(vault_dir: Path) -> List[Dict[str, Any]]:
+def lines_that_disagree(vault_dir: Path) -> list[dict[str, Any]]:
     """Every line of the ledger whose numbers differ from the book's own `_meta.json`.
 
     A line whose book is not in the vault is left out: its numbers are the record of an import that
     happened, and no book is there to check them against.
     """
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     for line in read_ledger(vault_dir):
         book_id = line.get("book_id")
         if not isinstance(book_id, str):

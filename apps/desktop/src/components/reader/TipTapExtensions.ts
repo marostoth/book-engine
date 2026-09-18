@@ -83,7 +83,7 @@ export const FootnoteRef = TiptapNode.create({
         default: "",
         parseHTML: (element) =>
           element.getAttribute("data-fn") ||
-          element.textContent?.replace(/[\[\]]/g, "") ||
+          element.textContent?.replace(/[[\]]/g, "") ||
           "",
         renderHTML: () => ({}),
       },

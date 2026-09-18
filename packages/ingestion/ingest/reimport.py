@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 from ingest.book_id import check_book_id
 from ingest.book_source import books_of_file, recorded_source, same_file, source_of_file
@@ -23,7 +22,7 @@ IMPORTED_NOTES_FILES = frozenset({"practice-deck.md"})
 class BookAlreadyInVaultError(Exception):
     """An import stopped before it changed anything, because the vault already has the book."""
 
-    def __init__(self, book_id: str, reader_files: List[str], file_unknown: bool = False) -> None:
+    def __init__(self, book_id: str, reader_files: list[str], file_unknown: bool = False) -> None:
         self.book_id = book_id
         self.reader_files = reader_files
         message = f'The vault already has the book "{book_id}". Nothing was changed.'
@@ -48,7 +47,7 @@ class BookIdTakenError(Exception):
         )
 
 
-def kept_files_note(book_id: str, reader_files: List[str]) -> str:
+def kept_files_note(book_id: str, reader_files: list[str]) -> str:
     """Tells the reader which of their files a new import keeps, and what can change for them."""
     return (
         f"Your own files for it are in notes/{book_id}: {', '.join(reader_files)}. "
@@ -56,7 +55,7 @@ def kept_files_note(book_id: str, reader_files: List[str]) -> str:
     )
 
 
-def reader_files(vault_dir: Path, book_id: str) -> List[str]:
+def reader_files(vault_dir: Path, book_id: str) -> list[str]:
     """The names of the reader's own files for a book: everything in `notes/<book-id>/` that an import does not make."""
     notes_dir = Path(vault_dir) / "notes" / book_id
     if not notes_dir.is_dir():
@@ -65,8 +64,8 @@ def reader_files(vault_dir: Path, book_id: str) -> List[str]:
 
 
 def book_to_import(
-    vault_dir: Path, file_path: Path, name_id: str, given_id: Optional[str], replace: bool
-) -> Tuple[str, BookSource]:
+    vault_dir: Path, file_path: Path, name_id: str, given_id: str | None, replace: bool
+) -> tuple[str, BookSource]:
     """The book id that an import of `file_path` writes, and the file to record in its `_meta.json`.
 
     Call it before the import writes anything. A given id (`--book-id`) is used as it is. Otherwise a book that the

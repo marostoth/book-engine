@@ -41,7 +41,12 @@ pub fn sync_practice_deck_blocking(book_id: &str) -> Result<usize> {
     let cards: Vec<(String, RawCard)> = deck_content
         .split("### ")
         .filter_map(|section| parse_card_section(section, &book_dir))
-        .map(|card| (card_identity(book_id, &card.item_type, &card.cloze, &card.answer_key), card))
+        .map(|card| {
+            (
+                card_identity(book_id, &card.item_type, &card.cloze, &card.answer_key),
+                card,
+            )
+        })
         .filter(|(card_id, _)| deck_ids.insert(card_id.clone()))
         .collect();
     if cards.is_empty() {
@@ -69,7 +74,10 @@ pub fn sync_practice_deck_blocking(book_id: &str) -> Result<usize> {
 
 /// Inserts a new card, or updates the text of a stored card and keeps its schedule.
 fn upsert_card(tx: &Transaction, book_id: &str, card_id: &str, card: &RawCard, now: i64) -> Result<()> {
-    let payload_json = card.scenario_payload.as_ref().and_then(|p| serde_json::to_string(p).ok());
+    let payload_json = card
+        .scenario_payload
+        .as_ref()
+        .and_then(|p| serde_json::to_string(p).ok());
     tx.execute(
         "INSERT INTO fsrs_cards (
             card_id, book_id, chapter_file, anchor, item_type, prompt, answer,
@@ -101,7 +109,9 @@ fn upsert_card(tx: &Transaction, book_id: &str, card_id: &str, card: &RawCard, n
 
 fn stored_card_ids(tx: &Transaction, book_id: &str) -> Result<Vec<String>> {
     let mut stmt = tx.prepare("SELECT card_id FROM fsrs_cards WHERE book_id = ?1 ORDER BY rowid")?;
-    let ids = stmt.query_map([book_id], |row| row.get(0))?.collect::<rusqlite::Result<Vec<String>>>()?;
+    let ids = stmt
+        .query_map([book_id], |row| row.get(0))?
+        .collect::<rusqlite::Result<Vec<String>>>()?;
     Ok(ids)
 }
 
@@ -109,11 +119,12 @@ fn stored_card_ids(tx: &Transaction, book_id: &str) -> Result<Vec<String>> {
 /// Review history follows the question id.
 fn give_old_rows_question_ids(tx: &Transaction, book_id: &str, now: i64) -> Result<()> {
     let rows: Vec<(String, String, String, String)> = {
-        let mut stmt = tx.prepare(
-            "SELECT card_id, item_type, prompt, answer FROM fsrs_cards WHERE book_id = ?1 ORDER BY rowid",
-        )?;
+        let mut stmt =
+            tx.prepare("SELECT card_id, item_type, prompt, answer FROM fsrs_cards WHERE book_id = ?1 ORDER BY rowid")?;
         let rows = stmt
-            .query_map([book_id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))?
+            .query_map([book_id], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         rows
     };
@@ -133,7 +144,10 @@ fn give_old_rows_question_ids(tx: &Transaction, book_id: &str, now: i64) -> Resu
             }
             Some(_) => archive_card(tx, &old_id, DUPLICATE, now)?,
         }
-        tx.execute("UPDATE review_logs SET card_id = ?1 WHERE card_id = ?2", params![question_id, old_id])?;
+        tx.execute(
+            "UPDATE review_logs SET card_id = ?1 WHERE card_id = ?2",
+            params![question_id, old_id],
+        )?;
     }
     Ok(())
 }
@@ -141,15 +155,20 @@ fn give_old_rows_question_ids(tx: &Transaction, book_id: &str, now: i64) -> Resu
 /// Progress for choosing between duplicates: more reviews first, then the later review.
 fn progress_of(tx: &Transaction, card_id: &str) -> Result<Option<(i64, i64)>> {
     let progress = tx
-        .query_row("SELECT reps, last_review FROM fsrs_cards WHERE card_id = ?1", [card_id], |row| {
-            Ok((row.get(0)?, row.get(1)?))
-        })
+        .query_row(
+            "SELECT reps, last_review FROM fsrs_cards WHERE card_id = ?1",
+            [card_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
         .optional()?;
     Ok(progress)
 }
 
 fn rename_card(tx: &Transaction, old_id: &str, new_id: &str) -> Result<()> {
-    tx.execute("UPDATE fsrs_cards SET card_id = ?1 WHERE card_id = ?2", params![new_id, old_id])?;
+    tx.execute(
+        "UPDATE fsrs_cards SET card_id = ?1 WHERE card_id = ?2",
+        params![new_id, old_id],
+    )?;
     Ok(())
 }
 

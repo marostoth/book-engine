@@ -66,8 +66,8 @@ def test_audit_syntopicon_parity_catches_invalid_data(tmp_path: Path):
                             "bookId": "book-a",
                             "chapterFile": "ch-01.md",
                             "anchor": "^p-001",
-                            "quote": "First paragraph here."
-                        }
+                            "quote": "First paragraph here.",
+                        },
                     },
                     {
                         "bookId": "book-b",
@@ -76,19 +76,13 @@ def test_audit_syntopicon_parity_catches_invalid_data(tmp_path: Path):
                             "bookId": "book-b",
                             "chapterFile": "ch-01.md",
                             "anchor": "^p-010",
-                            "quote": "Second book paragraph."
-                        }
-                    }
-                ]
+                            "quote": "Second book paragraph.",
+                        },
+                    },
+                ],
             }
         ],
-        "questions": [
-            {
-                "id": "q-1",
-                "question": "Is equilibrium spontaneously achievable?",
-                "order": 1
-            }
-        ],
+        "questions": [{"id": "q-1", "question": "Is equilibrium spontaneously achievable?", "order": 1}],
         "controversies": [
             {
                 "id": "c-1",
@@ -103,9 +97,9 @@ def test_audit_syntopicon_parity_catches_invalid_data(tmp_path: Path):
                                 "bookId": "book-a",
                                 "chapterFile": "ch-01.md",
                                 "anchor": "^p-001",
-                                "quote": "First paragraph here."
+                                "quote": "First paragraph here.",
                             }
-                        ]
+                        ],
                     },
                     {
                         "bookId": "book-b",
@@ -115,14 +109,14 @@ def test_audit_syntopicon_parity_catches_invalid_data(tmp_path: Path):
                                 "bookId": "book-b",
                                 "chapterFile": "ch-01.md",
                                 "anchor": "^p-010",
-                                "quote": "Second book paragraph."
+                                "quote": "Second book paragraph.",
                             }
-                        ]
-                    }
-                ]
+                        ],
+                    },
+                ],
             }
         ],
-        "createdAt": "2026-09-13T10:00:00Z"
+        "createdAt": "2026-09-13T10:00:00Z",
     }
 
     # 2. Valid topic passes
@@ -197,8 +191,7 @@ def test_audit_syntopicon_parity_catches_invalid_data(tmp_path: Path):
     # 9. Invariant: a dossier link that names no such paragraph fails (CQ-06)
     broken_cite_report = reports / "test-topic-synthesis.md"
     broken_cite_report.write_text(
-        "---\ntopic_id: test-topic\n---\n# Dossier\n"
-        "— [`ch-01.md#^p-999`](../../books/book-a/ch-01.md#^p-999)\n",
+        "---\ntopic_id: test-topic\n---\n# Dossier\n— [`ch-01.md#^p-999`](../../books/book-a/ch-01.md#^p-999)\n",
         encoding="utf-8",
     )
     passed, err = mod.audit_syntopicon_parity(vault)
@@ -208,8 +201,7 @@ def test_audit_syntopicon_parity_catches_invalid_data(tmp_path: Path):
     # 10. Invariant: a dossier link that starts where the repository starts, as the app used to write it, fails
     # because it reaches no file from the folder the report is saved in (CQ-06).
     broken_cite_report.write_text(
-        "---\ntopic_id: test-topic\n---\n# Dossier\n"
-        "— [`ch-01.md#^p-001`](vault/books/book-a/ch-01.md)\n",
+        "---\ntopic_id: test-topic\n---\n# Dossier\n— [`ch-01.md#^p-001`](vault/books/book-a/ch-01.md)\n",
         encoding="utf-8",
     )
     passed, err = mod.audit_syntopicon_parity(vault)
@@ -218,8 +210,7 @@ def test_audit_syntopicon_parity_catches_invalid_data(tmp_path: Path):
 
     # 10b. A link written from the right place, to a chapter the book no longer has, says so instead (CQ-06)
     broken_cite_report.write_text(
-        "---\ntopic_id: test-topic\n---\n# Dossier\n"
-        "— [`ch-09.md#^p-001`](../../books/book-a/ch-09.md#^p-001)\n",
+        "---\ntopic_id: test-topic\n---\n# Dossier\n— [`ch-09.md#^p-001`](../../books/book-a/ch-09.md#^p-001)\n",
         encoding="utf-8",
     )
     passed, err = mod.audit_syntopicon_parity(vault)

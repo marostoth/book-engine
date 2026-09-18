@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import re
 from collections import Counter
-from typing import Dict, List, Optional, Set, Tuple
 
 from ingest.anchors import extract_anchors
 from ingest.markdown_text import unescape_markdown_text
@@ -32,27 +31,261 @@ from ingest.salience import ABBREVIATIONS, SENTENCE_SPLIT_REGEX, score_sentence
 
 # Small words. An answer needs another word, and it neither starts nor ends with one of these.
 STOPWORDS = frozenset(
-    """
-    a about above across after again against all along also although am among an and any are around as at be because
-    been before behind being below beside besides between beyond both but by can could did do does doing down during
-    each either else even ever every few for from further had has have having he hence her here hers herself him
-    himself his how however i if in inside into is it its itself just may me might more most much must my myself
-    near neither no nor not now of off on once only onto or other otherwise our ours ourselves out outside over own
-    per rather same shall she should since so some such than that the their theirs them themselves then there
-    therefore these they this those though through thus to too toward towards under unless until up upon us very via
-    was we were what whatever when where whether which while who whom whose why will with within without would yet
-    you your yours yourself yourselves
-    """.split()
+    [
+        "a",
+        "about",
+        "above",
+        "across",
+        "after",
+        "again",
+        "against",
+        "all",
+        "along",
+        "also",
+        "although",
+        "am",
+        "among",
+        "an",
+        "and",
+        "any",
+        "are",
+        "around",
+        "as",
+        "at",
+        "be",
+        "because",
+        "been",
+        "before",
+        "behind",
+        "being",
+        "below",
+        "beside",
+        "besides",
+        "between",
+        "beyond",
+        "both",
+        "but",
+        "by",
+        "can",
+        "could",
+        "did",
+        "do",
+        "does",
+        "doing",
+        "down",
+        "during",
+        "each",
+        "either",
+        "else",
+        "even",
+        "ever",
+        "every",
+        "few",
+        "for",
+        "from",
+        "further",
+        "had",
+        "has",
+        "have",
+        "having",
+        "he",
+        "hence",
+        "her",
+        "here",
+        "hers",
+        "herself",
+        "him",
+        "himself",
+        "his",
+        "how",
+        "however",
+        "i",
+        "if",
+        "in",
+        "inside",
+        "into",
+        "is",
+        "it",
+        "its",
+        "itself",
+        "just",
+        "may",
+        "me",
+        "might",
+        "more",
+        "most",
+        "much",
+        "must",
+        "my",
+        "myself",
+        "near",
+        "neither",
+        "no",
+        "nor",
+        "not",
+        "now",
+        "of",
+        "off",
+        "on",
+        "once",
+        "only",
+        "onto",
+        "or",
+        "other",
+        "otherwise",
+        "our",
+        "ours",
+        "ourselves",
+        "out",
+        "outside",
+        "over",
+        "own",
+        "per",
+        "rather",
+        "same",
+        "shall",
+        "she",
+        "should",
+        "since",
+        "so",
+        "some",
+        "such",
+        "than",
+        "that",
+        "the",
+        "their",
+        "theirs",
+        "them",
+        "themselves",
+        "then",
+        "there",
+        "therefore",
+        "these",
+        "they",
+        "this",
+        "those",
+        "though",
+        "through",
+        "thus",
+        "to",
+        "too",
+        "toward",
+        "towards",
+        "under",
+        "unless",
+        "until",
+        "up",
+        "upon",
+        "us",
+        "very",
+        "via",
+        "was",
+        "we",
+        "were",
+        "what",
+        "whatever",
+        "when",
+        "where",
+        "whether",
+        "which",
+        "while",
+        "who",
+        "whom",
+        "whose",
+        "why",
+        "will",
+        "with",
+        "within",
+        "without",
+        "would",
+        "yet",
+        "you",
+        "your",
+        "yours",
+        "yourself",
+        "yourselves",
+    ]
 )
 # Words that are common in every book, so a repeated run of words that holds one is no key term of a chapter.
 COMMON_WORDS = frozenset(
-    """
-    ago another based book chapter different eight eighteen eighty eleven fifteen fifty figure first five forty four
-    fourteen get gets give given gives go goes going gone got great greater hundred last made make makes many million
-    nine nineteen ninety one page part parts second section seven seventeen seventy several six sixteen sixty still
-    table take taken takes ten third thirteen thirty thousand three thing things time times twelve twenty two way
-    ways whole year years
-    """.split()
+    [
+        "ago",
+        "another",
+        "based",
+        "book",
+        "chapter",
+        "different",
+        "eight",
+        "eighteen",
+        "eighty",
+        "eleven",
+        "fifteen",
+        "fifty",
+        "figure",
+        "first",
+        "five",
+        "forty",
+        "four",
+        "fourteen",
+        "get",
+        "gets",
+        "give",
+        "given",
+        "gives",
+        "go",
+        "goes",
+        "going",
+        "gone",
+        "got",
+        "great",
+        "greater",
+        "hundred",
+        "last",
+        "made",
+        "make",
+        "makes",
+        "many",
+        "million",
+        "nine",
+        "nineteen",
+        "ninety",
+        "one",
+        "page",
+        "part",
+        "parts",
+        "second",
+        "section",
+        "seven",
+        "seventeen",
+        "seventy",
+        "several",
+        "six",
+        "sixteen",
+        "sixty",
+        "still",
+        "table",
+        "take",
+        "taken",
+        "takes",
+        "ten",
+        "third",
+        "thirteen",
+        "thirty",
+        "thousand",
+        "three",
+        "thing",
+        "things",
+        "time",
+        "times",
+        "twelve",
+        "twenty",
+        "two",
+        "way",
+        "ways",
+        "whole",
+        "year",
+        "years",
+    ]
 )
 MIN_ANSWER_CHARS = 3
 MAX_ANSWER_CHARS = 50
@@ -91,7 +324,7 @@ def shown_text(text: str) -> str:
     return re.sub(r"\s+", " ", unescape_markdown_text(text))
 
 
-def text_units(block: str) -> List[str]:
+def text_units(block: str) -> list[str]:
     """The plain text of a paragraph block, with line breaks as spaces: the paragraph, or each list item or quote line.
 
     Tables, code, HTML, images and footnote texts give none.
@@ -101,26 +334,26 @@ def text_units(block: str) -> List[str]:
     lines = block.split("\n")
     if not (LIST_MARKER.match(lines[0]) or QUOTE_MARKER.match(lines[0])):
         return [" ".join(lines)]
-    units: List[List[str]] = []
+    units: list[list[str]] = []
     for line in lines:
         marker = LIST_MARKER.match(line) or QUOTE_MARKER.match(line)
         if marker or not units:
-            units.append([line[marker.end():] if marker else line])
+            units.append([line[marker.end() :] if marker else line])
         else:
             units[-1].append(line)
     return [" ".join(unit) for unit in units]
 
 
-def exact_sentences(text: str) -> List[str]:
+def exact_sentences(text: str) -> list[str]:
     """The sentences of a text, split as `split_sentences` splits them, but each one exactly as the text has it."""
-    spans: List[Tuple[int, int]] = []
+    spans: list[tuple[int, int]] = []
     start = 0
     for match in [*SENTENCE_SPLIT_REGEX.finditer(text), None]:
         end = match.start() if match else len(text)
         piece = text[start:end]
         if piece.strip():
             left, right = start + len(piece) - len(piece.lstrip()), start + len(piece.rstrip())
-            if spans and text[spans[-1][0]:spans[-1][1]].lower().endswith(ABBREVIATIONS):
+            if spans and text[spans[-1][0] : spans[-1][1]].lower().endswith(ABBREVIATIONS):
                 spans[-1] = (spans[-1][0], right)
             else:
                 spans.append((left, right))
@@ -129,7 +362,7 @@ def exact_sentences(text: str) -> List[str]:
     return [text[left:right] for left, right in spans]
 
 
-def sentence_problem(sentence: str) -> Optional[str]:
+def sentence_problem(sentence: str) -> str | None:
     """Why a sentence cannot be a card, or None."""
     if HTML_TAG.search(sentence):
         return "it holds an HTML tag"
@@ -144,7 +377,7 @@ def sentence_problem(sentence: str) -> Optional[str]:
     return None
 
 
-def answer_problem(answer: str) -> Optional[str]:
+def answer_problem(answer: str) -> str | None:
     """Why a text cannot be the answer of a card, or None."""
     words = WORD.findall(answer)
     if not MIN_ANSWER_CHARS <= len(answer) <= MAX_ANSWER_CHARS:
@@ -167,9 +400,7 @@ def shows_answer(text: str, answer: str) -> bool:
     return re.search(r"(?<!\w)" + re.escape(answer) + r"(?!\w)", text, re.IGNORECASE) is not None
 
 
-def cloze_prompt(
-    sentence: str, start: int, end: int, chapter_lines: Optional[str] = None
-) -> Optional[Tuple[str, str]]:
+def cloze_prompt(sentence: str, start: int, end: int, chapter_lines: str | None = None) -> tuple[str, str] | None:
     """(prompt, answer) for the term at sentence[start:end], or None when the answer or the prompt breaks a rule.
 
     With `chapter_lines` (the chapter with "\\n" line endings), the answer must also be text of it byte for byte. A term
@@ -187,9 +418,9 @@ def cloze_prompt(
     return f"{before}{{{{c1::{answer}}}}}{after}".strip(), answer
 
 
-def marked_term_spans(sentence: str) -> List[Tuple[int, int]]:
+def marked_term_spans(sentence: str) -> list[tuple[int, int]]:
     """The spans of the marked terms of a sentence: bold terms, then a defined term, a quoted term and a role term."""
-    spans: List[Tuple[int, int]] = []
+    spans: list[tuple[int, int]] = []
     for match in BOLD_TERM.finditer(sentence):
         inner = match.group(1)
         left = match.start(1) + len(inner) - len(inner.lstrip("_ "))
@@ -203,7 +434,7 @@ def marked_term_spans(sentence: str) -> List[Tuple[int, int]]:
     return spans
 
 
-def extract_cloze_target(sentence: str, chapter_lines: Optional[str] = None) -> Optional[Tuple[str, str]]:
+def extract_cloze_target(sentence: str, chapter_lines: str | None = None) -> tuple[str, str] | None:
     """(prompt, answer) for the first marked term of a sentence that makes a card, or None."""
     if sentence_problem(sentence):
         return None
@@ -214,21 +445,23 @@ def extract_cloze_target(sentence: str, chapter_lines: Optional[str] = None) -> 
     return None
 
 
-def chapter_sentences(chapter_markdown: str) -> List[Tuple[str, str, float]]:
+def chapter_sentences(chapter_markdown: str) -> list[tuple[str, str, float]]:
     """(anchor, sentence, salience score) for every sentence of the chapter that can be a card, in chapter order."""
-    found: List[Tuple[str, str, float]] = []
+    found: list[tuple[str, str, float]] = []
     for anchor_id, block in extract_anchors(chapter_markdown.replace("\r\n", "\n").replace("\r", "\n")):
         for unit in text_units(block):
             sentences = exact_sentences(unit)
             for index, sentence in enumerate(sentences):
                 if not sentence_problem(sentence):
-                    found.append((anchor_id, sentence, score_sentence(sentence, index == 0, index == len(sentences) - 1)))
+                    found.append(
+                        (anchor_id, sentence, score_sentence(sentence, index == 0, index == len(sentences) - 1))
+                    )
     return found
 
 
 def repeated_term_card(
-    sentences: List[Tuple[str, str, float]], chapter_lines: Optional[str] = None
-) -> Optional[Tuple[str, str, str, str, float]]:
+    sentences: list[tuple[str, str, float]], chapter_lines: str | None = None
+) -> tuple[str, str, str, str, float] | None:
     """(anchor, prompt, answer, sentence, score) for the most repeated term of a chapter, or None.
 
     A term is 2 or 3 words in a row, with no small word, no common word and no mark between them. One word alone is
@@ -236,15 +469,18 @@ def repeated_term_card(
     salience score that holds the term once.
     """
     counts: Counter[str] = Counter()
-    first_seen: Dict[str, int] = {}
+    first_seen: dict[str, int] = {}
     for _, sentence, _ in sentences:
         for run in re.split(r"[^\w'’ -]+|(?<!\w)-|-(?!\w)", shown_text(sentence)):
             words = run.split()
             for size in (2, 3):
                 for index in range(len(words) - size + 1):
-                    if any(word.lower() in STOPWORDS or word.lower() in COMMON_WORDS for word in words[index:index + size]):
+                    if any(
+                        word.lower() in STOPWORDS or word.lower() in COMMON_WORDS
+                        for word in words[index : index + size]
+                    ):
                         continue
-                    term = " ".join(words[index:index + size]).lower()
+                    term = " ".join(words[index : index + size]).lower()
                     counts[term] += 1
                     first_seen.setdefault(term, len(first_seen))
     ranked = sorted(
@@ -257,7 +493,11 @@ def repeated_term_card(
         for index in best_first:
             anchor_id, sentence, score = sentences[index]
             matches = list(whole_term.finditer(sentence))
-            target = cloze_prompt(sentence, matches[0].start(), matches[0].end(), chapter_lines) if len(matches) == 1 else None
+            target = (
+                cloze_prompt(sentence, matches[0].start(), matches[0].end(), chapter_lines)
+                if len(matches) == 1
+                else None
+            )
             if target:
                 return anchor_id, target[0], target[1], sentence, score
     return None
@@ -268,7 +508,7 @@ def generate_chapter_practice_cards(
     chapter_markdown: str,
     min_items: int = 5,
     max_items: int = 8,
-) -> List[PracticeCard]:
+) -> list[PracticeCard]:
     """Up to `max_items` cloze cards for a chapter, and one card for a chapter that has sentences but no marked term.
 
     Every answer and exact source is checked against the chapter text before it is used.
@@ -276,8 +516,8 @@ def generate_chapter_practice_cards(
     line_text = chapter_markdown.replace("\r\n", "\n").replace("\r", "\n")
     joined_text = exact_text(chapter_markdown)
     sentences = chapter_sentences(chapter_markdown)
-    candidates: List[Tuple[float, str, str, str, str]] = []  # (score, prompt, answer, sentence, anchor)
-    seen_answers: Set[str] = set()
+    candidates: list[tuple[float, str, str, str, str]] = []  # (score, prompt, answer, sentence, anchor)
+    seen_answers: set[str] = set()
 
     for anchor_id, sentence, score in sentences:
         target = extract_cloze_target(sentence, line_text)

@@ -35,10 +35,26 @@ def check_book_id(book_id: str) -> None:
 
 
 #: Latin letters that Unicode does not write as a plain letter with a mark.
-_PLAIN_LETTERS = str.maketrans({
-    "ß": "ss", "æ": "ae", "Æ": "AE", "œ": "oe", "Œ": "OE", "ø": "o", "Ø": "O", "ł": "l", "Ł": "L", "đ": "d", "Đ": "D",
-    "ð": "d", "Ð": "D", "þ": "th", "Þ": "TH", "ı": "i",
-})
+_PLAIN_LETTERS = str.maketrans(
+    {
+        "ß": "ss",
+        "æ": "ae",
+        "Æ": "AE",
+        "œ": "oe",
+        "Œ": "OE",
+        "ø": "o",
+        "Ø": "O",
+        "ł": "l",
+        "Ł": "L",
+        "đ": "d",
+        "Đ": "D",
+        "ð": "d",
+        "Ð": "D",
+        "þ": "th",
+        "Þ": "TH",
+        "ı": "i",
+    }
+)
 
 
 def plain_letters(name: str) -> str:

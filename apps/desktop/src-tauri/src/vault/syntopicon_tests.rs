@@ -31,7 +31,11 @@ const TOPIC_WITH_WORK: &str = r#"{
 }"#;
 
 fn topic_file(sandbox: &Sandbox, id: &str) -> std::path::PathBuf {
-    sandbox.vault().join("syntopicon").join("topics").join(format!("{id}.json"))
+    sandbox
+        .vault()
+        .join("syntopicon")
+        .join("topics")
+        .join(format!("{id}.json"))
 }
 
 /// Writes `TOPIC_WITH_WORK` and gives its bytes.
@@ -66,7 +70,10 @@ fn a_title_whose_file_a_topic_already_uses_is_refused_and_that_topic_stays() {
     let error = create_syntopic_topic("Division of Labor", "").expect_err("the file is taken");
 
     let message = format!("{error:#}");
-    assert!(message.contains("division-of-labor.json"), "the message must name the file: {message}");
+    assert!(
+        message.contains("division-of-labor.json"),
+        "the message must name the file: {message}"
+    );
     assert!(
         message.contains("\"Division of Labor & Systemic Specialization\""),
         "and the topic that uses it: {message}"
@@ -96,21 +103,33 @@ fn titles_that_differ_only_in_capitals_or_punctuation_need_the_same_file() {
 
     create_syntopic_topic("DIVISION OF LABOR?", "").expect_err("the title needs the same file");
 
-    assert_eq!(std::fs::read(topic_file(&sandbox, "division-of-labor")).expect("read the topic"), before);
+    assert_eq!(
+        std::fs::read(topic_file(&sandbox, "division-of-labor")).expect("read the topic"),
+        before
+    );
 }
 
 #[test]
 fn a_damaged_topic_file_that_the_title_needs_is_refused_and_kept() {
     let sandbox = Sandbox::new();
-    sandbox.write("syntopicon/topics/division-of-labor.json", "{ \"id\": \"division-of-labor\", \"title\": ");
+    sandbox.write(
+        "syntopicon/topics/division-of-labor.json",
+        "{ \"id\": \"division-of-labor\", \"title\": ",
+    );
     let before = std::fs::read(topic_file(&sandbox, "division-of-labor")).expect("read the file");
 
     // The topic list skips a file it cannot read, so the page cannot know that this file is there.
     assert!(list_syntopic_topics().expect("list the topics").is_empty());
     let error = create_syntopic_topic("Division of Labor", "").expect_err("the file is taken");
 
-    assert!(format!("{error:#}").contains("cannot be read"), "the message must say so: {error:#}");
-    assert_eq!(std::fs::read(topic_file(&sandbox, "division-of-labor")).expect("read the file"), before);
+    assert!(
+        format!("{error:#}").contains("cannot be read"),
+        "the message must say so: {error:#}"
+    );
+    assert_eq!(
+        std::fs::read(topic_file(&sandbox, "division-of-labor")).expect("read the file"),
+        before
+    );
 }
 
 #[test]
@@ -139,7 +158,10 @@ fn two_creates_of_the_same_title_at_once_make_one_topic() {
             })
         })
         .collect();
-    let results: Vec<_> = creates.into_iter().map(|create| create.join().expect("join the thread")).collect();
+    let results: Vec<_> = creates
+        .into_iter()
+        .map(|create| create.join().expect("join the thread"))
+        .collect();
 
     let created: Vec<&String> = results.iter().filter_map(|result| result.as_ref().ok()).collect();
     assert_eq!(created.len(), 1, "exactly one of the two creates may pass: {results:?}");

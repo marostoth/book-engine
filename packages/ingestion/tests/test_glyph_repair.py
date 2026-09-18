@@ -8,7 +8,6 @@ The Dalton book sets its formulas in the Advent 3B2 font `AdvP4C4E74`. That font
 from pathlib import Path
 
 import pytest
-
 from ingest.book_check import book_problems
 from ingest.glyph_repair import (
     REPLACEMENT,
@@ -91,7 +90,9 @@ class FakeDoc:
 
 def dalton_doc():
     """A document with the Dalton book's maths font, as that font really is."""
-    return FakeDoc({7: {"base": "/OJHGNH+AdvP4C4E74", "differences": "[ 2/C2 188/onequarter 254/thorn ]", "cmap": DALTON_CMAP}})
+    return FakeDoc(
+        {7: {"base": "/OJHGNH+AdvP4C4E74", "differences": "[ 2/C2 188/onequarter 254/thorn ]", "cmap": DALTON_CMAP}}
+    )
 
 
 def test_the_tag_that_marks_a_part_of_a_font_is_dropped():
@@ -151,9 +152,17 @@ def test_a_font_that_is_already_right_is_left_alone():
     assert names_them_right({0xBC: "¼", 0xFE: "+"}, right) is False
     assert names_them_right(None, right) is False
 
-    already = FakeDoc({7: {"base": "/AAAAAA+AdvP4C4E74", "differences": None, "cmap": to_unicode_cmap(
-        {0x01: "×", 0x02: "×", 0x04: "×", 0x79: "†", 0xBC: "=", 0xFE: "+"}
-    ).decode("ascii")}})
+    already = FakeDoc(
+        {
+            7: {
+                "base": "/AAAAAA+AdvP4C4E74",
+                "differences": None,
+                "cmap": to_unicode_cmap({0x01: "×", 0x02: "×", 0x04: "×", 0x79: "†", 0xBC: "=", 0xFE: "+"}).decode(
+                    "ascii"
+                ),
+            }
+        }
+    )
     assert repair_glyph_maps(already) == []
     assert already.keys == {}
 

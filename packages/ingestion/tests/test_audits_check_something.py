@@ -5,18 +5,14 @@ library with no practice deck all looked healthy. The system audit also started 
 days older than the Rust it was built from, and its modularity check printed a clean line beside the word FAIL.
 """
 
-import json
 import os
 import sqlite3
-import sys
 from pathlib import Path
 from types import ModuleType
 
 import pytest
-
-from ingest.book_check import book_problems
-
 from conftest import REPO, load_skill
+from ingest.book_check import book_problems
 
 
 def anchors() -> ModuleType:

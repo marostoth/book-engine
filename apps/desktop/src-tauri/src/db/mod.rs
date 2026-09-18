@@ -1,57 +1,57 @@
-pub mod models;
-pub mod schema;
-pub mod seed_lexicon;
-pub mod indexer;
-pub mod search_query;
-pub mod search_text;
-pub mod fsrs_parser;
-pub mod fsrs_store;
-pub mod due_cards;
-pub mod reading_velocity;
-pub mod backfill;
-pub mod restore;
 pub mod analytics;
-pub mod card_identity;
-pub mod chapter_blocks;
-pub mod deck_sync;
-pub mod removed_books;
 #[cfg(test)]
 mod analytics_numbers_tests;
 #[cfg(test)]
 mod analytics_tests;
+pub mod backfill;
 #[cfg(test)]
 mod backfill_tests;
+pub mod card_identity;
+pub mod chapter_blocks;
 #[cfg(test)]
 mod chapter_blocks_tests;
+pub mod deck_sync;
 #[cfg(test)]
 mod deck_sync_tests;
-#[cfg(test)]
-mod restore_tests;
+pub mod due_cards;
+pub mod fsrs_parser;
 #[cfg(test)]
 mod fsrs_parser_tests;
+pub mod fsrs_store;
 #[cfg(test)]
 mod fsrs_store_tests;
+pub mod indexer;
 #[cfg(test)]
 mod indexer_tests;
-#[cfg(test)]
-mod removed_books_tests;
+pub mod models;
+pub mod reading_velocity;
 #[cfg(test)]
 mod reading_velocity_tests;
+pub mod removed_books;
+#[cfg(test)]
+mod removed_books_tests;
+pub mod restore;
+#[cfg(test)]
+mod restore_tests;
+pub mod schema;
+pub mod search_query;
 #[cfg(test)]
 mod search_results_tests;
 #[cfg(test)]
 mod search_tests;
+pub mod search_text;
+pub mod seed_lexicon;
 
-pub use models::*;
-pub use schema::*;
-pub use indexer::*;
-pub use fsrs_store::*;
+pub use analytics::*;
+pub use backfill::*;
 pub use deck_sync::*;
 pub use due_cards::*;
+pub use fsrs_store::*;
+pub use indexer::*;
+pub use models::*;
 pub use reading_velocity::*;
-pub use backfill::*;
 pub use restore::*;
-pub use analytics::*;
+pub use schema::*;
 
 /// Blocking helper: opens the SQLite cache and queries the dictionary with sanitized input.
 pub fn lookup_dictionary_blocking(word: &str) -> anyhow::Result<Option<DictionaryEntry>> {
@@ -129,10 +129,12 @@ mod tests {
         card.due = 0; // Sync time; every other field is fixed by the sandbox book.
 
         let sent = serde_json::to_value(&card).expect("Failed to serialize card");
-        let contract: serde_json::Value =
-            serde_json::from_str(include_str!("../../../src/lib/practiceContract.json"))
-                .expect("Failed to parse practiceContract.json");
-        assert_eq!(sent, contract, "get_due_cards JSON must match src/lib/practiceContract.json (read by the frontend tests)");
+        let contract: serde_json::Value = serde_json::from_str(include_str!("../../../src/lib/practiceContract.json"))
+            .expect("Failed to parse practiceContract.json");
+        assert_eq!(
+            sent, contract,
+            "get_due_cards JSON must match src/lib/practiceContract.json (read by the frontend tests)"
+        );
     }
 
     #[test]
@@ -153,14 +155,18 @@ mod tests {
         submit_card_review_blocking(&due[0].card_id, 4).expect("Submit review failed");
 
         let heatmap = get_review_heatmap_blocking(Some("sample")).expect("Failed to get heatmap");
-        assert!(!heatmap.is_empty(), "Expected at least 1 block of reviews in the heatmap");
+        assert!(
+            !heatmap.is_empty(),
+            "Expected at least 1 block of reviews in the heatmap"
+        );
 
         let retention = get_retention_metrics_blocking(Some("sample")).expect("Failed to get retention");
-        let rate = retention.retention_rate.expect("a card was reviewed, so there is a retention rate");
+        let rate = retention
+            .retention_rate
+            .expect("a card was reviewed, so there is a retention rate");
         assert!((0.0..=100.0).contains(&rate));
 
-        record_reading_session_blocking("sample", "ch-01.md", 120, true)
-            .expect("Failed to record reading session");
+        record_reading_session_blocking("sample", "ch-01.md", 120, true).expect("Failed to record reading session");
 
         let velocity = get_reading_velocity_blocking(Some("sample")).expect("Failed to get reading velocity");
         assert_eq!(velocity.total_seconds, 120);
@@ -168,7 +174,9 @@ mod tests {
 
         // Test Phase 5 IPC endpoints: get_study_analytics_blocking
         let analytics = get_study_analytics_blocking(Some("sample")).expect("Failed to get study analytics");
-        let rate = analytics.retention_rate.expect("a card was reviewed, so there is a retention rate");
+        let rate = analytics
+            .retention_rate
+            .expect("a card was reviewed, so there is a retention rate");
         assert!((0.0..=100.0).contains(&rate));
         assert!(analytics.total_vault_words > 0);
         assert_eq!(
@@ -182,10 +190,12 @@ mod tests {
         // Test Phase 5 IPC endpoints: parse_all_book_notes and compile_and_export_book_summary
         let notes = crate::vault::parse_all_book_notes("sample").expect("Failed to parse book notes");
         assert_eq!(notes.len(), 1, "Expected the one reflection in ch-01-notes.md");
-        let export_path =
-            crate::vault::compile_and_export_book_summary("sample").expect("Failed to export summary");
+        let export_path = crate::vault::compile_and_export_book_summary("sample").expect("Failed to export summary");
         let export_path = std::path::Path::new(&export_path);
         assert!(export_path.exists(), "Exported summary file must exist");
-        assert!(export_path.starts_with(sandbox.vault()), "Export must stay inside the test sandbox");
+        assert!(
+            export_path.starts_with(sandbox.vault()),
+            "Export must stay inside the test sandbox"
+        );
     }
 }

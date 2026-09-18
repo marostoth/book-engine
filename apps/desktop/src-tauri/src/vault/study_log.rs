@@ -99,8 +99,7 @@ fn append_line(path: &PathBuf, line: &str) -> Result<()> {
     let folder = path
         .parent()
         .with_context(|| format!("{} has no folder", path.display()))?;
-    std::fs::create_dir_all(folder)
-        .with_context(|| format!("Failed to create {}", folder.display()))?;
+    std::fs::create_dir_all(folder).with_context(|| format!("Failed to create {}", folder.display()))?;
 
     let mut file = OpenOptions::new()
         .create(true)

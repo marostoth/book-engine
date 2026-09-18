@@ -1,7 +1,7 @@
-use std::path::{Path, PathBuf};
-use anyhow::{Context, Result};
 use super::models::{AppError, BookMetadata, BookSummary};
 use super::text_file::read_text_file;
+use anyhow::{Context, Result};
+use std::path::{Path, PathBuf};
 
 /// Test builds only resolve the vault inside the active `test_support::Sandbox`.
 #[cfg(test)]
@@ -22,23 +22,21 @@ pub fn find_vault_root() -> Result<PathBuf> {
 /// paragraphs and footnotes (IN-06). The page sends both names, so they are checked first (`vault/paths.rs`, SEC-03).
 pub fn read_chapter_file(book_id: &str, file_name: &str) -> Result<String> {
     let path = super::paths::chapter_path(book_id, file_name)?;
-    read_text_file(&path)
-        .with_context(|| format!("Failed to read chapter file: {}", path.display()))
+    read_text_file(&path).with_context(|| format!("Failed to read chapter file: {}", path.display()))
 }
 
 /// Reads the _meta.json file for a book. The importer makes this file, so the app only reads it: the reader's own
 /// answers are kept in `vault/notes/<book-id>/` (DS-09).
 pub fn read_book_meta_json(book_id: &str) -> Result<String> {
     let path = super::paths::book_file(book_id, "_meta.json")?;
-    std::fs::read_to_string(&path)
-        .with_context(|| format!("Failed to read _meta.json: {}", path.display()))
+    std::fs::read_to_string(&path).with_context(|| format!("Failed to read _meta.json: {}", path.display()))
 }
 
 /// Retrieves the inspectional blueprint for a given book_id, synthesizing a resilient fallback if absent.
 pub fn get_inspectional_blueprint(book_id: &str) -> Result<crate::vault::InspectionalBlueprint> {
     let meta_json_str = read_book_meta_json(book_id)?;
-    let val: serde_json::Value = serde_json::from_str(&meta_json_str)
-        .with_context(|| format!("Failed to parse _meta.json for {}", book_id))?;
+    let val: serde_json::Value =
+        serde_json::from_str(&meta_json_str).with_context(|| format!("Failed to parse _meta.json for {book_id}"))?;
 
     if let Some(bp_val) = val.get("inspectional_blueprint") {
         if !bp_val.is_null() {
@@ -76,11 +74,12 @@ pub fn get_inspectional_blueprint(book_id: &str) -> Result<crate::vault::Inspect
 pub fn read_notes_file(book_id: &str, file_name: &str) -> Result<String> {
     let path = super::paths::chapter_notes_path(book_id, file_name)?;
     if path.exists() {
-        read_text_file(&path)
-            .with_context(|| format!("Failed to read notes file: {}", path.display()))
+        read_text_file(&path).with_context(|| format!("Failed to read notes file: {}", path.display()))
     } else {
         // Return default starter template if file does not yet exist
-        Ok(format!("# Notes: {book_id}\n\n## Key Reflections\n\n- \n\n## Questions\n\n- \n"))
+        Ok(format!(
+            "# Notes: {book_id}\n\n## Key Reflections\n\n- \n\n## Questions\n\n- \n"
+        ))
     }
 }
 
@@ -124,14 +123,14 @@ pub fn scan_library_books() -> std::result::Result<Vec<BookMetadata>, AppError> 
         return Ok(results);
     }
 
-    let dir_entries = std::fs::read_dir(&books_dir)
-        .map_err(|e| AppError::Io(format!("Failed to read books directory: {}", e)))?;
+    let dir_entries =
+        std::fs::read_dir(&books_dir).map_err(|e| AppError::Io(format!("Failed to read books directory: {e}")))?;
 
     for entry in dir_entries {
         let entry = match entry {
             Ok(e) => e,
             Err(e) => {
-                eprintln!("Warning: Skipping unreadable entry in books dir: {}", e);
+                eprintln!("Warning: Skipping unreadable entry in books dir: {e}");
                 continue;
             }
         };
@@ -156,7 +155,10 @@ pub fn scan_library_books() -> std::result::Result<Vec<BookMetadata>, AppError> 
                 };
 
                 let Some(id) = book_id_of(&path) else {
-                    eprintln!("Warning: Skipping a book folder whose name is not valid Unicode: {}", path.display());
+                    eprintln!(
+                        "Warning: Skipping a book folder whose name is not valid Unicode: {}",
+                        path.display()
+                    );
                     continue;
                 };
 
@@ -178,10 +180,7 @@ pub fn scan_library_books() -> std::result::Result<Vec<BookMetadata>, AppError> 
                     .or_else(|| val["spine"].as_array().map(|arr| arr.len()))
                     .unwrap_or(0);
 
-                let total_words = val["total_words"]
-                    .as_u64()
-                    .map(|n| n as usize)
-                    .unwrap_or(0);
+                let total_words = val["total_words"].as_u64().map(|n| n as usize).unwrap_or(0);
 
                 let elementary_metrics = val
                     .get("elementary_metrics")
@@ -204,7 +203,7 @@ pub fn scan_library_books() -> std::result::Result<Vec<BookMetadata>, AppError> 
         }
     }
 
-    results.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
+    results.sort_by_key(|book| book.title.to_lowercase());
     Ok(results)
 }
 
