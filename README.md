@@ -80,6 +80,8 @@ python -m pip install --no-deps -e packages/ingestion
 
 Keep the versions of the lock file: a new version of a package, such as pymupdf4llm, can change the text of a book that you import again. `pytest packages/ingestion/tests` fails when an installed version is not the version of the lock file.
 
+The lock file gives you the tests and the checks as well as the import: pytest, Pillow, packaging, mypy and ruff. `pyproject.toml` keeps them apart from the import in its `dev` group, so `pip install book-engine-ingestion` alone gives a computer only what it needs to read a book (IN-11).
+
 Ingest an EPUB or PDF into the local vault:
 
 ```bash

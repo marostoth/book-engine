@@ -8,13 +8,25 @@ version = "0.1.0"
 description = "Deterministic Ingestion & Content Pipeline for Local Book Engine"
 readme = "README.md"
 requires-python = ">=3.11"
+# What the import itself needs to read a book. Nothing here is a tool for the people who work on the code:
+# a computer that only imports books gets the import, and nothing else (IN-11).
 dependencies = [
     "ebooklib>=0.18",
     "beautifulsoup4>=4.12.0",
     "pymupdf>=1.24.0",
     "pymupdf4llm>=1.28.0",
     "pydantic>=2.6.0",
+]
+
+# What the tests and the checks need, on top of the list above. `requirements.lock` gives the exact version of
+# every one of them, and `tests/test_packaging.py` fails when the code imports a package that no list names.
+[project.optional-dependencies]
+dev = [
     "pytest>=8.0.0",
+    "pillow>=10.0.0",
+    "packaging>=23.0",
+    "mypy>=1.8.0",
+    "ruff>=0.4.0",
 ]
 
 [project.scripts]
@@ -28,3 +40,16 @@ pythonpath = ["."]
 python_version = "3.11"
 strict = true
 ignore_missing_imports = true
+
+# numpy comes with the import through onnxruntime, and its own type file uses a `type` statement, which Python
+# 3.11 does not have. Reading that file stopped mypy before it looked at one line of this package. Stepping over
+# it lets mypy check the package for Python 3.11, which is the oldest version the package says it runs on (IN-11).
+[[tool.mypy.overrides]]
+module = ["numpy", "numpy.*"]
+follow_imports = "skip"
+follow_imports_for_stubs = true
+
+# The lines of this package are written to about 120 letters: only 69 of its 14,957 lines are longer. The rules
+# that ruff uses are left as they come, for TL-05 to choose with the one command that runs every check.
+[tool.ruff]
+line-length = 120

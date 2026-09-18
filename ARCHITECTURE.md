@@ -383,7 +383,7 @@ book-engine/
 │       │   ├── test_citations.py        # Citation tests: a link that climbs out of the reports folder opens its paragraph, one written from the repository root leads nowhere, and a quote that moved is named (CQ-06)
 │       │   ├── test_cloze_cards.py      # Cloze card tests: no small-word, number or label answer, no marks or second answer in the prompt, no card from a table or HTML, one card for a repeated term, and the audit refuses the old cards (LE-07)
 │       │   ├── test_console.py          # Command output tests: a pipe that takes plain letters only takes a Cyrillic title after `allow_any_letter`, a stream that cannot or will not change is left alone, saying what was done never stops a command, and every command of the repository calls `allow_any_letter` (IN-09)
-│       │   ├── test_dependencies.py     # Lock tests: each dependency, and each package that one needs, has one exact version in requirements.lock, and the installed versions are those versions (IN-05)
+│       │   ├── test_dependencies.py     # Lock tests: each dependency of both lists of pyproject.toml, and each package that one needs, has one exact version in requirements.lock, and the installed versions are those versions (IN-05, IN-11)
 │       │   ├── test_endnotes.py         # Endnote relocation & inline footnote syntax test suite
 │       │   ├── test_epub_contents.py    # EPUB contents tests: full chapter titles, and each entry names the chapter file & paragraph where it starts, as in The Wealth of Nations (CQ-01); the title page of a division joins the chapter after it and both entries open it (CQ-04); the endnote document of the fixture is a chapter now, because nothing in that book cites its note (IN-07)
 │       │   ├── test_epub_text.py        # EPUB text tests: every kind of block in any layout, preformatted text as the book has it, no words run together, and only a link to a note becomes a footnote (IN-02)
@@ -398,6 +398,7 @@ book-engine/
 │       │   ├── test_meta_schema.py      # Book metadata, hierarchical TOC & schema validation tests
 │       │   ├── test_next_sentence_quiz.py # Quiz card tests: the card asks what comes right after its passage, the right option spreads over A to D, no near-copy or next-paragraph wrong option, and the audit refuses the old cards (LE-06)
 │       │   ├── test_note_documents.py   # Note document tests: a chapter named `ch03-fieldnotes.xhtml` or `backmatter.xhtml` is kept, a document whose notes the chapters cite makes no chapter whatever it is called, and a chapter that holds its own list of notes stays a chapter (IN-07)
+│       │   ├── test_packaging.py        # Package list tests: `ast` reads every import of `ingest`, `tests` and the skills, and each one is named by `dependencies` or by the `dev` group; no tool of the work is a part of the import; git keeps no folder that a build writes (IN-11)
 │       │   ├── test_pdf.py              # PDF parsing, chapter splitting & text preservation tests
 │       │   ├── test_pdf_book_parts.py   # PDF import tests: the preface, the part pages, the appendices and the index are imported, the last chapter keeps its sections, the pages no part covers are named, only chapters and appendices make cards, and the audits pass on the imported book (IN-01)
 │       │   ├── test_pdf_outline.py      # Outline part tests: the Kotler and Dalton outline shapes cover every page and keep the chapter pages, and each part gets its kind (IN-01)
@@ -411,8 +412,8 @@ book-engine/
 │       │   ├── test_toc.py              # Table of contents extraction & hierarchy tests
 │       │   ├── test_toc_links.py        # Contents link tests: the block & paragraph of each element, encoded and NCX-relative links, no guessed document (CQ-01)
 │       │   └── test_vault_changes.py    # Vault change tests: every change goes in, a change that fails puts each change back, a file that Windows holds for a moment still goes in, and a read-only old book folder is removed (IN-05)
-│       ├── pyproject.toml       # Python package configuration and CLI entrypoints
-│       └── requirements.lock    # The exact version of every package that the import needs (IN-05)
+│       ├── pyproject.toml       # Python package configuration and CLI entrypoints; `dependencies` holds what the import of a book needs, the `dev` group holds pytest, Pillow, packaging, mypy and ruff, and mypy steps over the type file of numpy so it can check this package for Python 3.11 (IN-11)
+│       └── requirements.lock    # The exact version of every package that the import needs, and of every package that the tests and the checks need (IN-05, IN-11)
 ├── scripts/
 │   └── create_desktop_shortcut.ps1 # One-click Windows desktop shortcut generator; an open app comes to the front, and no second copy starts
 ├── vault/                       # SOLE PERMANENT RECORD: User Markdown vault (Versioned / Syncable)
@@ -499,6 +500,14 @@ Multi-column textbook pages frequently include full-width conceptual matrices, m
 - **The glyph name has the last word:** one part of a font can put the same glyph at another code, so the code table is the start and the `/Differences` array overrides it.
 - **A broken character stops an import:** a chapter that holds a replacement character fails the book check and names the blocks it sits in (`ingest/book_check.py`), so the vault keeps the book it had. `audit-anchors.py` and `audit-system.py` use the same rule. A "1/4" or a "thorn" is not broken by itself, because a book may hold one for its own reasons.
 - **Superscripts:** a price like 96 29/32 shows as a superscript in the reader, which RD-03 added (`components/reader/TipTapExtensions.ts`).
+
+### The Package Lists Say What the Code Needs (IN-11)
+- **A tool of the work is not a part of the import:** `dependencies` in `packages/ingestion/pyproject.toml` asked for pytest, so a computer that only wanted to read books was told to install the test runner as well. pytest now sits in the `dev` group with Pillow, packaging, mypy and ruff.
+- **A list that misses a package stops the tests dead:** Pillow was in neither `pyproject.toml` nor `requirements.lock`, and `tests/test_figure_cards.py` opens a picture with it. Measured: with Pillow hidden, `pytest packages/ingestion/tests` does not run **one** test. It stops while it reads the test files, with `Interrupted: 1 error during collection`.
+- **The code is the list:** `tests/test_packaging.py` reads every `import` line of `ingest`, `tests` and `.agent/skills` with `ast`, which needs no package to be installed, and fails when one of them names a package that neither list asks for. `packages_distributions()` turns an import name into the name a package is installed by, so `PIL` is found as `pillow` and `bs4` as `beautifulsoup4`.
+- **The lock covers both lists:** `requirements.lock` now gives the exact version of pytest, Pillow, packaging, mypy and ruff as well, so the two README steps give a computer everything the tests need.
+- **mypy can run again:** numpy comes with the import through onnxruntime, and its own type file uses a `type` statement, which Python 3.11 does not have. With `python_version = "3.11"`, mypy stopped there before it read one line of this package. An override that steps over numpy lets mypy check all 36 modules for Python 3.11, where it reports **71 errors in 16 files**. Those errors belong to TL-05, which adds the one command that runs every check.
+- **git keeps no folder that a build writes:** `book_engine_ingestion.egg-info/` was in git and was made before pymupdf was a dependency, so it named the wrong packages. `.gitignore` keeps it out now. Nothing read it: the editable install points straight at `packages/ingestion/ingest`.
 
 ### The Import Fits Any Book, Not One Book (IN-10)
 - **Rules that named one book:** a whole passage of Principles of Marketing was written out here sentence by sentence to join one page of it, a photo credit was known by the names of four real photographers of that book, and one misprinted word was mended by name. Each was measured on both PDF books and **fired zero times**, so all three are gone. A credit is known by the agency that owns the picture: those words found all 543 credit lines of the two books on their own.

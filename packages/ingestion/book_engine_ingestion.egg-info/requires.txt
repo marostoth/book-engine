@@ -1,5 +1,0 @@
-ebooklib>=0.18
-beautifulsoup4>=4.12.0
-pymupdf4llm>=1.28.0
-pydantic>=2.6.0
-pytest>=8.0.0
