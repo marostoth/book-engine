@@ -15,7 +15,7 @@ from typing import Dict, List, Mapping, Optional, Sequence
 from urllib.parse import unquote
 
 from ingest.anchors import ANCHOR_REGEX
-from ingest.models import TOCItem
+from ingest.models import ChapterMeta, TOCItem
 
 
 @dataclass(frozen=True)
@@ -99,6 +99,20 @@ def without_entries_that_lead_nowhere(items: Sequence[TOCItem]) -> List[TOCItem]
         if item.href or item.subitems:
             kept.append(item)
     return kept
+
+
+def contents_of_chapters(chapters: Sequence[ChapterMeta]) -> List[TOCItem]:
+    """The contents of a book that has none of its own: one entry for each chapter (IN-10).
+
+    An EPUB may carry no table of contents at all, and every entry of another may open nothing. A reader then has
+    no way to move through the book. The chapters themselves are the honest answer, the way the PDF import already
+    makes parts for a PDF with no outline (`pdf_outline.outline_parts`, IN-01). Each entry opens the top of its
+    chapter file and carries the chapter's own name.
+    """
+    return [
+        TOCItem(id=chapter.id, title=chapter.title, href=chapter.file_path, anchor=None, level=1)
+        for chapter in chapters
+    ]
 
 
 def _linked_document(path: str, documents: Mapping[str, ImportedDocument]) -> Optional[ImportedDocument]:

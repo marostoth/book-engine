@@ -31,15 +31,29 @@ NEAR_COPY_RATIO = 0.65
 # with an image link or a footnote mark, is no sentence, so it is no option.
 SENTENCE_END = re.compile(r"[.!?][\"'”’)\]]*$")
 
-NARRATIVE_STORY_REGEX = re.compile(
+# A story of a book tells what one person did. Its next sentence is the next thing that happened, which no
+# reader can work out from the passage, so a paragraph that tells a story makes no quiz card.
+#
+# Two things must both be true, and neither is enough on its own. The phrases alone called 13 paragraphs of
+# Principles of Marketing and The Wealth of Nations a story, where a story a newspaper "picked up" and wine
+# "drank in Great Britain" are not stories at all. Being about one person alone called 190 paragraphs of The
+# Wealth of Nations a story. Six of the phrases also named the trade, the animals and the tools of the one
+# person in one book, so no other book could ever hold them (IN-10).
+NARRATIVE_PHRASE = re.compile(
     r"\b(?:got up at|woke up|drank|chewed on|stared at|glanced over|picked up|put his hand|"
-    r"retired cattle rancher|went to his study|chewed on the end of a pencil|"
-    r"said to himself|thought to himself|he wondered|she wondered|yesterday morning|"
-    r"one morning|last night|last week|on his quote equipment|turned on his|sat and watched|"
-    r"sank deeper into his chair|in less than five minutes|called and commented|"
-    r"auction off his livestock|ranching days)\b",
+    r"went to his study|said to himself|thought to himself|he wondered|she wondered|yesterday morning|"
+    r"one morning|last night|last week|turned on his|sat and watched|in less than five minutes|"
+    r"called and commented)\b",
     re.IGNORECASE,
 )
+
+# One person doing something. "they" is left out, because a book uses it for a company and for people in
+# general as well as for a person.
+ONE_PERSON = re.compile(r"\b(?:he|his|him|himself|she|her|hers|herself)\b", re.IGNORECASE)
+
+# How thick with one person a story is. Every story paragraph of Mind Over Markets holds at least 3 such words
+# in every 100; the most any wrongly named paragraph of the other books holds is under 3.
+PEOPLE_IN_A_HUNDRED_WORDS = 3
 
 STOPWORDS = {
     "this", "that", "these", "those", "with", "from", "have", "were", "been",
@@ -48,6 +62,18 @@ STOPWORDS = {
     "than", "then", "they", "them", "will", "just", "like", "such", "each",
     "very", "much", "does", "did", "doing", "done", "your", "ours", "our",
 }
+
+
+def tells_a_story(block: str) -> bool:
+    """True when the paragraph tells what one person did, so it makes no quiz card (IN-10).
+
+    It must both say something only a story says and be about one person all through. A textbook that says
+    a campaign was "picked up by the media" says one of those things and not the other, so it keeps its card.
+    """
+    if not NARRATIVE_PHRASE.search(block):
+        return False
+    words = len(block.split())
+    return bool(words) and len(ONE_PERSON.findall(block)) * 100 >= words * PEOPLE_IN_A_HUNDRED_WORDS
 
 
 def book_text(text: str) -> str:
@@ -102,7 +128,7 @@ def generate_chapter_scenario_cards(
     seen_pool_texts: Set[str] = set()
 
     for anchor_id, para_text in anchored_paras:
-        if NARRATIVE_STORY_REGEX.search(para_text):
+        if tells_a_story(para_text):
             continue
         sentences = split_sentences(para_text)
         for s in sentences:
@@ -120,7 +146,7 @@ def generate_chapter_scenario_cards(
     target_candidates: List[Tuple[float, str, str, str, str, Set[str]]] = []
 
     for anchor_id, para_text in anchored_paras:
-        if NARRATIVE_STORY_REGEX.search(para_text):
+        if tells_a_story(para_text):
             continue
         sentences = split_sentences(para_text)
         if len(sentences) < 2:

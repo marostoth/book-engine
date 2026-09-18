@@ -267,6 +267,27 @@ def sanitize_pdf_markdown(markdown_text: str) -> str:
     return cleaned_md.strip()
 
 
+# The name of a language, as a document writes it: "en", "en-GB", "fr-FR", "zh-Hans". Anything else is not a
+# language name, so the book keeps the language the import falls back to.
+LANGUAGE_NAME = re.compile(r"^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{1,8})*$")
+
+
+def book_language(doc: object, fallback: str = "en") -> str:
+    """The language a PDF says it is in, or `fallback` when it says nothing (IN-10).
+
+    A PDF writes it as `/Lang` in its catalog. Most PDFs write nothing, and neither of the owner's two does,
+    so they stay English; a book in another language no longer says it is in English.
+    """
+    try:
+        kind, value = doc.xref_get_key(doc.pdf_catalog(), "Lang")  # type: ignore[attr-defined]
+    except Exception:
+        return fallback
+    if kind != "string" or not isinstance(value, str):
+        return fallback
+    name = value.strip().strip("()").strip()
+    return name if LANGUAGE_NAME.match(name) else fallback
+
+
 def clean_author_metadata(raw_author: str) -> str:
     """Normalizes author string by deduplicating and cleaning semicolon/comma delimited names."""
     if not raw_author:

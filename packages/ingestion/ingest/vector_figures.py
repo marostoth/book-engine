@@ -10,6 +10,16 @@ import pymupdf
 from ingest.assets import pad_and_clamp_rect, PADDING
 
 
+def figure_file_name(chapter_idx: int, major: int, minor: int) -> str:
+    """The picture file of Figure `major`.`minor` in part `chapter_idx`.
+
+    The name carries the whole number of the figure. It used to carry the minor number only, so Figure 2.1 and
+    Figure 3.1 of the same part wrote one file and one figure showed the picture of the other: 3 figures of
+    Principles of Marketing did (IN-10).
+    """
+    return f"fig-{chapter_idx:02d}-{major}-{minor}.png"
+
+
 def _extract_figure_heading(block_text: str) -> Optional[Tuple[int, int, str]]:
     """Extracts (major, minor, title) from a figure caption block, filtering narrative text."""
     m = re.search(
@@ -201,7 +211,7 @@ def detect_and_rasterize_vector_figures(
 
             # Pristine Snapshot First: render directly from unredacted source document
             pix = page.get_pixmap(clip=clip_rect, dpi=dpi)
-            img_filename = f"fig-{chapter_idx:02d}-{minor}.png"
+            img_filename = figure_file_name(chapter_idx, major, minor)
             target_path = assets_dir / img_filename
             pix.save(str(target_path))
             del pix

@@ -1,6 +1,7 @@
 """Asset and embedded media extraction for EPUB and document pipelines."""
 
 from __future__ import annotations
+import hashlib
 import os
 import re
 from pathlib import Path
@@ -8,6 +9,21 @@ from typing import Dict, List, Optional
 import ebooklib
 from ebooklib import epub
 import pymupdf
+
+# A drawing that a book holds as SVG is markup, not pixels, so it can carry a script. The reader shows every
+# picture through an `<img>` tag, where no script of a picture runs, but the file lives in the vault and any
+# other program may open it. So the script comes out before the file is written, the way the import writes a
+# `<` of the book text as `&lt;` (SEC-01, IN-10).
+_SVG_SCRIPT = re.compile(rb"<script\b[^>]*>.*?</script\s*>|<script\b[^>]*/\s*>", re.IGNORECASE | re.DOTALL)
+_SVG_HANDLER = re.compile(rb"\son[a-zA-Z]+\s*=\s*(?:\"[^\"]*\"|'[^']*'|[^\s>]+)", re.IGNORECASE)
+_SVG_JAVASCRIPT = re.compile(rb"javascript\s*:", re.IGNORECASE)
+
+
+def svg_without_script(content: bytes) -> bytes:
+    """An SVG of the book with no script in it: no `<script>`, no `onclick=`, no `javascript:` (IN-10)."""
+    content = _SVG_SCRIPT.sub(b"", content)
+    content = _SVG_HANDLER.sub(b"", content)
+    return _SVG_JAVASCRIPT.sub(b"", content)
 
 
 def extract_epub_assets(book: epub.EpubBook, assets_dir: Path) -> Dict[str, str]:
@@ -23,10 +39,16 @@ def extract_epub_assets(book: epub.EpubBook, assets_dir: Path) -> Dict[str, str]
 
     assets_dir.mkdir(parents=True, exist_ok=True)
     asset_map: Dict[str, str] = {}
+    # Which picture of the book took each file name. A book can hold `images/fig1.png` and `notes/fig1.png`,
+    # and the plain name alone let the second write over the first, so one picture was lost and the other was
+    # shown twice (IN-10).
+    taken: Dict[str, str] = {}
 
     for item in book.get_items():
         if item.get_type() == ebooklib.ITEM_IMAGE:
             content = item.get_content()
+            if item.get_name().lower().endswith(".svg"):
+                content = svg_without_script(content)
             try:
                 pix = pymupdf.Pixmap(content)
                 width, height = pix.width, pix.height
@@ -42,21 +64,30 @@ def extract_epub_assets(book: epub.EpubBook, assets_dir: Path) -> Dict[str, str]
             file_name = Path(item.get_name()).name
             # Ensure unique and safe filename
             safe_name = re.sub(r"[^a-zA-Z0-9_.-]", "_", file_name)
+            if taken.get(safe_name, item.get_name()) != item.get_name():
+                # Another picture of the book has this plain name already, so this one keeps a mark of its
+                # own place in the book and both pictures stay (IN-10).
+                mark = hashlib.sha256(item.get_name().encode("utf-8")).hexdigest()[:8]
+                stem, dot, ending = safe_name.rpartition(".")
+                safe_name = f"{stem}-{mark}{dot}{ending}" if dot else f"{safe_name}-{mark}"
+            taken[safe_name] = item.get_name()
             target_path = assets_dir / safe_name
 
             with open(target_path, "wb") as f:
                 f.write(content)
 
             rel_asset_path = f"assets/{safe_name}"
-            # Map various ways this image might be referenced in HTML
+            # Map various ways this image might be referenced in HTML. The whole name inside the book names one
+            # picture, so it is written. A plain name can belong to more than one picture, so the first one
+            # keeps it and the rest are found by their whole name (IN-10).
             asset_map[item.get_name()] = rel_asset_path
-            asset_map[file_name] = rel_asset_path
+            asset_map.setdefault(file_name, rel_asset_path)
             # If item.file_name is "images/fig1.png", also map "../images/fig1.png"
             asset_map[f"../{item.get_name()}"] = rel_asset_path
             if "/" in item.get_name():
                 sub_path = item.get_name().split("/", 1)[1]
-                asset_map[sub_path] = rel_asset_path
-                asset_map[f"../{sub_path}"] = rel_asset_path
+                asset_map.setdefault(sub_path, rel_asset_path)
+                asset_map.setdefault(f"../{sub_path}", rel_asset_path)
 
     return asset_map
 
@@ -169,6 +200,11 @@ def extract_padded_figure_pixmap(
 def suppress_page_images(markdown_text: str, assets_dir: Path, page_indices: set[int]) -> str:
     """Removes auto-extracted images residing on page slices where a pristine vector snapshot
     was captured, and deletes the corresponding files from disk.
+
+    `page_indices` holds 0-based page indices, and `pymupdf4llm` names a picture file by the 1-BASED page of
+    the book, so page index 30 gives a file with `-0031-` in its name. Only that name belongs to the page.
+    The old rule also took `-0030-`, which is the file of the page BEFORE, and deleted a picture of a page
+    that had no snapshot at all: 4 pictures of Mind Over Markets and 48 of Principles of Marketing (IN-10).
     """
     def _suppress_image(match: re.Match[str]) -> str:
         src = match.group(2).strip()
@@ -177,7 +213,7 @@ def suppress_page_images(markdown_text: str, assets_dir: Path, page_indices: set
             return match.group(0)
 
         for p in page_indices:
-            if f"-{p + 1:04d}-" in filename or f"-{p:04d}-" in filename:
+            if f"-{p + 1:04d}-" in filename:
                 asset_path = assets_dir / filename
                 asset_path.unlink(missing_ok=True)
                 return ""
