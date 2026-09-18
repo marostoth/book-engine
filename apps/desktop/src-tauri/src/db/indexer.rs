@@ -210,7 +210,9 @@ fn index_chapter(
     let mut paragraphs = 0;
     for block in content.split("\n\n") {
         let trimmed = block.trim();
-        if trimmed.is_empty() || trimmed.starts_with('#') {
+        // Only a heading is left out. A paragraph that starts with a `#` and a word, such as "#1 rule"
+        // or a hashtag, is text of the book, and search used to leave it out (IN-08).
+        if trimmed.is_empty() || super::chapter_blocks::is_heading(trimmed) {
             continue;
         }
 

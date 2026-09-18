@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 from typing import List, Tuple
 
+from ingest.chapter_shape import is_heading
 from ingest.markdown_text import unescape_markdown_text
 
 ANCHOR_REGEX = re.compile(r"\s*\^p-[a-zA-Z0-9_-]+$")
@@ -41,7 +42,7 @@ def inject_paragraph_anchors(markdown_content: str, start_index: int = 1) -> Tup
 
     for block in blocks:
         # Headings do not receive paragraph anchors
-        if block.startswith("#"):
+        if is_heading(block):
             anchored_blocks.append(block)
             continue
 
@@ -76,7 +77,8 @@ def clean_preview_text(text: str) -> str:
     r"""Clean markdown formatting for inspectional preview extracts.
 
     Strips:
-      - Header marks (#+ )
+      - Header marks (#+ ), and the `&#35;` that a `#` of the book text at the start of a line is
+        written as (IN-08)
       - Inline footnote citations (\[\^\w+\])
       - Markdown emphasis/code marks (**, *, _, `)
       - Block paragraph anchors (^p-xxx)
@@ -111,7 +113,7 @@ def extract_inspectional_sampling(markdown_content: str, depth: int = 2) -> Insp
 
     for b in blocks:
         # Skip headings
-        if b.startswith("#"):
+        if is_heading(b):
             continue
         # Skip footnote definitions
         if re.match(r"^\[\^[^\]]+\]:", b):

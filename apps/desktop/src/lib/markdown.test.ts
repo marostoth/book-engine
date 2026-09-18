@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { getSchema } from "@tiptap/core";
 import type { Node as ReaderNode } from "@tiptap/pm/model";
 import { readerExtensions } from "../components/reader/readerExtensions.ts";
-import { parseChapterMarkdown } from "./markdown.ts";
+import { bookText, isHeadingBlock, parseChapterMarkdown } from "./markdown.ts";
 
 const schema = getSchema(readerExtensions);
 
@@ -218,4 +218,34 @@ test("every kind of block of a chapter file fits the nodes of the reader", () =>
     "horizontalRule",
     "codeBlock#p-006",
   ]);
+});
+
+// A block that starts with a `#` used to count as a heading everywhere, so a paragraph such as "#1 rule" got
+// no anchor and no reader could search it, cite it or mark it. A `#` of the book text that would start a
+// heading is written by the import as `&#35;` (IN-08).
+test("a block is a heading only when Markdown reads it as one", () => {
+  assert.equal(isHeadingBlock("## CHAPTER I. OF THE DIVISION OF LABOUR"), true);
+  assert.equal(isHeadingBlock("###### PART I. Of the Expense of Defence."), true);
+  assert.equal(isHeadingBlock("#"), true, "marks with nothing after them");
+  assert.equal(isHeadingBlock("#\tOF THE RENT OF LAND"), true, "a tab after the marks");
+
+  assert.equal(isHeadingBlock("#1 rule of the market is that price pays."), false);
+  assert.equal(isHeadingBlock("#MarketProfile is read by traders."), false);
+  assert.equal(isHeadingBlock("####### seven marks are too many."), false);
+  assert.equal(isHeadingBlock("&#35; PRICES OF WHEAT"), false);
+  assert.equal(isHeadingBlock("The great commerce of every civilized society."), false);
+});
+
+test("a place that reads a chapter file itself shows the book text", () => {
+  assert.equal(bookText("&#35; PRICES OF WHEAT"), "# PRICES OF WHEAT");
+  assert.equal(bookText("&#35;## Three marks"), "### Three marks");
+  assert.equal(bookText("Year | Price\n&#35; | 12"), "Year | Price\n# | 12");
+  assert.equal(bookText("#1 rule of the market."), "#1 rule of the market.");
+});
+
+test("a paragraph that starts with a hash shows as text, and keeps its anchor", () => {
+  const chapter = ["#1 rule of the market. ^p-001", "&#35; PRICES OF WHEAT ^p-002"].join("\n\n");
+
+  assert.deepEqual(anchors(read(chapter)), ["paragraph#p-001", "paragraph#p-002"]);
+  assert.equal(shown(chapter), 'paragraph("#1 rule of the market."), paragraph("# PRICES OF WHEAT")');
 });

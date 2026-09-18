@@ -5,6 +5,7 @@ import type {
   SearchResult,
   InspectionalBlueprint,
 } from "../../types";
+import { isHeadingBlock } from "../../markdown.ts";
 import { HIT_END, HIT_START } from "../../searchSnippet.ts";
 
 export const FALLBACK_META: BookMeta = {
@@ -216,7 +217,7 @@ export function fallbackSearchVault(query: string): SearchResult[] {
 
     const blocks = content.split("\n\n");
     for (const block of blocks) {
-      if (block.toLowerCase().includes(qLower) && !block.startsWith("#")) {
+      if (block.toLowerCase().includes(qLower) && !isHeadingBlock(block)) {
         let anchor = "";
         let text = block;
         if (block.includes("^p-")) {

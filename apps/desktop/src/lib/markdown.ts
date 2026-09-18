@@ -11,6 +11,24 @@ export interface ParsedChapter {
 /** The anchor at the end of a block of a chapter file: `^p-001`, or the older `§p-001` */
 const BLOCK_ANCHOR = /\s*(?:\^|§)p-([a-zA-Z0-9_-]+)$/;
 
+/**
+ * True when Markdown reads a block of a chapter file as a heading: one to six `#` marks, and then a space,
+ * a tab or the end of the line. Every other block is text of the book, and carries a paragraph anchor.
+ * A paragraph that starts with a `#` and a word, such as "#1 rule" or a hashtag, is text (IN-08).
+ */
+export function isHeadingBlock(block: string): boolean {
+  return /^#{1,6}(?:[ \t\n]|$)/.test(block);
+}
+
+/**
+ * The book text of a block of a chapter file, for a place that shows the file itself instead of the
+ * document the reader makes of it. The `&#35;` that the import writes for a `#` that would start a
+ * heading is a `#` again (IN-08). The Markdown parser does this on its own for the reader.
+ */
+export function bookText(block: string): string {
+  return block.replace(/^&#35;/gm, "#");
+}
+
 /** A footnote text: `[^1]: Note text` */
 const FOOTNOTE = /^\[\^([a-zA-Z0-9_-]+)\]:\s*(.+)$/;
 
