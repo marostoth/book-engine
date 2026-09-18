@@ -27,11 +27,12 @@ You are acting as a Principal Systems & Frontend Engineer specializing in local-
 ## 2. Technology & Language Standards
 
 ### Rust (Tauri v2 Backend)
-- **Tooling:** Tauri v2, `sqlx` (or `rusqlite`), `notify` crate for file watching.
+- **Tooling:** Tauri v2, `rusqlite` with FTS5 (bundled SQLite), `tokio`, `serde`, `thiserror`, `anyhow`, `chrono`.
 - **Safety:** Explicit error handling via `thiserror` and `anyhow`. Do not use `.unwrap()` or `.expect()` in non-test paths.
 - **Concurrency:** Execute disk I/O, SQLite FTS5 queries, and hashing on background threads (`tokio::task::spawn_blocking`). Keep the IPC message loop unblocked.
 - **Line Endings:** Read a chapter or notes file with `read_text_file` (`vault/text_file.rs`) before you split it into paragraphs or lines. It gives `\n` line endings only (IN-06).
 - **Chapter Files Get New Names:** A new import can rename the chapter files of a book. The reading time in the cache follows `reading.jsonl` (`db/restore.rs`), and no chapter name goes from the cache into the vault (`db/backfill.rs`, IN-04).
+- **Nothing Watches the Vault:** there is no file system watcher. `index_vault` runs twice: when the window opens (`useBookSession.ts`) and when the reader clicks "Rescan library" at the bottom of the book list (`lib/libraryRescan.ts`, DS-13). A book imported or edited while the app is open therefore shows after one click, not by itself. A watcher is not free here, so do not add one without deciding this first: the app writes into the vault all the time itself, notes, highlights, `bookmark.json`, `reading.jsonl` and the practice deck, so it would have to tell its own writes from the reader's or it would index in a loop. Name a crate in **Tooling:** only after `apps/desktop/src-tauri/Cargo.toml` has it. That line named `sqlx` and `notify` while the build had neither, and three documents promised a watcher that was never written. `tests/test_what_the_docs_promise.py` fails on both (SI-05).
 
 ### Python (Ingestion Pipeline)
 - **Tooling:** Python 3.13+, `mypy` strict mode, `pytest`. The code itself needs only 3.11, where `tomllib` arrived, and mypy still checks it for 3.11. The floor is 3.13 because `requirements.lock` is made on 3.13 and `numpy==2.5.3` in it has no build for 3.11 (TL-05).
