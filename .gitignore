@@ -5,6 +5,10 @@ __pycache__/
 node_modules/
 dist/
 
+# What a Python build writes about the package. pip writes it again on every build, and the copy that was in git
+# was made before pymupdf was a dependency, so it named the wrong packages (IN-11).
+*.egg-info/
+
 # Rust / Tauri builds
 target/
 src-tauri/target/

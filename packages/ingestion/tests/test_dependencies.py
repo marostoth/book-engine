@@ -3,12 +3,15 @@
 `pyproject.toml` gives each dependency with `>=` only, so pip can install a newer version of it. A new version of
 pymupdf4llm or pymupdf-layout can change the Markdown of a book, and so its paragraphs and anchors. The lock gives the
 exact version of every package that the import needs, and of every package that those packages need.
+
+The lock covers the `dev` group of `pyproject.toml` as well, because pytest, Pillow, mypy and ruff are as much a part
+of a working copy of this package as pymupdf is. A computer that had no Pillow could not run the tests at all (IN-11).
 """
 
 import importlib.metadata
 import tomllib
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 
 from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
@@ -40,11 +43,19 @@ def needed_here(requirement: Requirement) -> bool:
     return requirement.marker is None or requirement.marker.evaluate({"extra": ""})
 
 
+def every_dependency() -> List[str]:
+    """Every package `pyproject.toml` asks for: the ones the import needs, and the ones the work on it needs."""
+    project = tomllib.loads((PACKAGE / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    asked = list(project["dependencies"])
+    for group in project.get("optional-dependencies", {}).values():
+        asked.extend(group)
+    return asked
+
+
 def test_every_dependency_of_the_package_has_one_exact_version_in_the_lock():
     lock = locked()
-    project = tomllib.loads((PACKAGE / "pyproject.toml").read_text(encoding="utf-8"))["project"]
 
-    for dependency in project["dependencies"]:
+    for dependency in every_dependency():
         requirement = Requirement(dependency)
         name = canonicalize_name(requirement.name)
         assert name in lock, f"{name} is not in requirements.lock"
