@@ -16,6 +16,8 @@ from ingest.elementary import compute_elementary_metrics
 from ingest.sample_generator import create_sample_epub
 from ingest.pipeline import ingest_epub
 
+from conftest import load_skill
+
 
 def test_elementary_metrics_schema():
     """Verify ElementaryMetrics model serialization and validation."""
@@ -116,20 +118,23 @@ def test_clean_preview_text():
     assert cleaned == "Heading In distributed systems, linearizability is key code."
 
 
-def test_sample_vault_meta_validation():
-    """Verify that vault/books/sample/_meta.json passes BookMeta validation."""
-    sample_meta_path = Path("vault/books/sample/_meta.json")
-    if sample_meta_path.exists():
-        content = sample_meta_path.read_text(encoding="utf-8")
-        book_meta = BookMeta.model_validate_json(content)
-        assert book_meta.book_id == "sample"
-        assert book_meta.elementary_metrics is not None
-        assert book_meta.elementary_metrics.flesch_kincaid_grade > 0
-        assert book_meta.inspectional_blueprint is not None
-        for ch in book_meta.spine:
-            assert ch.inspectional_sampling is not None
-            assert len(ch.inspectional_sampling.head_anchors) > 0
-            assert len(ch.inspectional_sampling.tail_anchors) > 0
+def test_sample_vault_meta_validation(vault_of_the_tests: Path):
+    """The `_meta.json` the import writes passes BookMeta validation (TL-02).
+
+    This test used to open `vault/books/sample/_meta.json` beside the repository inside `if ... exists()`, with
+    nothing to do when it did not. That file is in no clone and in the owner's vault either, so the test PASSED
+    while checking nothing at all. Now it reads a book this test run imported, and there is no `if`.
+    """
+    content = (vault_of_the_tests / "books" / "sample" / "_meta.json").read_text(encoding="utf-8")
+    book_meta = BookMeta.model_validate_json(content)
+    assert book_meta.book_id == "sample"
+    assert book_meta.elementary_metrics is not None
+    assert book_meta.elementary_metrics.flesch_kincaid_grade > 0
+    assert book_meta.inspectional_blueprint is not None
+    for ch in book_meta.spine:
+        assert ch.inspectional_sampling is not None
+        assert len(ch.inspectional_sampling.head_anchors) > 0
+        assert len(ch.inspectional_sampling.tail_anchors) > 0
 
 
 def test_end_to_end_pipeline_generates_valid_meta(tmp_path: Path):
@@ -164,17 +169,15 @@ def test_end_to_end_pipeline_generates_valid_meta(tmp_path: Path):
     assert validated.elementary_metrics is not None
 
 
-def test_audit_inspectional_parity_on_live_vault():
-    """Verify that audit_inspectional_parity passes 100% on the live vault."""
-    import importlib.util
+def test_audit_inspectional_parity_on_the_vault_of_the_tests(vault_of_the_tests: Path):
+    """The inspectional audit passes on a whole vault that this test run built (TL-02).
 
-    skill_path = Path(".agent/skills/audit-system.py")
-    spec = importlib.util.spec_from_file_location("audit_system", skill_path)
-    assert spec and spec.loader
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    It used to read the vault beside the repository, which holds the reader's own books and nothing at all on a
+    fresh clone, where this test failed.
+    """
+    mod = load_skill("audit-system.py")
 
-    passed, metric = mod.audit_inspectional_parity(Path("vault"))
+    passed, metric = mod.audit_inspectional_parity(vault_of_the_tests)
     assert passed is True
     assert "head/tail pairs" in metric
     assert "chapters" in metric
@@ -182,13 +185,7 @@ def test_audit_inspectional_parity_on_live_vault():
 
 def test_audit_inspectional_parity_detects_corrupt_sampling(tmp_path: Path):
     """Verify that audit_inspectional_parity fails when anchors do not match markdown."""
-    import importlib.util
-
-    skill_path = Path(".agent/skills/audit-system.py")
-    spec = importlib.util.spec_from_file_location("audit_system", skill_path)
-    assert spec and spec.loader
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_skill("audit-system.py")
 
     # Empty vault -> should fail (zero sampling detected)
     empty_vault = tmp_path / "empty_vault"
@@ -200,13 +197,7 @@ def test_audit_inspectional_parity_detects_corrupt_sampling(tmp_path: Path):
 
 def test_audit_inspectional_parity_checks_the_exit_assessment_next_to_the_notes(tmp_path: Path):
     """The reader's exit assessment lives in vault/notes/<book-id>/inspectional.json, so the audit checks it there (DS-09)."""
-    import importlib.util
-
-    skill_path = Path(".agent/skills/audit-system.py")
-    spec = importlib.util.spec_from_file_location("audit_system", skill_path)
-    assert spec and spec.loader
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_skill("audit-system.py")
 
     epub_path = tmp_path / "sample.epub"
     create_sample_epub(epub_path)

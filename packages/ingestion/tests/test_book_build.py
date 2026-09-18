@@ -15,6 +15,8 @@ from ingest.book_check import book_problems
 from ingest.pipeline import ingest_book
 from ingest.sample_generator import create_sample_epub
 
+from conftest import SKILLS
+
 
 def vault_files(vault: Path) -> Dict[str, str]:
     return {
@@ -118,7 +120,7 @@ def test_the_check_names_each_paragraph_with_no_anchor_and_each_footnote_link_wi
 
 
 def test_the_anchor_audit_uses_the_check_of_the_import(tmp_path: Path, capsys: pytest.CaptureFixture):
-    spec = importlib.util.spec_from_file_location("audit_anchors", Path(".agent/skills/audit-anchors.py"))
+    spec = importlib.util.spec_from_file_location("audit_anchors", SKILLS / "audit-anchors.py")
     assert spec and spec.loader
     audit = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(audit)

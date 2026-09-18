@@ -2,23 +2,24 @@
 
 import json
 from pathlib import Path
-import importlib.util
-import pytest
+
+from conftest import load_skill
 
 
 def get_audit_module():
-    skill_path = Path(".agent/skills/audit-system.py")
-    spec = importlib.util.spec_from_file_location("audit_system", skill_path)
-    assert spec and spec.loader
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    """The audit script, found by an anchored path, not by the folder pytest was started in (TL-02)."""
+    return load_skill("audit-system.py")
 
 
-def test_audit_syntopicon_parity_on_live_vault():
-    """Verify that audit_syntopicon_parity passes on the live repository vault."""
+def test_audit_syntopicon_parity_on_the_vault_of_the_tests(vault_of_the_tests: Path):
+    """The syntopical audit passes on a whole vault that this test run built (TL-02).
+
+    It used to read the vault beside the repository. That vault holds one topic file which git keeps, and the
+    topic cites two books that were moved out, so this test failed on every run, on a fresh clone and on the
+    owner's computer alike. The failure was about the owner's own data, never about the audit.
+    """
     mod = get_audit_module()
-    passed, metric = mod.audit_syntopicon_parity(Path("vault"))
+    passed, metric = mod.audit_syntopicon_parity(vault_of_the_tests)
     assert passed is True, f"Syntopicon parity failed: {metric}"
     assert "topic(s)" in metric
     assert "terms" in metric

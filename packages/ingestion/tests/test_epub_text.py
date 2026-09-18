@@ -20,6 +20,8 @@ from bs4 import BeautifulSoup
 from ingest.epub_parser import html_to_markdown_blocks
 from ingest.pipeline import ingest_epub
 
+from conftest import SKILLS
+
 BOOK_ID = "harbour-notes"
 
 CONTAINER = """<?xml version="1.0"?>
@@ -110,7 +112,7 @@ def chapter_blocks(book_dir: Path, name: str) -> List[str]:
 
 
 def load_script(name: str, file_name: str):
-    spec = importlib.util.spec_from_file_location(name, Path(".agent/skills") / file_name)
+    spec = importlib.util.spec_from_file_location(name, SKILLS / file_name)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

@@ -2,23 +2,24 @@
 
 import json
 from pathlib import Path
-import importlib.util
-import pytest
+
+from conftest import load_skill
 
 
 def get_audit_module():
-    skill_path = Path(".agent/skills/audit-system.py")
-    spec = importlib.util.spec_from_file_location("audit_system", skill_path)
-    assert spec and spec.loader
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    """The audit script, found by an anchored path, not by the folder pytest was started in (TL-02)."""
+    return load_skill("audit-system.py")
 
 
-def test_audit_analytical_parity_on_live_vault():
-    """Verify that audit_analytical_parity passes 100% on the live vault."""
+def test_audit_analytical_parity_on_the_vault_of_the_tests(vault_of_the_tests: Path):
+    """The analytical audit passes on a whole vault that this test run built (TL-02).
+
+    It used to read the vault beside the repository, which holds the reader's own books. That failed on a fresh
+    clone, which has no books, and it failed on the owner's computer too, because those books carry no analytical
+    notes. Neither failure was ever about the code this test is here to check.
+    """
     mod = get_audit_module()
-    passed, metric = mod.audit_analytical_parity(Path("vault"))
+    passed, metric = mod.audit_analytical_parity(vault_of_the_tests)
     assert passed is True, f"Analytical parity failed: {metric}"
     assert "terms" in metric
     assert "args" in metric

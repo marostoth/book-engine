@@ -15,6 +15,8 @@ from ingest.pipeline import ingest_book, ingest_epub
 from ingest.reimport import BookAlreadyInVaultError
 from ingest.sample_generator import create_sample_epub
 
+from conftest import SKILLS
+
 ASSESSMENT = {
     "classification": "Theoretical - Science",
     "unityStatement": "Computers agree on one order of events by voting in groups that overlap.",
@@ -163,7 +165,7 @@ def copy_with_other_bytes(source: Path, target: Path) -> None:
 def test_the_inbox_stops_a_new_copy_of_a_book_the_vault_has_and_keeps_it_in_the_inbox(
     tmp_path: Path, monkeypatch, capsys
 ):
-    spec = importlib.util.spec_from_file_location("process_inbox", Path(".agent/skills/process-inbox.py"))
+    spec = importlib.util.spec_from_file_location("process_inbox", SKILLS / "process-inbox.py")
     assert spec and spec.loader
     inbox = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(inbox)

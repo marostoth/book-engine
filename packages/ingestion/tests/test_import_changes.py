@@ -27,6 +27,8 @@ import ingest.pdf_parser
 import ingest.pipeline
 from ingest.pipeline import ingest_book
 
+from conftest import SKILLS
+
 BOOK = "harbour-notes"
 CONTAINER = """<?xml version="1.0"?>
 <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
@@ -276,7 +278,7 @@ def test_the_command_line_stops_a_book_that_fails_the_check_without_a_crash(
 def test_the_inbox_keeps_a_book_that_fails_the_check_out_of_the_vault(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ):
-    spec = importlib.util.spec_from_file_location("process_inbox", Path(".agent/skills/process-inbox.py"))
+    spec = importlib.util.spec_from_file_location("process_inbox", SKILLS / "process-inbox.py")
     assert spec and spec.loader
     inbox = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(inbox)
