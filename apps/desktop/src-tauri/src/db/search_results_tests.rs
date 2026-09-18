@@ -1,7 +1,7 @@
 //! Search result tests: a result holds the words of the book as plain text, with a mark only around each hit, and
 //! never HTML (SEC-01).
 
-use crate::db::{index_vault_blocking, md5_hash, open_or_create_db, search_vault_blocking};
+use crate::db::{index_vault_blocking, open_or_create_db, search_vault_blocking, sha256_of};
 use crate::test_support::Sandbox;
 
 const WEB_META: &str = r#"{
@@ -174,7 +174,7 @@ fn rows_written_before_sec_01_are_written_again_even_when_the_chapter_file_did_n
     }
     conn.execute(
         "UPDATE indexed_chapters SET content_hash = ?1 WHERE book_id = 'web' AND chapter_id = 'ch-01'",
-        [format!("{:x}", md5_hash(WEB_CHAPTER))],
+        [sha256_of(WEB_CHAPTER)],
     )
     .expect("write the old hash");
     assert_eq!(results("sup").len(), 1, "the old rows are in the cache");

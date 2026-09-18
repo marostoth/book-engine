@@ -35,6 +35,11 @@ thiserror = "2"
 anyhow = "1"
 rusqlite = { version = "0.32", features = ["bundled"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+# The index skips a chapter whose text has not changed, by comparing a hash it saved. That hash must give the same
+# answer on every computer and after every toolchain update, or every chapter is read again for nothing. It was
+# `DefaultHasher`, which promises neither. `sha2` was already in Cargo.lock, because tauri's own build uses it
+# (SI-06).
+sha2 = "0.10"
 
 # Only one copy of the app runs: a second start brings the open window to the front and ends (DS-13).
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]

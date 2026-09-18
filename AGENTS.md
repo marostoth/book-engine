@@ -27,7 +27,8 @@ You are acting as a Principal Systems & Frontend Engineer specializing in local-
 ## 2. Technology & Language Standards
 
 ### Rust (Tauri v2 Backend)
-- **Tooling:** Tauri v2, `rusqlite` with FTS5 (bundled SQLite), `tokio`, `serde`, `thiserror`, `anyhow`, `chrono`.
+- **Tooling:** Tauri v2, `rusqlite` with FTS5 (bundled SQLite), `tokio`, `serde`, `thiserror`, `anyhow`, `chrono`, `sha2`.
+- **A Hash You Write Down Is a Promise:** never use `std::collections::hash_map::DefaultHasher` for a value that is saved and compared on a later run. The standard library may change its output in any release, and the day it does, the saved value reads as different and all the work is done again in silence. Use SHA-256 (`sha256_of`, `db/indexer.rs`) or the hand-written FNV-1a of `db/card_identity.rs`, and pin the answer in a test against a number published outside this repository, the way `db/content_hash_tests.rs` pins the SHA-256 of "abc" from FIPS 180-4. Name the function after the algorithm it really uses: the chapter hash was called `md5_hash` and was never MD5, so a reader who trusted the name was wrong for as long as it existed. `tests/test_stable_hashes.py` fails on the hasher and on the name (SI-06).
 - **Safety:** Explicit error handling via `thiserror` and `anyhow`. Do not use `.unwrap()` or `.expect()` in non-test paths.
 - **Concurrency:** Execute disk I/O, SQLite FTS5 queries, and hashing on background threads (`tokio::task::spawn_blocking`). Keep the IPC message loop unblocked.
 - **Line Endings:** Read a chapter or notes file with `read_text_file` (`vault/text_file.rs`) before you split it into paragraphs or lines. It gives `\n` line endings only (IN-06).
