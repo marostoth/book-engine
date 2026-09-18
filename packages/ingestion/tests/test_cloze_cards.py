@@ -298,7 +298,7 @@ def test_the_audit_refuses_an_exact_source_that_matches_only_when_spaces_are_ign
     result = audit(tmp_path, cloze_card(prompt, "flour mill", source))
 
     assert result.mismatches == 1, result.errors
-    assert any("is not text of ch-01.md byte for byte" in error for error in result.errors), result.errors
+    assert any("is not text of ch-01.md#^p-001 byte for byte" in error for error in result.errors), result.errors
 
 
 def test_the_audit_refuses_a_prompt_that_is_not_its_exact_source(tmp_path: Path):

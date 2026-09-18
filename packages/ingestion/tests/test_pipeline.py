@@ -69,4 +69,4 @@ def test_full_pipeline_ingestion(tmp_path: Path):
         text=True
     )
     assert result.returncode == 0, f"audit-anchors.py failed:\n{result.stdout}\n{result.stderr}"
-    assert "All chapters passed paragraph anchor and footnote integrity audits" in result.stdout
+    assert "2 chapters of 1 book(s) passed paragraph anchor and footnote integrity audits" in result.stdout

@@ -192,11 +192,12 @@ cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
 npm --prefix apps/desktop test
 npm run build
 
-# 3. Verify paragraph anchor and footnote integrity in vault
-python .agent/skills/audit-anchors.py vault/books/sample
-python .agent/skills/audit-anchors.py vault/books/wealth-of-nations
+# 3. Verify paragraph anchor and footnote integrity in every book of the vault
+#    (name one book folder to check only that book; a folder with no book in it fails)
+python .agent/skills/audit-anchors.py
 
 # 4. Run SQLite FTS5 query latency benchmarks (must pass under 15ms)
+#    (it measures a copy of your search index and never writes to the index itself)
 python .agent/skills/benchmark-fts.py
 
 # 5. Run ingestion pipeline automated test suite

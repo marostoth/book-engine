@@ -54,9 +54,17 @@ def _blocks_with(text: str, character: str) -> List[str]:
 
 def book_problems(book_dir: Path) -> List[str]:
     """What is wrong in the chapter files in `book_dir`: paragraphs with no anchor, footnote links with no note, and
-    characters that nothing could read."""
+    characters that nothing could read.
+
+    A folder with no chapter file in it is itself a problem (TL-04). The check used to read no file and report
+    nothing wrong, so an empty folder passed. That let `audit-anchors.py` print "All chapters passed" for a folder
+    that does not exist, and it would have let an import write a book with no chapter into the vault.
+    """
     problems: List[str] = []
-    for chapter in sorted(Path(book_dir).glob("*.md")):
+    chapters = sorted(Path(book_dir).glob("*.md"))
+    if not chapters:
+        return [f"{Path(book_dir).name}: this folder holds no chapter file, so nothing was checked."]
+    for chapter in chapters:
         text = chapter.read_text(encoding="utf-8")
         unreadable = unreadable_count(text)
         if unreadable:
