@@ -33,6 +33,45 @@ pub fn parse_card_section(section: &str, book_dir: &Path) -> Option<RawCard> {
     }
 }
 
+/// The label of a quiz option and the words after it: `(A) text`, `A. text`, or neither.
+///
+/// This counted characters and then cut bytes. `rest.chars().nth(2) == Some(')')` said the `)` was the third
+/// character of `(①) Twice a month.`, and `rest[3..]` then cut inside the `①`, which is three bytes long. Rust
+/// stops the whole program at a cut like that, and the panic rolled back the entire deck sync, so one option in a
+/// book that numbers with circled digits, or in any non-Latin script, lost every card of the run. `rest.len() > 3`
+/// was the same mistake in the guard: a length in bytes used as a count of characters.
+///
+/// `char_indices` gives a position that is always a character boundary, so the cut can never land inside a letter
+/// (TL-10).
+fn option_key_and_text(rest: &str, options_so_far: usize) -> (String, String) {
+    let mut characters = rest.char_indices();
+    let first = characters.next();
+    let second = characters.next();
+    let third = characters.next();
+
+    // `(A) text`: the label is the second character, and the words start after the `)`.
+    if let (Some((_, '(')), Some((_, label)), Some((close, ')'))) = (first, second, third) {
+        let after = close + ')'.len_utf8();
+        return (
+            label.to_string(),
+            rest.get(after..).unwrap_or_default().trim().to_string(),
+        );
+    }
+
+    // `A. text`: the label is the first character, and the words start after the `.`.
+    if let (Some((_, label)), Some((dot, '.'))) = (first, second) {
+        let after = dot + '.'.len_utf8();
+        return (
+            label.to_string(),
+            rest.get(after..).unwrap_or_default().trim().to_string(),
+        );
+    }
+
+    // No label of its own, so it takes the next letter in order.
+    let key = (b'A' + options_so_far as u8) as char;
+    (key.to_string(), rest.to_string())
+}
+
 fn parse_scenario_section(trimmed: &str, book_dir: &Path) -> Option<RawCard> {
     let lines: Vec<&str> = trimmed.lines().collect();
     let first_line = lines.first()?.trim();
@@ -51,14 +90,21 @@ fn parse_scenario_section(trimmed: &str, book_dir: &Path) -> Option<RawCard> {
 
     for line in &lines[1..] {
         let l = line.trim();
-        if let Some(cit_start) = l.strip_prefix("<!--").and_then(|s| s.find("citation:")) {
-            let cit_part = l[cit_start + 9..].trim().trim_end_matches("-->").trim();
-            let parts: Vec<&str> = cit_part.split('#').collect();
-            if let Some(ch) = parts.first() {
+        // The offset must be taken from the same text it is used on. `find` ran on the text AFTER the `<!--`
+        // and the answer was then used on the whole line, four bytes out, so
+        // `<!-- citation: ch-01.md#^p-003 -->` named the chapter `tion: ch-01.md` and the card pointed at a file
+        // that is in no vault. `split_once` cuts where it found, so there is no offset to carry (TL-10).
+        if let Some(cit_part) = l
+            .strip_prefix("<!--")
+            .and_then(|inside| inside.split_once("citation:"))
+            .map(|(_, after)| after.trim().trim_end_matches("-->").trim())
+        {
+            let mut parts = cit_part.splitn(2, '#');
+            if let Some(ch) = parts.next() {
                 chapter_file = ch.trim().to_string();
             }
-            if parts.len() > 1 {
-                anchor = parts[1].trim().to_string();
+            if let Some(found) = parts.next() {
+                anchor = found.trim().to_string();
             }
         } else if let Some(rest) = l.strip_prefix("- **Chapter:**") {
             chapter_file = rest.trim().to_string();
@@ -70,21 +116,9 @@ fn parse_scenario_section(trimmed: &str, book_dir: &Path) -> Option<RawCard> {
         } else if l.starts_with("- [ ]") || l.starts_with("- [x]") || l.starts_with("- [X]") {
             in_scenario = false;
             let is_correct = l.starts_with("- [x]") || l.starts_with("- [X]");
-            let rest = l[5..].trim();
-            let (key, text) = if rest.starts_with('(') && rest.len() > 3 && rest.chars().nth(2) == Some(')') {
-                (
-                    rest.chars().nth(1).unwrap_or('A').to_string(),
-                    rest[3..].trim().to_string(),
-                )
-            } else if rest.len() > 2 && rest.chars().nth(1) == Some('.') {
-                (
-                    rest.chars().next().unwrap_or('A').to_string(),
-                    rest[2..].trim().to_string(),
-                )
-            } else {
-                let idx = (b'A' + options.len() as u8) as char;
-                (idx.to_string(), rest.to_string())
-            };
+            // `- [ ]` is five ASCII bytes, and the line was just checked to start with one of them.
+            let rest = l.get(5..).unwrap_or_default().trim();
+            let (key, text) = option_key_and_text(rest, options.len());
             options.push(ScenarioOption { key, text, is_correct });
         } else if let Some(rest) = l.strip_prefix("> **Rationale:**") {
             in_scenario = false;
@@ -142,9 +176,8 @@ fn parse_scenario_section(trimmed: &str, book_dir: &Path) -> Option<RawCard> {
     let mut has_verbatim_quote = false;
     let mut quote_str = String::new();
 
-    if let Some(start_q) = rationale.find('"') {
-        if let Some(end_q) = rationale[start_q + 1..].find('"') {
-            let q = &rationale[start_q + 1..start_q + 1 + end_q];
+    if let Some((_, after_first)) = rationale.split_once('"') {
+        if let Some((q, _)) = after_first.split_once('"') {
             let norm_q = normalize_for_match(q);
             if !norm_q.is_empty() && norm_para.contains(&norm_q) {
                 has_verbatim_quote = true;
@@ -219,8 +252,13 @@ fn parse_cloze_section(trimmed: &str, book_dir: &Path) -> Option<RawCard> {
     for line in &lines[1..] {
         let l = line.trim();
         if l.starts_with("<!--") && l.contains("citation:") {
-            if let Some(cit_start) = l.find("citation:") {
-                let cit_part = l[cit_start + 9..].trim().trim_end_matches("-->").trim();
+            // The same shape as the scenario parser above, and it was right here only by luck: `find` ran on the
+            // whole line, so the offset matched. `split_once` cuts where it found, so there is no offset (TL-10).
+            {
+                let cit_part = l
+                    .split_once("citation:")
+                    .map(|(_, after)| after.trim().trim_end_matches("-->").trim())
+                    .unwrap_or_default();
                 let parts: Vec<&str> = cit_part.split('#').collect();
                 if let Some(ch) = parts.first() {
                     chapter_id = ch.trim().to_string();
@@ -268,13 +306,13 @@ fn parse_cloze_section(trimmed: &str, book_dir: &Path) -> Option<RawCard> {
     };
 
     if answer_key.is_empty() {
-        if let Some(start) = cloze.find("{{c1::") {
-            if let Some(end) = cloze[start + 6..].find("}}") {
-                answer_key = cloze[start + 6..start + 6 + end].to_string();
+        if let Some((_, after)) = cloze.split_once("{{c1::") {
+            if let Some((key, _)) = after.split_once("}}") {
+                answer_key = key.to_string();
             }
-        } else if let Some(start) = cloze.find("==") {
-            if let Some(end) = cloze[start + 2..].find("==") {
-                answer_key = cloze[start + 2..start + 2 + end].to_string();
+        } else if let Some((_, after)) = cloze.split_once("==") {
+            if let Some((key, _)) = after.split_once("==") {
+                answer_key = key.to_string();
             }
         }
     }

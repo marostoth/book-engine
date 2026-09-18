@@ -19,6 +19,10 @@ pub const HIT_START: char = '\u{E000}';
 pub const HIT_END: char = '\u{E001}';
 
 /// The text that search keeps of a paragraph of a chapter file.
+#[expect(
+    clippy::string_slice,
+    reason = "every position comes from `find`, or is a length this file measured in bytes itself; the one `[..1]` follows a `<` or an `&`, which are one byte each"
+)]
 pub fn search_text(paragraph: &str) -> String {
     let mut text = String::with_capacity(paragraph.len());
     let mut rest = paragraph;
@@ -76,6 +80,10 @@ fn html_length(text: &str) -> Option<usize> {
 }
 
 /// The length of a comment at the start of `text`: `<!-->`, `<!--->`, or `<!--` and text up to the first `-->`.
+#[expect(
+    clippy::string_slice,
+    reason = "`<!--` is four ASCII bytes and the text was just checked to start with it"
+)]
 fn comment_length(text: &str) -> Option<usize> {
     for empty in ["<!-->", "<!--->"] {
         if text.starts_with(empty) {
@@ -133,6 +141,10 @@ fn skip_spaces(bytes: &[u8], at: usize) -> usize {
 
 /// The character that the character reference at the start of `text` stands for, and the length of the reference.
 /// None when `text` does not start with one that search knows. A number that is no character gives U+FFFD.
+#[expect(
+    clippy::string_slice,
+    reason = "the position is where an ASCII `;` was found among the bytes, so it is a letter boundary"
+)]
 fn character_reference(text: &str) -> Option<(char, usize)> {
     let body = text.strip_prefix('&')?;
     // The longest reference that search knows, `&#1114111;`, has 8 characters between `&` and `;`.
