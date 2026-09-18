@@ -98,6 +98,20 @@ class EndnoteRegistry:
 
     def resolve_target(self, source_doc: str, href: str) -> Optional[NoteTarget]:
         """The element that a link href names, or None."""
+        key = self.resolve_key(source_doc, href)
+        if key is not None:
+            return self.exact_notes[key]
+
+        # Fallback by fragment id alone, which names no document
+        fragment = href.split("#", 1)[1] if "#" in href else ""
+        return self.id_notes.get(fragment)
+
+    def resolve_key(self, source_doc: str, href: str) -> Optional[Tuple[str, str]]:
+        """The (document, element name) that a link href names, as the registry holds it, or None.
+
+        A link that only the fragment id resolves gives None, because that match names no document. Code that has to
+        know which document holds the note (`ingest/note_documents.py`, IN-07) needs the document to be certain.
+        """
         if "#" not in href:
             return None
 
@@ -117,15 +131,11 @@ class EndnoteRegistry:
             # Try both normalized and raw filename
             for cand in (target_doc, normalized, target_doc.split("/")[-1]):
                 if (cand, fragment) in self.exact_notes:
-                    return self.exact_notes[(cand, fragment)]
+                    return (cand, fragment)
 
         # Direct exact match
         if (target_doc, fragment) in self.exact_notes:
-            return self.exact_notes[(target_doc, fragment)]
-
-        # Fallback by fragment ID
-        if fragment in self.id_notes:
-            return self.id_notes[fragment]
+            return (target_doc, fragment)
 
         return None
 

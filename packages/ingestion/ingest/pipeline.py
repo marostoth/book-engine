@@ -14,6 +14,7 @@ from ingest.assets import extract_epub_assets, normalize_image_markdown
 from ingest.book_build import BookBuild
 from ingest.chapter_shape import HeldOverBlocks, chapter_name, holds_no_text
 from ingest.endnotes import EndnoteRegistry, relocate_chapter_footnotes
+from ingest.note_documents import documents_of_only_notes
 from ingest.ledger import keep_numbers_true
 from ingest.anchors import inject_paragraph_anchors, extract_anchors, extract_inspectional_sampling, clean_preview_text
 from ingest.elementary import compute_elementary_metrics
@@ -111,8 +112,9 @@ def _build_epub_book(
     # A page that holds nothing but a title is no chapter, so its headings wait for the next one (CQ-04)
     held_over = HeldOverBlocks()
 
-    # Detect dedicated endnote files to avoid emitting them as separate empty chapters
-    endnote_file_patterns = re.compile(r"(?:endnotes?|backmatter|footnotes?|notes)\.x?html?$", re.IGNORECASE)
+    # A document that holds nothing but notes makes no chapter: each of those notes is already at the foot of
+    # the chapter that cites it. It is known by what it holds, never by the end of its file name (IN-07).
+    only_notes = documents_of_only_notes(book, registry)
 
     for item_entry in book.spine:
         item_id = item_entry[0] if isinstance(item_entry, (tuple, list)) else item_entry
@@ -122,8 +124,11 @@ def _build_epub_book(
 
         item_name = item.get_name()
 
-        # Check if this item is a dedicated endnote file that was already relocated
-        if endnote_file_patterns.search(item_name):
+        if item_name in only_notes:
+            print(
+                f"[*] {item_name} holds only notes, which go to the foot of the chapters that cite "
+                "them, so it makes no chapter of its own."
+            )
             continue
 
         html_bytes = item.get_content()
