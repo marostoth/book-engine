@@ -6,8 +6,9 @@ an exact character substring of the source chapter text.
 """
 
 from __future__ import annotations
+
 import re
-from typing import List, Optional
+
 from ingest.models import PracticeCard, ScenarioCard
 
 # Definitional syntax patterns
@@ -15,14 +16,14 @@ DEFINITIONAL_REGEX = re.compile(
     r"\b(is defined as|refers to|means|is characterized by|consists of|is known as|"
     r"denotes|is considered to be|the primary purpose of|the fundamental principle of|"
     r"is essential for|plays a critical role in|represents the)\b",
-    re.IGNORECASE
+    re.IGNORECASE,
 )
 
 # Analytical / contrastive markers
 ANALYTICAL_REGEX = re.compile(
     r"\b(consequently|therefore|furthermore|crucially|specifically|in particular|"
     r"in contrast|most importantly|the core mechanism|as a result)\b",
-    re.IGNORECASE
+    re.IGNORECASE,
 )
 
 # Bold markdown pattern
@@ -33,13 +34,13 @@ SENTENCE_SPLIT_REGEX = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9\"])")
 ABBREVIATIONS = ("e.g.", "i.e.", "dr.", "mr.", "mrs.", "prof.", "fig.", "vs.", "al.")
 
 
-def split_sentences(text: str) -> List[str]:
+def split_sentences(text: str) -> list[str]:
     """Split paragraph text into individual sentences."""
     clean = re.sub(r"\s+", " ", text).strip()
     if not clean:
         return []
     raw_splits = SENTENCE_SPLIT_REGEX.split(clean)
-    merged: List[str] = []
+    merged: list[str] = []
     for s in raw_splits:
         s_strip = s.strip()
         if not s_strip:
@@ -84,15 +85,28 @@ def score_sentence(sentence: str, is_first_sentence: bool = False, is_last_sente
     return score
 
 
-# Re-export the cloze and scenario generators from their modules
+# Re-export the cloze and scenario generators from their modules. They sit here, below the functions, because
+# `ingest.cloze` reads names of this module, and `__all__` says they belong to what this module offers, so a check
+# that looks for imports nobody uses does not take them away (TL-05).
 from ingest.cloze import extract_cloze_target, generate_chapter_practice_cards  # noqa: E402
 from ingest.scenarios import generate_chapter_scenario_cards  # noqa: E402
+
+__all__ = [
+    "ABBREVIATIONS",
+    "SENTENCE_SPLIT_REGEX",
+    "extract_cloze_target",
+    "format_practice_deck_markdown",
+    "generate_chapter_practice_cards",
+    "generate_chapter_scenario_cards",
+    "score_sentence",
+    "split_sentences",
+]
 
 
 def format_practice_deck_markdown(
     book_title: str,
-    all_cards: List[PracticeCard],
-    all_scenarios: Optional[List[ScenarioCard]] = None,
+    all_cards: list[PracticeCard],
+    all_scenarios: list[ScenarioCard] | None = None,
 ) -> str:
     """Format practice cards into vault/notes/<book-id>/practice-deck.md."""
     lines = [
@@ -102,11 +116,11 @@ def format_practice_deck_markdown(
         "",
     ]
 
-    cards_by_ch: dict[str, List[PracticeCard]] = {}
+    cards_by_ch: dict[str, list[PracticeCard]] = {}
     for card in all_cards:
         cards_by_ch.setdefault(card.chapter_id, []).append(card)
 
-    scenarios_by_ch: dict[str, List[ScenarioCard]] = {}
+    scenarios_by_ch: dict[str, list[ScenarioCard]] = {}
     if all_scenarios:
         for sc in all_scenarios:
             scenarios_by_ch.setdefault(sc.chapter_id, []).append(sc)

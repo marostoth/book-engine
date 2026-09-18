@@ -63,9 +63,8 @@ fn copy_reviews(conn: &Connection, book_id: &str, have: &[ReviewLine], report: &
         .map(|line| (line.card_id.as_str(), line.reviewed_at))
         .collect();
 
-    let mut stmt = conn.prepare(
-        "SELECT card_id, rating, reviewed_at FROM review_logs WHERE book_id = ?1 ORDER BY reviewed_at, id",
-    )?;
+    let mut stmt = conn
+        .prepare("SELECT card_id, rating, reviewed_at FROM review_logs WHERE book_id = ?1 ORDER BY reviewed_at, id")?;
     let rows: Vec<(String, i64, i64)> = stmt
         .query_map(params![book_id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
         .collect::<rusqlite::Result<_>>()?;
@@ -153,7 +152,9 @@ fn copy_reading(conn: &Connection, book_id: &str, log: &BookStudyLog, report: &m
          FROM reading_sessions WHERE book_id = ?1 ORDER BY chapter_file",
     )?;
     let rows: Vec<(String, i64, i64, i64)> = stmt
-        .query_map(params![book_id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))?
+        .query_map(params![book_id], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        })?
         .collect::<rusqlite::Result<_>>()?;
 
     for (chapter_file, seconds_spent, completed, last_read_at) in rows {

@@ -19,7 +19,11 @@ pub fn card_identity(book_id: &str, item_type: &str, prompt: &str, answer: &str)
 /// spacing edits keep a card's id.
 fn normalize(text: &str) -> String {
     let without_marks: String = text.chars().filter(|c| !matches!(c, '*' | '_' | '`')).collect();
-    without_marks.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
+    without_marks
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
 }
 
 /// A scenario answer is stored as `(B) option text`. Only the text counts, so shuffled option
@@ -52,7 +56,10 @@ mod tests {
     fn ids_are_pinned_so_stored_cards_keep_their_ids_in_later_builds() {
         assert_eq!(fnv1a_64(b""), 0xcbf2_9ce4_8422_2325);
         assert_eq!(fnv1a_64(b"a"), 0xaf63_dc4c_8601_ec8c);
-        assert_eq!(card_identity("sample", "cloze", DIVISION, "division of labour"), "sample-card-c0c3f0a469953c6c");
+        assert_eq!(
+            card_identity("sample", "cloze", DIVISION, "division of labour"),
+            "sample-card-c0c3f0a469953c6c"
+        );
         assert_eq!(
             card_identity(
                 "sample",
@@ -89,6 +96,9 @@ mod tests {
         assert_ne!(id, card_identity("sample", "cloze", pin_maker, "pin maker"));
         assert_ne!(id, card_identity("sample", "cloze", DIVISION, "productive powers"));
         assert_ne!(id, card_identity("sample", "scramble", DIVISION, "division of labour"));
-        assert_ne!(id, card_identity("wealth-of-nations", "cloze", DIVISION, "division of labour"));
+        assert_ne!(
+            id,
+            card_identity("wealth-of-nations", "cloze", DIVISION, "division of labour")
+        );
     }
 }

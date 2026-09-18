@@ -1,8 +1,8 @@
-use tauri::{command, Manager};
 use crate::vault::{
-    scan_library_books, scan_available_books, read_book_meta_json, read_chapter_file,
-    read_notes_file, write_notes_file, BookMetadata, BookSummary, AppError
+    read_book_meta_json, read_chapter_file, read_notes_file, scan_available_books, scan_library_books,
+    write_notes_file, AppError, BookMetadata, BookSummary,
 };
+use tauri::{command, Manager};
 
 #[command]
 pub async fn get_library_books() -> Result<Vec<BookMetadata>, AppError> {
@@ -122,12 +122,7 @@ pub async fn get_due_cards(
     hybrid_ratio: Option<f32>,
 ) -> Result<Vec<crate::db::PracticeCardItem>, String> {
     tokio::task::spawn_blocking(move || {
-        crate::db::get_due_cards_blocking(
-            book_id.as_deref(),
-            card_type.as_deref(),
-            limit,
-            hybrid_ratio,
-        )
+        crate::db::get_due_cards_blocking(book_id.as_deref(), card_type.as_deref(), limit, hybrid_ratio)
     })
     .await
     .map_err(|e| format!("Task join error: {}", e))?
@@ -319,11 +314,9 @@ pub async fn choose_vault_folder(app: tauri::AppHandle) -> Result<Option<VaultSt
         .into_path()
         .map_err(|e| format!("That folder could not be read: {e}"))?;
 
-    tokio::task::spawn_blocking(move || {
-        crate::vault::locate::remember_vault(&folder).map_err(|e| format!("{:#}", e))
-    })
-    .await
-    .map_err(|e| format!("Task join error: {}", e))??;
+    tokio::task::spawn_blocking(move || crate::vault::locate::remember_vault(&folder).map_err(|e| format!("{:#}", e)))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))??;
 
     tokio::task::spawn_blocking(|| Some(status_of(crate::vault::locate::locate_vault())))
         .await
@@ -347,7 +340,10 @@ pub async fn save_book_vocabulary(book_id: String, entry: crate::vault::Vocabula
 }
 
 #[command]
-pub async fn get_chapter_highlights(book_id: String, chapter_file: String) -> Result<Vec<crate::vault::HighlightItem>, String> {
+pub async fn get_chapter_highlights(
+    book_id: String,
+    chapter_file: String,
+) -> Result<Vec<crate::vault::HighlightItem>, String> {
     tokio::task::spawn_blocking(move || crate::vault::load_chapter_highlights(&book_id, &chapter_file))
         .await
         .map_err(|e| format!("Task join error: {}", e))?
@@ -360,12 +356,10 @@ pub async fn save_chapter_highlights(
     chapter_file: String,
     highlights: Vec<crate::vault::HighlightItem>,
 ) -> Result<(), String> {
-    tokio::task::spawn_blocking(move || {
-        crate::vault::save_chapter_highlights(&book_id, &chapter_file, highlights)
-    })
-    .await
-    .map_err(|e| format!("Task join error: {}", e))?
-    .map_err(|e| format!("{:#}", e))
+    tokio::task::spawn_blocking(move || crate::vault::save_chapter_highlights(&book_id, &chapter_file, highlights))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+        .map_err(|e| format!("{:#}", e))
 }
 
 /// Where the reader stopped in a book, or `None` when they have not read it yet (DS-11).

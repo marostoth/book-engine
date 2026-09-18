@@ -8,6 +8,7 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 # Root-relative path resolution
@@ -29,7 +30,7 @@ def get_db_path() -> Path:
     userprofile = os.getenv("USERPROFILE")
     if userprofile:
         return Path(userprofile) / ".book-engine" / "app_cache" / "index.db"
-    return Path(os.environ.get("TEMP", "/tmp")) / "book-engine" / "app_cache" / "index.db"
+    return Path(os.environ.get("TEMP", tempfile.gettempdir())) / "book-engine" / "app_cache" / "index.db"
 
 
 def run_reconstruction() -> bool:
@@ -44,7 +45,7 @@ def run_reconstruction() -> bool:
         "test_index_and_search",
         "--nocapture",
     ]
-    res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(ROOT_DIR))
+    res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(ROOT_DIR), check=False)
     if res.returncode != 0:
         print("[-] Cargo test index_and_search failed:", file=sys.stderr)
         print(res.stderr, file=sys.stderr)

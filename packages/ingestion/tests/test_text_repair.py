@@ -7,7 +7,6 @@ import re
 from pathlib import Path
 
 import pytest
-
 from ingest.layout_stitcher import (
     finishes_a_sentence,
     is_figure_label,
@@ -25,7 +24,6 @@ from ingest.text_repair import (
     take_off_marks,
     words_of,
 )
-
 
 # --- the book's own highlight ---
 
@@ -154,7 +152,9 @@ def test_a_clean_page_needs_no_repair():
 # --- when a paragraph finishes a sentence ---
 
 
-@pytest.mark.parametrize("finished", ["A sentence.", "A shout!", "A question?", 'He said "yes."', "Bold.**", "A note.<sup>14</sup>"])
+@pytest.mark.parametrize(
+    "finished", ["A sentence.", "A shout!", "A question?", 'He said "yes."', "Bold.**", "A note.<sup>14</sup>"]
+)
 def test_these_paragraphs_finish_a_sentence(finished):
     assert finishes_a_sentence(finished)
 

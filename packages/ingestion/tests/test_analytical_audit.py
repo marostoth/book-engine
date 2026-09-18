@@ -43,30 +43,43 @@ def test_audit_analytical_parity_catches_invalid_data(tmp_path: Path):
     notes = vault / "notes" / "b1"
     books.mkdir(parents=True)
     notes.mkdir(parents=True)
-    (books / "ch-01.md").write_text("# Title\n\nParagraph text here. ^p-001\n\nSecond paragraph. ^p-002\n", encoding="utf-8")
+    (books / "ch-01.md").write_text(
+        "# Title\n\nParagraph text here. ^p-001\n\nSecond paragraph. ^p-002\n", encoding="utf-8"
+    )
 
     # Base valid store
     base_data = {
         "terms": [{"id": "t1", "term": "Atomicity", "citation": {"chapterFile": "ch-01.md", "anchor": "^p-001"}}],
-        "arguments": [{"id": "a1", "title": "Arg 1", "conclusion": {"chapterFile": "ch-01.md", "anchor": "^p-001"}, "premises": []}],
-        "critiques": [{
-            "id": "c1",
-            "targetArgumentId": "a1",
-            "judgment": "disagree",
-            "defects": ["incomplete"],
-            "understandingDeclared": True,
-            "rationale": "Missing proof."
-        }],
-        "inquiries": [{
-            "id": "i1",
-            "question": "What is atomicity?",
-            "domain": "theoretical",
-            "priority": "primary",
-            "citation": {"chapterFile": "ch-01.md", "anchor": "^p-001"},
-            "resolution": "solved",
-            "solutionArgumentIds": ["a1"],
-            "solutionCitation": {"chapterFile": "ch-01.md", "anchor": "^p-002"}
-        }]
+        "arguments": [
+            {
+                "id": "a1",
+                "title": "Arg 1",
+                "conclusion": {"chapterFile": "ch-01.md", "anchor": "^p-001"},
+                "premises": [],
+            }
+        ],
+        "critiques": [
+            {
+                "id": "c1",
+                "targetArgumentId": "a1",
+                "judgment": "disagree",
+                "defects": ["incomplete"],
+                "understandingDeclared": True,
+                "rationale": "Missing proof.",
+            }
+        ],
+        "inquiries": [
+            {
+                "id": "i1",
+                "question": "What is atomicity?",
+                "domain": "theoretical",
+                "priority": "primary",
+                "citation": {"chapterFile": "ch-01.md", "anchor": "^p-001"},
+                "resolution": "solved",
+                "solutionArgumentIds": ["a1"],
+                "solutionCitation": {"chapterFile": "ch-01.md", "anchor": "^p-002"},
+            }
+        ],
     }
 
     # 1. Valid data passes

@@ -6,21 +6,21 @@ from __future__ import annotations
 import hashlib
 import shutil
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # Root-relative path resolution
 SKILL_DIR = Path(__file__).resolve().parent
 ROOT_DIR = SKILL_DIR.parent.parent
 sys.path.insert(0, str(ROOT_DIR / "packages" / "ingestion"))
 
-from ingest.book_build import BookLeftAsideError
-from ingest.book_check import BookCheckError
-from ingest.console import allow_any_letter, say_what_was_done
-from ingest.ledger import read_ledger, write_ledger
-from ingest.pipeline import ingest_book
-from ingest.reimport import BookAlreadyInVaultError, BookIdTakenError
+from ingest.book_build import BookLeftAsideError  # noqa: E402
+from ingest.book_check import BookCheckError  # noqa: E402
+from ingest.console import allow_any_letter, say_what_was_done  # noqa: E402
+from ingest.ledger import read_ledger, write_ledger  # noqa: E402
+from ingest.pipeline import ingest_book  # noqa: E402
+from ingest.reimport import BookAlreadyInVaultError, BookIdTakenError  # noqa: E402
 
 INBOX_DIR = ROOT_DIR / "inbox"
 PROCESSED_DIR = INBOX_DIR / "processed"
@@ -38,7 +38,7 @@ def compute_sha256(file_path: Path) -> str:
     return hasher.hexdigest()
 
 
-def status_table(rows: List[Dict[str, str]]) -> List[str]:
+def status_table(rows: list[dict[str, str]]) -> list[str]:
     """A clean ASCII status table summarizing processed books, one line each.
 
     The lines are made here and printed by `say_what_was_done`, because every book of the table is already in the
@@ -89,7 +89,9 @@ def main() -> int:
         help="Process a book again even if it is in the ledger, and replace a book that is already in the vault. "
         "Your own files for it in vault/notes/<book-id>/ are kept.",
     )
-    parser.add_argument("--book", type=str, default=None, help="Process or re-process a specific file from inbox/ or inbox/processed/.")
+    parser.add_argument(
+        "--book", type=str, default=None, help="Process or re-process a specific file from inbox/ or inbox/processed/."
+    )
     parser.add_argument(
         "--book-id",
         type=str,
@@ -105,7 +107,7 @@ def main() -> int:
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
     VAULT_DIR.mkdir(parents=True, exist_ok=True)
 
-    candidate_files: List[Path] = []
+    candidate_files: list[Path] = []
 
     if args.book:
         target = Path(args.book)
@@ -121,7 +123,8 @@ def main() -> int:
     else:
         # 1. Inspection: scan inbox/ (excluding subdirectories) for .epub and .pdf files
         candidate_files = [
-            f for f in INBOX_DIR.iterdir()
+            f
+            for f in INBOX_DIR.iterdir()
             if f.is_file() and f.suffix.lower() in SUPPORTED_EXTENSIONS and not f.name.startswith(".")
         ]
         candidate_files.sort(key=lambda p: p.name.lower())
@@ -134,11 +137,11 @@ def main() -> int:
     # One ledger module reads and writes `vault/_ledger.json`, and an import keeps its numbers
     # true for a book it already knows (`ingest/ledger.py`, CQ-05)
     ledger_entries = read_ledger(VAULT_DIR)
-    processed_hashes: Dict[str, Dict[str, Any]] = {
+    processed_hashes: dict[str, dict[str, Any]] = {
         entry["sha256"]: entry for entry in ledger_entries if isinstance(entry, dict) and "sha256" in entry
     }
 
-    report_rows: List[Dict[str, str]] = []
+    report_rows: list[dict[str, str]] = []
 
     print(f"[*] Processing {len(candidate_files)} candidate book(s) (Force mode: {args.force})...", flush=True)
 
@@ -151,7 +154,10 @@ def main() -> int:
             # Check deduplication ledger
             if file_hash in processed_hashes and not args.force:
                 existing = processed_hashes[file_hash]
-                print(f"[SKIP] '{filename}' is already recorded in ledger (Book ID: {existing.get('book_id', 'unknown')}).", flush=True)
+                print(
+                    f"[SKIP] '{filename}' is already recorded in ledger (Book ID: {existing.get('book_id', 'unknown')}).",
+                    flush=True,
+                )
                 # Move to processed if in inbox to keep inbox clean
                 if file_path.parent == INBOX_DIR:
                     dest_path = PROCESSED_DIR / filename
@@ -159,13 +165,15 @@ def main() -> int:
                         dest_path.unlink()
                     shutil.move(str(file_path), str(dest_path))
 
-                report_rows.append({
-                    "book_id": existing.get("book_id", "-"),
-                    "title": existing.get("title", file_path.stem),
-                    "chapters": str(existing.get("total_chapters", "-")),
-                    "anchors": existing.get("anchors_verified", "PASS"),
-                    "status": "Skipped",
-                })
+                report_rows.append(
+                    {
+                        "book_id": existing.get("book_id", "-"),
+                        "title": existing.get("title", file_path.stem),
+                        "chapters": str(existing.get("total_chapters", "-")),
+                        "anchors": existing.get("anchors_verified", "PASS"),
+                        "status": "Skipped",
+                    }
+                )
                 continue
 
             print(f"[*] Processing '{filename}' (SHA-256: {file_hash[:12]}...)...", flush=True)
@@ -176,13 +184,13 @@ def main() -> int:
             anchors_verified = "PASS"
 
             # Update or append record to ledger
-            ledger_record: Dict[str, Any] = {
+            ledger_record: dict[str, Any] = {
                 "sha256": file_hash,
                 "book_id": meta.book_id,
                 "title": meta.title,
                 "author": meta.author,
                 "filename": filename,
-                "processed_at": datetime.now(timezone.utc).isoformat(),
+                "processed_at": datetime.now(UTC).isoformat(),
                 "total_chapters": meta.total_chapters,
                 "total_words": meta.total_words,
                 "anchors_verified": anchors_verified,
@@ -202,13 +210,15 @@ def main() -> int:
             # The book is in the vault and in the ledger now, so saying so may not make this book fail (IN-09)
             say_what_was_done([f"[+] Successfully ingested '{meta.title}' -> vault/books/{meta.book_id}"])
 
-            report_rows.append({
-                "book_id": meta.book_id,
-                "title": meta.title,
-                "chapters": str(meta.total_chapters),
-                "anchors": anchors_verified,
-                "status": "Success",
-            })
+            report_rows.append(
+                {
+                    "book_id": meta.book_id,
+                    "title": meta.title,
+                    "chapters": str(meta.total_chapters),
+                    "anchors": anchors_verified,
+                    "status": "Success",
+                }
+            )
 
         except (BookAlreadyInVaultError, BookIdTakenError) as e:
             # A new copy of a book the vault has, such as an annotated PDF (DS-09), or a file whose book id a book from
@@ -225,36 +235,42 @@ def main() -> int:
             else:
                 ways = f'To replace the book, run: {script} --force --book "{filename}"'
             print(f"[STOP] The file stays in inbox/. {ways}", file=sys.stderr, flush=True)
-            report_rows.append({
-                "book_id": e.book_id,
-                "title": file_path.stem,
-                "chapters": "-",
-                "anchors": "-",
-                "status": "Stopped",
-            })
+            report_rows.append(
+                {
+                    "book_id": e.book_id,
+                    "title": file_path.stem,
+                    "chapters": "-",
+                    "anchors": "-",
+                    "status": "Stopped",
+                }
+            )
         except (BookCheckError, BookLeftAsideError) as e:
             # The book that the import made fails its check, or an import that did not end left the book aside. The
             # vault did not change (IN-05).
             sys.stdout.flush()
             print(f"[FAIL] '{filename}': {e}", file=sys.stderr, flush=True)
             print("[FAIL] The file stays where it is.", file=sys.stderr, flush=True)
-            report_rows.append({
-                "book_id": e.book_id,
-                "title": file_path.stem,
-                "chapters": "-",
-                "anchors": "FAIL" if isinstance(e, BookCheckError) else "-",
-                "status": "Failed",
-            })
+            report_rows.append(
+                {
+                    "book_id": e.book_id,
+                    "title": file_path.stem,
+                    "chapters": "-",
+                    "anchors": "FAIL" if isinstance(e, BookCheckError) else "-",
+                    "status": "Failed",
+                }
+            )
         except Exception as e:
             sys.stdout.flush()
             print(f"[ERROR] Failed to process {filename}: {e}", file=sys.stderr, flush=True)
-            report_rows.append({
-                "book_id": "-",
-                "title": file_path.stem,
-                "chapters": "-",
-                "anchors": "-",
-                "status": "Failed",
-            })
+            report_rows.append(
+                {
+                    "book_id": "-",
+                    "title": file_path.stem,
+                    "chapters": "-",
+                    "anchors": "-",
+                    "status": "Failed",
+                }
+            )
             # Per specification: leave failed file in inbox/ for user inspection
 
     # 4. Reporting: Print clean ASCII status table. Every book of it is in the vault already (IN-09).

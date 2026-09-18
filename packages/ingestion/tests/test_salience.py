@@ -1,13 +1,12 @@
 """Unit tests for autonomous salience scoring and deterministic Cloze generation."""
 
 from ingest.salience import (
-    score_sentence,
     extract_cloze_target,
+    format_practice_deck_markdown,
     generate_chapter_practice_cards,
     generate_chapter_scenario_cards,
-    format_practice_deck_markdown,
+    score_sentence,
 )
-from ingest.anchors import inject_paragraph_anchors
 
 
 def test_score_sentence_definitional_and_bold():
@@ -109,7 +108,7 @@ def test_zero_hallucination_scenario_standard():
 
         # Rationale must match the audit-practice format
         assert sc.rationale.startswith('Right after this passage, the book says: "')
-        quote = sc.rationale[len('Right after this passage, the book says: "'):-1]
+        quote = sc.rationale[len('Right after this passage, the book says: "') : -1]
         assert quote == correct_text
         assert quote in chapter_md
 
@@ -168,5 +167,3 @@ def test_contextual_scenario_premise_and_narrative_filtering():
     for opt in sc.options:
         assert "Jim got up" not in opt.text
         assert opt.text in chapter_md
-
-

@@ -1,7 +1,6 @@
 """Unit tests for the links from the contents of an EPUB book to the chapter files and paragraphs of its import (CQ-01)."""
 
 from bs4 import BeautifulSoup
-
 from ingest.anchors import inject_paragraph_anchors
 from ingest.epub_parser import html_to_markdown_blocks
 from ingest.models import TOCItem
@@ -57,10 +56,15 @@ def test_each_entry_gets_the_chapter_file_and_the_paragraph_of_its_link():
         "Text/chapter-2.xhtml": ImportedDocument("ch-02.md", {"top": None}),
     }
     contents = [
-        TOCItem(id="1", title="Chapter 1", href="Text/chapter%201.xhtml#top", subitems=[
-            TOCItem(id="1.2", title="Part 2", href="Text/chapter%201.xhtml#part%202", level=2),
-            TOCItem(id="1.3", title="Part 3", href="Text/chapter%201.xhtml#no-such-element", level=2),
-        ]),
+        TOCItem(
+            id="1",
+            title="Chapter 1",
+            href="Text/chapter%201.xhtml#top",
+            subitems=[
+                TOCItem(id="1.2", title="Part 2", href="Text/chapter%201.xhtml#part%202", level=2),
+                TOCItem(id="1.3", title="Part 3", href="Text/chapter%201.xhtml#no-such-element", level=2),
+            ],
+        ),
         # An NCX file in another folder names the documents from its own folder
         TOCItem(id="2", title="Chapter 2", href="../Text/chapter-2.xhtml"),
         TOCItem(id="3", title="Notes", href="Text/notes.xhtml#note-1"),

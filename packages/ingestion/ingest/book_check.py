@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import List
 
 from ingest.chapter_shape import is_heading
 from ingest.glyph_repair import REPLACEMENT, unreadable_count
@@ -30,7 +29,7 @@ FOOTNOTE = re.compile(r"\[\^([a-zA-Z0-9_-]+)\]:")
 class BookCheckError(Exception):
     """An import stopped before it changed the vault, because the book that it made fails the check."""
 
-    def __init__(self, book_id: str, problems: List[str]) -> None:
+    def __init__(self, book_id: str, problems: list[str]) -> None:
         self.book_id = book_id
         self.problems = problems
         super().__init__(
@@ -39,9 +38,9 @@ class BookCheckError(Exception):
         )
 
 
-def _blocks_with(text: str, character: str) -> List[str]:
+def _blocks_with(text: str, character: str) -> list[str]:
     """Which anchors name the blocks that hold `character`. A block keeps its anchor at its end."""
-    names: List[str] = []
+    names: list[str] = []
     for at, found in enumerate(text):
         if found != character:
             continue
@@ -52,7 +51,7 @@ def _blocks_with(text: str, character: str) -> List[str]:
     return names
 
 
-def book_problems(book_dir: Path) -> List[str]:
+def book_problems(book_dir: Path) -> list[str]:
     """What is wrong in the chapter files in `book_dir`: paragraphs with no anchor, footnote links with no note, and
     characters that nothing could read.
 
@@ -60,7 +59,7 @@ def book_problems(book_dir: Path) -> List[str]:
     nothing wrong, so an empty folder passed. That let `audit-anchors.py` print "All chapters passed" for a folder
     that does not exist, and it would have let an import write a book with no chapter into the vault.
     """
-    problems: List[str] = []
+    problems: list[str] = []
     chapters = sorted(Path(book_dir).glob("*.md"))
     if not chapters:
         return [f"{Path(book_dir).name}: this folder holds no chapter file, so nothing was checked."]
@@ -74,9 +73,7 @@ def book_problems(book_dir: Path) -> List[str]:
                 f"{chapter.name}: {characters_are} broken (U+FFFD), in {', '.join(blocks)}. "
                 "The book drew something there that nothing could read."
             )
-        paragraphs = [
-            block for block in text.split("\n\n") if block.strip() and not is_heading(block)
-        ]
+        paragraphs = [block for block in text.split("\n\n") if block.strip() and not is_heading(block)]
         unanchored = [block for block in paragraphs if not ANCHOR_AT_END.search(block.strip())]
         if unanchored:
             paragraphs_have = "1 paragraph has" if len(unanchored) == 1 else f"{len(unanchored)} paragraphs have"

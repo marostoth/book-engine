@@ -43,7 +43,8 @@ export function useElementaryMechanics({
   const [isManualScrolling, setIsManualScrolling] = useState<boolean>(false);
 
   const scrollDebounceTimer = useRef<number | null>(null);
-  const paragraphStartTime = useRef<number>(Date.now());
+  const [firstShownAt] = useState(() => Date.now());
+  const paragraphStartTime = useRef<number>(firstShownAt);
   const rafHandle = useRef<number | null>(null);
 
   const wpm = elementary.pacerWpm || 250;

@@ -7,7 +7,6 @@ The id kept only the letters a-z and the digits of the name. An EPUB named "Во
 from pathlib import Path
 
 from ebooklib import epub
-
 from ingest.book_id import check_book_id
 from ingest.epub_parser import extract_metadata
 from ingest.pdf_sanitizer import generate_pdf_slug
@@ -15,7 +14,16 @@ from ingest.pipeline import ingest_book
 from ingest.sample_generator import create_sample_epub
 
 #: Names that the letters a-z cannot write, or that have no letter at all.
-OTHER_NAMES = ["Война и мир", "Война и мир 2", "Анна Каренина 2", "战争与和平", "Ελληνικά", "مقدمة ابن خلدون", "!!!", "…"]
+OTHER_NAMES = [
+    "Война и мир",
+    "Война и мир 2",
+    "Анна Каренина 2",
+    "战争与和平",
+    "Ελληνικά",
+    "مقدمة ابن خلدون",
+    "!!!",
+    "…",
+]
 
 
 def epub_id(name: str) -> str:
@@ -82,7 +90,9 @@ def test_plain_names_keep_their_ids() -> None:
     kotler = "[MKTG] Kotler P., Armstrong G. Principles of Marketing 19ed 2023.pdf"
     assert generate_pdf_slug(kotler, "Principles of Marketing, Global Edition") == "principles-of-marketing-19ed"
     dalton = "[TRADE] Dalton J. Mind Over Markets Power Trading with Market Generated Information, Updated Edition"
-    assert pdf_id(dalton) == "dalton-j-mind-over-markets-power-trading-with-market-generated-information-updated-edition"
+    assert (
+        pdf_id(dalton) == "dalton-j-mind-over-markets-power-trading-with-market-generated-information-updated-edition"
+    )
 
 
 def test_a_book_whose_name_has_no_latin_letters_leaves_the_sample_book_alone(tmp_path: Path) -> None:

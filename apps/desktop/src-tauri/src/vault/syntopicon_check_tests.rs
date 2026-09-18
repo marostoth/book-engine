@@ -6,7 +6,9 @@
 
 use crate::test_support::Sandbox;
 use crate::vault::syntopicon::{export_syntopic_report, save_syntopic_topic};
-use crate::vault::syntopicon_check::{check_citation, citations_of, paragraph_at, place_of, quote_is_there, CitationCheck};
+use crate::vault::syntopicon_check::{
+    check_citation, citations_of, paragraph_at, place_of, quote_is_there, CitationCheck,
+};
 use crate::vault::syntopicon_compiler::compile_dialectical_dossier;
 use crate::vault::syntopicon_models::*;
 
@@ -80,7 +82,11 @@ fn a_report_link_opens_the_chapter_file_it_names() {
     let place = place_of(&cite("sample", "ch-01.md", "^p-001", FIRST_PARAGRAPH)).expect("a place");
     let opened = report_folder.join(place.split('#').next().expect("a file"));
 
-    assert!(opened.is_file(), "the link must reach a chapter file: {}", opened.display());
+    assert!(
+        opened.is_file(),
+        "the link must reach a chapter file: {}",
+        opened.display()
+    );
     assert!(std::fs::read_to_string(&opened).expect("read it").contains("^p-001"));
 }
 
@@ -104,7 +110,10 @@ fn an_anchor_that_is_not_an_anchor_is_left_out_of_the_link() {
     let odd = place_of(&cite("sample", "ch-01.md", ") [click](http://elsewhere)", "x")).expect("a place");
 
     assert_eq!(odd, "../../books/sample/ch-01.md");
-    assert_eq!(place_of(&cite("sample", "ch-01.md", "^p-01", "x")).expect("a place"), "../../books/sample/ch-01.md");
+    assert_eq!(
+        place_of(&cite("sample", "ch-01.md", "^p-01", "x")).expect("a place"),
+        "../../books/sample/ch-01.md"
+    );
 }
 
 // ---------------------------------------------------------------------------- reading a quote back
@@ -136,8 +145,14 @@ fn an_anchor_inside_a_word_is_not_the_anchor_of_that_paragraph() {
 fn a_quote_that_a_line_wrap_cut_is_still_the_same_quote() {
     let paragraph = "The greatest improvements in the\nproductive powers of labour seem to\nhave been the effects.";
 
-    assert!(quote_is_there("The greatest improvements in the productive powers of labour", paragraph));
-    assert!(quote_is_there("**productive** powers of labour \u{2014} seem to have been", paragraph));
+    assert!(quote_is_there(
+        "The greatest improvements in the productive powers of labour",
+        paragraph
+    ));
+    assert!(quote_is_there(
+        "**productive** powers of labour \u{2014} seem to have been",
+        paragraph
+    ));
     assert!(!quote_is_there("the greatest failures of labour", paragraph));
     assert!(!quote_is_there("   ", paragraph));
 }
@@ -147,7 +162,10 @@ fn a_citation_of_the_book_in_the_vault_is_checked() {
     let sandbox = Sandbox::new();
     sandbox.write_sample_book();
 
-    assert_eq!(check_citation(&cite("sample", "ch-01.md", "^p-001", FIRST_PARAGRAPH)), CitationCheck::Checked);
+    assert_eq!(
+        check_citation(&cite("sample", "ch-01.md", "^p-001", FIRST_PARAGRAPH)),
+        CitationCheck::Checked
+    );
 }
 
 #[test]
@@ -207,8 +225,14 @@ fn the_report_links_every_citation_to_its_paragraph() {
 
     assert!(report.contains("](../../books/sample/ch-01.md#^p-001)"), "{report}");
     assert!(report.contains("](../../books/sample/ch-01.md#^p-002)"), "{report}");
-    assert!(!report.contains("](vault/books/"), "a link must not start at the repository: {report}");
-    assert!(report.contains("**Citations checked:** all 2 quotes are in the paragraph they name."), "{report}");
+    assert!(
+        !report.contains("](vault/books/"),
+        "a link must not start at the repository: {report}"
+    );
+    assert!(
+        report.contains("**Citations checked:** all 2 quotes are in the paragraph they name."),
+        "{report}"
+    );
 }
 
 #[test]
@@ -230,8 +254,15 @@ fn the_report_marks_a_quote_that_is_not_in_its_paragraph_any_more() {
         report.contains("**Citations checked:** 1 of 2 quotes are in the paragraph they name."),
         "{report}"
     );
-    assert!(report.contains("*read this again: the paragraph does not hold this quote now*"), "{report}");
-    assert_eq!(report.matches("read this again").count(), 1, "only the one that failed is marked: {report}");
+    assert!(
+        report.contains("*read this again: the paragraph does not hold this quote now*"),
+        "{report}"
+    );
+    assert_eq!(
+        report.matches("read this again").count(),
+        1,
+        "only the one that failed is marked: {report}"
+    );
 }
 
 #[test]
@@ -245,7 +276,10 @@ fn a_topic_that_cites_nothing_says_so_and_marks_nothing() {
 
     let report = compile_dialectical_dossier(&topic, &|_| CitationCheck::Checked);
 
-    assert!(report.contains("**Citations checked:** this topic cites no passage yet."), "{report}");
+    assert!(
+        report.contains("**Citations checked:** this topic cites no passage yet."),
+        "{report}"
+    );
     assert!(!report.contains("not checked"), "{report}");
 }
 
@@ -277,16 +311,28 @@ fn an_exported_report_holds_links_that_open_from_where_it_is_saved() {
     sandbox.write_sample_book();
     let topic = topic_citing(
         cite("sample", "ch-01.md", "^p-001", FIRST_PARAGRAPH),
-        cite("sample", "ch-01.md", "^p-002", "A pin maker working alone can make few pins"),
+        cite(
+            "sample",
+            "ch-01.md",
+            "^p-002",
+            "A pin maker working alone can make few pins",
+        ),
     );
     save_syntopic_topic(topic).expect("save the topic");
 
     let written = export_syntopic_report("division-of-labor").expect("export the report");
     assert_eq!(written, "reports/division-of-labor-synthesis.md");
 
-    let report_path = sandbox.vault().join("syntopicon").join("reports").join("division-of-labor-synthesis.md");
+    let report_path = sandbox
+        .vault()
+        .join("syntopicon")
+        .join("reports")
+        .join("division-of-labor-synthesis.md");
     let report = std::fs::read_to_string(&report_path).expect("read the report");
-    assert!(report.contains("**Citations checked:** all 2 quotes are in the paragraph they name."), "{report}");
+    assert!(
+        report.contains("**Citations checked:** all 2 quotes are in the paragraph they name."),
+        "{report}"
+    );
 
     // Follow every link the way a reader would: from the folder the report is saved in.
     let mut followed = 0;
@@ -294,9 +340,16 @@ fn an_exported_report_holds_links_that_open_from_where_it_is_saved() {
         let href = piece.split(')').next().expect("a link target");
         let (file, anchor) = href.split_once('#').unwrap_or((href, ""));
         let target = report_path.parent().expect("the reports folder").join(file);
-        assert!(target.is_file(), "the link {href} reaches nothing: {}", target.display());
+        assert!(
+            target.is_file(),
+            "the link {href} reaches nothing: {}",
+            target.display()
+        );
         let chapter = std::fs::read_to_string(&target).expect("read the chapter");
-        assert!(paragraph_at(&chapter, anchor).is_some(), "the link {href} names no paragraph");
+        assert!(
+            paragraph_at(&chapter, anchor).is_some(),
+            "the link {href} names no paragraph"
+        );
         followed += 1;
     }
     assert_eq!(followed, 2, "both citations must be links: {report}");
@@ -315,12 +368,19 @@ fn an_exported_report_says_plainly_when_a_cited_book_has_left_the_vault() {
     export_syntopic_report("division-of-labor").expect("export the report");
 
     let report = std::fs::read_to_string(
-        sandbox.vault().join("syntopicon").join("reports").join("division-of-labor-synthesis.md"),
+        sandbox
+            .vault()
+            .join("syntopicon")
+            .join("reports")
+            .join("division-of-labor-synthesis.md"),
     )
     .expect("read the report");
     assert!(
         report.contains("**Citations checked:** 1 of 2 quotes are in the paragraph they name."),
         "{report}"
     );
-    assert!(report.contains("*not checked: the vault does not have this chapter now*"), "{report}");
+    assert!(
+        report.contains("*not checked: the vault does not have this chapter now*"),
+        "{report}"
+    );
 }

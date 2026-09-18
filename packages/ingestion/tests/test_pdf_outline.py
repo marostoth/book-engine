@@ -5,7 +5,7 @@ The two real outlines below have the levels and pages of the Kotler and Dalton P
 
 from __future__ import annotations
 
-from typing import List, Sequence, Tuple
+from collections.abc import Sequence
 
 from ingest.pdf_outline import (
     APPENDIX,
@@ -19,20 +19,49 @@ from ingest.pdf_outline import (
 )
 
 
-def spans(parts: Sequence[BookPart]) -> List[Tuple[str, int, int, str]]:
+def spans(parts: Sequence[BookPart]) -> list[tuple[str, int, int, str]]:
     """(title, first page, last page, kind) with 1-based pages, as a reader counts them."""
     return [(part.title, part.first_page + 1, part.end_page, part.kind) for part in parts]
 
 
-KOTLER_CHAPTER_STARTS = [25, 59, 87, 121, 161, 193, 215, 247, 283, 311, 335, 363, 399, 435, 459, 485, 515, 549, 573, 605]
+KOTLER_CHAPTER_STARTS = [
+    25,
+    59,
+    87,
+    121,
+    161,
+    193,
+    215,
+    247,
+    283,
+    311,
+    335,
+    363,
+    399,
+    435,
+    459,
+    485,
+    515,
+    549,
+    573,
+    605,
+]
 KOTLER_PART_STARTS = {25: "Part 1", 87: "Part 2", 215: "Part 3", 549: "Part 4"}
 
 
-def kotler_outline() -> List[list]:
+def kotler_outline() -> list[list]:
     outline = [
-        [1, "Cover", 1], [1, "Half Title", 2], [1, "Title Page", 4], [1, "Copyright", 5], [1, "Dedication", 6],
-        [1, "A Commitment", 7], [1, "Brief Contents", 8], [1, "Contents", 10],
-        [1, "Preface", 16], [2, "New in This Edition", 17], [3, "Customer Engagement", 17],
+        [1, "Cover", 1],
+        [1, "Half Title", 2],
+        [1, "Title Page", 4],
+        [1, "Copyright", 5],
+        [1, "Dedication", 6],
+        [1, "A Commitment", 7],
+        [1, "Brief Contents", 8],
+        [1, "Contents", 10],
+        [1, "Preface", 16],
+        [2, "New in This Edition", 17],
+        [3, "Customer Engagement", 17],
         [1, "About the Authors", 22],
     ]
     for number, page in enumerate(KOTLER_CHAPTER_STARTS, start=1):
@@ -41,9 +70,15 @@ def kotler_outline() -> List[list]:
         outline.append([2, f"Chapter {number}. Title {number}", page])
         outline.append([3, f"Section {number}.1", page + 1])
     outline += [
-        [1, "Appendix 1: A Plan", 639], [1, "Appendix 2: Numbers", 649], [2, "Ratios", 650],
-        [1, "Appendix 3: Careers", 666], [1, "Glossary", 679], [1, "References", 690],
-        [1, "Index", 739], [2, "Index of Names", 739], [2, "Index of Subjects", 748],
+        [1, "Appendix 1: A Plan", 639],
+        [1, "Appendix 2: Numbers", 649],
+        [2, "Ratios", 650],
+        [1, "Appendix 3: Careers", 666],
+        [1, "Glossary", 679],
+        [1, "References", 690],
+        [1, "Index", 739],
+        [2, "Index of Names", 739],
+        [2, "Index of Subjects", 748],
     ]
     return outline
 
@@ -53,16 +88,23 @@ def test_a_kotler_shaped_outline_covers_every_page_and_keeps_the_chapter_pages()
 
     assert left_out == []
     front = [
-        ("Cover", 1, 1), ("Half Title", 2, 3), ("Title Page", 4, 4), ("Copyright", 5, 5), ("Dedication", 6, 6),
-        ("A Commitment", 7, 7), ("Brief Contents", 8, 9), ("Contents", 10, 15), ("Preface", 16, 21),
+        ("Cover", 1, 1),
+        ("Half Title", 2, 3),
+        ("Title Page", 4, 4),
+        ("Copyright", 5, 5),
+        ("Dedication", 6, 6),
+        ("A Commitment", 7, 7),
+        ("Brief Contents", 8, 9),
+        ("Contents", 10, 15),
+        ("Preface", 16, 21),
         ("About the Authors", 22, 24),
     ]
     assert spans(parts[:10]) == [(title, first, last, FRONT_MATTER) for title, first, last in front]
     # The chapters keep the pages that the import gave them before the fix: pages 25-638 in 20 chapters.
-    ends = KOTLER_CHAPTER_STARTS[1:] + [639]
+    ends = [*KOTLER_CHAPTER_STARTS[1:], 639]
     assert spans(parts[10:30]) == [
         (f"Chapter {number}. Title {number}", first, end - 1, CHAPTER)
-        for number, (first, end) in enumerate(zip(KOTLER_CHAPTER_STARTS, ends), start=1)
+        for number, (first, end) in enumerate(zip(KOTLER_CHAPTER_STARTS, ends, strict=False), start=1)
     ]
     assert spans(parts[30:]) == [
         ("Appendix 1: A Plan", 639, 648, APPENDIX),
@@ -82,8 +124,11 @@ def test_a_dalton_shaped_outline_keeps_the_pages_of_the_book_title() -> None:
     outline += [[2, f"Chapter {number}: Title", page] for number, page in enumerate(chapters, start=1)]
     outline += [[3, "A Section", 80], [4, "A Smaller Section", 81]]
     outline += [
-        [2, "Appendix 1: Values", 351], [2, "Appendix II: Profiles", 355], [2, "Suggested Readings", 361],
-        [2, "About the Authors", 363], [2, "Index", 365],
+        [2, "Appendix 1: Values", 351],
+        [2, "Appendix II: Profiles", 355],
+        [2, "Suggested Readings", 361],
+        [2, "About the Authors", 363],
+        [2, "Index", 365],
     ]
     outline.sort(key=lambda entry: entry[2])
 
@@ -119,12 +164,19 @@ def test_the_last_chapter_keeps_its_sections() -> None:
 
 
 def test_a_part_title_page_is_body_but_the_title_pages_of_the_whole_book_are_front_matter() -> None:
-    parts, _ = outline_parts([
-        [1, "Preface", 1],
-        [1, "Part 1", 2], [2, "Chapter 1", 3],
-        [1, "Part 2", 4], [2, "Chapter 2", 5], [2, "Interlude", 6], [2, "Chapter 3", 7],
-        [1, "Index", 8],
-    ], 8)
+    parts, _ = outline_parts(
+        [
+            [1, "Preface", 1],
+            [1, "Part 1", 2],
+            [2, "Chapter 1", 3],
+            [1, "Part 2", 4],
+            [2, "Chapter 2", 5],
+            [2, "Interlude", 6],
+            [2, "Chapter 3", 7],
+            [1, "Index", 8],
+        ],
+        8,
+    )
     assert spans(parts) == [
         ("Preface", 1, 1, FRONT_MATTER),
         ("Part 1", 2, 2, BODY),
@@ -140,12 +192,19 @@ def test_a_part_title_page_is_body_but_the_title_pages_of_the_whole_book_are_fro
 
 
 def test_chapters_with_a_number_but_without_the_word_are_found() -> None:
-    parts, _ = outline_parts([
-        [1, "Foreword", 1],
-        [1, "Part I", 2], [2, "1 Beginnings", 2], [3, "1.1 A Section", 3], [2, "2. Middles", 4],
-        [1, "Part II", 5], [2, "3: Endings", 5],
-        [1, "Glossary", 6],
-    ], 6)
+    parts, _ = outline_parts(
+        [
+            [1, "Foreword", 1],
+            [1, "Part I", 2],
+            [2, "1 Beginnings", 2],
+            [3, "1.1 A Section", 3],
+            [2, "2. Middles", 4],
+            [1, "Part II", 5],
+            [2, "3: Endings", 5],
+            [1, "Glossary", 6],
+        ],
+        6,
+    )
     assert spans(parts) == [
         ("Foreword", 1, 1, FRONT_MATTER),
         ("1 Beginnings", 2, 3, CHAPTER),
@@ -156,12 +215,18 @@ def test_chapters_with_a_number_but_without_the_word_are_found() -> None:
 
 
 def test_chapter_titles_with_a_roman_numeral_or_a_number_word_are_found() -> None:
-    parts, _ = outline_parts([
-        [1, "Preface", 1],
-        [1, "Part I", 2], [2, "Chapter One: Ships", 2], [2, "CHAPTER IV. Tides", 3],
-        [1, "Part II", 4], [2, "Chapter Twenty-One", 4],
-        [1, "Index", 5],
-    ], 5)
+    parts, _ = outline_parts(
+        [
+            [1, "Preface", 1],
+            [1, "Part I", 2],
+            [2, "Chapter One: Ships", 2],
+            [2, "CHAPTER IV. Tides", 3],
+            [1, "Part II", 4],
+            [2, "Chapter Twenty-One", 4],
+            [1, "Index", 5],
+        ],
+        5,
+    )
     assert spans(parts) == [
         ("Preface", 1, 1, FRONT_MATTER),
         ("Chapter One: Ships", 2, 2, CHAPTER),
@@ -172,12 +237,19 @@ def test_chapter_titles_with_a_roman_numeral_or_a_number_word_are_found() -> Non
 
 
 def test_parts_named_with_a_number_hold_the_chapters_when_no_title_looks_like_a_chapter() -> None:
-    parts, _ = outline_parts([
-        [1, "Foreword", 1],
-        [1, "Part One: Ships", 2], [2, "The Pilots", 3], [3, "Harbours", 4], [2, "The Tides", 5],
-        [1, "Book 2: Weather", 6], [2, "The Storms", 6],
-        [1, "Index", 7],
-    ], 7)
+    parts, _ = outline_parts(
+        [
+            [1, "Foreword", 1],
+            [1, "Part One: Ships", 2],
+            [2, "The Pilots", 3],
+            [3, "Harbours", 4],
+            [2, "The Tides", 5],
+            [1, "Book 2: Weather", 6],
+            [2, "The Storms", 6],
+            [1, "Index", 7],
+        ],
+        7,
+    )
     assert spans(parts) == [
         ("Foreword", 1, 1, CHAPTER),
         ("Part One: Ships", 2, 2, CHAPTER),
@@ -192,9 +264,16 @@ def test_parts_named_with_a_number_hold_the_chapters_when_no_title_looks_like_a_
 
 
 def test_an_outline_without_chapter_titles_makes_every_top_part_a_chapter() -> None:
-    parts, _ = outline_parts([
-        [1, "Preface", 1], [1, "Harbours", 2], [2, "Pilots", 3], [1, "Appendix: Tides", 4], [1, "Index", 5],
-    ], 5)
+    parts, _ = outline_parts(
+        [
+            [1, "Preface", 1],
+            [1, "Harbours", 2],
+            [2, "Pilots", 3],
+            [1, "Appendix: Tides", 4],
+            [1, "Index", 5],
+        ],
+        5,
+    )
     assert spans(parts) == [
         ("Preface", 1, 1, CHAPTER),
         ("Harbours", 2, 3, CHAPTER),
@@ -229,7 +308,11 @@ def test_entries_without_a_page_of_the_book_are_ignored_and_no_outline_gives_par
     assert left_out == []
 
     parts, left_out = outline_parts([], 80)
-    assert spans(parts) == [("Chapter 1", 1, 35, CHAPTER), ("Chapter 2", 36, 70, CHAPTER), ("Chapter 3", 71, 80, CHAPTER)]
+    assert spans(parts) == [
+        ("Chapter 1", 1, 35, CHAPTER),
+        ("Chapter 2", 36, 70, CHAPTER),
+        ("Chapter 3", 71, 80, CHAPTER),
+    ]
     assert left_out == []
 
 
@@ -238,7 +321,11 @@ def test_only_chapters_body_and_appendices_make_cards_and_only_a_front_preface_i
         return BookPart((title,), 0, 1, kind)
 
     assert [part(kind).makes_cards for kind in (FRONT_MATTER, CHAPTER, BODY, APPENDIX, BACK_MATTER)] == [
-        False, True, True, True, False,
+        False,
+        True,
+        True,
+        True,
+        False,
     ]
     assert part(FRONT_MATTER, "Preface to the Second Edition").is_preface
     assert not part(BACK_MATTER, "Preface").is_preface

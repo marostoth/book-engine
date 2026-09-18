@@ -1,9 +1,9 @@
 """Deterministic readability calculator for Level 1 Elementary Reading."""
 
 from __future__ import annotations
+
 import math
 import re
-from typing import List
 
 from ingest.models import ElementaryMetrics
 
@@ -32,15 +32,15 @@ def count_syllables(word: str) -> int:
             pass
         else:
             count -= 1
-    elif w.endswith("ed") and not w.endswith("ded") and not w.endswith("ted"):
-        count -= 1
-    elif w.endswith("es") and not any(w.endswith(s) for s in ("ses", "zes", "shes", "ches", "xes")):
+    elif (w.endswith("ed") and not w.endswith("ded") and not w.endswith("ted")) or (
+        w.endswith("es") and not any(w.endswith(s) for s in ("ses", "zes", "shes", "ches", "xes"))
+    ):
         count -= 1
 
     return max(1, count)
 
 
-def tokenize_sentences(text: str) -> List[str]:
+def tokenize_sentences(text: str) -> list[str]:
     """Split text into sentence candidates based on standard punctuation terminators."""
     raw_sentences = SENTENCE_SPLIT_REGEX.split(text.strip())
     return [s.strip() for s in raw_sentences if s.strip()]

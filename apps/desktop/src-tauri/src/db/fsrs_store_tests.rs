@@ -23,7 +23,17 @@ fn stored_card(conn: &Connection, card_id: &str) -> StoredCard {
     conn.query_row(
         "SELECT book_id, state, stability, difficulty, due, last_review, reps FROM fsrs_cards WHERE card_id = ?1",
         params![card_id],
-        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?)),
+        |r| {
+            Ok((
+                r.get(0)?,
+                r.get(1)?,
+                r.get(2)?,
+                r.get(3)?,
+                r.get(4)?,
+                r.get(5)?,
+                r.get(6)?,
+            ))
+        },
     )
     .expect("stored card")
 }
@@ -45,8 +55,11 @@ fn review_saves_the_schedule_and_one_log_row_under_the_book_of_the_card() {
     let card_id = synced_card(&sandbox);
     let conn = open_or_create_db().expect("open the sandbox database");
     // Not "sample", so a made-up "sample" book id in the log row would show.
-    conn.execute("UPDATE fsrs_cards SET book_id = 'wealth-of-nations' WHERE card_id = ?1", params![card_id])
-        .expect("move the card to another book");
+    conn.execute(
+        "UPDATE fsrs_cards SET book_id = 'wealth-of-nations' WHERE card_id = ?1",
+        params![card_id],
+    )
+    .expect("move the card to another book");
 
     let schedule = submit_card_review_blocking(&card_id, 3).expect("the review is saved");
 
@@ -63,7 +76,10 @@ fn review_saves_the_schedule_and_one_log_row_under_the_book_of_the_card() {
             schedule.reps,
         )
     );
-    assert_eq!(review_logs(&conn, &card_id), vec![("wealth-of-nations".to_string(), 3, schedule.last_review)]);
+    assert_eq!(
+        review_logs(&conn, &card_id),
+        vec![("wealth-of-nations".to_string(), 3, schedule.last_review)]
+    );
 }
 
 #[test]
@@ -78,11 +94,17 @@ fn review_whose_log_row_fails_saves_nothing_and_returns_the_error() {
     )
     .expect("make review log inserts fail");
 
-    let err = submit_card_review_blocking(&card_id, 3)
-        .expect_err("a review whose log row fails must return an error");
+    let err = submit_card_review_blocking(&card_id, 3).expect_err("a review whose log row fails must return an error");
 
-    assert!(format!("{err:#}").contains("review log is not writable"), "unexpected error: {err:#}");
-    assert_eq!(stored_card(&conn, &card_id), before, "the card must keep its old schedule");
+    assert!(
+        format!("{err:#}").contains("review log is not writable"),
+        "unexpected error: {err:#}"
+    );
+    assert_eq!(
+        stored_card(&conn, &card_id),
+        before,
+        "the card must keep its old schedule"
+    );
     assert!(review_logs(&conn, &card_id).is_empty());
 }
 
@@ -91,16 +113,25 @@ fn card_without_a_book_id_is_not_reviewed() {
     let sandbox = Sandbox::new();
     let card_id = synced_card(&sandbox);
     let conn = open_or_create_db().expect("open the sandbox database");
-    conn.execute("UPDATE fsrs_cards SET book_id = '' WHERE card_id = ?1", params![card_id])
-        .expect("clear the book id");
+    conn.execute(
+        "UPDATE fsrs_cards SET book_id = '' WHERE card_id = ?1",
+        params![card_id],
+    )
+    .expect("clear the book id");
     let before = stored_card(&conn, &card_id);
 
-    let err = submit_card_review_blocking(&card_id, 3)
-        .expect_err("a card without a book id must not be reviewed");
+    let err = submit_card_review_blocking(&card_id, 3).expect_err("a card without a book id must not be reviewed");
 
     assert!(format!("{err:#}").contains("no book id"), "unexpected error: {err:#}");
-    assert_eq!(stored_card(&conn, &card_id), before, "the card must keep its old schedule");
-    assert!(review_logs(&conn, &card_id).is_empty(), "no log row may be saved without the book id of the card");
+    assert_eq!(
+        stored_card(&conn, &card_id),
+        before,
+        "the card must keep its old schedule"
+    );
+    assert!(
+        review_logs(&conn, &card_id).is_empty(),
+        "no log row may be saved without the book id of the card"
+    );
 }
 
 /// A double click sends two reviews of the same card. The second review must start from the saved
@@ -147,7 +178,10 @@ fn review_that_waits_for_another_review_of_the_card_builds_on_it() {
         .expect("log the first review");
     saving.commit().expect("finish the first review");
 
-    let schedule = second.join().expect("second review thread").expect("the second review is saved");
+    let schedule = second
+        .join()
+        .expect("second review thread")
+        .expect("the second review is saved");
 
     assert_eq!(schedule.reps, 2, "the second review must build on the first review");
     assert_eq!(stored_card(&first, &card_id).6, 2);

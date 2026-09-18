@@ -44,7 +44,10 @@ fn reading_analytics_show_the_time_and_the_finished_chapters_but_no_word_count_o
                 }
             }
         }
-        assert!(made_up.is_empty(), "{book:?}: the app cannot see how many words you read: {made_up:?}");
+        assert!(
+            made_up.is_empty(),
+            "{book:?}: the app cannot see how many words you read: {made_up:?}"
+        );
 
         assert_eq!(stats["total_seconds"], 785, "{book:?}: every second of reading counts");
         assert_eq!(stats["completed_chapters"], 1, "{book:?}");

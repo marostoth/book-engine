@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pymupdf
 import pytest
-
 from ingest.pipeline import ingest_book
 from ingest.sample_generator import create_sample_epub
 
@@ -74,7 +73,7 @@ def test_the_command_line_refuses_a_book_id_that_could_lead_out_of_the_vault(tmp
     work, vault = empty_vault(tmp_path)
     command = [sys.executable, "-m", "ingest.cli", str(epub), "--vault", str(vault), "--book-id", "../../cli-escaped"]
 
-    stopped = subprocess.run(command, capture_output=True, text=True)
+    stopped = subprocess.run(command, capture_output=True, text=True, check=False)
 
     assert stopped.returncode == 1, stopped.stdout + stopped.stderr
     assert "book id" in stopped.stderr, stopped.stderr

@@ -14,7 +14,6 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from typing import List, Optional
 
 from ingest.book_id import BOOK_ID_RULE
 from ingest.models import BookSource
@@ -34,7 +33,7 @@ def same_file(recorded: BookSource, source: BookSource) -> bool:
     return recorded.sha256 == source.sha256 or recorded.file_name.casefold() == source.file_name.casefold()
 
 
-def recorded_source(vault_dir: Path, book_id: str) -> Optional[BookSource]:
+def recorded_source(vault_dir: Path, book_id: str) -> BookSource | None:
     """The file that the book `book_id` came from.
 
     None when the vault does not know it: the book has no `_meta.json`, an import before IN-03 made it, or `_meta.json`
@@ -48,7 +47,7 @@ def recorded_source(vault_dir: Path, book_id: str) -> Optional[BookSource]:
         return None
 
 
-def books_of_file(vault_dir: Path, source: BookSource) -> List[str]:
+def books_of_file(vault_dir: Path, source: BookSource) -> list[str]:
     """The ids of the books in the vault that came from the file `source`, in the order of their names.
 
     These are the books with the same bytes, or else the books whose file had the same name.

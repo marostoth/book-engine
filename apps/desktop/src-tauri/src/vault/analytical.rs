@@ -1,6 +1,6 @@
-use anyhow::{Context, Result};
 use super::json_store::read_json_file;
 use super::models::AnalyticalStore;
+use anyhow::{Context, Result};
 
 /// Returns the analytical reading store for the given book from `vault/notes/<book-id>/analytical.json`.
 /// A book with no file yet gets an empty store. A damaged file gives an error, never an empty
@@ -20,8 +20,7 @@ pub fn save_analytical_store(book_id: &str, store: AnalyticalStore) -> Result<()
 
     read_json_file::<AnalyticalStore>(&analytical_file)?;
 
-    let serialized = serde_json::to_string_pretty(&store)
-        .context("Failed to serialize analytical store to JSON")?;
+    let serialized = serde_json::to_string_pretty(&store).context("Failed to serialize analytical store to JSON")?;
 
     super::safe_write::write_file(&analytical_file, &serialized)
 }
@@ -29,18 +28,18 @@ pub fn save_analytical_store(book_id: &str, store: AnalyticalStore) -> Result<()
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
     use crate::vault::models::{
-        AnchoredCitation, ArgumentNode, AuthorInquiry, AuthorTerm, CritiqueItem, InquiryDomain,
-        InquiryPriority, ResolutionStatus,
+        AnchoredCitation, ArgumentNode, AuthorInquiry, AuthorTerm, CritiqueItem, InquiryDomain, InquiryPriority,
+        ResolutionStatus,
     };
+    use std::fs;
 
     #[test]
     fn test_analytical_load_and_save() {
         let _sandbox = crate::test_support::Sandbox::new();
         let test_book = "sample";
         let mut store = load_analytical_store(test_book).expect("Failed to load analytical store");
-        
+
         let term = AuthorTerm {
             id: "test-term-1".to_string(),
             term: "linearizability".to_string(),
@@ -160,7 +159,10 @@ mod tests {
         sandbox.write(ANALYTICAL_FILE, TRUNCATED_STORE);
 
         let error = load_analytical_store("sample").expect_err("a damaged store must not load as empty");
-        assert!(error.to_string().contains("analytical.json"), "the error must name the file: {error}");
+        assert!(
+            error.to_string().contains("analytical.json"),
+            "the error must name the file: {error}"
+        );
     }
 
     #[test]
@@ -171,7 +173,10 @@ mod tests {
         let error = save_analytical_store("sample", AnalyticalStore::default())
             .expect_err("a damaged store must refuse the save");
 
-        assert!(error.to_string().contains("analytical.json"), "the error must name the file: {error}");
+        assert!(
+            error.to_string().contains("analytical.json"),
+            "the error must name the file: {error}"
+        );
         let on_disk = fs::read_to_string(sandbox.vault().join(ANALYTICAL_FILE)).expect("read store file");
         assert_eq!(on_disk, TRUNCATED_STORE, "the damaged file must stay exactly as it was");
     }
@@ -184,7 +189,11 @@ mod tests {
         load_analytical_store("sample").expect_err("load must fail");
 
         let copies = corrupt_copies(&sandbox);
-        assert_eq!(copies.len(), 1, "expected one copy of the damaged file, found {copies:?}");
+        assert_eq!(
+            copies.len(),
+            1,
+            "expected one copy of the damaged file, found {copies:?}"
+        );
         let copy = sandbox.vault().join("notes").join("sample").join(&copies[0]);
         assert_eq!(fs::read_to_string(copy).expect("read copy"), TRUNCATED_STORE);
     }

@@ -12,7 +12,6 @@ import re
 from pathlib import Path
 
 import pytest
-
 from ingest.salience import format_practice_deck_markdown, generate_chapter_practice_cards, split_sentences
 
 REPO = Path(__file__).resolve().parents[3]
@@ -50,10 +49,12 @@ def test_an_answer_of_only_small_words_makes_no_card(sentence: str):
 
 
 def test_an_answer_neither_starts_nor_ends_with_a_small_word():
-    cards = cards_of([
-        "A long voyage by sea means a lower price for the grain that the ship carries.",
-        "If the harvest is considered poor, the price of flour rises in every town.",
-    ])
+    cards = cards_of(
+        [
+            "A long voyage by sea means a lower price for the grain that the ship carries.",
+            "If the harvest is considered poor, the price of flour rises in every town.",
+        ]
+    )
 
     for card in cards:
         words = re.findall(r"[A-Za-z]+", card.answer_key)
@@ -61,11 +62,13 @@ def test_an_answer_neither_starts_nor_ends_with_a_small_word():
 
 
 def test_a_number_or_a_label_is_no_answer():
-    cards = cards_of([
-        "FIGURE **9-1** shows the grain trade of a river town in one year.",
-        "Prices rose sharply in **1776** after the harvest failed in the north.",
-        "See **Table 13.2** for the price of flour in each town on the river.",
-    ])
+    cards = cards_of(
+        [
+            "FIGURE **9-1** shows the grain trade of a river town in one year.",
+            "Prices rose sharply in **1776** after the harvest failed in the north.",
+            "See **Table 13.2** for the price of flour in each town on the river.",
+        ]
+    )
 
     assert [card.answer_key for card in cards] == []
 
@@ -79,11 +82,13 @@ def test_a_leading_article_stays_outside_the_blank():
 
 
 def test_the_prompt_shows_the_answer_only_as_its_one_blank():
-    cards = cards_of([
-        "The **grain trade** grew fast, and the grain trade soon reached every town on the river.",
-        "A **mill** grinds the grain of a town, and a **mill** also stores its flour for winter.",
-        "A **flour merchant** carries sacks of flour from the mills to the bakers of the town.",
-    ])
+    cards = cards_of(
+        [
+            "The **grain trade** grew fast, and the grain trade soon reached every town on the river.",
+            "A **mill** grinds the grain of a town, and a **mill** also stores its flour for winter.",
+            "A **flour merchant** carries sacks of flour from the mills to the bakers of the town.",
+        ]
+    )
 
     assert cards, "the merchant sentence makes a card"
     for card in cards:
@@ -92,9 +97,11 @@ def test_the_prompt_shows_the_answer_only_as_its_one_blank():
 
 
 def test_the_prompt_shows_no_markdown_or_footnote_marks():
-    cards = cards_of([
-        "In a river town, the **grain market** is defined as the place where _millers_ and farmers meet.[^1]",
-    ])
+    cards = cards_of(
+        [
+            "In a river town, the **grain market** is defined as the place where _millers_ and farmers meet.[^1]",
+        ]
+    )
 
     assert [card.cloze_text for card in cards] == [
         "In a river town, the {{c1::grain market}} is defined as the place where millers and farmers meet."
@@ -150,22 +157,26 @@ def test_a_chapter_without_a_marked_term_gets_one_card_for_a_repeated_term():
 
 def test_a_term_that_a_line_break_splits_gives_way_to_the_next_term():
     marked = cards_of(["The **river\ntrade** grows, and the **flour mill** grinds more grain for the town."])
-    repeated = cards_of([
-        "Every spring the river\ntrade brings new farmers to the flour mill.",
-        "Merchants say that the river\ntrade pays better than the road.",
-        "When the water is low, the river\ntrade stops, and the flour mill waits.",
-    ])
+    repeated = cards_of(
+        [
+            "Every spring the river\ntrade brings new farmers to the flour mill.",
+            "Merchants say that the river\ntrade pays better than the road.",
+            "When the water is low, the river\ntrade stops, and the flour mill waits.",
+        ]
+    )
 
     assert [card.answer_key for card in marked] == ["flour mill"]
     assert [card.answer_key for card in repeated] == ["flour mill"]
 
 
 def test_one_word_alone_is_no_repeated_term():
-    cards = cards_of([
-        "Grain comes to the town by boat in the autumn.",
-        "The miller weighs the grain before he grinds it.",
-        "Bakers pay for grain with the bread that they sell.",
-    ])
+    cards = cards_of(
+        [
+            "Grain comes to the town by boat in the autumn.",
+            "The miller weighs the grain before he grinds it.",
+            "Bakers pay for grain with the bread that they sell.",
+        ]
+    )
 
     assert cards == []
 
@@ -315,7 +326,17 @@ def test_the_audit_and_the_importer_use_the_same_cloze_rules():
 
     assert module.STOPWORDS == cloze.STOPWORDS
     assert (module.MIN_ANSWER_CHARS, module.MAX_ANSWER_CHARS) == (cloze.MIN_ANSWER_CHARS, cloze.MAX_ANSWER_CHARS)
-    for answer in ["grain trade", "It is by", "The mill", "9-1", "Table 13.2", "mill,", "grain  trade", "_mill_", "M period"]:
+    for answer in [
+        "grain trade",
+        "It is by",
+        "The mill",
+        "9-1",
+        "Table 13.2",
+        "mill,",
+        "grain  trade",
+        "_mill_",
+        "M period",
+    ]:
         assert module.answer_problem(answer) == cloze.answer_problem(answer), answer
     text = "A **mill**[^2] grinds\ngrain &amp; stores  flour."
     assert module.shown_text(text) == cloze.shown_text(text)

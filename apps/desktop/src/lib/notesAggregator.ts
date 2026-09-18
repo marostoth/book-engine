@@ -53,7 +53,7 @@ export function aggregateBookNotes(
 
     // 2. Parse Markdown reflections, bullets, and questions (excluding highlights JSON & readable list)
     // Strip machine JSON block and any human-readable highlights block
-    let cleanNotes = file.content
+    const cleanNotes = file.content
       .replace(/<!--\s*highlights-json[\s\S]*?-->/g, "")
       .replace(/\n*## Highlights[\s\S]*?(?=\n##|$)/g, "")
       .trim();

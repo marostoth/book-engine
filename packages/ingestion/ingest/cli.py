@@ -1,6 +1,7 @@
 """Command-line interface for the ingestion pipeline."""
 
 from __future__ import annotations
+
 import argparse
 import sys
 from pathlib import Path
@@ -39,11 +40,16 @@ def main() -> None:
     try:
         print(f"[*] Ingesting {args.file_path} into {args.vault}...")
         target_chapters = [args.chapter] if args.chapter is not None else None
-        meta = ingest_book(args.file_path, args.vault, args.book_id, target_chapters=target_chapters, replace=args.force)
+        meta = ingest_book(
+            args.file_path, args.vault, args.book_id, target_chapters=target_chapters, replace=args.force
+        )
     except BookIdTakenError as e:
         # Not a crash: the import stopped before it wrote anything (IN-03)
         print(f"[-] {e}", file=sys.stderr)
-        print(f"[-] If this file is a different book, run the same import again with --book-id {e.own_book_id}", file=sys.stderr)
+        print(
+            f"[-] If this file is a different book, run the same import again with --book-id {e.own_book_id}",
+            file=sys.stderr,
+        )
         print(
             f"[-] If this file is a new copy of that book, run the same import again with --book-id {e.book_id} --force",
             file=sys.stderr,
@@ -65,6 +71,7 @@ def main() -> None:
     except Exception as e:
         print(f"[-] Ingestion failed: {e}", file=sys.stderr)
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

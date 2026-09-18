@@ -15,10 +15,10 @@ from __future__ import annotations
 import hashlib
 import re
 from difflib import SequenceMatcher
-from typing import Dict, List, Set, Tuple
-from ingest.models import ScenarioCard, ScenarioOptionModel
+
 from ingest.anchors import extract_anchors
-from ingest.salience import split_sentences, score_sentence
+from ingest.models import ScenarioCard, ScenarioOptionModel
+from ingest.salience import score_sentence, split_sentences
 
 # The question of every quiz card. `.agent/skills/audit-practice.py` checks it.
 NEXT_SENTENCE_QUESTION = "Which sentence comes right after this passage in the book?"
@@ -56,11 +56,50 @@ ONE_PERSON = re.compile(r"\b(?:he|his|him|himself|she|her|hers|herself)\b", re.I
 PEOPLE_IN_A_HUNDRED_WORDS = 3
 
 STOPWORDS = {
-    "this", "that", "these", "those", "with", "from", "have", "were", "been",
-    "their", "which", "about", "would", "could", "should", "there", "where",
-    "when", "what", "some", "other", "more", "most", "only", "also", "into",
-    "than", "then", "they", "them", "will", "just", "like", "such", "each",
-    "very", "much", "does", "did", "doing", "done", "your", "ours", "our",
+    "this",
+    "that",
+    "these",
+    "those",
+    "with",
+    "from",
+    "have",
+    "were",
+    "been",
+    "their",
+    "which",
+    "about",
+    "would",
+    "could",
+    "should",
+    "there",
+    "where",
+    "when",
+    "what",
+    "some",
+    "other",
+    "more",
+    "most",
+    "only",
+    "also",
+    "into",
+    "than",
+    "then",
+    "they",
+    "them",
+    "will",
+    "just",
+    "like",
+    "such",
+    "each",
+    "very",
+    "much",
+    "does",
+    "did",
+    "doing",
+    "done",
+    "your",
+    "ours",
+    "our",
 }
 
 
@@ -96,11 +135,11 @@ def is_near_copy(first: str, second: str) -> bool:
 def answer_place(card_id: str, answer: str) -> int:
     """The place of the right option, 0 to 3 for A to D. A hash gives it, so every import puts the right option of a
     card in the same place, and the places of a deck spread over A to D."""
-    digest = hashlib.sha256(f"{card_id}\x1f{answer}".encode("utf-8")).digest()
+    digest = hashlib.sha256(f"{card_id}\x1f{answer}".encode()).digest()
     return int.from_bytes(digest[:8], "big") % 4
 
 
-def _extract_keywords(text: str) -> Set[str]:
+def _extract_keywords(text: str) -> set[str]:
     """Extracts non-stopword tokens of length >= 4 for thematic overlap scoring."""
     words = re.findall(r"[a-zA-Z]{4,}", text.lower())
     return {w for w in words if w not in STOPWORDS}
@@ -110,7 +149,7 @@ def generate_chapter_scenario_cards(
     chapter_markdown: str,
     chapter_id: str,
     max_items: int = 3,
-) -> List[ScenarioCard]:
+) -> list[ScenarioCard]:
     """Makes up to `max_items` quiz cards for a chapter. Each asks which sentence comes right after its passage."""
     anchored_paras = extract_anchors(chapter_markdown)
     if not anchored_paras:
@@ -119,13 +158,13 @@ def generate_chapter_scenario_cards(
     chapter_text = book_text(chapter_markdown)
     # The anchor of the paragraph right after each paragraph. Its sentences come soon after a passage, so none of
     # them is a wrong option for that passage.
-    next_anchor: Dict[str, str] = {
+    next_anchor: dict[str, str] = {
         anchor_id: anchored_paras[index + 1][0] for index, (anchor_id, _) in enumerate(anchored_paras[:-1])
     }
 
     # 1. Wrong options: sentences of the chapter that are not part of a story
-    distractor_pool: List[Tuple[str, str, str, Set[str]]] = []
-    seen_pool_texts: Set[str] = set()
+    distractor_pool: list[tuple[str, str, str, set[str]]] = []
+    seen_pool_texts: set[str] = set()
 
     for anchor_id, para_text in anchored_paras:
         if tells_a_story(para_text):
@@ -143,7 +182,7 @@ def generate_chapter_scenario_cards(
             seen_pool_texts.add(clean.lower())
 
     # 2. Passages: paragraphs of two or more sentences. A paragraph of one sentence has no passage, so it makes no card.
-    target_candidates: List[Tuple[float, str, str, str, str, Set[str]]] = []
+    target_candidates: list[tuple[float, str, str, str, str, set[str]]] = []
 
     for anchor_id, para_text in anchored_paras:
         if tells_a_story(para_text):
@@ -165,7 +204,11 @@ def generate_chapter_scenario_cards(
         if f"{premise_clean} {target_clean}" not in chapter_text:
             continue
         base_score = score_sentence(target_s, False, True)
-        if re.search(r"\b(therefore|thus|however|consequently|because|requires|means|process|market|level|skill)\b", target_clean, re.I):
+        if re.search(
+            r"\b(therefore|thus|however|consequently|because|requires|means|process|market|level|skill)\b",
+            target_clean,
+            re.I,
+        ):
             base_score += 2.0
         kw = _extract_keywords(target_clean) | _extract_keywords(premise_clean)
         target_candidates.append((base_score, premise_clean, target_clean, target_s, anchor_id, kw))
@@ -176,18 +219,18 @@ def generate_chapter_scenario_cards(
     # Sort descending by analytical salience
     target_candidates.sort(key=lambda x: x[0], reverse=True)
 
-    scenarios: List[ScenarioCard] = []
-    used_anchors: Set[str] = set()
-    used_distractors: Set[str] = set()
+    scenarios: list[ScenarioCard] = []
+    used_anchors: set[str] = set()
+    used_distractors: set[str] = set()
 
-    for score, premise, target_clean, target_s, anchor_id, target_kw in target_candidates:
+    for _score, premise, target_clean, target_s, anchor_id, target_kw in target_candidates:
         if len(scenarios) >= max_items:
             break
         if anchor_id in used_anchors:
             continue
 
         # Score candidate distractors by thematic keyword overlap and length ratio
-        scored_distractors: List[Tuple[int, float, str, str]] = []
+        scored_distractors: list[tuple[int, float, str, str]] = []
         target_len = len(target_clean)
 
         for d_clean, d_s, d_anc, d_kw in distractor_pool:
@@ -204,9 +247,9 @@ def generate_chapter_scenario_cards(
 
         # The 3 best wrong options from different paragraphs. None is a near-copy of the right option or of another
         # wrong option, because a near-copy says the same thing.
-        picked_distractors: List[str] = []
-        picked_ancs: Set[str] = set()
-        for ov, sal, d_clean, d_anc in scored_distractors:
+        picked_distractors: list[str] = []
+        picked_ancs: set[str] = set()
+        for _ov, _sal, d_clean, d_anc in scored_distractors:
             if d_anc in picked_ancs:
                 continue
             if any(is_near_copy(d_clean, other) for other in [target_clean, *picked_distractors]):

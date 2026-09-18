@@ -11,11 +11,8 @@ import re
 import shutil
 import subprocess
 import tomllib
-from pathlib import Path
-from typing import List, Tuple
 
 import pytest
-
 from conftest import REPO
 
 ROOT_PACKAGE = REPO / "package.json"
@@ -28,12 +25,12 @@ README = REPO / "README.md"
 STRIP_TYPES_ARRIVED = (22, 6, 0)
 
 
-def numbers_of(version: str) -> Tuple[int, ...]:
+def numbers_of(version: str) -> tuple[int, ...]:
     """The numbers of a version, however it is written: `>=22.6.0`, `1.88`, `22.6.0+`."""
     return tuple(int(part) for part in re.findall(r"\d+", version))
 
 
-def at_least(version: Tuple[int, ...], lowest: Tuple[int, ...]) -> bool:
+def at_least(version: tuple[int, ...], lowest: tuple[int, ...]) -> bool:
     filled = version + (0,) * (len(lowest) - len(version))
     return filled[: len(lowest)] >= lowest
 
@@ -52,18 +49,23 @@ def readme_versions() -> dict:
     return found
 
 
-def readme_verification_block() -> List[str]:
+def readme_verification_block() -> list[str]:
     """The commands of the README's verification section, in the order it gives them."""
     text = README.read_text(encoding="utf-8")
     start = text.index("### 3. Verification & Benchmarking Suite")
-    block = text[start:].split("```bash", 1)[1].split("```", 1)[0]
-    return [line.strip() for line in block.splitlines() if line.strip() and not line.strip().startswith("#")]
+    section = text[start:].split("\n---", 1)[0]
+    found: list[str] = []
+    for block in section.split("```bash")[1:]:
+        for line in block.split("```", 1)[0].splitlines():
+            if line.strip() and not line.strip().startswith("#"):
+                found.append(line.strip())
+    return found
 
 
 def git_says(*arguments: str) -> str:
     if shutil.which("git") is None:
         pytest.skip("git is not on this computer")
-    done = subprocess.run(["git", *arguments], cwd=str(REPO), capture_output=True, text=True)
+    done = subprocess.run(["git", *arguments], cwd=str(REPO), capture_output=True, text=True, check=False)
     if done.returncode != 0:
         pytest.skip(f"git could not answer: {done.stderr.strip()}")
     return done.stdout
@@ -161,7 +163,7 @@ def test_every_command_of_the_verification_block_is_there():
     """The README named `vault/books/sample` and `vault/books/wealth-of-nations`, two folders no clone has."""
     for command in readme_verification_block():
         for word in command.split():
-            if word.endswith(".py") or word.startswith("vault/") or word.startswith("packages/"):
+            if word.endswith(".py") or word.startswith(("vault/", "packages/")):
                 assert (REPO / word).exists(), f"{command!r} names {word}, which is not in the repository"
 
 

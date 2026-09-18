@@ -49,8 +49,7 @@ fn settings_file() -> Result<PathBuf> {
         .parent()
         .and_then(Path::parent)
         .ok_or_else(|| anyhow!("The application data folder has no parent"))?;
-    std::fs::create_dir_all(folder)
-        .with_context(|| format!("Failed to create {}", folder.display()))?;
+    std::fs::create_dir_all(folder).with_context(|| format!("Failed to create {}", folder.display()))?;
     Ok(folder.join("settings.json"))
 }
 
@@ -70,7 +69,10 @@ fn read_settings() -> Settings {
     // A settings file that cannot be read is not worth stopping for: the search below still finds a vault
     // beside the program or above the working folder, and picking a folder writes the file again.
     serde_json::from_str(&text).unwrap_or_else(|err| {
-        eprintln!("Warning: {} could not be read ({err}), so no saved vault folder is used.", path.display());
+        eprintln!(
+            "Warning: {} could not be read ({err}), so no saved vault folder is used.",
+            path.display()
+        );
         Settings::default()
     })
 }

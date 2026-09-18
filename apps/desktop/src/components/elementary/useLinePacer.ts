@@ -56,11 +56,14 @@ export function useLinePacer({
 
   const lineIndexRef = useRef<number>(0);
   const currentProgressRef = useRef<number>(0);
-  const lineStartTimeRef = useRef<number>(Date.now());
+  const [firstShownAt] = useState(() => Date.now());
+  const lineStartTimeRef = useRef<number>(firstShownAt);
   const rafHandle = useRef<number | null>(null);
 
   const onParagraphCompleteRef = useRef(onParagraphComplete);
-  onParagraphCompleteRef.current = onParagraphComplete;
+  useEffect(() => {
+    onParagraphCompleteRef.current = onParagraphComplete;
+  });
 
   const prevAnchorRef = useRef<string | null>(activeAnchor);
   const pausedAtRef = useRef<number | null>(null);

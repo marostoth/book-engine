@@ -12,7 +12,7 @@ division is already the line above it in the contents, and the list of chapters 
 from __future__ import annotations
 
 import re
-from typing import List, Optional, Sequence
+from collections.abc import Sequence
 
 # The title of a division of a book, and the title of a chapter. `ingest.epub_parser` reads the contents of a book
 # with the same two rules, so a division and a chapter mean the same thing everywhere.
@@ -57,7 +57,7 @@ def holds_no_text(blocks: Sequence[str]) -> bool:
     return bool(blocks) and all(is_heading(block) for block in blocks)
 
 
-def chapter_name(blocks: Sequence[str]) -> Optional[str]:
+def chapter_name(blocks: Sequence[str]) -> str | None:
     """The name of the chapter that `blocks` make, or None when no heading of theirs names a chapter.
 
     It is the first such heading, except when that heading names a division of the book and the heading right after
@@ -82,15 +82,15 @@ class HeldOverBlocks:
     """
 
     def __init__(self) -> None:
-        self.blocks: List[str] = []
+        self.blocks: list[str] = []
         # The name of each held-over document in the manifest, for the links of the contents (CQ-01)
-        self.document_names: List[str] = []
+        self.document_names: list[str] = []
 
     def hold(self, blocks: Sequence[str], document_name: str) -> None:
         self.blocks.extend(blocks)
         self.document_names.append(document_name)
 
-    def in_front_of(self, blocks: Sequence[str]) -> List[str]:
+    def in_front_of(self, blocks: Sequence[str]) -> list[str]:
         """The held-over headings, and then `blocks`."""
         return [*self.blocks, *blocks]
 
@@ -98,7 +98,7 @@ class HeldOverBlocks:
         """How far the blocks of the next document move, so that an element still names its own block."""
         return len(self.blocks)
 
-    def take_names(self) -> List[str]:
+    def take_names(self) -> list[str]:
         """The names of the held-over documents, and then nothing is held over any more."""
         names = list(self.document_names)
         self.blocks = []

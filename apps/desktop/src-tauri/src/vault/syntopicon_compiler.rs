@@ -1,6 +1,6 @@
-use std::collections::{BTreeSet, HashMap};
 use super::syntopicon_check::{citations_of, place_of, CitationCheck};
 use super::syntopicon_models::{CrossBookCitation, SyntopicTopic};
+use std::collections::{BTreeSet, HashMap};
 
 /// What each citation of the topic was found to be, by the four fields that tell one citation from another.
 type Checks = HashMap<(String, String, String, String), CitationCheck>;
@@ -93,13 +93,21 @@ pub fn compile_dialectical_dossier(
     }
 
     let books_list: Vec<String> = books.into_iter().collect();
-    doc.push_str(&format!("> **Primary Sources Investigated:** {}\n", books_list.join(", ")));
-    doc.push_str(&format!("> **Citations checked:** {}\n\n", checked_line(topic, &checks)));
+    doc.push_str(&format!(
+        "> **Primary Sources Investigated:** {}\n",
+        books_list.join(", ")
+    ));
+    doc.push_str(&format!(
+        "> **Citations checked:** {}\n\n",
+        checked_line(topic, &checks)
+    ));
     doc.push_str("---\n\n");
 
     // 2. Section 1: Neutral Vocabulary Translation Table (Rule 2)
     doc.push_str("## Section 1: Neutral Vocabulary Translation Table (Rule 2)\n\n");
-    doc.push_str("*Adlerian Rule 2: Coming to Terms with the Authors by constructing a common, objective semantic bridge.*\n\n");
+    doc.push_str(
+        "*Adlerian Rule 2: Coming to Terms with the Authors by constructing a common, objective semantic bridge.*\n\n",
+    );
 
     if topic.neutral_terms.is_empty() {
         doc.push_str("_No neutral terms defined for this topic._\n\n");
@@ -134,7 +142,10 @@ pub fn compile_dialectical_dossier(
                     shown_check(&checks, &m.citation)
                 ));
                 if !m.citation.quote.is_empty() {
-                    doc.push_str(&format!("  > &ldquo;{}&rdquo; ({})\n", m.citation.quote, m.citation.anchor));
+                    doc.push_str(&format!(
+                        "  > &ldquo;{}&rdquo; ({})\n",
+                        m.citation.quote, m.citation.anchor
+                    ));
                 }
             }
             doc.push('\n');
@@ -166,11 +177,7 @@ pub fn compile_dialectical_dossier(
                         if !p.citations.is_empty() {
                             doc.push_str("**Textual Evidence:**\n");
                             for cit in &p.citations {
-                                doc.push_str(&format!(
-                                    "- {}{}:\n",
-                                    shown_place(cit),
-                                    shown_check(&checks, cit)
-                                ));
+                                doc.push_str(&format!("- {}{}:\n", shown_place(cit), shown_check(&checks, cit)));
                                 if !cit.quote.is_empty() {
                                     doc.push_str(&format!("  > &ldquo;{}&rdquo; ({})\n", cit.quote, cit.anchor));
                                 }
@@ -264,7 +271,9 @@ mod tests {
                 }],
             }],
             synthesis_notes: Some("The authors agree on productivity, but diverge on social consequences.".into()),
-            dialectical_resolution: Some("Specialization creates systemic efficiency while requiring educational offsets.".into()),
+            dialectical_resolution: Some(
+                "Specialization creates systemic efficiency while requiring educational offsets.".into(),
+            ),
             created_at: "2026-09-13T10:00:00Z".into(),
         };
 

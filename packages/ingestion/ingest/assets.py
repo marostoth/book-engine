@@ -1,14 +1,14 @@
 """Asset and embedded media extraction for EPUB and document pipelines."""
 
 from __future__ import annotations
+
 import hashlib
-import os
 import re
 from pathlib import Path
-from typing import Dict, List, Optional
+
 import ebooklib
-from ebooklib import epub
 import pymupdf
+from ebooklib import epub
 
 # A drawing that a book holds as SVG is markup, not pixels, so it can carry a script. The reader shows every
 # picture through an `<img>` tag, where no script of a picture runs, but the file lives in the vault and any
@@ -26,7 +26,7 @@ def svg_without_script(content: bytes) -> bytes:
     return _SVG_JAVASCRIPT.sub(b"", content)
 
 
-def extract_epub_assets(book: epub.EpubBook, assets_dir: Path) -> Dict[str, str]:
+def extract_epub_assets(book: epub.EpubBook, assets_dir: Path) -> dict[str, str]:
     """Extract embedded images from an EPUB to assets_dir.
 
     Only images with width >= 60 and height >= 60 pixels are extracted;
@@ -38,11 +38,11 @@ def extract_epub_assets(book: epub.EpubBook, assets_dir: Path) -> Dict[str, str]
     import pymupdf
 
     assets_dir.mkdir(parents=True, exist_ok=True)
-    asset_map: Dict[str, str] = {}
+    asset_map: dict[str, str] = {}
     # Which picture of the book took each file name. A book can hold `images/fig1.png` and `notes/fig1.png`,
     # and the plain name alone let the second write over the first, so one picture was lost and the other was
     # shown twice (IN-10).
-    taken: Dict[str, str] = {}
+    taken: dict[str, str] = {}
 
     for item in book.get_items():
         if item.get_type() == ebooklib.ITEM_IMAGE:
@@ -92,11 +92,12 @@ def extract_epub_assets(book: epub.EpubBook, assets_dir: Path) -> Dict[str, str]
     return asset_map
 
 
-def normalize_image_markdown(markdown_text: str, asset_map: Dict[str, str]) -> str:
+def normalize_image_markdown(markdown_text: str, asset_map: dict[str, str]) -> str:
     """Normalize image links in Markdown text to use vault relative asset paths.
 
     If an image was filtered out because it was < 60x60, removes the markdown reference.
     """
+
     def replace_md_image(match: re.Match[str]) -> str:
         alt_text = match.group(1)
         src = match.group(2).strip()
@@ -125,8 +126,8 @@ def pad_and_clamp_rect(
     raw_rect: pymupdf.Rect,
     page_rect: pymupdf.Rect,
     padding: float = PADDING,
-    min_y0: Optional[float] = None,
-    max_y1: Optional[float] = None,
+    min_y0: float | None = None,
+    max_y1: float | None = None,
 ) -> pymupdf.Rect:
     """Pads a bounding box by padding on all sides and clamps to page bounds and stop lines."""
     y0_floor = max(0.0, min_y0) if min_y0 is not None else 0.0
@@ -137,25 +138,25 @@ def pad_and_clamp_rect(
         min(page_rect.width, raw_rect.x1 + padding),
         min(y1_ceil, raw_rect.y1 + padding),
     )
-    return padded & page_rect
+    return pymupdf.Rect(padded & page_rect)
 
 
 def find_adjacent_caption_rect(
     page: pymupdf.Page,
     target_rect: pymupdf.Rect,
     max_distance: float = CAPTION_MARGIN,
-) -> Optional[pymupdf.Rect]:
+) -> pymupdf.Rect | None:
     """Detects adjacent caption blocks ('Figure \\d+[\\.\\d]*' or 'FIGURE \\d+') within max_distance of target_rect."""
     blocks = page.get_text("blocks")
-    caption_rects: List[pymupdf.Rect] = []
+    caption_rects: list[pymupdf.Rect] = []
     for b in blocks:
         if len(b) < 7 or b[6] != 0:  # text blocks only
             continue
         text = b[4].strip()
         if re.search(r"\b(?:Figure|FIGURE)\s+\d+(?:[\.\s]\s*\d+)?", text, re.IGNORECASE):
             b_rect = pymupdf.Rect(b[0], b[1], b[2], b[3])
-            y_close = (b_rect.y0 - target_rect.y1 <= max_distance and target_rect.y0 - b_rect.y1 <= max_distance)
-            x_close = (b_rect.x0 - target_rect.x1 <= max_distance and target_rect.x0 - b_rect.x1 <= max_distance)
+            y_close = b_rect.y0 - target_rect.y1 <= max_distance and target_rect.y0 - b_rect.y1 <= max_distance
+            x_close = b_rect.x0 - target_rect.x1 <= max_distance and target_rect.x0 - b_rect.x1 <= max_distance
             y_overlap = max(0.0, min(b_rect.y1, target_rect.y1) - max(b_rect.y0, target_rect.y0)) > 0
             x_overlap = max(0.0, min(b_rect.x1, target_rect.x1) - max(b_rect.x0, target_rect.x0)) > 0
 
@@ -206,6 +207,7 @@ def suppress_page_images(markdown_text: str, assets_dir: Path, page_indices: set
     The old rule also took `-0030-`, which is the file of the page BEFORE, and deleted a picture of a page
     that had no snapshot at all: 4 pictures of Mind Over Markets and 48 of Principles of Marketing (IN-10).
     """
+
     def _suppress_image(match: re.Match[str]) -> str:
         src = match.group(2).strip()
         filename = Path(src).name
@@ -282,7 +284,7 @@ def filter_and_normalize_markdown_assets(
     return re.sub(r"!\[(.*?)\]\((.*?)\)", process_markdown_image, markdown_text)
 
 
-def cleanup_orphaned_assets(book_dir: Path, assets_dir: Path, chapter_files: List[str]) -> None:
+def cleanup_orphaned_assets(book_dir: Path, assets_dir: Path, chapter_files: list[str]) -> None:
     """Remove orphaned asset files in assets_dir that are not referenced by any chapter markdown."""
     if not assets_dir.exists():
         return
@@ -297,4 +299,3 @@ def cleanup_orphaned_assets(book_dir: Path, assets_dir: Path, chapter_files: Lis
     for existing in assets_dir.iterdir():
         if existing.is_file() and existing.name not in referenced_assets:
             existing.unlink(missing_ok=True)
-

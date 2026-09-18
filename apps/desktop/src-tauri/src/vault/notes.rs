@@ -1,6 +1,6 @@
-use anyhow::{Context, Result};
 use super::models::{AggregatedNoteItem, ChapterNoteFile};
 use super::reader::read_book_meta_json;
+use anyhow::{Context, Result};
 
 /// The summary that the app exports, in `vault/notes/<book-id>/`.
 const SUMMARY_EXPORT_FILE: &str = "summary-export.md";
@@ -24,8 +24,8 @@ pub fn scan_all_notes(book_id: &str) -> Result<Vec<ChapterNoteFile>> {
         return Ok(entries);
     }
 
-    let dir_entries = std::fs::read_dir(&notes_dir)
-        .with_context(|| format!("Failed to read notes dir: {}", notes_dir.display()))?;
+    let dir_entries =
+        std::fs::read_dir(&notes_dir).with_context(|| format!("Failed to read notes dir: {}", notes_dir.display()))?;
 
     for entry in dir_entries {
         let entry = match entry {
@@ -143,7 +143,7 @@ pub fn parse_all_book_notes(book_id: &str) -> Result<Vec<AggregatedNoteItem>> {
                 continue;
             }
 
-            let mut text = line.trim_start_matches(|c| c == '-' || c == '*' || c == '•').trim().to_string();
+            let mut text = line.trim_start_matches(['-', '*', '•']).trim().to_string();
             if text.is_empty() || text == "-" {
                 continue;
             }
@@ -152,7 +152,10 @@ pub fn parse_all_book_notes(book_id: &str) -> Result<Vec<AggregatedNoteItem>> {
             let mut anchor: Option<String> = None;
             if let Some(anchor_start) = text.rfind("^p-") {
                 let candidate = &text[anchor_start..];
-                let anchor_str: String = candidate.chars().take_while(|c| !c.is_whitespace() && *c != ')').collect();
+                let anchor_str: String = candidate
+                    .chars()
+                    .take_while(|c| !c.is_whitespace() && *c != ')')
+                    .collect();
                 text = text[..anchor_start].trim().trim_end_matches('(').trim().to_string();
                 anchor = Some(anchor_str);
             }
@@ -214,11 +217,15 @@ pub fn compile_and_export_book_summary(book_id: &str) -> Result<String> {
 
     let mut md = format!("# Executive Reading Summary: {}\n\n", book_title);
     md.push_str(&format!("> **Author:** {}  \n", author));
-    md.push_str(&format!("> **Exported:** {} via Book Engine Desktop  \n\n", chrono::Utc::now().format("%Y-%m-%d")));
+    md.push_str(&format!(
+        "> **Exported:** {} via Book Engine Desktop  \n\n",
+        chrono::Utc::now().format("%Y-%m-%d")
+    ));
     md.push_str("---\n\n## Table of Contents\n\n");
 
     // Group items by chapter
-    let mut chapter_map: std::collections::BTreeMap<usize, (String, Vec<&AggregatedNoteItem>)> = std::collections::BTreeMap::new();
+    let mut chapter_map: std::collections::BTreeMap<usize, (String, Vec<&AggregatedNoteItem>)> =
+        std::collections::BTreeMap::new();
     for item in &items {
         chapter_map
             .entry(item.chapter_order)
@@ -227,13 +234,17 @@ pub fn compile_and_export_book_summary(book_id: &str) -> Result<String> {
             .push(item);
     }
 
-    for (_order, (ch_title, ch_items)) in &chapter_map {
-        let slug = ch_title.to_lowercase().chars().map(|c| if c.is_alphanumeric() { c } else { '-' }).collect::<String>();
+    for (ch_title, ch_items) in chapter_map.values() {
+        let slug = ch_title
+            .to_lowercase()
+            .chars()
+            .map(|c| if c.is_alphanumeric() { c } else { '-' })
+            .collect::<String>();
         md.push_str(&format!("- [{}](#{}) ({} items)\n", ch_title, slug, ch_items.len()));
     }
     md.push_str("\n---\n\n");
 
-    for (_order, (ch_title, ch_items)) in &chapter_map {
+    for (ch_title, ch_items) in chapter_map.values() {
         md.push_str(&format!("## {}\n\n", ch_title));
 
         let highlights: Vec<&&AggregatedNoteItem> = ch_items.iter().filter(|i| i.item_type == "highlight").collect();

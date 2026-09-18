@@ -1,6 +1,6 @@
-use std::path::PathBuf;
-use rusqlite::Connection;
 use anyhow::{anyhow, Context, Result};
+use rusqlite::Connection;
+use std::path::PathBuf;
 
 /// The shape of the cache this build knows. `PRAGMA user_version` holds the shape of the file on disk.
 ///
@@ -29,8 +29,7 @@ pub fn get_db_path() -> Result<PathBuf> {
         std::env::temp_dir().join("book-engine").join("app_cache")
     };
 
-    std::fs::create_dir_all(&base)
-        .with_context(|| format!("Failed to create cache directory: {}", base.display()))?;
+    std::fs::create_dir_all(&base).with_context(|| format!("Failed to create cache directory: {}", base.display()))?;
 
     Ok(base.join("index.db"))
 }
@@ -38,8 +37,8 @@ pub fn get_db_path() -> Result<PathBuf> {
 /// Initializes database connection and creates FTS5, FSRS, review logs, and reading sessions tables
 pub fn open_or_create_db() -> Result<Connection> {
     let db_path = get_db_path()?;
-    let conn = Connection::open(&db_path)
-        .with_context(|| format!("Failed to open SQLite database: {}", db_path.display()))?;
+    let conn =
+        Connection::open(&db_path).with_context(|| format!("Failed to open SQLite database: {}", db_path.display()))?;
 
     conn.busy_timeout(std::time::Duration::from_secs(5))?;
 
@@ -148,8 +147,9 @@ pub fn open_or_create_db() -> Result<Connection> {
              pronunciation TEXT,
              definition TEXT,
              etymology TEXT
-         );"
-    ).context("Failed to initialize database tables")?;
+         );",
+    )
+    .context("Failed to initialize database tables")?;
 
     // Safe idempotent migration for fsrs_cards columns (card_type, payload)
     let columns: Vec<String> = {
@@ -184,10 +184,7 @@ pub fn open_or_create_db() -> Result<Connection> {
 /// Looks up an English term in the offline SQLite dictionary cache.
 /// Applies word sanitization and punctuation stripping before querying.
 pub fn lookup_dictionary(conn: &Connection, word: &str) -> Result<Option<super::models::DictionaryEntry>> {
-    let clean_word = word
-        .trim()
-        .trim_matches(|c: char| !c.is_alphabetic())
-        .to_lowercase();
+    let clean_word = word.trim().trim_matches(|c: char| !c.is_alphabetic()).to_lowercase();
 
     if clean_word.is_empty() {
         return Ok(None);
@@ -197,7 +194,7 @@ pub fn lookup_dictionary(conn: &Connection, word: &str) -> Result<Option<super::
         "SELECT word, part_of_speech, pronunciation, definition, etymology
          FROM dictionary_entries
          WHERE word = ?1
-         LIMIT 1"
+         LIMIT 1",
     )?;
 
     let mut rows = stmt.query([&clean_word])?;

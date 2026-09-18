@@ -1,15 +1,13 @@
 //! Picks the practice cards for a session from the `fsrs_cards` cache table.
 
-use anyhow::Result;
 use super::models::PracticeCardItem;
 use super::schema::open_or_create_db;
+use anyhow::Result;
 
 fn map_card_row(row: &rusqlite::Row) -> rusqlite::Result<PracticeCardItem> {
     let card_type: String = row.get(13).unwrap_or_else(|_| "cloze".to_string());
     let payload_str: Option<String> = row.get(14).ok();
-    let scenario_payload = payload_str
-        .as_deref()
-        .and_then(|s| serde_json::from_str(s).ok());
+    let scenario_payload = payload_str.as_deref().and_then(|s| serde_json::from_str(s).ok());
 
     Ok(PracticeCardItem {
         card_id: row.get(0)?,
@@ -107,7 +105,15 @@ pub fn get_due_cards_blocking(
     limit: Option<usize>,
     hybrid_ratio: Option<f32>,
 ) -> Result<Vec<PracticeCardItem>> {
-    due_cards_in(Scope { book_id, chapter_file: None }, card_type, limit, hybrid_ratio)
+    due_cards_in(
+        Scope {
+            book_id,
+            chapter_file: None,
+        },
+        card_type,
+        limit,
+        hybrid_ratio,
+    )
 }
 
 /// Retrieves up to `limit` due cards from one chapter file of a book, in the same order as `get_due_cards_blocking`.
@@ -120,7 +126,10 @@ pub fn get_chapter_due_cards_blocking(
     limit: Option<usize>,
     hybrid_ratio: Option<f32>,
 ) -> Result<Vec<PracticeCardItem>> {
-    let scope = Scope { book_id: Some(book_id), chapter_file: Some(chapter_file) };
+    let scope = Scope {
+        book_id: Some(book_id),
+        chapter_file: Some(chapter_file),
+    };
     due_cards_in(scope, card_type, limit, hybrid_ratio)
 }
 
@@ -140,7 +149,15 @@ fn due_cards_in(
     let mut cards = fetch_queue(&conn, now, scope, card_type, hybrid_ratio, Queue::Review, target_limit)?;
     let free_places = target_limit.saturating_sub(cards.len());
     if free_places > 0 {
-        cards.extend(fetch_queue(&conn, now, scope, card_type, hybrid_ratio, Queue::New, free_places)?);
+        cards.extend(fetch_queue(
+            &conn,
+            now,
+            scope,
+            card_type,
+            hybrid_ratio,
+            Queue::New,
+            free_places,
+        )?);
     }
     Ok(cards)
 }
@@ -235,12 +252,17 @@ mod tests {
         let cloze = |n| sandbox.cloze_card_id(n);
 
         submit_card_review_blocking(&cloze(1), AGAIN).expect("Submit review failed");
-        let due = get_due_cards_blocking(Some("sample"), Some("cloze"), Some(10), None).expect("Failed to get due cards");
-        assert!(!ids(&due).contains(&cloze(1).as_str()), "A failed card must wait 10 minutes");
+        let due =
+            get_due_cards_blocking(Some("sample"), Some("cloze"), Some(10), None).expect("Failed to get due cards");
+        assert!(
+            !ids(&due).contains(&cloze(1).as_str()),
+            "A failed card must wait 10 minutes"
+        );
 
         // An hour later the failed card is due again. It must come before the 3 new cards.
         pass_time(3600);
-        let due = get_due_cards_blocking(Some("sample"), Some("cloze"), Some(2), None).expect("Failed to get due cards");
+        let due =
+            get_due_cards_blocking(Some("sample"), Some("cloze"), Some(2), None).expect("Failed to get due cards");
         assert_eq!(ids(&due), [cloze(1), cloze(2)]);
     }
 
@@ -297,7 +319,8 @@ mod tests {
         assert_eq!(sync_practice_deck_blocking("sample").expect("Failed to sync deck"), 5);
 
         // The first 3 due cards of the book all come from chapter 1.
-        let book = get_due_cards_blocking(Some("sample"), Some("cloze"), Some(3), None).expect("Failed to get due cards");
+        let book =
+            get_due_cards_blocking(Some("sample"), Some("cloze"), Some(3), None).expect("Failed to get due cards");
         assert_eq!(chapters(&book), ["ch-01.md"; 3]);
 
         // Leaving chapter 2, the gatekeeper gets only chapter 2 cards, up to its quota.

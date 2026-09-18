@@ -10,12 +10,10 @@ from pathlib import Path
 
 import pymupdf
 import pytest
-
+from conftest import SKILLS
 from ingest.pipeline import ingest_book, ingest_epub
 from ingest.reimport import BookAlreadyInVaultError
 from ingest.sample_generator import create_sample_epub
-
-from conftest import SKILLS
 
 ASSESSMENT = {
     "classification": "Theoretical - Science",
@@ -138,7 +136,7 @@ def test_the_command_line_stops_with_a_message_and_replaces_only_with_force(read
 
     def run(*extra: str) -> subprocess.CompletedProcess:
         command = [sys.executable, "-m", "ingest.cli", str(epub), "--vault", str(vault), "--book-id", "sample", *extra]
-        return subprocess.run(command, capture_output=True, text=True)
+        return subprocess.run(command, capture_output=True, text=True, check=False)
 
     before = vault_files(vault)
     stopped = run()

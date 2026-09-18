@@ -22,12 +22,9 @@ import importlib.util
 import json
 from pathlib import Path
 from types import ModuleType
-from typing import Dict, List, Tuple
 
 import pytest
 from ebooklib import epub
-
-from ingest.citations import paragraph_at
 from ingest.pipeline import ingest_epub
 from ingest.sample_generator import create_sample_epub
 
@@ -101,9 +98,9 @@ def _second_book_epub(path: Path) -> Path:
     return path
 
 
-def paragraphs_of(chapter: Path) -> List[Tuple[str, str]]:
+def paragraphs_of(chapter: Path) -> list[tuple[str, str]]:
     """Every paragraph of a chapter file as (anchor, the words of it), in the order the chapter has them."""
-    found: List[Tuple[str, str]] = []
+    found: list[tuple[str, str]] = []
     for block in chapter.read_text(encoding="utf-8").split("\n\n"):
         one = block.strip()
         if not one.startswith("#") and " ^p-" in one:
@@ -124,7 +121,7 @@ def _write_analytical_notes(vault: Path, book_id: str) -> None:
     assert len(places) >= 2, f"{chapter} has {len(places)} paragraphs, and the notes need two"
     first, second = places[0], places[1]
 
-    notes: Dict[str, object] = {
+    notes: dict[str, object] = {
         "terms": [
             {
                 "id": "term-1",
@@ -177,7 +174,7 @@ def _write_syntopicon(vault: Path, topic_id: str = "shared-work") -> None:
         assert found, f"{chapter} has no paragraph with an anchor"
         places[book_id] = (found[0][0], _plain_quote(found[0][1]))
 
-    def citation(book_id: str) -> Dict[str, str]:
+    def citation(book_id: str) -> dict[str, str]:
         anchor, quote = places[book_id]
         return {"bookId": book_id, "chapterFile": "ch-01.md", "anchor": anchor, "quote": quote}
 

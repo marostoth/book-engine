@@ -13,19 +13,30 @@ use crate::test_support::Sandbox;
 const GOOD: u8 = 3;
 
 /// Cloze cards whose answers are in the sandbox chapter: (cloze text, answer key).
-const DIVISION: (&str, &str) = ("The {{c1::division of labour}} raises the productive powers of work.", "division of labour");
-const PIN_MAKER: (&str, &str) = ("A {{c1::pin maker}} working alone can make few pins in a day.", "pin maker");
+const DIVISION: (&str, &str) = (
+    "The {{c1::division of labour}} raises the productive powers of work.",
+    "division of labour",
+);
+const PIN_MAKER: (&str, &str) = (
+    "A {{c1::pin maker}} working alone can make few pins in a day.",
+    "pin maker",
+);
 /// Its answer is not in the sandbox chapter, so sync rejects it.
 const STEAM: (&str, &str) = ("The {{c1::steam engine}} changed every workshop.", "steam engine");
 
 fn sync(expected_cards: usize) {
-    assert_eq!(sync_practice_deck_blocking("sample").expect("sync deck"), expected_cards);
+    assert_eq!(
+        sync_practice_deck_blocking("sample").expect("sync deck"),
+        expected_cards
+    );
 }
 
 /// Reps of every stored card with this question, one entry per row.
 fn reps_of(card: (&str, &str)) -> Vec<i64> {
     let conn = open_or_create_db().expect("open sandbox database");
-    let mut stmt = conn.prepare("SELECT reps FROM fsrs_cards WHERE prompt = ?1").expect("prepare reps query");
+    let mut stmt = conn
+        .prepare("SELECT reps FROM fsrs_cards WHERE prompt = ?1")
+        .expect("prepare reps query");
     let rows = stmt.query_map([card.0], |row| row.get(0)).expect("query reps");
     rows.map(|row| row.expect("read reps")).collect()
 }
@@ -33,7 +44,9 @@ fn reps_of(card: (&str, &str)) -> Vec<i64> {
 fn review_good(card: (&str, &str)) {
     let card_id: String = open_or_create_db()
         .expect("open sandbox database")
-        .query_row("SELECT card_id FROM fsrs_cards WHERE prompt = ?1", [card.0], |row| row.get(0))
+        .query_row("SELECT card_id FROM fsrs_cards WHERE prompt = ?1", [card.0], |row| {
+            row.get(0)
+        })
         .expect("stored card with this question");
     submit_card_review_blocking(&card_id, GOOD).expect("submit review");
 }
@@ -132,8 +145,12 @@ fn old_duplicate_rows_merge_into_one_card_that_keeps_the_progress_and_review_his
     sandbox.write_cloze_deck(&[("card-ch-01-001", DIVISION)]);
     sync(1);
     assert_eq!(reps_of(DIVISION), [1]);
-    let card_id: String = conn.query_row("SELECT card_id FROM fsrs_cards", [], |row| row.get(0)).expect("one card");
-    let logged: String = conn.query_row("SELECT card_id FROM review_logs", [], |row| row.get(0)).expect("one review log");
+    let card_id: String = conn
+        .query_row("SELECT card_id FROM fsrs_cards", [], |row| row.get(0))
+        .expect("one card");
+    let logged: String = conn
+        .query_row("SELECT card_id FROM review_logs", [], |row| row.get(0))
+        .expect("one review log");
     assert_eq!(logged, card_id, "the review history must follow the card that stays");
 }
 
@@ -169,6 +186,9 @@ fn card_whose_chapter_file_is_missing_is_not_synced() {
     sandbox.write("notes/sample/practice-deck.md", &deck);
 
     sync(1);
-    assert!(reps_of(STEAM).is_empty(), "a card whose answer cannot be checked is not stored");
+    assert!(
+        reps_of(STEAM).is_empty(),
+        "a card whose answer cannot be checked is not stored"
+    );
     assert_eq!(due_prompts(), [DIVISION.0]);
 }

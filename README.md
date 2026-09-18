@@ -185,7 +185,15 @@ The built app runs only its own code. A tag in a book cannot run a script, the w
 
 ### 3. Verification & Benchmarking Suite
 
-Run the full verification suite before committing changes:
+Run the full verification suite before committing changes. One command runs the lot, and stops at the first
+failure (TL-05):
+
+```bash
+npm run check
+```
+
+The same three groups run on every push, in `.github/workflows/check.yml`. To run one group on its own, or to see
+what `npm run check` is made of:
 
 ```bash
 # 1. Verify Rust backend compilation, strict typing, and unit tests

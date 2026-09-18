@@ -15,10 +15,9 @@ import shutil
 import sys
 import zipfile
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import pymupdf
-
 from ingest.ledger import (
     book_numbers,
     keep_numbers_true,
@@ -75,7 +74,7 @@ def make_epub(path: Path, body: str) -> Path:
     return path
 
 
-def line(book_id: str = BOOK_ID, chapters: int = 1, words: int = 1, sha: str = "a" * 64) -> Dict[str, Any]:
+def line(book_id: str = BOOK_ID, chapters: int = 1, words: int = 1, sha: str = "a" * 64) -> dict[str, Any]:
     return {
         "sha256": sha,
         "book_id": book_id,
@@ -101,6 +100,7 @@ def a_book_in(folder: Path, book_id: str = BOOK_ID, chapters: int = 1, words: in
 
 # --- reading and writing the ledger ---
 
+
 def test_a_vault_with_no_ledger_reads_as_no_lines(tmp_path: Path):
     assert read_ledger(tmp_path) == []
 
@@ -124,7 +124,7 @@ def test_a_line_that_is_not_an_object_is_left_out(tmp_path: Path):
 
 
 def test_what_is_written_comes_back(tmp_path: Path):
-    lines: List[Dict[str, Any]] = [line(words=11), line(book_id="other", words=22, sha="b" * 64)]
+    lines: list[dict[str, Any]] = [line(words=11), line(book_id="other", words=22, sha="b" * 64)]
 
     write_ledger(tmp_path, lines)
 
@@ -144,6 +144,7 @@ def test_a_stopped_write_leaves_no_half_file(tmp_path: Path):
 
 
 # --- the numbers a book says it has ---
+
 
 def test_the_numbers_of_a_book_come_from_its_own_meta(tmp_path: Path):
     a_book_in(tmp_path, chapters=7, words=78374)
@@ -166,14 +167,13 @@ def test_a_meta_that_is_not_readable_has_no_numbers(tmp_path: Path):
 def test_a_meta_whose_numbers_are_not_numbers_has_no_numbers(tmp_path: Path):
     folder = tmp_path / "books" / BOOK_ID
     folder.mkdir(parents=True)
-    (folder / "_meta.json").write_text(
-        json.dumps({"total_chapters": "seven", "total_words": None}), encoding="utf-8"
-    )
+    (folder / "_meta.json").write_text(json.dumps({"total_chapters": "seven", "total_words": None}), encoding="utf-8")
 
     assert book_numbers(tmp_path, BOOK_ID) is None
 
 
 # --- keeping the numbers true ---
+
 
 def test_the_numbers_of_a_known_book_are_put_right(tmp_path: Path):
     write_ledger(tmp_path, [line(chapters=7, words=78445)])
@@ -250,6 +250,7 @@ def test_two_lines_for_one_book_are_both_put_right(tmp_path: Path):
 
 # --- which lines disagree with their book ---
 
+
 def test_a_line_that_disagrees_with_its_book_is_found(tmp_path: Path):
     a_book_in(tmp_path, chapters=7, words=78374)
     write_ledger(tmp_path, [line(chapters=7, words=78445)])
@@ -293,6 +294,7 @@ def test_a_line_with_no_book_id_is_left_out(tmp_path: Path):
 
 
 # --- an import keeps the ledger true ---
+
 
 def test_an_import_puts_the_numbers_of_a_known_book_right(tmp_path: Path):
     vault = tmp_path / "vault"
@@ -352,6 +354,7 @@ def test_an_import_leaves_the_line_of_another_book_alone(tmp_path: Path):
 
 # --- the inbox reads the ledger to know a file it took in before ---
 
+
 def an_inbox_on(folder: Path, monkeypatch):
     """The inbox skill, pointed at `folder` instead of the real inbox and vault."""
     spec = importlib.util.spec_from_file_location(
@@ -396,6 +399,7 @@ def test_the_inbox_knows_a_file_it_took_in_before(tmp_path: Path, monkeypatch, c
 
 
 # --- the audit says so ---
+
 
 def audit_module():
     spec = importlib.util.spec_from_file_location(
@@ -446,6 +450,7 @@ def test_the_audit_is_happy_when_they_agree(tmp_path: Path, monkeypatch):
 
 
 # --- one ledger module for the inbox and the audit ---
+
 
 def test_the_inbox_and_the_audit_use_this_module():
     skills = Path(__file__).resolve().parents[3] / ".agent" / "skills"

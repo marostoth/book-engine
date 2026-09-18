@@ -80,7 +80,10 @@ fn a_folder_with_no_books_inside_is_refused_and_nothing_is_remembered() {
     let error = remember_vault(&not_a_vault).expect_err("a folder with no books must be refused");
 
     let message = format!("{error:#}");
-    assert!(message.contains("not a vault folder"), "the message must say so: {message}");
+    assert!(
+        message.contains("not a vault folder"),
+        "the message must say so: {message}"
+    );
     assert!(message.contains("books"), "and what a vault looks like: {message}");
     assert!(
         !crate::test_support::settings_path().expect("path").exists(),
@@ -129,10 +132,12 @@ fn forgetting_the_folder_leaves_the_settings_readable() {
 
     forget_vault().expect("forget the folder");
 
-    let text = std::fs::read_to_string(crate::test_support::settings_path().expect("path"))
-        .expect("read the settings");
+    let text = std::fs::read_to_string(crate::test_support::settings_path().expect("path")).expect("read the settings");
     assert!(!text.contains("vaultPath"), "the saved folder must be gone: {text}");
-    assert!(serde_json::from_str::<serde_json::Value>(&text).is_ok(), "and the file must still parse");
+    assert!(
+        serde_json::from_str::<serde_json::Value>(&text).is_ok(),
+        "and the file must still parse"
+    );
 }
 
 #[test]
@@ -140,8 +145,11 @@ fn a_damaged_settings_file_does_not_stop_the_app() {
     let sandbox = Sandbox::new();
     let picked = vault_folder(&sandbox, "my-library");
     remember_vault(&picked).expect("remember the folder");
-    std::fs::write(crate::test_support::settings_path().expect("path"), "{ this is not json")
-        .expect("damage the settings");
+    std::fs::write(
+        crate::test_support::settings_path().expect("path"),
+        "{ this is not json",
+    )
+    .expect("damage the settings");
 
     // It must not panic and must not use the damaged file.
     let found = locate_vault();

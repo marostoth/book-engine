@@ -10,11 +10,9 @@ import json
 import re
 import zipfile
 from pathlib import Path
-from typing import Dict, List
 
 import pymupdf
 import pytest
-
 from ingest.pipeline import ingest_book, ingest_epub
 
 BOOK = "harbour-notes"
@@ -87,7 +85,7 @@ DEDICATION = "For the harbour pilots of the north coast, who taught me the tides
 SAVED_AT = "2026-09-17T10:05:00.000Z"
 
 
-def chapter(title: str, paragraphs: List[str]) -> str:
+def chapter(title: str, paragraphs: list[str]) -> str:
     return f"<h1>{title}</h1>" + "".join(f"<p>{text}</p>" for text in paragraphs)
 
 
@@ -105,7 +103,7 @@ NEW_EDITION = {
 }
 
 
-def make_epub(path: Path, documents: Dict[str, str]) -> Path:
+def make_epub(path: Path, documents: dict[str, str]) -> Path:
     manifest = "".join(
         f'<item id="d{n}" href="{name}" media-type="application/xhtml+xml"/>' for n, name in enumerate(documents)
     )
@@ -133,12 +131,12 @@ def paragraph(vault: Path, book_id: str, chapter_file: str, anchor: str) -> str:
     return found[0]
 
 
-def chapter_titles(vault: Path, book_id: str) -> Dict[str, str]:
+def chapter_titles(vault: Path, book_id: str) -> dict[str, str]:
     meta = json.loads((vault / "books" / book_id / "_meta.json").read_text(encoding="utf-8"))
     return {chapter["file_path"]: chapter["title"] for chapter in meta["spine"]}
 
 
-def read_lines(path: Path) -> List[dict]:
+def read_lines(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
 
 
@@ -411,7 +409,7 @@ def page_text(name: str) -> str:
     )
 
 
-def make_pdf(path: Path, pages: List[str], outline: List[list]) -> Path:
+def make_pdf(path: Path, pages: list[str], outline: list[list]) -> Path:
     doc = pymupdf.open()
     for name in pages:
         doc.new_page().insert_text((50, 72), page_text(name), fontsize=11)

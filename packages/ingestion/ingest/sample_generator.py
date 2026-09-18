@@ -1,8 +1,10 @@
 """Generates a rich sample.epub to validate the ingestion pipeline, endnote relocation, and anchor audits."""
 
 from __future__ import annotations
+
 import sys
 from pathlib import Path
+
 from ebooklib import epub
 
 
@@ -18,26 +20,84 @@ def create_sample_epub(output_path: Path) -> Path:
     # Sample Image Asset (Valid 64x64 diagram PNG satisfying the >= 60x60px threshold)
     try:
         import pymupdf
+
         pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 64, 64), 0)
         png_bytes = pix.tobytes("png")
     except Exception:
         # Fallback 68-byte transparent PNG
-        png_bytes = bytes([
-            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
-            0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
-            0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x40,
-            0x08, 0x06, 0x00, 0x00, 0x00, 0xAA, 0x69, 0x71,
-            0xDE, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41,
-            0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
-            0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00,
-            0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
-            0x42, 0x60, 0x82
-        ])
+        png_bytes = bytes(
+            [
+                0x89,
+                0x50,
+                0x4E,
+                0x47,
+                0x0D,
+                0x0A,
+                0x1A,
+                0x0A,
+                0x00,
+                0x00,
+                0x00,
+                0x0D,
+                0x49,
+                0x48,
+                0x44,
+                0x52,
+                0x00,
+                0x00,
+                0x00,
+                0x40,
+                0x00,
+                0x00,
+                0x00,
+                0x40,
+                0x08,
+                0x06,
+                0x00,
+                0x00,
+                0x00,
+                0xAA,
+                0x69,
+                0x71,
+                0xDE,
+                0x00,
+                0x00,
+                0x00,
+                0x0A,
+                0x49,
+                0x44,
+                0x41,
+                0x54,
+                0x78,
+                0x9C,
+                0x63,
+                0x00,
+                0x01,
+                0x00,
+                0x00,
+                0x05,
+                0x00,
+                0x01,
+                0x0D,
+                0x0A,
+                0x2D,
+                0xB4,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x49,
+                0x45,
+                0x4E,
+                0x44,
+                0xAE,
+                0x42,
+                0x60,
+                0x82,
+            ]
+        )
     img_item = epub.EpubItem(
-        uid="img_diag",
-        file_name="images/system_architecture.png",
-        media_type="image/png",
-        content=png_bytes
+        uid="img_diag", file_name="images/system_architecture.png", media_type="image/png", content=png_bytes
     )
     book.add_item(img_item)
 
@@ -112,9 +172,9 @@ def create_sample_epub(output_path: Path) -> Path:
             [
                 epub.Link("ch01.xhtml", "Chapter 1: Consistency Models", "ch01"),
                 epub.Link("ch02.xhtml", "Chapter 2: State Machine Replication", "ch02"),
-            ]
+            ],
         ),
-        epub.Link("notes.xhtml", "Notes and Citations", "notes")
+        epub.Link("notes.xhtml", "Notes and Citations", "notes"),
     ]
 
     # Spine and navigation
@@ -129,6 +189,7 @@ def create_sample_epub(output_path: Path) -> Path:
 def generate_sample_vault_book(vault_dir: Path, custom_book_id: str = "sample") -> None:
     """Generate sample EPUB and ingest into vault with full metrics and sampling."""
     import tempfile
+
     from ingest.pipeline import ingest_epub
 
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -150,4 +211,3 @@ if __name__ == "__main__":
         out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("sample.epub")
         create_sample_epub(out)
         print(f"[+] Created sample EPUB at: {out}")
-

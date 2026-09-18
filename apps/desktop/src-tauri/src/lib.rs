@@ -1,26 +1,23 @@
-pub mod vault;
-pub mod db;
 pub mod commands;
+pub mod db;
 pub mod fsrs;
 #[cfg(test)]
 mod security_config_tests;
 #[cfg(test)]
 mod test_support;
+pub mod vault;
 
-use tauri::{AppHandle, Manager, Runtime};
 use commands::{
-    get_library_books, list_books, load_book_meta, get_inspectional_blueprint,
-    get_inspectional_exit_assessment, save_inspectional_exit_assessment,
-    load_chapter, load_notes, save_notes,
-    index_vault, search_vault, sync_practice_deck, get_due_cards, get_chapter_due_cards, submit_review, get_deck_stats,
-    get_review_heatmap, get_retention_metrics, get_reading_velocity, record_reading_progress,
-    get_all_book_notes, export_book_summary, get_study_analytics, get_vault_path,
-    get_vault_status, choose_vault_folder,
-    lookup_dictionary_term, save_book_vocabulary, get_analytical_data, save_analytical_data,
-    get_chapter_highlights, save_chapter_highlights,
-    get_bookmark, save_bookmark, get_last_bookmark, get_preferences, save_preferences,
-    get_syntopic_topics, get_syntopic_topic, create_syntopic_topic, save_syntopic_topic, export_syntopic_report,
+    choose_vault_folder, create_syntopic_topic, export_book_summary, export_syntopic_report, get_all_book_notes,
+    get_analytical_data, get_bookmark, get_chapter_due_cards, get_chapter_highlights, get_deck_stats, get_due_cards,
+    get_inspectional_blueprint, get_inspectional_exit_assessment, get_last_bookmark, get_library_books,
+    get_preferences, get_reading_velocity, get_retention_metrics, get_review_heatmap, get_study_analytics,
+    get_syntopic_topic, get_syntopic_topics, get_vault_path, get_vault_status, index_vault, list_books, load_book_meta,
+    load_chapter, load_notes, lookup_dictionary_term, record_reading_progress, save_analytical_data,
+    save_book_vocabulary, save_bookmark, save_chapter_highlights, save_inspectional_exit_assessment, save_notes,
+    save_preferences, save_syntopic_topic, search_vault, submit_review, sync_practice_deck,
 };
+use tauri::{AppHandle, Manager, Runtime};
 
 /// Only one copy of the app runs, so two copies never save over each other's work (DS-13).
 ///
@@ -75,7 +72,10 @@ pub fn run() {
             // Put back whatever the cache is missing, from the permanent record in the vault. A cache
             // that was deleted, damaged or copied from another PC fills itself again (DS-01).
             match db::restore_progress_blocking() {
-                Err(e) => eprintln!("Warning: Could not put your study progress back from the vault: {:#}", e),
+                Err(e) => eprintln!(
+                    "Warning: Could not put your study progress back from the vault: {:#}",
+                    e
+                ),
                 Ok(report) => {
                     if !report.changed_nothing() {
                         eprintln!(

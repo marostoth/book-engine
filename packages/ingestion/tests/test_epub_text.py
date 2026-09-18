@@ -11,16 +11,13 @@ import importlib.util
 import re
 import zipfile
 from pathlib import Path
-from typing import Dict, List
 
 import pymupdf
 import pytest
 from bs4 import BeautifulSoup
-
+from conftest import SKILLS
 from ingest.epub_parser import html_to_markdown_blocks
 from ingest.pipeline import ingest_epub
-
-from conftest import SKILLS
 
 BOOK_ID = "harbour-notes"
 
@@ -75,12 +72,12 @@ BLOCKS_MARKDOWN = [
 ]
 
 
-def blocks(body: str) -> List[str]:
+def blocks(body: str) -> list[str]:
     """The Markdown blocks that the EPUB import writes for an XHTML body."""
     return html_to_markdown_blocks(BeautifulSoup(f"<html><body>{body}</body></html>", "html.parser"))
 
 
-def make_epub(path: Path, documents: Dict[str, str]) -> Path:
+def make_epub(path: Path, documents: dict[str, str]) -> Path:
     """An EPUB book with a document for each body of `documents`, in that order, and the picture `figure.png`."""
     manifest = "".join(
         f'<item id="d{n}" href="{name}" media-type="application/xhtml+xml"/>' for n, name in enumerate(documents)
@@ -99,13 +96,13 @@ def make_epub(path: Path, documents: Dict[str, str]) -> Path:
     return path
 
 
-def import_book(folder: Path, documents: Dict[str, str]):
+def import_book(folder: Path, documents: dict[str, str]):
     """Imports a book with `documents` into a new vault in `folder`, and gives its `_meta.json` and its folder."""
     meta = ingest_epub(make_epub(folder / f"{BOOK_ID}.epub", documents), folder / "vault")
     return meta, folder / "vault" / "books" / BOOK_ID
 
 
-def chapter_blocks(book_dir: Path, name: str) -> List[str]:
+def chapter_blocks(book_dir: Path, name: str) -> list[str]:
     """The blocks of a chapter file, without their paragraph anchors."""
     text = (book_dir / name).read_text(encoding="utf-8")
     return [re.sub(r" \^p-\d{3}$", "", block) for block in text.split("\n\n")]
@@ -203,11 +200,14 @@ def test_text_between_blocks_is_a_paragraph_and_a_comment_is_no_text() -> None:
 
 
 def test_a_chapter_title_in_a_header_is_the_title_of_the_chapter(tmp_path: Path) -> None:
-    meta, book_dir = import_book(tmp_path, {
-        "ch01.xhtml": (
-            '<section epub:type="chapter"><header><h1>The Tides</h1></header><p>The text about the tides.</p></section>'
-        ),
-    })
+    meta, book_dir = import_book(
+        tmp_path,
+        {
+            "ch01.xhtml": (
+                '<section epub:type="chapter"><header><h1>The Tides</h1></header><p>The text about the tides.</p></section>'
+            ),
+        },
+    )
 
     assert meta.spine[0].title == "The Tides"
     assert chapter_blocks(book_dir, "ch-01.md") == ["# The Tides", "The text about the tides."]
@@ -225,17 +225,20 @@ def test_project_gutenberg_boilerplate_is_left_out_and_any_other_footer_stays() 
 
 
 def test_a_link_that_names_no_note_keeps_its_words(tmp_path: Path) -> None:
-    meta, book_dir = import_book(tmp_path, {
-        "ch01.xhtml": (
-            "<h1>Links</h1>"
-            '<p>See <a href="#part-2">Part Two</a> for the details.</p>'
-            '<p>Chapter two says more: read <a href="ch02.xhtml#chapter-2">the next chapter</a> now.</p>'
-            '<p>A cross reference.<sup><a href="#part-3">3</a></sup></p>'
-            '<section id="part-2"><h2>Part Two</h2><p>The text of part two.</p></section>'
-            '<div id="part-3"><h3>Part Three</h3><p>The text of part three.</p></div>'
-        ),
-        "ch02.xhtml": '<div id="chapter-2"><p>The whole text of chapter two.</p><p>More text of chapter two.</p></div>',
-    })
+    meta, book_dir = import_book(
+        tmp_path,
+        {
+            "ch01.xhtml": (
+                "<h1>Links</h1>"
+                '<p>See <a href="#part-2">Part Two</a> for the details.</p>'
+                '<p>Chapter two says more: read <a href="ch02.xhtml#chapter-2">the next chapter</a> now.</p>'
+                '<p>A cross reference.<sup><a href="#part-3">3</a></sup></p>'
+                '<section id="part-2"><h2>Part Two</h2><p>The text of part two.</p></section>'
+                '<div id="part-3"><h3>Part Three</h3><p>The text of part three.</p></div>'
+            ),
+            "ch02.xhtml": '<div id="chapter-2"><p>The whole text of chapter two.</p><p>More text of chapter two.</p></div>',
+        },
+    )
 
     assert chapter_blocks(book_dir, "ch-01.md") == [
         "# Links",
@@ -252,23 +255,26 @@ def test_a_link_that_names_no_note_keeps_its_words(tmp_path: Path) -> None:
 
 
 def test_a_link_to_a_note_becomes_a_footnote_and_the_note_shows_once(tmp_path: Path) -> None:
-    meta, book_dir = import_book(tmp_path, {
-        "ch01.xhtml": (
-            "<h1>Notes</h1>"
-            '<p>A note in the notes file.<a href="notes.xhtml#n1" id="ref1"><sup>1</sup></a></p>'
-            '<p>A note of this page.<a epub:type="noteref" href="#fn2">2</a></p>'
-            '<p>A note of a converted book.<a class="calibre5" href="#n3">3</a></p>'
-            '<p>A note with words, <a role="doc-noteref" href="#n4">see note 4</a>.</p>'
-            '<p>A note in a list of notes.<sup><a href="#en5">5</a></sup></p>'
-            '<p>A note with a letter.<sup><a href="#n6">a</a></sup></p>'
-            '<aside epub:type="footnote" id="fn2"><p>The second note.</p></aside>'
-            '<p id="n3">3. The third note.</p>'
-            '<p id="n4">The fourth note.</p>'
-            '<p id="n6">The sixth note.</p>'
-            '<ol epub:type="endnotes"><li id="en5">The fifth note.</li></ol>'
-        ),
-        "notes.xhtml": '<div id="n1"><p><a href="ch01.xhtml#ref1">1.</a> The first note.</p></div>',
-    })
+    meta, book_dir = import_book(
+        tmp_path,
+        {
+            "ch01.xhtml": (
+                "<h1>Notes</h1>"
+                '<p>A note in the notes file.<a href="notes.xhtml#n1" id="ref1"><sup>1</sup></a></p>'
+                '<p>A note of this page.<a epub:type="noteref" href="#fn2">2</a></p>'
+                '<p>A note of a converted book.<a class="calibre5" href="#n3">3</a></p>'
+                '<p>A note with words, <a role="doc-noteref" href="#n4">see note 4</a>.</p>'
+                '<p>A note in a list of notes.<sup><a href="#en5">5</a></sup></p>'
+                '<p>A note with a letter.<sup><a href="#n6">a</a></sup></p>'
+                '<aside epub:type="footnote" id="fn2"><p>The second note.</p></aside>'
+                '<p id="n3">3. The third note.</p>'
+                '<p id="n4">The fourth note.</p>'
+                '<p id="n6">The sixth note.</p>'
+                '<ol epub:type="endnotes"><li id="en5">The fifth note.</li></ol>'
+            ),
+            "notes.xhtml": '<div id="n1"><p><a href="ch01.xhtml#ref1">1.</a> The first note.</p></div>',
+        },
+    )
 
     assert chapter_blocks(book_dir, "ch-01.md") == [
         "# Notes",

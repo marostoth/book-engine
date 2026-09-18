@@ -3,15 +3,15 @@ use std::io::ErrorKind;
 use std::path::Path;
 use std::sync::{Mutex, PoisonError};
 
-use anyhow::{Context, Result};
-use rusqlite::{params, Connection, TransactionBehavior};
-use crate::vault::text_file::read_text_file;
-use crate::vault::{book_id_of, find_vault_root};
 use super::models::{IndexProblem, IndexSummary, RenamedBook, SearchResult};
 use super::removed_books::set_aside_removed_books;
 use super::schema::open_or_create_db;
 use super::search_query::fts5_match_expression;
 use super::search_text::{search_text, HIT_END, HIT_START};
+use crate::vault::text_file::read_text_file;
+use crate::vault::{book_id_of, find_vault_root};
+use anyhow::{Context, Result};
+use rusqlite::{params, Connection, TransactionBehavior};
 
 /// One index run at a time. A run that read the vault before an import could otherwise remove the rows that a newer
 /// run has just written for the new book.
@@ -68,7 +68,10 @@ pub fn index_vault_blocking() -> Result<IndexSummary> {
             Ok(entry) => entry.path(),
             Err(e) => {
                 saw_every_book = false;
-                summary.problems.push(problem("books".to_string(), format!("has a folder that could not be read ({e})")));
+                summary.problems.push(problem(
+                    "books".to_string(),
+                    format!("has a folder that could not be read ({e})"),
+                ));
                 continue;
             }
         };
@@ -90,7 +93,9 @@ pub fn index_vault_blocking() -> Result<IndexSummary> {
             // Not a book, or an import that has not written `_meta.json` yet. The library does not list it either.
             Err(e) if e.kind() == ErrorKind::NotFound => continue,
             Err(e) => {
-                summary.problems.push(problem(format!("books/{book_id}/_meta.json"), unreadable(&e)));
+                summary
+                    .problems
+                    .push(problem(format!("books/{book_id}/_meta.json"), unreadable(&e)));
                 RowsToKeep::All
             }
         };
@@ -135,7 +140,10 @@ fn index_book(
         let (Some(ch_id), Some(ch_file)) = (text_field(chapter, "id"), text_field(chapter, "file_path")) else {
             summary.problems.push(problem(
                 meta_file.clone(),
-                format!("lists a chapter with no \"id\" or no \"file_path\" (number {} in \"spine\")", index + 1),
+                format!(
+                    "lists a chapter with no \"id\" or no \"file_path\" (number {} in \"spine\")",
+                    index + 1
+                ),
             ));
             continue;
         };
@@ -150,8 +158,14 @@ fn index_book(
                     // The rows keep the text that search read last.
                     kept.insert(ch_id.to_string());
                 }
-                let reason = if missing { "is missing, but _meta.json lists it".to_string() } else { unreadable(&e) };
-                summary.problems.push(problem(format!("books/{book_id}/{ch_file}"), reason));
+                let reason = if missing {
+                    "is missing, but _meta.json lists it".to_string()
+                } else {
+                    unreadable(&e)
+                };
+                summary
+                    .problems
+                    .push(problem(format!("books/{book_id}/{ch_file}"), reason));
                 continue;
             }
         };
@@ -180,18 +194,17 @@ fn index_chapter(
     let content_hash = format!("{:x}", md5_hash(&format!("{SEARCH_ROWS_FORM}\n{content}")));
 
     // Check if already indexed with same hash and has indexed rows
-    let mut check_stmt = conn.prepare_cached(
-        "SELECT content_hash FROM indexed_chapters WHERE book_id = ? AND chapter_id = ?"
-    )?;
-    let existing_hash: Option<String> = check_stmt
-        .query_row(params![book_id, ch_id], |row| row.get(0))
-        .ok();
+    let mut check_stmt =
+        conn.prepare_cached("SELECT content_hash FROM indexed_chapters WHERE book_id = ? AND chapter_id = ?")?;
+    let existing_hash: Option<String> = check_stmt.query_row(params![book_id, ch_id], |row| row.get(0)).ok();
 
-    let existing_count: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM search_index WHERE book_id = ? AND chapter_id = ?",
-        params![book_id, ch_id],
-        |row| row.get(0),
-    ).unwrap_or(0);
+    let existing_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM search_index WHERE book_id = ? AND chapter_id = ?",
+            params![book_id, ch_id],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
 
     if let Some(ref h) = existing_hash {
         if h == &content_hash && existing_count > 0 {
@@ -203,7 +216,7 @@ fn index_chapter(
     // Delete old FTS5 rows for this chapter if re-indexing
     conn.execute(
         "DELETE FROM search_index WHERE book_id = ? AND chapter_id = ?",
-        params![book_id, ch_id]
+        params![book_id, ch_id],
     )?;
 
     // Parse paragraphs and anchors
@@ -236,7 +249,7 @@ fn index_chapter(
         conn.execute(
             "INSERT INTO search_index (book_id, chapter_id, chapter_title, chapter_file, anchor, content)
              VALUES (?, ?, ?, ?, ?, ?)",
-            params![book_id, ch_id, ch_title, ch_file, &anchor, para_text]
+            params![book_id, ch_id, ch_title, ch_file, &anchor, para_text],
         )?;
         paragraphs += 1;
     }
@@ -250,7 +263,7 @@ fn index_chapter(
              file_path = excluded.file_path,
              content_hash = excluded.content_hash,
              indexed_at = CURRENT_TIMESTAMP",
-        params![book_id, ch_id, ch_file, ch_title, &content_hash]
+        params![book_id, ch_id, ch_file, ch_title, &content_hash],
     )?;
 
     Ok(Some(paragraphs))
@@ -284,8 +297,14 @@ fn remove_rows_that_left_the_vault(
 
     let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
     for (book_id, chapter_id) in &left {
-        tx.execute("DELETE FROM search_index WHERE book_id = ? AND chapter_id = ?", params![book_id, chapter_id])?;
-        tx.execute("DELETE FROM indexed_chapters WHERE book_id = ? AND chapter_id = ?", params![book_id, chapter_id])?;
+        tx.execute(
+            "DELETE FROM search_index WHERE book_id = ? AND chapter_id = ?",
+            params![book_id, chapter_id],
+        )?;
+        tx.execute(
+            "DELETE FROM indexed_chapters WHERE book_id = ? AND chapter_id = ?",
+            params![book_id, chapter_id],
+        )?;
     }
     tx.commit()?;
     Ok(())
@@ -343,7 +362,10 @@ fn unreadable(error: &std::io::Error) -> String {
 }
 
 fn problem(file: String, reason: impl Into<String>) -> IndexProblem {
-    IndexProblem { file, reason: reason.into() }
+    IndexProblem {
+        file,
+        reason: reason.into(),
+    }
 }
 
 /// Executes an FTS5 search query. Each snippet is plain text with `HIT_START` and `HIT_END` around each hit, and the
@@ -368,20 +390,23 @@ pub fn search_vault_blocking(raw_query: &str) -> Result<Vec<SearchResult>> {
          FROM search_index
          WHERE search_index MATCH ?1
          ORDER BY rank
-         LIMIT 30;"
+         LIMIT 30;",
     )?;
 
-    let rows = stmt.query_map(params![match_expression, HIT_START.to_string(), HIT_END.to_string()], |row| {
-        Ok(SearchResult {
-            book_id: row.get(0)?,
-            chapter_id: row.get(1)?,
-            chapter_title: row.get(2)?,
-            chapter_file: row.get(3)?,
-            anchor: row.get(4)?,
-            snippet: row.get(5)?,
-            rank: row.get(6)?,
-        })
-    })?;
+    let rows = stmt.query_map(
+        params![match_expression, HIT_START.to_string(), HIT_END.to_string()],
+        |row| {
+            Ok(SearchResult {
+                book_id: row.get(0)?,
+                chapter_id: row.get(1)?,
+                chapter_title: row.get(2)?,
+                chapter_file: row.get(3)?,
+                anchor: row.get(4)?,
+                snippet: row.get(5)?,
+                rank: row.get(6)?,
+            })
+        },
+    )?;
 
     let mut results = Vec::new();
     for row in rows {

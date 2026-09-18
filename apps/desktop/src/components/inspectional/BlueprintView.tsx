@@ -3,6 +3,7 @@ import {
   BookMeta,
   ChapterMeta,
   ExitAssessmentPayload,
+  IndexCluster,
   InspectionalBlueprint,
 } from "../../lib/types";
 import { getInspectionalBlueprint } from "../../lib/api";
@@ -18,6 +19,12 @@ import {
   Sparkles,
   FileText,
 } from "lucide-react";
+
+/** What an older import called the groups of the synthetic index. */
+interface OlderClusters {
+  concept_clusters?: IndexCluster[];
+  clusters?: IndexCluster[];
+}
 
 interface BlueprintViewProps {
   bookMeta: BookMeta | null;
@@ -59,17 +66,20 @@ export const BlueprintView: React.FC<BlueprintViewProps> = ({
     );
   }
 
-  const frontMatter = blueprint?.front_matter as Record<string, any> | undefined;
+  const frontMatter = blueprint?.front_matter as Record<string, unknown> | undefined;
   const blurb =
-    frontMatter?.publisher_blurb ||
+    (typeof frontMatter?.publisher_blurb === "string" ? frontMatter.publisher_blurb : "") ||
     `A structured structural blueprint for systematic skimming and superficial reading of ${bookMeta.title}.`;
   const pivotalChapterIds = new Set(blueprint?.pivotal_chapters || []);
-  const clusters =
+  // An older import wrote the groups of the synthetic index under other names, and in another place.
+  const olderBlueprint = blueprint as unknown as OlderClusters | undefined;
+  const olderBook = bookMeta as unknown as OlderClusters;
+  const clusters: IndexCluster[] =
     blueprint?.synthetic_index_clusters ||
-    (blueprint as any)?.concept_clusters ||
-    (blueprint as any)?.clusters ||
-    (bookMeta as any)?.clusters ||
-    (bookMeta as any)?.concept_clusters ||
+    olderBlueprint?.concept_clusters ||
+    olderBlueprint?.clusters ||
+    olderBook?.clusters ||
+    olderBook?.concept_clusters ||
     [];
 
   return (
@@ -144,7 +154,7 @@ export const BlueprintView: React.FC<BlueprintViewProps> = ({
           <p className="text-sm leading-relaxed text-[var(--theme-text)]/90">
             {blurb}
           </p>
-          {frontMatter?.has_preface && (
+          {Boolean(frontMatter?.has_preface) && (
             <div className="pt-2 border-t border-[var(--theme-border)]/60 text-xs text-[var(--theme-muted)] flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-amber-500" />
               <span>Preface detected in source document. Recommended reading for author intent.</span>
@@ -160,7 +170,7 @@ export const BlueprintView: React.FC<BlueprintViewProps> = ({
           </div>
           <div className="flex flex-wrap gap-1.5">
             {clusters.length > 0 ? (
-              clusters.map((cluster: any, idx: number) => {
+              clusters.map((cluster: IndexCluster, idx: number) => {
                 const term = cluster.term || cluster.name || `Topic ${idx + 1}`;
                 return (
                   <span

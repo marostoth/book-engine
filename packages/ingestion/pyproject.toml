@@ -44,6 +44,18 @@ ignore_missing_imports = true
 # numpy comes with the import through onnxruntime, and its own type file uses a `type` statement, which Python
 # 3.11 does not have. Reading that file stopped mypy before it looked at one line of this package. Stepping over
 # it lets mypy check the package for Python 3.11, which is the oldest version the package says it runs on (IN-11).
+# ebooklib ships no types of its own and no marker that says it has none, so mypy cannot read it (TL-05).
+[[tool.mypy.overrides]]
+module = ["ebooklib", "ebooklib.*"]
+ignore_missing_imports = true
+
+# pymupdf gives no types for `Rect`, `Pixmap`, `get_text` and the rest, so strict mode calls every use of them
+# a call into the dark. They belong to pymupdf, and nothing in this package can annotate them. These four
+# modules are the ones that open a PDF; every other rule of strict mode still holds for them (TL-05).
+[[tool.mypy.overrides]]
+module = ["ingest.assets", "ingest.pdf_parser", "ingest.sample_generator", "ingest.vector_figures"]
+disallow_untyped_calls = false
+
 [[tool.mypy.overrides]]
 module = ["numpy", "numpy.*"]
 follow_imports = "skip"
@@ -51,5 +63,4 @@ follow_imports_for_stubs = true
 
 # The lines of this package are written to about 120 letters: only 69 of its 14,957 lines are longer. The rules
 # that ruff uses are left as they come, for TL-05 to choose with the one command that runs every check.
-[tool.ruff]
-line-length = 120
+# ruff's settings live in `ruff.toml` at the root, so they reach `.agent/skills` too (TL-05).

@@ -14,7 +14,6 @@ from __future__ import annotations
 import shutil
 import sys
 from pathlib import Path
-from typing import Optional
 
 from ingest.book_check import BookCheckError, book_problems
 from ingest.models import BookMeta
@@ -60,7 +59,7 @@ class BookBuild:
         else:
             self.folder.mkdir(parents=True)
 
-    def put_in_vault(self, meta: BookMeta, practice_deck: str, old_text: Optional[BookText]) -> None:
+    def put_in_vault(self, meta: BookMeta, practice_deck: str, old_text: BookText | None) -> None:
         """Checks the book in the build folder, and puts it in the vault with its practice deck. The reader's files for
         the book then point to the same text in the new book. When a step fails, the vault stays as it was.
 

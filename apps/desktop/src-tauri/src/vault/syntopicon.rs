@@ -18,8 +18,12 @@ pub fn ensure_syntopicon_dirs() -> Result<PathBuf> {
     }
     let reports_dir = vault.join("syntopicon").join("reports");
     if !reports_dir.exists() {
-        fs::create_dir_all(&reports_dir)
-            .with_context(|| format!("Failed to create syntopicon reports directory: {}", reports_dir.display()))?;
+        fs::create_dir_all(&reports_dir).with_context(|| {
+            format!(
+                "Failed to create syntopicon reports directory: {}",
+                reports_dir.display()
+            )
+        })?;
     }
     Ok(topics_dir)
 }
@@ -107,8 +111,8 @@ pub fn load_syntopic_topic(topic_id: &str) -> Result<SyntopicTopic> {
     let raw = fs::read_to_string(&file_path)
         .with_context(|| format!("Failed to read topic file: {}", file_path.display()))?;
 
-    let topic: SyntopicTopic = serde_json::from_str(&raw)
-        .with_context(|| format!("Malformed topic JSON in: {}", file_path.display()))?;
+    let topic: SyntopicTopic =
+        serde_json::from_str(&raw).with_context(|| format!("Malformed topic JSON in: {}", file_path.display()))?;
 
     Ok(topic)
 }
@@ -201,8 +205,7 @@ pub fn save_syntopic_topic(topic: SyntopicTopic) -> Result<()> {
     let file_path = super::paths::topic_path(&topic.id)?;
     ensure_syntopicon_dirs()?;
 
-    let serialized = serde_json::to_string_pretty(&topic)
-        .context("Failed to serialize SyntopicTopic to JSON")?;
+    let serialized = serde_json::to_string_pretty(&topic).context("Failed to serialize SyntopicTopic to JSON")?;
 
     super::safe_write::write_file(&file_path, &serialized)
 }
@@ -213,10 +216,8 @@ pub fn save_syntopic_topic(topic: SyntopicTopic) -> Result<()> {
 pub fn export_syntopic_report(topic_id: &str) -> Result<String> {
     let topic = load_syntopic_topic(topic_id)?;
     let file_path = super::paths::topic_report_path(&topic.id)?;
-    let markdown = super::syntopicon_compiler::compile_dialectical_dossier(
-        &topic,
-        &super::syntopicon_check::check_citation,
-    );
+    let markdown =
+        super::syntopicon_compiler::compile_dialectical_dossier(&topic, &super::syntopicon_check::check_citation);
 
     super::safe_write::write_file(&file_path, &markdown)?;
 
@@ -258,19 +259,17 @@ mod tests {
                 id: "c-1".into(),
                 question_id: "q-1".into(),
                 title: "Alienation controversy".into(),
-                perspectives: vec![
-                    SyntopicPerspective {
+                perspectives: vec![SyntopicPerspective {
+                    book_id: "book-b".into(),
+                    stance: "Causes severe mental degradation".into(),
+                    argument_ids: None,
+                    citations: vec![CrossBookCitation {
                         book_id: "book-b".into(),
-                        stance: "Causes severe mental degradation".into(),
-                        argument_ids: None,
-                        citations: vec![CrossBookCitation {
-                            book_id: "book-b".into(),
-                            chapter_file: "ch-02.md".into(),
-                            anchor: "^p-010".into(),
-                            quote: "The worker becomes depressed.".into(),
-                        }],
-                    },
-                ],
+                        chapter_file: "ch-02.md".into(),
+                        anchor: "^p-010".into(),
+                        quote: "The worker becomes depressed.".into(),
+                    }],
+                }],
             }],
             synthesis_notes: Some("Dialectical debate notes".into()),
             dialectical_resolution: Some("Dialectical resolution statement".into()),
@@ -283,6 +282,9 @@ mod tests {
         assert_eq!(deserialized.neutral_terms.len(), 1);
         assert_eq!(deserialized.questions.len(), 1);
         assert_eq!(deserialized.controversies.len(), 1);
-        assert_eq!(deserialized.synthesis_notes.as_deref(), Some("Dialectical debate notes"));
+        assert_eq!(
+            deserialized.synthesis_notes.as_deref(),
+            Some("Dialectical debate notes")
+        );
     }
 }

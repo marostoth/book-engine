@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use rusqlite::params;
-use anyhow::{Context, Result};
 use super::models::{ChapterReadingStatItem, ReadingVelocityStats};
 use super::schema::open_or_create_db;
+use anyhow::{Context, Result};
+use rusqlite::params;
 
 /// Records reading time for a chapter, and whether the reader has finished it.
 ///
@@ -71,7 +71,10 @@ fn book_outline(book_id: &str) -> Option<BookOutline> {
         .flatten()
         .enumerate()
         .filter_map(|(place, chapter)| {
-            Some((chapter["file_path"].as_str()?.to_string(), (place, text(&chapter["title"]))))
+            Some((
+                chapter["file_path"].as_str()?.to_string(),
+                (place, text(&chapter["title"])),
+            ))
         })
         .collect();
     let total_chapters = meta["total_chapters"]
@@ -79,7 +82,11 @@ fn book_outline(book_id: &str) -> Option<BookOutline> {
         .map(|count| count as usize)
         .or_else(|| spine.map(Vec::len))
         .unwrap_or(0);
-    Some(BookOutline { title: text(&meta["title"]), chapters, total_chapters })
+    Some(BookOutline {
+        title: text(&meta["title"]),
+        chapters,
+        total_chapters,
+    })
 }
 
 /// Adds up the reading time and the finished chapters. There is no word count and no reading speed (AN-01).
@@ -103,22 +110,28 @@ pub fn get_reading_velocity_blocking(book_id: Option<&str>) -> Result<ReadingVel
     );
 
     let mut stmt = conn.prepare(&sql)?;
-    let rows = stmt.query_map(
-        rusqlite::params_from_iter(params_vec),
-        |r| {
-            let book_id: String = r.get(0)?;
-            let chapter_file: String = r.get(1)?;
-            let seconds_spent: i64 = r.get(2)?;
-            let completed_int: i64 = r.get(3)?;
-            let last_read_at: i64 = r.get(4)?;
-            Ok((book_id, chapter_file, seconds_spent.max(0) as u64, completed_int == 1, last_read_at))
-        }
-    )?;
+    let rows = stmt.query_map(rusqlite::params_from_iter(params_vec), |r| {
+        let book_id: String = r.get(0)?;
+        let chapter_file: String = r.get(1)?;
+        let seconds_spent: i64 = r.get(2)?;
+        let completed_int: i64 = r.get(3)?;
+        let last_read_at: i64 = r.get(4)?;
+        Ok((
+            book_id,
+            chapter_file,
+            seconds_spent.max(0) as u64,
+            completed_int == 1,
+            last_read_at,
+        ))
+    })?;
 
     let mut outlines: HashMap<String, Option<BookOutline>> = HashMap::new();
     let mut placed_rows: Vec<(Option<usize>, ChapterReadingStatItem)> = Vec::new();
     for (book, chapter_file, seconds_spent, completed, last_read_at) in rows.filter_map(|r| r.ok()) {
-        let outline = outlines.entry(book.clone()).or_insert_with(|| book_outline(&book)).as_ref();
+        let outline = outlines
+            .entry(book.clone())
+            .or_insert_with(|| book_outline(&book))
+            .as_ref();
         let chapter = outline.and_then(|outline| outline.chapters.get(&chapter_file));
         placed_rows.push((
             chapter.map(|(place, _)| *place),

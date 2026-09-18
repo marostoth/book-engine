@@ -1,9 +1,7 @@
-use anyhow::Result;
-use crate::vault::find_vault_root;
-use super::models::{
-    RetentionMetrics, ReviewBlock, StateCounts, StudyAnalytics,
-};
+use super::models::{RetentionMetrics, ReviewBlock, StateCounts, StudyAnalytics};
 use super::schema::open_or_create_db;
+use crate::vault::find_vault_root;
+use anyhow::Result;
 
 /// The length of one block of review time for the heatmap: 15 minutes, in seconds.
 const REVIEW_BLOCK_SECONDS: i64 = 15 * 60;
@@ -31,13 +29,12 @@ pub fn get_review_heatmap_blocking(book_id: Option<&str>) -> Result<Vec<ReviewBl
     );
 
     let mut stmt = conn.prepare(&sql)?;
-    let rows = stmt.query_map(
-        rusqlite::params_from_iter(params_vec.iter().cloned()),
-        |r| Ok(ReviewBlock {
+    let rows = stmt.query_map(rusqlite::params_from_iter(params_vec.iter().cloned()), |r| {
+        Ok(ReviewBlock {
             started_at: r.get(0)?,
             count: r.get(1)?,
         })
-    )?;
+    })?;
 
     let mut blocks: Vec<ReviewBlock> = rows.filter_map(|r| r.ok()).collect();
 
@@ -49,17 +46,20 @@ pub fn get_review_heatmap_blocking(book_id: Option<&str>) -> Result<Vec<ReviewBl
              {} {}
              GROUP BY started_at
              ORDER BY started_at ASC",
-            if where_clause.is_empty() { "WHERE" } else { "WHERE book_id = ? AND" },
+            if where_clause.is_empty() {
+                "WHERE"
+            } else {
+                "WHERE book_id = ? AND"
+            },
             "last_review > 0"
         );
         let mut card_stmt = conn.prepare(&card_sql)?;
-        let card_rows = card_stmt.query_map(
-            rusqlite::params_from_iter(params_vec),
-            |r| Ok(ReviewBlock {
+        let card_rows = card_stmt.query_map(rusqlite::params_from_iter(params_vec), |r| {
+            Ok(ReviewBlock {
                 started_at: r.get(0)?,
                 count: r.get(1)?,
             })
-        )?;
+        })?;
         blocks = card_rows.filter_map(|r| r.ok()).collect();
     }
 
@@ -79,11 +79,13 @@ pub fn get_retention_metrics_blocking(book_id: Option<&str>) -> Result<Retention
         None => ("", vec![]),
     };
 
-    let total_cards: usize = conn.query_row(
-        &format!("SELECT COUNT(*) FROM fsrs_cards {}", where_clause),
-        rusqlite::params_from_iter(params_vec.iter().cloned()),
-        |r| r.get(0),
-    ).unwrap_or(0);
+    let total_cards: usize = conn
+        .query_row(
+            &format!("SELECT COUNT(*) FROM fsrs_cards {}", where_clause),
+            rusqlite::params_from_iter(params_vec.iter().cloned()),
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
 
     // Cards due today: due <= now + 86400 or reps = 0
     let due_where = if where_clause.is_empty() {
@@ -96,11 +98,13 @@ pub fn get_retention_metrics_blocking(book_id: Option<&str>) -> Result<Retention
         due_params.push(b.to_string().into());
     }
 
-    let due_today: usize = conn.query_row(
-        &format!("SELECT COUNT(*) FROM fsrs_cards {}", due_where),
-        rusqlite::params_from_iter(due_params),
-        |r| r.get(0),
-    ).unwrap_or(0);
+    let due_today: usize = conn
+        .query_row(
+            &format!("SELECT COUNT(*) FROM fsrs_cards {}", due_where),
+            rusqlite::params_from_iter(due_params),
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
 
     // Mastered cards: state = 2 (Review) and stability >= 21.0
     let mastered_where = if where_clause.is_empty() {
@@ -108,27 +112,29 @@ pub fn get_retention_metrics_blocking(book_id: Option<&str>) -> Result<Retention
     } else {
         "WHERE state = 2 AND stability >= 21.0 AND book_id = ?"
     };
-    let mastered_cards: usize = conn.query_row(
-        &format!("SELECT COUNT(*) FROM fsrs_cards {}", mastered_where),
-        rusqlite::params_from_iter(params_vec.iter().cloned()),
-        |r| r.get(0),
-    ).unwrap_or(0);
+    let mastered_cards: usize = conn
+        .query_row(
+            &format!("SELECT COUNT(*) FROM fsrs_cards {}", mastered_where),
+            rusqlite::params_from_iter(params_vec.iter().cloned()),
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
 
     // Current retention rate calculation via calculate_retrievability
-    let mut stmt = conn.prepare(
-        &format!("SELECT stability, last_review FROM fsrs_cards {} AND reps > 0",
-            if where_clause.is_empty() { "WHERE 1=1" } else { where_clause }
-        )
-    )?;
-
-    let reviewed_rows = stmt.query_map(
-        rusqlite::params_from_iter(params_vec),
-        |row| {
-            let stability: f64 = row.get(0)?;
-            let last_review: i64 = row.get(1)?;
-            Ok((stability, last_review))
+    let mut stmt = conn.prepare(&format!(
+        "SELECT stability, last_review FROM fsrs_cards {} AND reps > 0",
+        if where_clause.is_empty() {
+            "WHERE 1=1"
+        } else {
+            where_clause
         }
-    )?;
+    ))?;
+
+    let reviewed_rows = stmt.query_map(rusqlite::params_from_iter(params_vec), |row| {
+        let stability: f64 = row.get(0)?;
+        let last_review: i64 = row.get(1)?;
+        Ok((stability, last_review))
+    })?;
 
     let mut sum_retrievability = 0.0;
     let mut reviewed_count = 0usize;
@@ -177,10 +183,7 @@ pub fn get_study_analytics_blocking(book_id: Option<&str>) -> Result<StudyAnalyt
     let mut review_count = 0;
     let mut relearning_count = 0;
 
-    let group_sql = format!(
-        "SELECT state, COUNT(*) FROM fsrs_cards {} GROUP BY state",
-        where_clause
-    );
+    let group_sql = format!("SELECT state, COUNT(*) FROM fsrs_cards {} GROUP BY state", where_clause);
     if let Ok(mut stmt) = conn.prepare(&group_sql) {
         if let Ok(rows) = stmt.query_map(rusqlite::params_from_iter(params_vec.iter().cloned()), |r| {
             Ok((r.get::<_, i64>(0)?, r.get::<_, usize>(1)?))
@@ -211,19 +214,29 @@ pub fn get_study_analytics_blocking(book_id: Option<&str>) -> Result<StudyAnalyt
     let review_blocks = get_review_heatmap_blocking(book_id)?;
 
     // 3. Retention rate: (total_reviews - again_count) / total_reviews
-    let total_reviews: usize = conn.query_row(
-        &format!("SELECT COUNT(*) FROM review_logs {}", where_clause),
-        rusqlite::params_from_iter(params_vec.iter().cloned()),
-        |r| r.get(0),
-    ).unwrap_or(0);
+    let total_reviews: usize = conn
+        .query_row(
+            &format!("SELECT COUNT(*) FROM review_logs {}", where_clause),
+            rusqlite::params_from_iter(params_vec.iter().cloned()),
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
 
-    let again_count: usize = conn.query_row(
-        &format!("SELECT COUNT(*) FROM review_logs {} {}",
-            if where_clause.is_empty() { "WHERE" } else { "WHERE book_id = ? AND" },
-            "rating = 1"),
-        rusqlite::params_from_iter(params_vec.iter().cloned()),
-        |r| r.get(0),
-    ).unwrap_or(0);
+    let again_count: usize = conn
+        .query_row(
+            &format!(
+                "SELECT COUNT(*) FROM review_logs {} {}",
+                if where_clause.is_empty() {
+                    "WHERE"
+                } else {
+                    "WHERE book_id = ? AND"
+                },
+                "rating = 1"
+            ),
+            rusqlite::params_from_iter(params_vec.iter().cloned()),
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
 
     let retention_rate = if total_reviews > 0 {
         Some((((total_reviews - again_count) as f64 / total_reviews as f64) * 1000.0).round() / 10.0)
@@ -243,30 +256,42 @@ pub fn get_study_analytics_blocking(book_id: Option<&str>) -> Result<StudyAnalyt
     if let Some(b) = book_id {
         due_params.push(b.to_string().into());
     }
-    let reviews_due: usize = conn.query_row(
-        &format!("SELECT COUNT(*) FROM fsrs_cards {}", due_where),
-        rusqlite::params_from_iter(due_params),
-        |r| r.get(0),
-    ).unwrap_or(0);
+    let reviews_due: usize = conn
+        .query_row(
+            &format!("SELECT COUNT(*) FROM fsrs_cards {}", due_where),
+            rusqlite::params_from_iter(due_params),
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
 
-    let new_cards: usize = conn.query_row(
-        &format!("SELECT COUNT(*) FROM fsrs_cards {} {}",
-            if where_clause.is_empty() { "WHERE" } else { "WHERE book_id = ? AND" },
-            "reps = 0"),
-        rusqlite::params_from_iter(params_vec.iter().cloned()),
-        |r| r.get(0),
-    ).unwrap_or(0);
+    let new_cards: usize = conn
+        .query_row(
+            &format!(
+                "SELECT COUNT(*) FROM fsrs_cards {} {}",
+                if where_clause.is_empty() {
+                    "WHERE"
+                } else {
+                    "WHERE book_id = ? AND"
+                },
+                "reps = 0"
+            ),
+            rusqlite::params_from_iter(params_vec.iter().cloned()),
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
 
     let mastered_where = if where_clause.is_empty() {
         "WHERE state = 2 AND stability >= 21.0"
     } else {
         "WHERE state = 2 AND stability >= 21.0 AND book_id = ?"
     };
-    let mastered_cards: usize = conn.query_row(
-        &format!("SELECT COUNT(*) FROM fsrs_cards {}", mastered_where),
-        rusqlite::params_from_iter(params_vec),
-        |r| r.get(0),
-    ).unwrap_or(0);
+    let mastered_cards: usize = conn
+        .query_row(
+            &format!("SELECT COUNT(*) FROM fsrs_cards {}", mastered_where),
+            rusqlite::params_from_iter(params_vec),
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
 
     // 5. Total vault words & estimated reading time
     let mut total_vault_words: usize = 0;

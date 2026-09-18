@@ -79,7 +79,10 @@ fn the_cache_counts_the_reviews_of_each_15_minute_block_and_leaves_the_day_to_th
                 "{book:?} {name}: the cache counted the reviews of UTC days, but in UTC+1 all 3 were on 16 September: {days:?}"
             );
         }
-        assert_eq!(analytics["review_blocks"], blocks, "{book:?}: each review counts in its own 15-minute block");
+        assert_eq!(
+            analytics["review_blocks"], blocks,
+            "{book:?}: each review counts in its own 15-minute block"
+        );
         assert_eq!(heatmap, blocks, "{book:?}");
     }
 }

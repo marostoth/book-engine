@@ -4,20 +4,28 @@ use super::chapter_blocks::is_heading;
 
 #[test]
 fn a_heading_of_the_book_is_a_heading() {
-    assert!(is_heading("# An Inquiry into the Nature and Causes of the Wealth of Nations"));
+    assert!(is_heading(
+        "# An Inquiry into the Nature and Causes of the Wealth of Nations"
+    ));
     assert!(is_heading("## CHAPTER I. OF THE DIVISION OF LABOUR"));
     assert!(is_heading("###### PART I. Of the Expense of Defence."));
 }
 
 #[test]
 fn a_paragraph_that_starts_with_a_hash_and_a_word_is_text() {
-    assert!(!is_heading("#1 rule of the market is that price is the only thing that pays you."));
-    assert!(!is_heading("#MarketProfile is where traders of the pit first learned to read the day."));
+    assert!(!is_heading(
+        "#1 rule of the market is that price is the only thing that pays you."
+    ));
+    assert!(!is_heading(
+        "#MarketProfile is where traders of the pit first learned to read the day."
+    ));
 }
 
 #[test]
 fn more_than_six_marks_make_no_heading() {
-    assert!(!is_heading("####### seven marks are too many for a heading, so this line is text."));
+    assert!(!is_heading(
+        "####### seven marks are too many for a heading, so this line is text."
+    ));
 }
 
 #[test]
@@ -53,5 +61,8 @@ fn search_reads_the_written_hash_as_a_hash_again() {
         super::search_text::search_text("&#35; PRICES OF WHEAT"),
         "# PRICES OF WHEAT"
     );
-    assert_eq!(super::search_text::search_text("&#35;## Three marks"), "### Three marks");
+    assert_eq!(
+        super::search_text::search_text("&#35;## Three marks"),
+        "### Three marks"
+    );
 }

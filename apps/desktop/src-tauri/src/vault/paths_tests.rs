@@ -13,9 +13,28 @@ use crate::vault::topic_id_from_title;
 /// Names that a path gives a meaning to, and names with a character that no book id or topic id has.
 fn names_that_are_no_id() -> Vec<String> {
     let mut names: Vec<String> = [
-        "", ".", "..", "../sample", "..\\sample", "sample/..", "a/b", "a\\b", "/sample", "\\sample",
-        "C:\\Windows\\win.ini", "C:", "c:sample", "\\\\?\\C:\\vault", "\\\\server\\share", "Sample", "a b", "a.b",
-        "-sample", "sample\0", "sample\n", "caf\u{e9}",
+        "",
+        ".",
+        "..",
+        "../sample",
+        "..\\sample",
+        "sample/..",
+        "a/b",
+        "a\\b",
+        "/sample",
+        "\\sample",
+        "C:\\Windows\\win.ini",
+        "C:",
+        "c:sample",
+        "\\\\?\\C:\\vault",
+        "\\\\server\\share",
+        "Sample",
+        "a b",
+        "a.b",
+        "-sample",
+        "sample\0",
+        "sample\n",
+        "caf\u{e9}",
     ]
     .iter()
     .map(|name| name.to_string())
@@ -40,7 +59,10 @@ fn every_book_id_the_importer_makes_is_a_book_id() {
     for id in ids {
         assert!(check_book_id(id).is_ok(), "{id} must be a book id");
     }
-    assert!(check_book_id(&"a".repeat(255)).is_ok(), "a folder name can have 255 characters");
+    assert!(
+        check_book_id(&"a".repeat(255)).is_ok(),
+        "a folder name can have 255 characters"
+    );
 }
 
 #[test]
@@ -53,11 +75,22 @@ fn a_name_that_could_leave_its_folder_is_no_book_id_and_no_topic_id() {
 
 #[test]
 fn every_topic_id_the_app_makes_is_a_topic_id() {
-    for title in ["Division of Labor", "Is Capitalism Fair?", "\u{dc}ber Arbeit 2", "__Private__"] {
+    for title in [
+        "Division of Labor",
+        "Is Capitalism Fair?",
+        "\u{dc}ber Arbeit 2",
+        "__Private__",
+    ] {
         let id = topic_id_from_title(title);
-        assert!(check_topic_id(&id).is_ok(), "the id {id:?} of the title {title:?} must be a topic id");
+        assert!(
+            check_topic_id(&id).is_ok(),
+            "the id {id:?} of the title {title:?} must be a topic id"
+        );
     }
-    assert!(check_topic_id("topic-1").is_ok(), "the id of a title with no letter or digit");
+    assert!(
+        check_topic_id("topic-1").is_ok(),
+        "the id of a title with no letter or digit"
+    );
 }
 
 #[test]
@@ -66,8 +99,22 @@ fn a_chapter_file_is_named_as_the_importer_names_chapters() {
         assert!(check_chapter_file(name).is_ok(), "{name} must be a chapter file");
     }
     let refused = [
-        "", "ch-1.md", "ch-01", "ch-01.MD", "CH-01.md", "ch-01.md.bak", "ch-01-notes.md", "ch-ab.md", "ch-.md",
-        "_meta.json", "../ch-01.md", "ch-01.md/../../x.md", "sub/ch-01.md", "C:\\ch-01.md", " ch-01.md", "ch-01.md\0",
+        "",
+        "ch-1.md",
+        "ch-01",
+        "ch-01.MD",
+        "CH-01.md",
+        "ch-01.md.bak",
+        "ch-01-notes.md",
+        "ch-ab.md",
+        "ch-.md",
+        "_meta.json",
+        "../ch-01.md",
+        "ch-01.md/../../x.md",
+        "sub/ch-01.md",
+        "C:\\ch-01.md",
+        " ch-01.md",
+        "ch-01.md\0",
         "ch-\u{661}\u{662}.md",
     ];
     for name in refused {
@@ -81,8 +128,17 @@ fn a_notes_file_is_the_notes_file_of_a_chapter() {
         assert!(check_notes_file(name).is_ok(), "{name} must be a notes file");
     }
     let refused = [
-        "", "ch-01.md", "summary-export.md", "practice-deck.md", "analytical.json", "bookmark.json", "ch-1-notes.md",
-        "../ch-01-notes.md", "ch-01-notes.md/..", "C:\\ch-01-notes.md", "ch-01-notes.markdown",
+        "",
+        "ch-01.md",
+        "summary-export.md",
+        "practice-deck.md",
+        "analytical.json",
+        "bookmark.json",
+        "ch-1-notes.md",
+        "../ch-01-notes.md",
+        "ch-01-notes.md/..",
+        "C:\\ch-01-notes.md",
+        "ch-01-notes.markdown",
     ];
     for name in refused {
         assert!(check_notes_file(name).is_err(), "{name:?} must not be a notes file");
@@ -98,11 +154,23 @@ fn a_path_in_the_vault_keeps_the_form_of_the_vault_folder() {
     let syntopicon = sandbox.vault().join("syntopicon");
 
     let path = |made: anyhow::Result<std::path::PathBuf>| made.expect("a path in the vault");
-    assert_eq!(path(chapter_path("sample", "ch-01.md")), sandbox.vault().join("books").join("sample").join("ch-01.md"));
-    assert_eq!(path(chapter_notes_path("sample", "ch-01-notes.md")), notes.join("ch-01-notes.md"));
-    assert_eq!(path(chapter_highlights_path("sample", "ch-01.md")), notes.join("ch-01-highlights.json"));
+    assert_eq!(
+        path(chapter_path("sample", "ch-01.md")),
+        sandbox.vault().join("books").join("sample").join("ch-01.md")
+    );
+    assert_eq!(
+        path(chapter_notes_path("sample", "ch-01-notes.md")),
+        notes.join("ch-01-notes.md")
+    );
+    assert_eq!(
+        path(chapter_highlights_path("sample", "ch-01.md")),
+        notes.join("ch-01-highlights.json")
+    );
     assert_eq!(path(notes_file("sample", "bookmark.json")), notes.join("bookmark.json"));
-    assert_eq!(path(topic_path("division-of-labor")), syntopicon.join("topics").join("division-of-labor.json"));
+    assert_eq!(
+        path(topic_path("division-of-labor")),
+        syntopicon.join("topics").join("division-of-labor.json")
+    );
     assert_eq!(
         path(topic_report_path("division-of-labor")),
         syntopicon.join("reports").join("division-of-labor-synthesis.md")
@@ -115,8 +183,14 @@ fn a_path_in_the_vault_keeps_the_form_of_the_vault_folder() {
 fn a_notes_folder_whose_name_is_no_book_id_does_not_stop_the_jobs_that_read_every_book() {
     let sandbox = Sandbox::new();
     sandbox.write_sample_book();
-    sandbox.write("notes/sample/bookmark.json", r#"{"chapterFile":"ch-01.md","savedAt":"2026-09-16T10:00:00.000Z"}"#);
-    sandbox.write("notes/Old Notes/bookmark.json", r#"{"chapterFile":"ch-01.md","savedAt":"2026-09-17T10:00:00.000Z"}"#);
+    sandbox.write(
+        "notes/sample/bookmark.json",
+        r#"{"chapterFile":"ch-01.md","savedAt":"2026-09-16T10:00:00.000Z"}"#,
+    );
+    sandbox.write(
+        "notes/Old Notes/bookmark.json",
+        r#"{"chapterFile":"ch-01.md","savedAt":"2026-09-17T10:00:00.000Z"}"#,
+    );
 
     assert_eq!(books_with_notes().expect("list the books with notes"), ["sample"]);
     backfill_vault_blocking().expect("the copy of an older cache must run");

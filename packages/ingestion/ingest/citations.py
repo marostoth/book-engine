@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any
 
 from ingest.line_endings import normalize_line_endings
 from ingest.places import words_of
@@ -28,7 +28,7 @@ LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 NOT_A_PASSAGE = ("http://", "https://", "mailto:", "#")
 
 
-def paragraph_at(chapter_text: str, anchor: str) -> Optional[str]:
+def paragraph_at(chapter_text: str, anchor: str) -> str | None:
     """The paragraph of the chapter whose last word is `anchor`, with the anchor taken off, or None."""
     if not anchor:
         return None
@@ -47,7 +47,7 @@ def quote_is_there(quote: str, paragraph: str) -> bool:
     return bool(wanted) and wanted in words_of(paragraph)
 
 
-def quote_that_moved(citation: dict, chapter_text: str) -> Optional[str]:
+def quote_that_moved(citation: dict[str, Any], chapter_text: str) -> str | None:
     """Why this citation's quote cannot be read back from its paragraph, or None when it can.
 
     A citation with no quote, and one whose anchor names no paragraph, gives None: the audit reports a missing
@@ -72,17 +72,19 @@ def quote_that_moved(citation: dict, chapter_text: str) -> Optional[str]:
 NO_FOLDER = "names a folder that is not in the vault. Put that book back, or take its citation out of the topic"
 NO_FILE = "reaches no file. Export the report again, so its links are written from the folder it is saved in"
 NO_READ = "names a file that cannot be read"
-NO_PARAGRAPH = "names a file that has no such paragraph. Export the report again: a new import can give a paragraph another number"
+NO_PARAGRAPH = (
+    "names a file that has no such paragraph. Export the report again: a new import can give a paragraph another number"
+)
 
 
-def links_that_lead_nowhere(vault_dir: Path) -> List[Dict[str, str]]:
+def links_that_lead_nowhere(vault_dir: Path) -> list[dict[str, str]]:
     """Every link in a report that reaches no file, or a file with no such paragraph.
 
     Each answer gives the report file name, the link, and what is wrong with it. A link to the web, to the mail or
     inside the same file is left alone.
     """
     reports_dir = Path(vault_dir) / "syntopicon" / "reports"
-    broken: List[Dict[str, str]] = []
+    broken: list[dict[str, str]] = []
     for report in sorted(reports_dir.glob("*.md")) if reports_dir.is_dir() else []:
         try:
             text = report.read_bytes().decode("utf-8")
@@ -94,7 +96,9 @@ def links_that_lead_nowhere(vault_dir: Path) -> List[Dict[str, str]]:
             file_part, _, anchor = href.partition("#")
             target = report.parent / file_part
             if not target.is_file():
-                broken.append({"report": report.name, "href": href, "why": NO_FILE if target.parent.is_dir() else NO_FOLDER})
+                broken.append(
+                    {"report": report.name, "href": href, "why": NO_FILE if target.parent.is_dir() else NO_FOLDER}
+                )
                 continue
             if not anchor:
                 continue

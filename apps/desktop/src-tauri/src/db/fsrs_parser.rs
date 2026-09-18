@@ -1,7 +1,7 @@
-use std::path::Path;
 use super::models::{ScenarioOption, ScenarioPayload};
 use crate::vault::text_file::read_text_file;
 use crate::vault::AnchoredCitation;
+use std::path::Path;
 
 pub struct RawCard {
     pub card_id: String,
@@ -15,9 +15,7 @@ pub struct RawCard {
 }
 
 fn normalize_for_match(s: &str) -> String {
-    s.replace("**", "")
-        .replace('*', "")
-        .replace('`', "")
+    s.replace(['*', '`'], "")
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
@@ -56,8 +54,12 @@ fn parse_scenario_section(trimmed: &str, book_dir: &Path) -> Option<RawCard> {
         if let Some(cit_start) = l.strip_prefix("<!--").and_then(|s| s.find("citation:")) {
             let cit_part = l[cit_start + 9..].trim().trim_end_matches("-->").trim();
             let parts: Vec<&str> = cit_part.split('#').collect();
-            if let Some(ch) = parts.first() { chapter_file = ch.trim().to_string(); }
-            if parts.len() > 1 { anchor = parts[1].trim().to_string(); }
+            if let Some(ch) = parts.first() {
+                chapter_file = ch.trim().to_string();
+            }
+            if parts.len() > 1 {
+                anchor = parts[1].trim().to_string();
+            }
         } else if let Some(rest) = l.strip_prefix("- **Chapter:**") {
             chapter_file = rest.trim().to_string();
         } else if let Some(rest) = l.strip_prefix("- **Anchor:**") {
@@ -70,9 +72,15 @@ fn parse_scenario_section(trimmed: &str, book_dir: &Path) -> Option<RawCard> {
             let is_correct = l.starts_with("- [x]") || l.starts_with("- [X]");
             let rest = l[5..].trim();
             let (key, text) = if rest.starts_with('(') && rest.len() > 3 && rest.chars().nth(2) == Some(')') {
-                (rest.chars().nth(1).unwrap_or('A').to_string(), rest[3..].trim().to_string())
+                (
+                    rest.chars().nth(1).unwrap_or('A').to_string(),
+                    rest[3..].trim().to_string(),
+                )
             } else if rest.len() > 2 && rest.chars().nth(1) == Some('.') {
-                (rest.chars().next().unwrap_or('A').to_string(), rest[2..].trim().to_string())
+                (
+                    rest.chars().next().unwrap_or('A').to_string(),
+                    rest[2..].trim().to_string(),
+                )
             } else {
                 let idx = (b'A' + options.len() as u8) as char;
                 (idx.to_string(), rest.to_string())
@@ -83,9 +91,13 @@ fn parse_scenario_section(trimmed: &str, book_dir: &Path) -> Option<RawCard> {
             rationale_lines.push(rest.trim().to_string());
         } else if l.starts_with('>') && !rationale_lines.is_empty() {
             let r = l.trim_start_matches('>').trim().to_string();
-            if !r.is_empty() { rationale_lines.push(r); }
+            if !r.is_empty() {
+                rationale_lines.push(r);
+            }
         } else if in_scenario && !l.is_empty() && !l.starts_with('#') {
-            if !scenario_stem.is_empty() { scenario_stem.push('\n'); }
+            if !scenario_stem.is_empty() {
+                scenario_stem.push('\n');
+            }
             scenario_stem.push_str(l);
         }
     }
@@ -102,7 +114,10 @@ fn parse_scenario_section(trimmed: &str, book_dir: &Path) -> Option<RawCard> {
     let correct_count = options.iter().filter(|o| o.is_correct).count();
     let incorrect_count = options.iter().filter(|o| !o.is_correct).count();
     if correct_count != 1 || incorrect_count < 2 {
-        eprintln!("Rejecting scenario {}: must have exactly 1 [x] and at least 2 [ ]", card_id);
+        eprintln!(
+            "Rejecting scenario {}: must have exactly 1 [x] and at least 2 [ ]",
+            card_id
+        );
         return None;
     }
 
@@ -116,15 +131,15 @@ fn parse_scenario_section(trimmed: &str, book_dir: &Path) -> Option<RawCard> {
     // With `\n` line endings only, so that a blank line ends the paragraph of the anchor (IN-06)
     let ch_text = read_text_file(&ch_path).ok()?;
     if !ch_text.contains(&anchor) {
-        eprintln!("Rejecting scenario {}: anchor {} not found in {}", card_id, anchor, chapter_file);
+        eprintln!(
+            "Rejecting scenario {}: anchor {} not found in {}",
+            card_id, anchor, chapter_file
+        );
         return None;
     }
 
     // Verbatim quote grounding against paragraph containing anchor
-    let anchor_paragraph = ch_text
-        .split("\n\n")
-        .find(|p| p.contains(&anchor))
-        .unwrap_or_default();
+    let anchor_paragraph = ch_text.split("\n\n").find(|p| p.contains(&anchor)).unwrap_or_default();
 
     let norm_para = normalize_for_match(anchor_paragraph);
     let norm_rationale = normalize_for_match(&rationale);
@@ -163,7 +178,10 @@ fn parse_scenario_section(trimmed: &str, book_dir: &Path) -> Option<RawCard> {
     }
 
     if !has_verbatim_quote {
-        eprintln!("Rejecting scenario {}: rationale quote not found verbatim in anchor {}", card_id, anchor);
+        eprintln!(
+            "Rejecting scenario {}: rationale quote not found verbatim in anchor {}",
+            card_id, anchor
+        );
         return None;
     }
 
@@ -225,7 +243,15 @@ fn parse_cloze_section(trimmed: &str, book_dir: &Path) -> Option<RawCard> {
         } else if l.starts_with("- **Anchor:**") {
             anchor = l.trim_start_matches("- **Anchor:**").trim().to_string();
         } else if l.starts_with("- **Cloze:**") || l.starts_with("- **Prompt:**") {
-            cloze = l.split(':').skip(1).collect::<Vec<_>>().join(":").trim().trim_start_matches('*').trim().to_string();
+            cloze = l
+                .split(':')
+                .skip(1)
+                .collect::<Vec<_>>()
+                .join(":")
+                .trim()
+                .trim_start_matches('*')
+                .trim()
+                .to_string();
         } else if l.starts_with("- **Answer Key:**") {
             let ans = l.trim_start_matches("- **Answer Key:**").trim();
             answer_key = ans.trim_matches('`').to_string();
@@ -272,14 +298,20 @@ fn parse_cloze_section(trimmed: &str, book_dir: &Path) -> Option<RawCard> {
     let ch_text = match std::fs::read_to_string(&ch_path) {
         Ok(ch_text) => ch_text,
         Err(e) => {
-            eprintln!("Rejecting practice card {}: chapter {} could not be read ({})", card_id, chapter_file, e);
+            eprintln!(
+                "Rejecting practice card {}: chapter {} could not be read ({})",
+                card_id, chapter_file, e
+            );
             return None;
         }
     };
     let clean_ans = answer_key.replace("**", "").trim().to_string();
     let clean_text = ch_text.replace("**", "");
     if !clean_text.contains(&clean_ans) && !ch_text.contains(&answer_key) {
-        eprintln!("Rejecting non-verbatim practice card {}: '{}' not found in {}", card_id, answer_key, chapter_file);
+        eprintln!(
+            "Rejecting non-verbatim practice card {}: '{}' not found in {}",
+            card_id, answer_key, chapter_file
+        );
         return None;
     }
 

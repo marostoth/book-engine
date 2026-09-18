@@ -58,7 +58,11 @@ pub fn restore_progress_blocking() -> Result<RestoreReport> {
         let log = study_log::read_book_log(&book_id)
             .with_context(|| format!("Failed to read the study log of '{book_id}'"))?;
         report.damaged_lines.extend(log.damaged);
-        let reading = ReadingLog { book_id: &book_id, lines: &log.reading, damaged_lines: log.damaged_reading_lines };
+        let reading = ReadingLog {
+            book_id: &book_id,
+            lines: &log.reading,
+            damaged_lines: log.damaged_reading_lines,
+        };
         restore_book(&mut conn, &log.reviews, &reading, &mut report)
             .with_context(|| format!("Failed to put back the study progress of '{book_id}'"))?;
     }
@@ -164,7 +168,11 @@ fn sum_by_chapter(lines: &[ReadingLine]) -> BTreeMap<(&str, &str), ChapterTime> 
     for line in lines {
         let sum = sums
             .entry((line.book_id.as_str(), line.chapter_file.as_str()))
-            .or_insert(ChapterTime { seconds: 0, completed: false, last_read_at: 0 });
+            .or_insert(ChapterTime {
+                seconds: 0,
+                completed: false,
+                last_read_at: 0,
+            });
         sum.seconds += line.seconds_spent;
         sum.completed |= line.completed;
         sum.last_read_at = sum.last_read_at.max(line.read_at);
@@ -212,7 +220,13 @@ fn restore_reading(tx: &rusqlite::Transaction, reading: &ReadingLog, report: &mu
                  seconds_spent = excluded.seconds_spent,
                  completed = excluded.completed,
                  last_read_at = excluded.last_read_at",
-            params![book_id, chapter_file, time.seconds, i64::from(time.completed), time.last_read_at],
+            params![
+                book_id,
+                chapter_file,
+                time.seconds,
+                i64::from(time.completed),
+                time.last_read_at
+            ],
         )?;
         report.chapters_restored += 1;
     }
@@ -226,7 +240,14 @@ fn cached_reading(tx: &rusqlite::Transaction, book_id: &str) -> Result<BTreeMap<
     )?;
     let rows = statement.query_map(params![book_id], |row| {
         let completed: i64 = row.get(2)?;
-        Ok((row.get(0)?, ChapterTime { seconds: row.get(1)?, completed: completed != 0, last_read_at: row.get(3)? }))
+        Ok((
+            row.get(0)?,
+            ChapterTime {
+                seconds: row.get(1)?,
+                completed: completed != 0,
+                last_read_at: row.get(3)?,
+            },
+        ))
     })?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
@@ -250,7 +271,13 @@ fn add_missing_chapters(
         tx.execute(
             "INSERT INTO reading_sessions (book_id, chapter_file, seconds_spent, completed, last_read_at)
              VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![book_id, chapter_file, time.seconds, i64::from(time.completed), time.last_read_at],
+            params![
+                book_id,
+                chapter_file,
+                time.seconds,
+                i64::from(time.completed),
+                time.last_read_at
+            ],
         )?;
         report.chapters_restored += 1;
     }

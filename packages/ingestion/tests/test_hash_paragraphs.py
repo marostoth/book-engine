@@ -18,10 +18,8 @@ import json
 import re
 import zipfile
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 import pytest
-
 from ingest.anchors import clean_preview_text, extract_inspectional_sampling, inject_paragraph_anchors
 from ingest.book_check import book_problems
 from ingest.chapter_shape import holds_no_text, is_heading
@@ -73,7 +71,7 @@ HEADING = "<h2>CHAPTER XI. OF THE RENT OF LAND</h2>"
 ANCHOR_AT_END = re.compile(r"\^p-[a-zA-Z0-9_-]+$")
 
 
-def import_book(folder: Path, documents: Dict[str, str]):
+def import_book(folder: Path, documents: dict[str, str]):
     """Imports a book of these document bodies into a new vault, and gives its `_meta.json` and its folder."""
     path = folder / f"{BOOK_ID}.epub"
     manifest = "".join(
@@ -92,14 +90,14 @@ def import_book(folder: Path, documents: Dict[str, str]):
     return json.loads((book_dir / "_meta.json").read_text(encoding="utf-8")), book_dir
 
 
-def blocks_of(book_dir: Path, name: str = "ch-01.md") -> List[str]:
+def blocks_of(book_dir: Path, name: str = "ch-01.md") -> list[str]:
     text = (book_dir / name).read_text(encoding="utf-8")
     return [block.strip() for block in text.split("\n\n") if block.strip()]
 
 
-def anchored(book_dir: Path, name: str = "ch-01.md") -> List[Tuple[str, str]]:
+def anchored(book_dir: Path, name: str = "ch-01.md") -> list[tuple[str, str]]:
     """Each block of the chapter as (its anchor or "", its first line without the anchor)."""
-    pairs: List[Tuple[str, str]] = []
+    pairs: list[tuple[str, str]] = []
     for block in blocks_of(book_dir, name):
         anchor = ANCHOR_AT_END.search(block)
         pairs.append((anchor.group(0) if anchor else "", ANCHOR_AT_END.sub("", block).strip().split("\n")[0]))
@@ -224,8 +222,11 @@ def test_a_paragraph_that_starts_with_a_hash_and_a_word_keeps_its_anchor(tmp_pat
 
     assert anchored(book_dir) == [
         ("", "## CHAPTER XI. OF THE RENT OF LAND"),
-        ("^p-001", "The great commerce of every civilized society is that carried on between the inhabitants of "
-                   "the town and those of the country."),
+        (
+            "^p-001",
+            "The great commerce of every civilized society is that carried on between the inhabitants of "
+            "the town and those of the country.",
+        ),
         ("^p-002", "#1 rule of the market is that price is the only thing that pays you."),
         ("^p-003", "#MarketProfile is where traders of the pit first learned to read the day."),
         ("^p-004", "####### seven marks are too many for a heading, so this line is text."),
@@ -270,10 +271,7 @@ def test_a_quote_that_starts_with_a_hash_stays_a_quote(tmp_path: Path):
 
 
 def test_a_table_row_that_starts_with_a_hash_keeps_the_table_whole(tmp_path: Path):
-    body = (
-        f"{HEADING}{PLAIN}<table><tr><td>Year</td><td>Price</td></tr>"
-        "<tr><td># 1202</td><td>0 12 0</td></tr></table>"
-    )
+    body = f"{HEADING}{PLAIN}<table><tr><td>Year</td><td>Price</td></tr><tr><td># 1202</td><td>0 12 0</td></tr></table>"
 
     _, book_dir = import_book(tmp_path, {"ch01.xhtml": body})
 

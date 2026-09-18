@@ -58,7 +58,7 @@ export function useBookSession({ onCardsRefreshNeeded, requestChapterMove }: Boo
 
   // One reader, one newest load. A book or a chapter that answers after the reader moved on changes
   // nothing, so the words of the chapter you left are never shown under the chapter you opened (DS-07).
-  const loads = useRef(createLoadGuard()).current;
+  const [loads] = useState(createLoadGuard);
 
   // Where you stopped reading is saved in the vault, one bookmark per book, and never over a bookmark that could not
   // be read (DS-11).

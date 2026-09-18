@@ -90,14 +90,22 @@ fn name_length(bytes: &[u8]) -> Option<usize> {
     if !bytes.first()?.is_ascii_alphabetic() {
         return None;
     }
-    Some(bytes.iter().take_while(|&&byte| byte.is_ascii_alphanumeric() || byte == b'-').count())
+    Some(
+        bytes
+            .iter()
+            .take_while(|&&byte| byte.is_ascii_alphanumeric() || byte == b'-')
+            .count(),
+    )
 }
 
 /// Where the attribute that starts at `start` ends: its name, then maybe `=` and a value. None when it has an `=` and
 /// no valid value.
 fn attribute_end(bytes: &[u8], start: usize) -> Option<usize> {
     let name_end = start
-        + bytes[start..].iter().take_while(|&&byte| byte.is_ascii_alphanumeric() || b"_.:-".contains(&byte)).count();
+        + bytes[start..]
+            .iter()
+            .take_while(|&&byte| byte.is_ascii_alphanumeric() || b"_.:-".contains(&byte))
+            .count();
     let equals = skip_spaces(bytes, name_end);
     if bytes.get(equals) != Some(&b'=') {
         return Some(name_end);
@@ -141,7 +149,9 @@ fn character_reference(text: &str) -> Option<(char, usize)> {
                 }
                 _ => return None,
             };
-            char::from_u32(value).filter(|&character| character != '\0').unwrap_or(char::REPLACEMENT_CHARACTER)
+            char::from_u32(value)
+                .filter(|&character| character != '\0')
+                .unwrap_or(char::REPLACEMENT_CHARACTER)
         }
         None => match name {
             "amp" => '&',
@@ -204,7 +214,10 @@ mod tests {
             ("&#60;b&#x3E; &#X3c; &#1114111;", "<b> < \u{10FFFF}"),
             ("&#0; &#xD800; &#x110000;", "\u{FFFD} \u{FFFD} \u{FFFD}"),
             // Not a reference that search knows: the text stays.
-            ("AT&T; R&D &copy; &#; &#x; &#12345678; & lt; &", "AT&T; R&D &copy; &#; &#x; &#12345678; & lt; &"),
+            (
+                "AT&T; R&D &copy; &#; &#x; &#12345678; & lt; &",
+                "AT&T; R&D &copy; &#; &#x; &#12345678; & lt; &",
+            ),
         ];
         for (paragraph, expected) in cases {
             assert_eq!(search_text(paragraph), expected, "{paragraph}");
@@ -229,7 +242,10 @@ mod tests {
         let window = include_str!("../../../src/lib/searchSnippet.ts");
         for (name, character) in [("HIT_START", HIT_START), ("HIT_END", HIT_END)] {
             let line = format!("export const {name} = \"\\u{:X}\";", character as u32);
-            assert!(window.contains(&line), "src/lib/searchSnippet.ts must have the line {line}");
+            assert!(
+                window.contains(&line),
+                "src/lib/searchSnippet.ts must have the line {line}"
+            );
         }
     }
 }

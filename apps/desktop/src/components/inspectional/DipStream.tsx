@@ -5,6 +5,14 @@ import { bookText, isHeadingBlock } from "../../lib/markdown";
 import { reportBackendError } from "../../lib/backendErrors";
 import { BookOpen, ArrowRight, Compass, Scissors, CornerDownRight } from "lucide-react";
 
+/** What an older import called the first and last words of a chapter, before `inspectional_sampling`. */
+interface OlderExcerpts {
+  opening_summary?: string;
+  head_sample?: string;
+  closing_summary?: string;
+  tail_sample?: string;
+}
+
 interface DipStreamProps {
   bookMeta: BookMeta | null;
   onReadFullChapter: (chapter: ChapterMeta, targetAnchor?: string) => void;
@@ -27,8 +35,9 @@ export const DipStream: React.FC<DipStreamProps> = ({
 
     const chaptersToHydrate = bookMeta.spine.filter((ch) => {
       const s = ch.inspectional_sampling;
-      const hasHead = Boolean(s?.head_text_preview || (ch as any).opening_summary || (ch as any).head_sample);
-      const hasTail = Boolean(s?.tail_text_preview || (ch as any).closing_summary || (ch as any).tail_sample);
+      const older = ch as unknown as OlderExcerpts;
+      const hasHead = Boolean(s?.head_text_preview || older.opening_summary || older.head_sample);
+      const hasTail = Boolean(s?.tail_text_preview || older.closing_summary || older.tail_sample);
       return (!hasHead || !hasTail) && !hydratedExcerpts[ch.id];
     });
 
@@ -161,16 +170,17 @@ export const DipStream: React.FC<DipStreamProps> = ({
         {chapters.map((chapter, idx) => {
           const sampling = chapter.inspectional_sampling;
           const hydrated = hydratedExcerpts[chapter.id];
+          const older = chapter as unknown as OlderExcerpts;
           const headPreview =
             sampling?.head_text_preview ||
-            (chapter as any).opening_summary ||
-            (chapter as any).head_sample ||
+            older.opening_summary ||
+            older.head_sample ||
             hydrated?.head ||
             "Opening summary unavailable for this chapter.";
           const tailPreview =
             sampling?.tail_text_preview ||
-            (chapter as any).closing_summary ||
-            (chapter as any).tail_sample ||
+            older.closing_summary ||
+            older.tail_sample ||
             hydrated?.tail ||
             "Closing conclusion unavailable for this chapter.";
           // No anchor opens the chapter at its top, which is where a dip starts anyway (RD-04).

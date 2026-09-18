@@ -14,10 +14,9 @@ import re
 from pathlib import Path
 
 import pymupdf
-from PIL import Image
-
 from ingest.pipeline import ingest_book
 from ingest.vector_figures import detect_and_rasterize_vector_figures, figure_file_name
+from PIL import Image
 
 #: The import renders a figure at this many dots per inch, and a PDF measures in points, of which there are 72
 #: to the inch (`detect_and_rasterize_vector_figures`).

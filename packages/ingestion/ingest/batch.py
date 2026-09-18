@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import List, Optional
 
 from ingest.console import say_what_was_done
 from ingest.models import BookMeta
@@ -17,7 +16,7 @@ def batch_ingest(
     source_dir: Path,
     vault_dir: Path,
     stop_on_error: bool = False,
-) -> List[BookMeta]:
+) -> list[BookMeta]:
     """Scans source_dir for all supported .epub and .pdf files and ingests them into vault_dir.
 
     Returns:
@@ -30,12 +29,13 @@ def batch_ingest(
         raise FileNotFoundError(f"Source directory does not exist: {source_path}")
 
     candidates = [
-        f for f in source_path.iterdir()
+        f
+        for f in source_path.iterdir()
         if f.is_file() and f.suffix.lower() in SUPPORTED_EXTENSIONS and not f.name.startswith(".")
     ]
     candidates.sort(key=lambda p: p.name.lower())
 
-    results: List[BookMeta] = []
+    results: list[BookMeta] = []
     for file_path in candidates:
         try:
             print(f"[*] Batch processing: {file_path.name}...")

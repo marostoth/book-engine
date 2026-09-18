@@ -21,13 +21,15 @@ first.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import shutil
 import stat
 import sys
 import time
+from collections.abc import Callable
+from functools import partial
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple
 
 #: How long a move or a removal tries again when Windows holds a file, in seconds.
 HELD_FILE_WAIT = 5.0
@@ -83,10 +85,10 @@ class VaultChanges:
     """New texts of vault files, files to remove, and a new book folder, which go in all together or not at all."""
 
     def __init__(self) -> None:
-        self.folder: Optional[Tuple[Path, Path]] = None
-        self.texts: Dict[Path, str] = {}
-        self.removals: List[Path] = []
-        self.aside: Optional[Path] = None
+        self.folder: tuple[Path, Path] | None = None
+        self.texts: dict[Path, str] = {}
+        self.removals: list[Path] = []
+        self.aside: Path | None = None
 
     def replace_folder(self, built: Path, folder: Path) -> None:
         """Puts the folder `built` in the place of `folder`. The old folder waits next to `built` until the end."""
@@ -102,9 +104,9 @@ class VaultChanges:
 
     def carry_out(self) -> None:
         """Puts every change in place, or none of them (see the text of this module)."""
-        undo: List[Tuple[str, Callable[[], object]]] = []
-        new_folders: List[Path] = []
-        temporary: List[Tuple[Path, Path, Optional[bytes]]] = []
+        undo: list[tuple[str, Callable[[], object]]] = []
+        new_folders: list[Path] = []
+        temporary: list[tuple[Path, Path, bytes | None]] = []
         try:
             for path, text in self.texts.items():
                 before = path.read_bytes() if path.exists() else None
@@ -115,8 +117,8 @@ class VaultChanges:
             if self.folder is not None:
                 self._replace_folder(*self.folder, undo, new_folders)
             for temp, path, before in temporary:
-                again_when_held(lambda: os.replace(temp, path))
-                undo.append((str(path), lambda path=path, before=before: _put_back(path, before)))
+                again_when_held(partial(os.replace, temp, path))
+                undo.append((str(path), partial(_put_back, path, before)))
         except BaseException:
             for what, action in reversed(undo):
                 try:
@@ -126,15 +128,13 @@ class VaultChanges:
             for temp, _, _ in temporary:
                 temp.unlink(missing_ok=True)
             for folder in reversed(new_folders):
-                try:
+                with contextlib.suppress(OSError):  # the folder is not empty
                     folder.rmdir()
-                except OSError:
-                    pass  # the folder is not empty
             raise
         self._clean_up()
 
     def _replace_folder(
-        self, built: Path, folder: Path, undo: List[Tuple[str, Callable[[], object]]], new_folders: List[Path]
+        self, built: Path, folder: Path, undo: list[tuple[str, Callable[[], object]]], new_folders: list[Path]
     ) -> None:
         if folder.exists():
             aside = aside_folder(built)
@@ -148,7 +148,7 @@ class VaultChanges:
     def _clean_up(self) -> None:
         for path in self.removals:
             try:
-                again_when_held(lambda: path.unlink(missing_ok=True))
+                again_when_held(partial(path.unlink, missing_ok=True))
             except OSError as error:
                 _say(f"{path} could not be removed ({error}). Its text is in another file too.")
         aside = self.aside
@@ -163,7 +163,7 @@ def _rename(source: Path, target: Path) -> None:
     again_when_held(lambda: os.rename(source, target))
 
 
-def _make_folders(folder: Path, new_folders: List[Path]) -> None:
+def _make_folders(folder: Path, new_folders: list[Path]) -> None:
     """Makes `folder` and the folders above it that are not there, and notes each one that it made."""
     missing = [folder, *folder.parents]
     for parent in reversed([path for path in missing if not path.exists()]):
@@ -171,7 +171,7 @@ def _make_folders(folder: Path, new_folders: List[Path]) -> None:
         new_folders.append(parent)
 
 
-def _put_back(path: Path, before: Optional[bytes]) -> None:
+def _put_back(path: Path, before: bytes | None) -> None:
     """Gives the file `path` its bytes from before the import again, or removes it when it was not there."""
     if before is None:
         again_when_held(lambda: path.unlink(missing_ok=True))

@@ -8,11 +8,8 @@ test that writes `Path("vault")` is reading the reader's own books again, which 
 import ast
 import json
 from pathlib import Path
-from typing import List
 
-import pytest
-
-from conftest import FIRST_BOOK, SECOND_BOOK, REPO
+from conftest import FIRST_BOOK, REPO, SECOND_BOOK
 
 TESTS = Path(__file__).resolve().parent
 
@@ -21,9 +18,9 @@ TESTS = Path(__file__).resolve().parent
 NAMES_OF_THE_REAL_THING = ("vault", ".agent")
 
 
-def paths_relative_to_the_working_folder(source: str) -> List[str]:
+def paths_relative_to_the_working_folder(source: str) -> list[str]:
     """Every `Path("vault...")` or `Path(".agent...")` in one file of Python."""
-    found: List[str] = []
+    found: list[str] = []
     for node in ast.walk(ast.parse(source)):
         if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name) or node.func.id != "Path":
             continue
@@ -42,7 +39,7 @@ def test_the_guard_knows_a_path_of_the_working_folder_when_it_sees_one():
     go on passing for ever while reading nothing.
     """
     caught = paths_relative_to_the_working_folder(
-        'from pathlib import Path\n'
+        "from pathlib import Path\n"
         'a = Path("vault")\n'
         'b = Path("vault/books/some-book/ch-01.md")\n'
         'c = Path(".agent/skills/audit-system.py")\n'
@@ -50,8 +47,8 @@ def test_the_guard_knows_a_path_of_the_working_folder_when_it_sees_one():
     assert caught == ["vault", "vault/books/some-book/ch-01.md", ".agent/skills/audit-system.py"]
 
     allowed = paths_relative_to_the_working_folder(
-        'from pathlib import Path\n'
-        'def t(tmp_path):\n'
+        "from pathlib import Path\n"
+        "def t(tmp_path):\n"
         '    a = tmp_path / "vault"\n'
         '    b = Path(__file__).resolve().parents[3] / "vault"\n'
         '    c = "vault is only a word here"\n'
@@ -80,20 +77,14 @@ def test_the_vault_of_the_tests_holds_two_whole_books(vault_of_the_tests: Path):
 
 def test_the_vault_of_the_tests_holds_notes_a_check_can_read(vault_of_the_tests: Path):
     """Analytical notes of all four kinds, one topic that cites two books, and the report of that topic."""
-    notes = json.loads(
-        (vault_of_the_tests / "notes" / FIRST_BOOK / "analytical.json").read_text(encoding="utf-8")
-    )
+    notes = json.loads((vault_of_the_tests / "notes" / FIRST_BOOK / "analytical.json").read_text(encoding="utf-8"))
     for kind in ("terms", "arguments", "critiques", "inquiries"):
         assert len(notes[kind]) >= 1, f"the notes of the tests hold no {kind}"
 
     topics = sorted((vault_of_the_tests / "syntopicon" / "topics").glob("*.json"))
     assert len(topics) == 1
     topic = json.loads(topics[0].read_text(encoding="utf-8"))
-    cited = {
-        mapping["bookId"]
-        for term in topic["neutralTerms"]
-        for mapping in term["mappings"]
-    }
+    cited = {mapping["bookId"] for term in topic["neutralTerms"] for mapping in term["mappings"]}
     assert cited == {FIRST_BOOK, SECOND_BOOK}, "a topic must cite two books, or its audit cannot pass"
 
     reports = sorted((vault_of_the_tests / "syntopicon" / "reports").glob("*.md"))
@@ -110,13 +101,9 @@ def test_a_quote_of_the_topic_is_read_back_from_the_paragraph_it_names(vault_of_
     """The fixture takes each quote out of the paragraph it cites, so the quote check has something to pass on."""
     from ingest.citations import quote_that_moved
 
-    topic = json.loads(
-        next((vault_of_the_tests / "syntopicon" / "topics").glob("*.json")).read_text(encoding="utf-8")
-    )
+    topic = json.loads(next((vault_of_the_tests / "syntopicon" / "topics").glob("*.json")).read_text(encoding="utf-8"))
     citation = topic["neutralTerms"][0]["mappings"][0]["citation"]
-    chapter = (vault_of_the_tests / "books" / citation["bookId"] / citation["chapterFile"]).read_text(
-        encoding="utf-8"
-    )
+    chapter = (vault_of_the_tests / "books" / citation["bookId"] / citation["chapterFile"]).read_text(encoding="utf-8")
     assert quote_that_moved(citation, chapter) is None
 
     moved = dict(citation, quote="words that the book never wrote at all")

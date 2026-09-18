@@ -12,7 +12,6 @@ from difflib import SequenceMatcher
 from pathlib import Path
 
 import pytest
-
 from ingest import scenarios
 from ingest.salience import format_practice_deck_markdown, split_sentences
 from ingest.scenarios import generate_chapter_scenario_cards
@@ -219,7 +218,7 @@ def card(question: str = QUESTION + f'\n"{PASSAGE}"', options: list[tuple[str, s
 def audit(tmp_path: Path, deck: str):
     books = tmp_path / "vault" / "books"
     (books / "b1").mkdir(parents=True)
-    (books / "b1" / "ch-01.md").write_text(chapter(MILL_TOWN + [NEAR_COPY]), encoding="utf-8")
+    (books / "b1" / "ch-01.md").write_text(chapter([*MILL_TOWN, NEAR_COPY]), encoding="utf-8")
     notes = tmp_path / "vault" / "notes" / "b1"
     notes.mkdir(parents=True)
     (notes / "practice-deck.md").write_text(deck, encoding="utf-8")
@@ -283,7 +282,7 @@ def test_the_audit_refuses_two_options_that_say_much_the_same(tmp_path: Path):
 
 
 def test_a_deck_that_the_importer_writes_passes_the_audit(tmp_path: Path):
-    cards = generate_chapter_scenario_cards(chapter(MILL_TOWN + [NEAR_COPY]), "ch-01", max_items=3)
+    cards = generate_chapter_scenario_cards(chapter([*MILL_TOWN, NEAR_COPY]), "ch-01", max_items=3)
     result = audit(tmp_path, format_practice_deck_markdown("Mill Town", [], cards))
 
     assert result.scenario_count == 3

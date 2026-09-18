@@ -11,13 +11,12 @@ import importlib.util
 import io
 import json
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Sequence
 
 import pymupdf
 import pytest
-
 from ingest.models import BookMeta
 from ingest.pipeline import ingest_book
 
@@ -47,9 +46,9 @@ class ImportedBook:
     notes_dir: Path
     printed: str
 
-    def pages_per_part(self, pages: Sequence[str]) -> Dict[str, List[str]]:
+    def pages_per_part(self, pages: Sequence[str]) -> dict[str, list[str]]:
         """The page names that each chapter file holds, by the title of its spine item."""
-        found: Dict[str, List[str]] = {}
+        found: dict[str, list[str]] = {}
         for chapter in self.meta.spine:
             text = (self.book_dir / chapter.file_path).read_text(encoding="utf-8")
             found[chapter.title] = [name for name in pages if marker(name) in text]
@@ -83,7 +82,17 @@ def import_pdf(folder: Path, pages: Sequence[str], outline: Sequence[Sequence], 
 
 # A book like Kotler's PDF: front matter, parts that hold chapters, appendices and back matter at the top level
 HARBOUR_PAGES = [
-    "cover", "preface", "partone", "pilots", "moorings", "tides", "parttwo", "storms", "tables", "sources", "lookup",
+    "cover",
+    "preface",
+    "partone",
+    "pilots",
+    "moorings",
+    "tides",
+    "parttwo",
+    "storms",
+    "tables",
+    "sources",
+    "lookup",
 ]
 HARBOUR_OUTLINE = [
     [1, "Preface", 2],
@@ -168,7 +177,9 @@ def test_the_audits_pass_on_the_imported_book(harbour_book: ImportedBook) -> Non
     elementary = system.check_elementary_reading_parity(vault)
     assert elementary.passed, elementary.errors
 
-    deck = load_skill("audit-practice.py").audit_book_practice_deck(harbour_book.notes_dir / "practice-deck.md", vault / "books")
+    deck = load_skill("audit-practice.py").audit_book_practice_deck(
+        harbour_book.notes_dir / "practice-deck.md", vault / "books"
+    )
     assert (deck.mismatches, deck.errors) == (0, [])
     assert deck.total > 0
 
@@ -176,14 +187,18 @@ def test_the_audits_pass_on_the_imported_book(harbour_book: ImportedBook) -> Non
 def test_a_book_title_that_holds_every_chapter_keeps_its_own_pages(tmp_path: Path) -> None:
     # A book like Dalton's PDF: the outline has the book title on top and every part one level below it
     pages = ["titlepage", "copyright", "contents", "pilots", "tides", "tables", "lookup"]
-    book = import_pdf(tmp_path, pages, [
-        [1, "Harbour Test Book", 1],
-        [2, "Contents", 3],
-        [2, "Chapter 1: Pilots", 4],
-        [2, "Chapter 2: Tides", 5],
-        [2, "Appendix 1: Tables", 6],
-        [2, "Index", 7],
-    ])
+    book = import_pdf(
+        tmp_path,
+        pages,
+        [
+            [1, "Harbour Test Book", 1],
+            [2, "Contents", 3],
+            [2, "Chapter 1: Pilots", 4],
+            [2, "Chapter 2: Tides", 5],
+            [2, "Appendix 1: Tables", 6],
+            [2, "Index", 7],
+        ],
+    )
     assert book.pages_per_part(pages) == {
         "Harbour Test Book": ["titlepage", "copyright"],
         "Contents": ["contents"],
@@ -197,13 +212,17 @@ def test_a_book_title_that_holds_every_chapter_keeps_its_own_pages(tmp_path: Pat
 
 def test_the_last_chapter_keeps_its_sections(tmp_path: Path) -> None:
     pages = ["pilots", "moorings", "tides", "currents", "storms"]
-    book = import_pdf(tmp_path, pages, [
-        [1, "Chapter 1: Pilots", 1],
-        [2, "Moorings", 2],
-        [1, "Chapter 2: Tides", 3],
-        [2, "Currents", 4],
-        [2, "Storms", 5],
-    ])
+    book = import_pdf(
+        tmp_path,
+        pages,
+        [
+            [1, "Chapter 1: Pilots", 1],
+            [2, "Moorings", 2],
+            [1, "Chapter 2: Tides", 3],
+            [2, "Currents", 4],
+            [2, "Storms", 5],
+        ],
+    )
     assert book.pages_per_part(pages) == {
         "Chapter 1: Pilots": ["pilots", "moorings"],
         "Chapter 2: Tides": ["tides", "currents", "storms"],
@@ -212,14 +231,18 @@ def test_the_last_chapter_keeps_its_sections(tmp_path: Path) -> None:
 
 def test_parts_without_a_chapter_number_are_imported(tmp_path: Path) -> None:
     pages = ["intro", "pilots", "interlude", "tides", "conclusion", "epilogue"]
-    book = import_pdf(tmp_path, pages, [
-        [1, "Introduction", 1],
-        [1, "Chapter 1: Pilots", 2],
-        [1, "Interlude", 3],
-        [1, "Chapter 2: Tides", 4],
-        [1, "Conclusion", 5],
-        [1, "Epilogue", 6],
-    ])
+    book = import_pdf(
+        tmp_path,
+        pages,
+        [
+            [1, "Introduction", 1],
+            [1, "Chapter 1: Pilots", 2],
+            [1, "Interlude", 3],
+            [1, "Chapter 2: Tides", 4],
+            [1, "Conclusion", 5],
+            [1, "Epilogue", 6],
+        ],
+    )
     assert book.pages_per_part(pages) == {
         "Introduction": ["intro"],
         "Chapter 1: Pilots": ["pilots"],
@@ -232,11 +255,15 @@ def test_parts_without_a_chapter_number_are_imported(tmp_path: Path) -> None:
 
 def test_outline_entries_that_start_on_the_same_page_share_one_part(tmp_path: Path) -> None:
     pages = ["dedication", "pilots"]
-    book = import_pdf(tmp_path, pages, [
-        [1, "Dedication", 1],
-        [1, "Epigraph", 1],
-        [1, "Chapter 1: Pilots", 2],
-    ])
+    book = import_pdf(
+        tmp_path,
+        pages,
+        [
+            [1, "Dedication", 1],
+            [1, "Epigraph", 1],
+            [1, "Chapter 1: Pilots", 2],
+        ],
+    )
     assert book.pages_per_part(pages) == {"Dedication / Epigraph": ["dedication"], "Chapter 1: Pilots": ["pilots"]}
 
 

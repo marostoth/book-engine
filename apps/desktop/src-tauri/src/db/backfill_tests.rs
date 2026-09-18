@@ -85,7 +85,10 @@ fn copying_it_again_writes_nothing() {
     backfill_vault_blocking().expect("first run");
     let second = backfill_vault_blocking().expect("second run");
 
-    assert!(second.changed_nothing(), "the second run must write nothing: {second:?}");
+    assert!(
+        second.changed_nothing(),
+        "the second run must write nothing: {second:?}"
+    );
     let log = read_book_log(BOOK).expect("read the study log");
     assert_eq!(log.reviews.len(), 4, "the lines must not be doubled");
     assert_eq!(log.reading.len(), 1);
@@ -107,7 +110,10 @@ fn a_card_that_was_never_studied_is_not_copied() {
 
     let report = backfill_vault_blocking().expect("copy the cache into the vault");
 
-    assert!(report.changed_nothing(), "a card with no reviews holds no progress: {report:?}");
+    assert!(
+        report.changed_nothing(),
+        "a card with no reviews holds no progress: {report:?}"
+    );
 }
 
 #[test]
@@ -225,8 +231,11 @@ fn a_reading_log_with_a_damaged_line_gets_no_copy_of_the_cache() {
     sandbox.write_sample_book();
     cache_reading("ch-01.md", 300, true, 1_758_000_100);
     let path = sandbox.vault().join("notes").join(BOOK).join("reading.jsonl");
-    std::fs::write(&path, "{\"bookId\":\"sample\",\"chapterFile\":\"ch-01.md\",\"secondsSp\n")
-        .expect("a damaged reading line");
+    std::fs::write(
+        &path,
+        "{\"bookId\":\"sample\",\"chapterFile\":\"ch-01.md\",\"secondsSp\n",
+    )
+    .expect("a damaged reading line");
 
     let report = backfill_vault_blocking().expect("copy the cache into the vault");
 

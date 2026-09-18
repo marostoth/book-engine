@@ -259,4 +259,3 @@ pub struct AnalyticalStore {
     #[serde(default)]
     pub overall_verdict: Option<String>,
 }
-

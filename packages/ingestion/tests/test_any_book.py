@@ -18,11 +18,9 @@ Every test here makes its own little book, so none of them needs a book of yours
 import json
 import zipfile
 from pathlib import Path
-from typing import Dict, List
 
 import pymupdf
 import pytest
-
 from ingest.assets import extract_epub_assets, suppress_page_images, svg_without_script
 from ingest.models import ChapterMeta
 from ingest.pdf_sanitizer import book_language
@@ -87,7 +85,7 @@ BIG_PNG = None  # made once by _big_png()
 
 def _big_png() -> bytes:
     """A plain PNG of 80 by 80, big enough that the import keeps it."""
-    global BIG_PNG
+    global BIG_PNG  # noqa: PLW0603 -- the picture is made once for the whole run and kept here
     if BIG_PNG is None:
         pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 80, 80), False)
         pix.clear_with(200)
@@ -95,8 +93,9 @@ def _big_png() -> bytes:
     return BIG_PNG
 
 
-def make_book(path: Path, documents: Dict[str, str], nav: str = NAV_WITH_NOTHING,
-              pictures: Dict[str, bytes] = None) -> Path:
+def make_book(
+    path: Path, documents: dict[str, str], nav: str = NAV_WITH_NOTHING, pictures: dict[str, bytes] | None = None
+) -> Path:
     manifest = "".join(
         f'<item id="d{n}" href="{name}" media-type="application/xhtml+xml"/>' for n, name in enumerate(documents)
     )
@@ -116,7 +115,7 @@ def make_book(path: Path, documents: Dict[str, str], nav: str = NAV_WITH_NOTHING
     return path
 
 
-def import_book(folder: Path, documents: Dict[str, str], nav: str = NAV_WITH_NOTHING):
+def import_book(folder: Path, documents: dict[str, str], nav: str = NAV_WITH_NOTHING):
     """Imports a book of these documents into a new vault, and gives its `_meta.json`."""
     path = make_book(folder / f"{BOOK_ID}.epub", documents, nav)
     ingest_epub(path, folder / "vault")
@@ -124,7 +123,7 @@ def import_book(folder: Path, documents: Dict[str, str], nav: str = NAV_WITH_NOT
     return json.loads((book_dir / "_meta.json").read_text(encoding="utf-8")), book_dir
 
 
-def two_chapters() -> Dict[str, str]:
+def two_chapters() -> dict[str, str]:
     return {
         "c1.xhtml": "<h2>The First Way</h2>" + PLAIN,
         "c2.xhtml": "<h2>The Second Way</h2>" + PLAIN,
@@ -181,8 +180,14 @@ def test_no_rule_of_the_quiz_cards_names_a_book():
     """The rule itself, not the note beside it, is what the import runs."""
     from ingest.scenarios import NARRATIVE_PHRASE
 
-    for named in ("cattle rancher", "ranching days", "quote equipment", "auction off his livestock",
-                  "sank deeper into his chair", "the end of a pencil"):
+    for named in (
+        "cattle rancher",
+        "ranching days",
+        "quote equipment",
+        "auction off his livestock",
+        "sank deeper into his chair",
+        "the end of a pencil",
+    ):
         assert named not in NARRATIVE_PHRASE.pattern, f"{named!r} names one book, so it is no rule of the import"
 
 
@@ -319,8 +324,7 @@ def test_a_picture_of_its_own_keeps_its_plain_name(tmp_path: Path):
 
 def test_a_drawing_of_the_book_loses_its_script():
     drawing = (
-        b'<svg xmlns="http://www.w3.org/2000/svg"><script>window.alert(1)</script>'
-        b'<circle cx="5" cy="5" r="4"/></svg>'
+        b'<svg xmlns="http://www.w3.org/2000/svg"><script>window.alert(1)</script><circle cx="5" cy="5" r="4"/></svg>'
     )
     clean = svg_without_script(drawing)
     assert b"<script" not in clean and b"alert" not in clean
@@ -347,8 +351,7 @@ def test_a_drawing_that_the_import_writes_holds_no_script(tmp_path: Path):
         b'<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200">'
         b"<script>window.alert(1)</script>"
         b'<circle cx="100" cy="100" r="90"/>'
-        + b"<!-- " + b"a long comment so the file is big enough to keep. " * 30 + b"-->"
-        + b"</svg>"
+        b"<!-- " + b"a long comment so the file is big enough to keep. " * 30 + b"-->" + b"</svg>"
     )
     path = make_book(tmp_path / f"{BOOK_ID}.epub", two_chapters(), pictures={"images/draw.svg": drawing})
     book = epub.read_epub(str(path))
@@ -375,14 +378,17 @@ def pdf_that_says(language, path: Path) -> Path:
     return path
 
 
-@pytest.mark.parametrize("said,written", [
-    ("fr-FR", "fr-FR"),
-    ("de", "de"),
-    ("zh-Hans", "zh-Hans"),
-    (None, "en"),
-    ("", "en"),
-    ("a whole sentence, not a language", "en"),
-])
+@pytest.mark.parametrize(
+    "said,written",
+    [
+        ("fr-FR", "fr-FR"),
+        ("de", "de"),
+        ("zh-Hans", "zh-Hans"),
+        (None, "en"),
+        ("", "en"),
+        ("a whole sentence, not a language", "en"),
+    ],
+)
 def test_a_pdf_is_written_down_in_the_language_it_says(tmp_path: Path, said, written):
     doc = pymupdf.open(str(pdf_that_says(said, tmp_path / "book.pdf")))
     try:
@@ -398,7 +404,7 @@ def test_a_thing_that_is_no_document_keeps_the_language_it_falls_back_to():
 # ------------------------------------------------------------------ a book that carries no contents
 
 
-def chapters(*names: str) -> List[ChapterMeta]:
+def chapters(*names: str) -> list[ChapterMeta]:
     return [
         ChapterMeta(id=f"ch-{n:02d}", title=name, file_path=f"ch-{n:02d}.md", order=n)
         for n, name in enumerate(names, start=1)

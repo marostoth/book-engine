@@ -50,12 +50,12 @@ impl TryFrom<u8> for Rating {
 /// FSRS-5 default parameters (19 weights), identical to `DEFAULT_PARAMETERS` in py-fsrs 5.1.3
 pub const DEFAULT_WEIGHTS: [f64; 19] = [
     0.40255, 1.18385, 3.173, 15.69105, // w[0..4]: Initial stabilities S0 for Again, Hard, Good, Easy
-    7.1949, 0.5345,                     // w[4..6]: Initial difficulty D0 base and exponent factor
-    1.4604, 0.0046,                     // w[6..8]: Difficulty update step and mean reversion factor
-    1.54575, 0.1192, 1.01925,           // w[8..11]: Stability update on successful recall
-    1.9395, 0.11, 0.29605, 2.2698,      // w[11..15]: Stability update on failure (forget)
-    0.2315, 2.9898,                     // w[15..17]: Hard penalty and Easy bonus
-    0.51655, 0.6621,                    // w[17..19]: Short-term (same-day) stability
+    7.1949, 0.5345, // w[4..6]: Initial difficulty D0 base and exponent factor
+    1.4604, 0.0046, // w[6..8]: Difficulty update step and mean reversion factor
+    1.54575, 0.1192, 1.01925, // w[8..11]: Stability update on successful recall
+    1.9395, 0.11, 0.29605, 2.2698, // w[11..15]: Stability update on failure (forget)
+    0.2315, 2.9898, // w[15..17]: Hard penalty and Easy bonus
+    0.51655, 0.6621, // w[17..19]: Short-term (same-day) stability
 ];
 
 /// Forgetting curve R(t, S) = (1 + FACTOR * t / S)^DECAY. This FACTOR makes R(S, S) = 0.9.
@@ -112,12 +112,7 @@ pub fn next_difficulty(curr_diff: f64, rating: Rating) -> f64 {
 }
 
 /// Computes next stability after a review on a later day. `curr_diff` is the difficulty before the review.
-pub fn next_stability(
-    curr_diff: f64,
-    curr_stab: f64,
-    retrievability: f64,
-    rating: Rating,
-) -> f64 {
+pub fn next_stability(curr_diff: f64, curr_stab: f64, retrievability: f64, rating: Rating) -> f64 {
     let w = &DEFAULT_WEIGHTS;
     if rating == Rating::Again {
         // Forget stability formula, capped at S / e^(w17 * w18) as in FSRS-5
@@ -163,6 +158,7 @@ pub fn next_interval_days(stability: f64, desired_retention: f64) -> u32 {
 /// Elapsed time counts whole days: a same-day review uses short-term stability, a later review
 /// uses the recall or forget formula. Again brings the card back after 10 minutes; Hard, Good,
 /// and Easy schedule whole days.
+#[allow(clippy::too_many_arguments)] // the eight are the numbers of one card, and each one is named
 pub fn schedule_card(
     card_id: &str,
     current_state: CardState,

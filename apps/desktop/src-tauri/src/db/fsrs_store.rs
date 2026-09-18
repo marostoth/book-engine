@@ -1,7 +1,7 @@
-use rusqlite::{params, OptionalExtension, TransactionBehavior};
-use anyhow::{Context, Result};
 use super::models::DeckStats;
 use super::schema::open_or_create_db;
+use anyhow::{Context, Result};
+use rusqlite::{params, OptionalExtension, TransactionBehavior};
 
 /// Calculates deck statistics (due, new, learning, review counts).
 pub fn get_deck_stats_blocking(book_id: Option<&str>) -> Result<DeckStats> {
@@ -16,11 +16,13 @@ pub fn get_deck_stats_blocking(book_id: Option<&str>) -> Result<DeckStats> {
         None => ("", vec![]),
     };
 
-    let total_cards: usize = conn.query_row(
-        &format!("SELECT COUNT(*) FROM fsrs_cards {}", where_clause),
-        rusqlite::params_from_iter(params_vec.iter().cloned()),
-        |r| r.get(0),
-    ).unwrap_or(0);
+    let total_cards: usize = conn
+        .query_row(
+            &format!("SELECT COUNT(*) FROM fsrs_cards {}", where_clause),
+            rusqlite::params_from_iter(params_vec.iter().cloned()),
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
 
     let due_where = if where_clause.is_empty() {
         "WHERE (due <= ? OR reps = 0)"
@@ -32,35 +34,61 @@ pub fn get_deck_stats_blocking(book_id: Option<&str>) -> Result<DeckStats> {
         due_params.push(b.to_string().into());
     }
 
-    let due_count: usize = conn.query_row(
-        &format!("SELECT COUNT(*) FROM fsrs_cards {}", due_where),
-        rusqlite::params_from_iter(due_params),
-        |r| r.get(0),
-    ).unwrap_or(0);
+    let due_count: usize = conn
+        .query_row(
+            &format!("SELECT COUNT(*) FROM fsrs_cards {}", due_where),
+            rusqlite::params_from_iter(due_params),
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
 
-    let new_count: usize = conn.query_row(
-        &format!("SELECT COUNT(*) FROM fsrs_cards {} {}",
-            if where_clause.is_empty() { "WHERE" } else { "WHERE book_id = ? AND" },
-            "state = 0"),
-        rusqlite::params_from_iter(params_vec.iter().cloned()),
-        |r| r.get(0),
-    ).unwrap_or(0);
+    let new_count: usize = conn
+        .query_row(
+            &format!(
+                "SELECT COUNT(*) FROM fsrs_cards {} {}",
+                if where_clause.is_empty() {
+                    "WHERE"
+                } else {
+                    "WHERE book_id = ? AND"
+                },
+                "state = 0"
+            ),
+            rusqlite::params_from_iter(params_vec.iter().cloned()),
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
 
-    let learning_count: usize = conn.query_row(
-        &format!("SELECT COUNT(*) FROM fsrs_cards {} {}",
-            if where_clause.is_empty() { "WHERE" } else { "WHERE book_id = ? AND" },
-            "(state = 1 OR state = 3)"),
-        rusqlite::params_from_iter(params_vec.iter().cloned()),
-        |r| r.get(0),
-    ).unwrap_or(0);
+    let learning_count: usize = conn
+        .query_row(
+            &format!(
+                "SELECT COUNT(*) FROM fsrs_cards {} {}",
+                if where_clause.is_empty() {
+                    "WHERE"
+                } else {
+                    "WHERE book_id = ? AND"
+                },
+                "(state = 1 OR state = 3)"
+            ),
+            rusqlite::params_from_iter(params_vec.iter().cloned()),
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
 
-    let review_count: usize = conn.query_row(
-        &format!("SELECT COUNT(*) FROM fsrs_cards {} {}",
-            if where_clause.is_empty() { "WHERE" } else { "WHERE book_id = ? AND" },
-            "state = 2"),
-        rusqlite::params_from_iter(params_vec),
-        |r| r.get(0),
-    ).unwrap_or(0);
+    let review_count: usize = conn
+        .query_row(
+            &format!(
+                "SELECT COUNT(*) FROM fsrs_cards {} {}",
+                if where_clause.is_empty() {
+                    "WHERE"
+                } else {
+                    "WHERE book_id = ? AND"
+                },
+                "state = 2"
+            ),
+            rusqlite::params_from_iter(params_vec),
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
 
     Ok(DeckStats {
         due_count,
@@ -79,8 +107,7 @@ pub fn get_deck_stats_blocking(book_id: Option<&str>) -> Result<DeckStats> {
 /// and the database is only a cache (DS-01). A review the vault refuses is not saved at all. A review the
 /// vault took but the database did not is put back at the next startup, so nothing is lost either way.
 pub fn submit_card_review_blocking(card_id: &str, rating_val: u8) -> Result<crate::fsrs::CardSchedule> {
-    let rating = crate::fsrs::Rating::try_from(rating_val)
-        .map_err(|e| anyhow::anyhow!(e))?;
+    let rating = crate::fsrs::Rating::try_from(rating_val).map_err(|e| anyhow::anyhow!(e))?;
     let mut conn = open_or_create_db()?;
 
     // IMMEDIATE takes the write lock before the card is read. A second review of the same card
@@ -91,7 +118,16 @@ pub fn submit_card_review_blocking(card_id: &str, rating_val: u8) -> Result<crat
         .query_row(
             "SELECT book_id, state, stability, difficulty, reps, last_review FROM fsrs_cards WHERE card_id = ?",
             params![card_id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                ))
+            },
         )
         .optional()?
         .with_context(|| format!("Card '{}' not found in fsrs_cards", card_id))?;

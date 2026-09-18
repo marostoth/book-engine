@@ -6,11 +6,15 @@ Anchors follow the format ^p-[0-9]{3,} and are preserved across re-indexes.
 """
 
 from __future__ import annotations
+
 import re
-from typing import List, Tuple
+from typing import TYPE_CHECKING
 
 from ingest.chapter_shape import is_heading
 from ingest.markdown_text import unescape_markdown_text
+
+if TYPE_CHECKING:  # `ingest.models` reads this module, so the name is here for a reader of the types only (TL-05)
+    from ingest.models import InspectionalSampling
 
 ANCHOR_REGEX = re.compile(r"\s*\^p-[a-zA-Z0-9_-]+$")
 
@@ -30,14 +34,14 @@ def has_anchor(paragraph: str) -> bool:
     return bool(ANCHOR_REGEX.search(paragraph.strip()))
 
 
-def inject_paragraph_anchors(markdown_content: str, start_index: int = 1) -> Tuple[str, int]:
+def inject_paragraph_anchors(markdown_content: str, start_index: int = 1) -> tuple[str, int]:
     """Inject deterministic anchors into all non-heading paragraphs separated by blank lines.
 
     Returns:
         (updated_markdown, total_anchors_injected)
     """
     blocks = [b.strip() for b in markdown_content.split("\n\n") if b.strip()]
-    anchored_blocks: List[str] = []
+    anchored_blocks: list[str] = []
     current_index = start_index
 
     for block in blocks:
@@ -58,9 +62,9 @@ def inject_paragraph_anchors(markdown_content: str, start_index: int = 1) -> Tup
     return result_md, current_index - start_index
 
 
-def extract_anchors(markdown_content: str) -> List[Tuple[str, str]]:
+def extract_anchors(markdown_content: str) -> list[tuple[str, str]]:
     """Extract list of (anchor_id, paragraph_text) from markdown."""
-    results: List[Tuple[str, str]] = []
+    results: list[tuple[str, str]] = []
     blocks = [b.strip() for b in markdown_content.split("\n\n") if b.strip()]
 
     for block in blocks:
@@ -109,7 +113,7 @@ def extract_inspectional_sampling(markdown_content: str, depth: int = 2) -> Insp
     from ingest.models import InspectionalSampling
 
     blocks = [b.strip() for b in markdown_content.split("\n\n") if b.strip()]
-    candidate_blocks: List[str] = []
+    candidate_blocks: list[str] = []
 
     for b in blocks:
         # Skip headings
@@ -137,13 +141,13 @@ def extract_inspectional_sampling(markdown_content: str, depth: int = 2) -> Insp
         head_candidates = candidate_blocks[:depth]
         tail_candidates = candidate_blocks[-depth:]
 
-    head_anchors: List[str] = []
+    head_anchors: list[str] = []
     for b in head_candidates:
         m = ANCHOR_REGEX.search(b)
         if m:
             head_anchors.append(m.group(0).strip())
 
-    tail_anchors: List[str] = []
+    tail_anchors: list[str] = []
     for b in tail_candidates:
         m = ANCHOR_REGEX.search(b)
         if m:
@@ -158,4 +162,3 @@ def extract_inspectional_sampling(markdown_content: str, depth: int = 2) -> Insp
         head_text_preview=head_preview,
         tail_text_preview=tail_preview,
     )
-

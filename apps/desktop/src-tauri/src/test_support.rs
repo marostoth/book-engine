@@ -81,7 +81,12 @@ impl Sandbox {
 
     /// Stored id of cloze card `n` from `write_sample_deck`.
     pub(crate) fn cloze_card_id(&self, n: usize) -> String {
-        card_identity("sample", "cloze", &sample_question(SAMPLE_CLOZE_QUESTION, n), "division of labour")
+        card_identity(
+            "sample",
+            "cloze",
+            &sample_question(SAMPLE_CLOZE_QUESTION, n),
+            "division of labour",
+        )
     }
 
     /// Stored id of scenario card `n` from `write_sample_deck`.
@@ -140,9 +145,8 @@ pub(crate) fn vault_root() -> Result<PathBuf> {
 /// True when `path` is inside the active sandbox and does not climb out of it with `..`.
 /// With no active sandbox, nothing is inside one.
 pub(crate) fn is_inside_sandbox(path: &Path) -> bool {
-    active_root().is_ok_and(|root| {
-        path.starts_with(&root) && !path.components().any(|part| part == Component::ParentDir)
-    })
+    active_root()
+        .is_ok_and(|root| path.starts_with(&root) && !path.components().any(|part| part == Component::ParentDir))
 }
 
 /// Makes `link` a junction to `target`. A junction is the folder link that Windows lets a user make without admin rights.
@@ -154,7 +158,11 @@ pub(crate) fn junction(link: &Path, target: &Path) {
         .arg(target)
         .output()
         .expect("run mklink");
-    assert!(output.status.success(), "mklink /J failed: {}", String::from_utf8_lossy(&output.stdout));
+    assert!(
+        output.status.success(),
+        "mklink /J failed: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
 }
 
 /// Settings file path in test builds.
@@ -204,7 +212,9 @@ fn sample_question(question: &str, n: usize) -> String {
 
 /// Fills in a card template: `{n}` is the card number (`001`) and `{question}` is the card's question.
 fn sample_card(template: &str, question: &str, n: usize) -> String {
-    template.replace("{n}", &format!("{n:03}")).replace("{question}", &sample_question(question, n))
+    template
+        .replace("{n}", &format!("{n:03}"))
+        .replace("{question}", &sample_question(question, n))
 }
 
 const SAMPLE_CLOZE_CARD: &str = r#"
@@ -242,7 +252,10 @@ mod tests {
     #[test]
     fn paths_fail_without_a_sandbox() {
         assert!(find_vault_root().is_err(), "tests must never resolve the real vault");
-        assert!(get_db_path().is_err(), "tests must never resolve the real cache database");
+        assert!(
+            get_db_path().is_err(),
+            "tests must never resolve the real cache database"
+        );
         assert_eq!(locate_vault(), None, "tests must never find the real vault");
     }
 
@@ -251,20 +264,33 @@ mod tests {
         let sandbox = Sandbox::new();
         assert_eq!(find_vault_root().expect("sandbox vault"), sandbox.vault());
         let db = get_db_path().expect("sandbox database");
-        assert!(db.starts_with(&sandbox.root), "database must live in the sandbox: {}", db.display());
+        assert!(
+            db.starts_with(&sandbox.root),
+            "database must live in the sandbox: {}",
+            db.display()
+        );
 
         drop(sandbox);
-        assert!(find_vault_root().is_err(), "paths must stop working when the sandbox ends");
+        assert!(
+            find_vault_root().is_err(),
+            "paths must stop working when the sandbox ends"
+        );
     }
 
     #[test]
     fn only_a_path_inside_the_active_sandbox_is_inside_it() {
         let working_folder = std::env::current_dir().expect("working folder");
-        assert!(!is_inside_sandbox(&working_folder), "with no sandbox, nothing is inside one");
+        assert!(
+            !is_inside_sandbox(&working_folder),
+            "with no sandbox, nothing is inside one"
+        );
 
         let sandbox = Sandbox::new();
         assert!(is_inside_sandbox(&sandbox.vault().join("books")));
-        assert!(!is_inside_sandbox(&working_folder), "the repository is outside the sandbox");
+        assert!(
+            !is_inside_sandbox(&working_folder),
+            "the repository is outside the sandbox"
+        );
         assert!(
             !is_inside_sandbox(sandbox.root.parent().expect("temporary folder")),
             "the folder above the sandbox is outside it"

@@ -1,7 +1,8 @@
 """Unit tests for deterministic paragraph anchor placement and formatting."""
 
 import re
-from ingest.anchors import inject_paragraph_anchors, extract_anchors, strip_anchor, format_anchor
+
+from ingest.anchors import extract_anchors, format_anchor, inject_paragraph_anchors
 
 AUDIT_ANCHOR_REGEX = re.compile(r"\^p-[a-zA-Z0-9_-]+$")
 

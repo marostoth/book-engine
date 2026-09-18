@@ -13,10 +13,8 @@ import json
 import re
 import zipfile
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 import pytest
-
 from ingest.chapter_shape import (
     CHAPTER_TITLE,
     DIVISION_TITLE,
@@ -72,7 +70,7 @@ PARAGRAPH = (
 SECOND = "<p>The country supplies the town with the means of subsistence and the materials of manufacture.</p>"
 
 
-def make_epub(path: Path, documents: Dict[str, str], entries: List[Tuple[str, str]]) -> Path:
+def make_epub(path: Path, documents: dict[str, str], entries: list[tuple[str, str]]) -> Path:
     """An EPUB with a document for each body of `documents`, and a contents of `(href, title)` entries."""
     manifest = "".join(
         f'<item id="d{n}" href="{name}" media-type="application/xhtml+xml"/>' for n, name in enumerate(documents)
@@ -89,24 +87,25 @@ def make_epub(path: Path, documents: Dict[str, str], entries: List[Tuple[str, st
     return path
 
 
-def import_book(folder: Path, documents: Dict[str, str], entries: List[Tuple[str, str]] = ()):
+def import_book(folder: Path, documents: dict[str, str], entries: list[tuple[str, str]] = ()):
     """Imports a book into a new vault in `folder`, and gives its `_meta.json` as a dict and its folder."""
     ingest_epub(make_epub(folder / f"{BOOK_ID}.epub", documents, list(entries)), folder / "vault")
     book_dir = folder / "vault" / "books" / BOOK_ID
     return json.loads((book_dir / "_meta.json").read_text(encoding="utf-8")), book_dir
 
 
-def blocks_of(book_dir: Path, name: str) -> List[str]:
+def blocks_of(book_dir: Path, name: str) -> list[str]:
     """The blocks of a chapter file, without their paragraph anchors."""
     text = (book_dir / name).read_text(encoding="utf-8")
     return [re.sub(r" \^p-\d{3}$", "", block) for block in text.split("\n\n")]
 
 
-def entry(title: str, href: str = "", subitems: List[TOCItem] = ()) -> TOCItem:
+def entry(title: str, href: str = "", subitems: list[TOCItem] = ()) -> TOCItem:
     return TOCItem(id=title, title=title, href=href, level=1, subitems=list(subitems))
 
 
 # --- a page that holds no text of its own ---
+
 
 def test_a_page_of_nothing_but_a_title_holds_no_text():
     assert holds_no_text(["## BOOK I. OF THE CAUSES OF IMPROVEMENT"])
@@ -131,63 +130,76 @@ def test_a_page_with_nothing_at_all_holds_no_text_to_hold_over():
 
 # --- the name of a chapter ---
 
+
 def test_the_name_of_a_chapter_is_its_first_heading():
     assert chapter_name(["## CHAPTER IV. OF DRAWBACKS.", "A paragraph."]) == "CHAPTER IV. OF DRAWBACKS."
 
 
 def test_a_chapter_that_starts_a_book_is_named_after_the_chapter():
-    name = chapter_name([
-        "## BOOK III. OF THE DIFFERENT PROGRESS OF OPULENCE IN DIFFERENT NATIONS",
-        "## CHAPTER I. OF THE NATURAL PROGRESS OF OPULENCE.",
-        "The great commerce of every civilized society.",
-    ])
+    name = chapter_name(
+        [
+            "## BOOK III. OF THE DIFFERENT PROGRESS OF OPULENCE IN DIFFERENT NATIONS",
+            "## CHAPTER I. OF THE NATURAL PROGRESS OF OPULENCE.",
+            "The great commerce of every civilized society.",
+        ]
+    )
     assert name == "CHAPTER I. OF THE NATURAL PROGRESS OF OPULENCE."
 
 
 def test_a_book_title_with_its_own_text_keeps_its_name():
     # BOOK IV holds two paragraphs of Adam Smith and no chapter title, so the division is what a reader opens
-    name = chapter_name([
-        "## BOOK IV. OF SYSTEMS OF POLITICAL ECONOMY.",
-        "Political economy, considered as a branch of the science of a statesman.",
-    ])
+    name = chapter_name(
+        [
+            "## BOOK IV. OF SYSTEMS OF POLITICAL ECONOMY.",
+            "Political economy, considered as a branch of the science of a statesman.",
+        ]
+    )
     assert name == "BOOK IV. OF SYSTEMS OF POLITICAL ECONOMY."
 
 
 def test_a_book_title_before_a_heading_that_names_no_chapter_keeps_its_name():
     # BOOK II is followed by "INTRODUCTION.", which tells a reader nothing, so the division is the better name
-    name = chapter_name([
-        "## BOOK II. OF THE NATURE, ACCUMULATION, AND EMPLOYMENT OF STOCK.",
-        "### INTRODUCTION.",
-        "In that rude state of society.",
-    ])
+    name = chapter_name(
+        [
+            "## BOOK II. OF THE NATURE, ACCUMULATION, AND EMPLOYMENT OF STOCK.",
+            "### INTRODUCTION.",
+            "In that rude state of society.",
+        ]
+    )
     assert name == "BOOK II. OF THE NATURE, ACCUMULATION, AND EMPLOYMENT OF STOCK."
 
 
 def test_a_chapter_title_that_comes_after_a_paragraph_does_not_take_the_name():
-    name = chapter_name([
-        "## BOOK III. OF THE DIFFERENT PROGRESS OF OPULENCE",
-        "A paragraph of the division itself.",
-        "## CHAPTER I. OF THE NATURAL PROGRESS OF OPULENCE.",
-    ])
+    name = chapter_name(
+        [
+            "## BOOK III. OF THE DIFFERENT PROGRESS OF OPULENCE",
+            "A paragraph of the division itself.",
+            "## CHAPTER I. OF THE NATURAL PROGRESS OF OPULENCE.",
+        ]
+    )
     assert name == "BOOK III. OF THE DIFFERENT PROGRESS OF OPULENCE"
 
 
 def test_only_the_title_of_a_division_gives_up_the_name():
     # A foreword has words of its own, so it stays what a reader opens, even when a chapter title follows it
-    name = chapter_name([
-        "## A FOREWORD TO THIS EDITION",
-        "## CHAPTER I. OF THE NATURAL PROGRESS OF OPULENCE.",
-        "A paragraph.",
-    ])
+    name = chapter_name(
+        [
+            "## A FOREWORD TO THIS EDITION",
+            "## CHAPTER I. OF THE NATURAL PROGRESS OF OPULENCE.",
+            "A paragraph.",
+        ]
+    )
     assert name == "A FOREWORD TO THIS EDITION"
 
 
 def test_a_chapter_before_a_book_title_keeps_its_own_name():
-    name = chapter_name([
-        "## CHAPTER IX. OF THE AGRICULTURAL SYSTEMS.",
-        "## APPENDIX TO BOOK IV",
-        "A paragraph.",
-    ])
+    name = chapter_name(
+        [
+            "## CHAPTER IX. OF THE AGRICULTURAL SYSTEMS.",
+            "## APPENDIX TO BOOK IV",
+            "A paragraph.",
+        ]
+    )
     assert name == "CHAPTER IX. OF THE AGRICULTURAL SYSTEMS."
 
 
@@ -229,11 +241,15 @@ def test_a_word_that_starts_like_chapter_is_no_chapter_title():
 
 # --- the import joins a title page to the chapter it introduces ---
 
+
 def test_a_page_of_nothing_but_a_title_joins_the_chapter_after_it(tmp_path: Path):
-    meta, book_dir = import_book(tmp_path, {
-        "book1.xhtml": "<h2>BOOK I. OF THE CAUSES OF IMPROVEMENT IN THE PRODUCTIVE POWERS OF LABOUR.</h2>",
-        "ch1.xhtml": f"<h2>CHAPTER I. OF THE DIVISION OF LABOUR.</h2>{PARAGRAPH}",
-    })
+    meta, book_dir = import_book(
+        tmp_path,
+        {
+            "book1.xhtml": "<h2>BOOK I. OF THE CAUSES OF IMPROVEMENT IN THE PRODUCTIVE POWERS OF LABOUR.</h2>",
+            "ch1.xhtml": f"<h2>CHAPTER I. OF THE DIVISION OF LABOUR.</h2>{PARAGRAPH}",
+        },
+    )
 
     assert meta["total_chapters"] == 1
     assert not (book_dir / "ch-02.md").exists()
@@ -249,12 +265,15 @@ def test_a_page_of_nothing_but_a_title_joins_the_chapter_after_it(tmp_path: Path
 
 
 def test_no_chapter_of_an_import_is_left_without_a_paragraph(tmp_path: Path):
-    meta, _ = import_book(tmp_path, {
-        "book1.xhtml": "<h2>BOOK I. OF THE CAUSES OF IMPROVEMENT IN THE PRODUCTIVE POWERS OF LABOUR.</h2>",
-        "ch1.xhtml": f"<h2>CHAPTER I. OF THE DIVISION OF LABOUR.</h2>{PARAGRAPH}",
-        "book2.xhtml": "<h2>BOOK II. OF THE NATURE, ACCUMULATION, AND EMPLOYMENT OF STOCK.</h2>",
-        "ch2.xhtml": f"<h2>CHAPTER I. OF THE DIVISION OF STOCK.</h2>{SECOND}",
-    })
+    meta, _ = import_book(
+        tmp_path,
+        {
+            "book1.xhtml": "<h2>BOOK I. OF THE CAUSES OF IMPROVEMENT IN THE PRODUCTIVE POWERS OF LABOUR.</h2>",
+            "ch1.xhtml": f"<h2>CHAPTER I. OF THE DIVISION OF LABOUR.</h2>{PARAGRAPH}",
+            "book2.xhtml": "<h2>BOOK II. OF THE NATURE, ACCUMULATION, AND EMPLOYMENT OF STOCK.</h2>",
+            "ch2.xhtml": f"<h2>CHAPTER I. OF THE DIVISION OF STOCK.</h2>{SECOND}",
+        },
+    )
 
     assert [s["anchor_count"] for s in meta["spine"]] == [1, 1]
     assert [s["title"] for s in meta["spine"]] == [
@@ -264,11 +283,14 @@ def test_no_chapter_of_an_import_is_left_without_a_paragraph(tmp_path: Path):
 
 
 def test_two_title_pages_in_a_row_both_join_the_chapter_after_them(tmp_path: Path):
-    meta, book_dir = import_book(tmp_path, {
-        "book1.xhtml": "<h2>BOOK I. OF THE CAUSES OF IMPROVEMENT IN THE PRODUCTIVE POWERS OF LABOUR.</h2>",
-        "half.xhtml": "<h3>A HALF TITLE THAT STANDS ALONE ON ITS OWN PAGE</h3>",
-        "ch1.xhtml": f"<h2>CHAPTER I. OF THE DIVISION OF LABOUR.</h2>{PARAGRAPH}",
-    })
+    meta, book_dir = import_book(
+        tmp_path,
+        {
+            "book1.xhtml": "<h2>BOOK I. OF THE CAUSES OF IMPROVEMENT IN THE PRODUCTIVE POWERS OF LABOUR.</h2>",
+            "half.xhtml": "<h3>A HALF TITLE THAT STANDS ALONE ON ITS OWN PAGE</h3>",
+            "ch1.xhtml": f"<h2>CHAPTER I. OF THE DIVISION OF LABOUR.</h2>{PARAGRAPH}",
+        },
+    )
 
     assert meta["total_chapters"] == 1
     assert blocks_of(book_dir, "ch-01.md")[:2] == [
@@ -279,10 +301,13 @@ def test_two_title_pages_in_a_row_both_join_the_chapter_after_them(tmp_path: Pat
 
 def test_a_title_page_with_no_chapter_after_it_loses_no_word(tmp_path: Path):
     # The last page of a book can be a title with nothing after it. Its words still reach the reader.
-    meta, book_dir = import_book(tmp_path, {
-        "ch1.xhtml": f"<h2>CHAPTER I. OF THE DIVISION OF LABOUR.</h2>{PARAGRAPH}",
-        "end.xhtml": "<h2>BOOK II. OF THE NATURE AND ACCUMULATION OF STOCK.</h2>",
-    })
+    meta, book_dir = import_book(
+        tmp_path,
+        {
+            "ch1.xhtml": f"<h2>CHAPTER I. OF THE DIVISION OF LABOUR.</h2>{PARAGRAPH}",
+            "end.xhtml": "<h2>BOOK II. OF THE NATURE AND ACCUMULATION OF STOCK.</h2>",
+        },
+    )
 
     assert meta["total_chapters"] == 1
     # Nothing was written for it, and nothing of it was lost from the count either
@@ -291,10 +316,13 @@ def test_a_title_page_with_no_chapter_after_it_loses_no_word(tmp_path: Path):
 
 
 def test_a_page_of_a_picture_stays_a_chapter_of_its_own(tmp_path: Path):
-    meta, book_dir = import_book(tmp_path, {
-        "plate.xhtml": "<h2>PLATE I. A VIEW OF THE HARBOUR AT LEITH IN THE YEAR 1776</h2><p>A view of the harbour.</p>",
-        "ch1.xhtml": f"<h2>CHAPTER I. OF THE DIVISION OF LABOUR.</h2>{PARAGRAPH}",
-    })
+    meta, _book_dir = import_book(
+        tmp_path,
+        {
+            "plate.xhtml": "<h2>PLATE I. A VIEW OF THE HARBOUR AT LEITH IN THE YEAR 1776</h2><p>A view of the harbour.</p>",
+            "ch1.xhtml": f"<h2>CHAPTER I. OF THE DIVISION OF LABOUR.</h2>{PARAGRAPH}",
+        },
+    )
 
     assert meta["total_chapters"] == 2
     assert meta["spine"][0]["title"] == "PLATE I. A VIEW OF THE HARBOUR AT LEITH IN THE YEAR 1776"
@@ -340,6 +368,7 @@ def test_a_contents_entry_inside_a_joined_chapter_opens_the_right_paragraph(tmp_
 
 
 # --- a contents entry that opens nothing ---
+
 
 def test_an_entry_that_opens_nothing_goes():
     kept = without_entries_that_lead_nowhere([entry("CHAPTER I.", "ch-01.md"), entry("THE FULL LICENSE")])
@@ -401,6 +430,7 @@ def test_every_contents_entry_of_an_import_opens_a_chapter_that_exists(tmp_path:
 
 
 # --- one rule for a division and for a chapter ---
+
 
 def test_the_contents_of_a_book_uses_the_same_two_rules_as_a_chapter_file():
     parser = (Path(__file__).resolve().parents[1] / "ingest" / "epub_parser.py").read_text(encoding="utf-8")

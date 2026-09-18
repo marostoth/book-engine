@@ -9,6 +9,11 @@ import type {
 } from "./types.ts";
 import { callBackend, isTauri } from "./api/clientBase.ts";
 
+/** What the desktop app puts on `window`. A browser tab has none of it. */
+interface TauriWindow {
+  __TAURI_INTERNALS__?: { convertFileSrc?: (path: string, protocol: string) => string };
+}
+
 export * from "./api/practiceApi.ts";
 export * from "./api/notesApi.ts";
 export * from "./api/highlightsApi.ts";
@@ -114,8 +119,9 @@ export function resolveAssetUrl(bookId: string, src: string, vaultPath?: string)
   const cleanVault = vPath.replace(/\\/g, "/").replace(/\/+$/, "");
   const fullPath = `${cleanVault}/books/${bookId}/assets/${filename}`;
 
-  if (typeof window !== "undefined" && (window as any).__TAURI_INTERNALS__?.convertFileSrc) {
-    return (window as any).__TAURI_INTERNALS__.convertFileSrc(fullPath, "asset");
+  const insideTheApp = (window as unknown as TauriWindow).__TAURI_INTERNALS__;
+  if (typeof window !== "undefined" && insideTheApp?.convertFileSrc) {
+    return insideTheApp.convertFileSrc(fullPath, "asset");
   }
 
   return src;
