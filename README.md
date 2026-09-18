@@ -58,9 +58,12 @@ book-engine/
 
 Ensure the following runtimes are installed on your workstation:
 
-- **Node.js**: `22.6.0+` and `npm`. The frontend tests are TypeScript files that Node runs itself, with
-  `--experimental-strip-types`, and that flag arrived in Node 22.6.0. The root `package.json` says the same in
-  `engines`, so `npm install` warns you when your Node is older.
+- **Node.js**: `22.19.0+` and `npm`. The frontend tests are TypeScript files that Node runs itself, with
+  `--experimental-strip-types`. That flag arrived in Node 22.6.0, and 22.6.0 is what this file used to ask for, but
+  the flag arriving is not the same as the tests running: 22.6.0 stops at the `!` of `let answer!: T` in
+  `readerLoads.test.ts` and `exitAssessment.test.ts` with a `SyntaxError`. 22.19.0 reads them, and it is the
+  version the tests are proven on. The root `package.json` says the same in `engines`, so `npm install` warns you
+  when your Node is older, and `.github/workflows/check.yml` installs that exact version.
 - **Rust & Cargo**: `1.88+` (with Tauri v2 prerequisites installed for your OS). Tauri 2.11.5 itself asks for
   1.77.2, but other crates of the same build ask for 1.88. `apps/desktop/src-tauri/Cargo.toml` says `1.88` in
   `rust-version`, so cargo tells you plainly instead of failing inside a dependency.

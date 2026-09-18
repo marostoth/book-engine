@@ -21,10 +21,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The versions the README asks for. `engines.node` and `rust-version` say the same (TL-06).
+      # The exact Node the README and `engines.node` ask for. It was 22.6.0, the release the type-stripping flag
+      # arrived in, which is a guess about a feature and not a measurement of this code: 22.6.0 stops at the `!` of
+      # `let answer!: T` in two test files. 22.19.0 runs them, and the runs here are what proves it (TL-05, TL-06).
       - uses: actions/setup-node@v4
         with:
-          node-version: "22.6.0"
+          node-version: "22.19.0"
           cache: npm
 
       - uses: actions/setup-python@v5

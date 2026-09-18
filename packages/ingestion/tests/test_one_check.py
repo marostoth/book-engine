@@ -170,6 +170,23 @@ def test_the_workflow_asks_for_the_node_the_readme_asks_for():
     assert re.search(r'node-version:\s*"' + re.escape(node.lstrip(">=")) + '"', text), node
 
 
+def test_the_node_floor_can_read_the_syntax_the_frontend_tests_use():
+    """22.6.0 was chosen because `--experimental-strip-types` first appeared there. A flag arriving is not the same
+    as the tests running: Node 22.6.0 stops at the `!` of `let answer!: T` with a SyntaxError, and two test files
+    write it. The workflow found that, on its second run, after the Rust half was fixed. 22.19.0 reads them."""
+    written = [
+        path
+        for path in sorted((REPO / "apps" / "desktop" / "src").rglob("*.test.ts"))
+        if re.search(r"\b(?:let|var)\s+\w+!\s*:", path.read_text(encoding="utf-8"))
+    ]
+    floor = json.loads(ROOT_PACKAGE.read_text(encoding="utf-8"))["engines"]["node"].lstrip(">=")
+    if written:
+        names = ", ".join(path.name for path in written)
+        assert tuple(int(part) for part in floor.split(".")) >= (22, 19, 0), (
+            f"{names} write `let x!: T`, which Node {floor} cannot strip"
+        )
+
+
 def test_one_file_names_the_rust_that_every_computer_checks_with():
     """The workflow installed a Rust of its own, 1.88, while this computer ran 1.98. The two clippys do not run the
     same rules, so `npm run check` was green here and the first workflow run was red with 125 errors. rustup reads

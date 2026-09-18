@@ -105,7 +105,8 @@ def test_the_one_lock_file_holds_what_the_frontend_needs():
 
 
 def test_the_node_the_readme_asks_for_can_run_the_frontend_tests():
-    """The README said 18.0+, and the test command uses a flag that arrived in 22.6.0."""
+    """The README said 18.0+, and the test command uses a flag that arrived in 22.6.0. The floor is higher than the
+    flag, because 22.6.0 cannot read every test file; test_one_check.py holds that measurement (TL-05)."""
     test_command = json.loads(DESKTOP_PACKAGE.read_text(encoding="utf-8"))["scripts"]["test"]
     assert "--experimental-strip-types" in test_command, "this test guards a flag the command no longer uses"
 
