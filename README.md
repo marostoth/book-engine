@@ -70,7 +70,10 @@ Ensure the following runtimes are installed on your workstation:
   `rust-toolchain.toml` at the root then names the Rust the **checks** run on, and rustup reads it here and on the
   build runner. Two clippys of different ages do not run the same rules, so without that file `npm run check` can
   be green on your computer and red on the runner.
-- **Python**: `3.11+` with `pip`. The import reads `pyproject.toml` with `tomllib`, which arrived in 3.11.
+- **Python**: `3.13+` with `pip`. The import reads `pyproject.toml` with `tomllib`, which arrived in 3.11, and the
+  code needs nothing newer than that. The floor is 3.13 because `packages/ingestion/requirements.lock` is made on
+  3.13 and `numpy==2.5.3` in it has no build for 3.11: on 3.11 the install in the next section stops partway with
+  "No matching distribution found". `requires-python` says the same, so pip refuses plainly instead.
 
 ---
 

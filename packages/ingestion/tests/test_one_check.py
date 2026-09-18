@@ -170,6 +170,47 @@ def test_the_workflow_asks_for_the_node_the_readme_asks_for():
     assert re.search(r'node-version:\s*"' + re.escape(node.lstrip(">=")) + '"', text), node
 
 
+def commands_of_each_step() -> dict[str, list[str]]:
+    """The command lines of every `run:` in the workflow, by the name of the step they belong to."""
+    found: dict[str, list[str]] = {}
+    name = "a step with no name"
+    rows = WORKFLOW.read_text(encoding="utf-8").splitlines()
+    for index, row in enumerate(rows):
+        if row.strip().startswith("- name:"):
+            name = row.strip().split("- name:", 1)[1].strip()
+        if not re.match(r"\s*run:", row):
+            continue
+        rest = row.split("run:", 1)[1].strip()
+        if rest and rest != "|":
+            found[name] = [rest]
+            continue
+        indent = len(row) - len(row.lstrip())
+        block = []
+        for later in rows[index + 1 :]:
+            if not later.strip() or len(later) - len(later.lstrip()) <= indent:
+                break
+            block.append(later.strip())
+        found[name] = block
+    return found
+
+
+def test_every_workflow_step_stops_at_its_first_failing_command():
+    """A step of several lines reports only the exit code of its last line. That is how the lock install stopped at
+    `numpy==2.5.3` while the step still said success, and the failure showed up three steps later as `No module
+    named ruff`. Commands joined with `&&` end the step at the first one that fails."""
+    for name, block in commands_of_each_step().items():
+        commands = [line for line in block if not line.startswith("#")]
+        assert len(commands) == 1, f"the step {name!r} runs {len(commands)} lines of its own; join them with `&&`"
+
+
+def test_the_workflow_asks_for_the_python_the_package_requires():
+    """`requires-python` said 3.11, and the lock is made on 3.13: `numpy==2.5.3` in it has no build for 3.11, so a
+    runner on 3.11 installs most of the lock and then stops with `No matching distribution found`."""
+    project = tomllib.loads((REPO / "packages" / "ingestion" / "pyproject.toml").read_text(encoding="utf-8"))
+    floor = project["project"]["requires-python"].lstrip(">=")
+    assert re.search(r'python-version:\s*"' + re.escape(floor) + '"', WORKFLOW.read_text(encoding="utf-8")), floor
+
+
 def test_the_node_floor_can_read_the_syntax_the_frontend_tests_use():
     """22.6.0 was chosen because `--experimental-strip-types` first appeared there. A flag arriving is not the same
     as the tests running: Node 22.6.0 stops at the `!` of `let answer!: T` with a SyntaxError, and two test files

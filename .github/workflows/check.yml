@@ -31,7 +31,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.13"
 
       # The toolchain is named once, in `rust-toolchain.toml`, and rustup reads that file here and on the computer
       # you write on. This step used to install a Rust of its own, and the first run of this workflow went red with
@@ -54,10 +54,11 @@ jobs:
       - name: Install the frontend, from the one lock file at the root (TL-06)
         run: npm ci
 
+      # Joined with `&&`, never one command per line. A step of several lines reports only the exit code of the
+      # last one, so this step said "success" while the lock install had stopped at `numpy==2.5.3`, and the failure
+      # only showed three steps later as "No module named ruff" (TL-05).
       - name: Install the Python the import and its checks need
-        run: |
-          python -m pip install -r packages/ingestion/requirements.lock
-          python -m pip install --no-deps -e packages/ingestion
+        run: python -m pip install -r packages/ingestion/requirements.lock && python -m pip install --no-deps -e packages/ingestion
 
       # Three groups, named so a red run says which one went wrong without opening the log.
       - name: Rust — format, clippy, tests
@@ -71,7 +72,4 @@ jobs:
 
       # A book to check, because a clone's vault is empty (TL-06), and then the checks that read one.
       - name: The audits, on a book this run made
-        run: |
-          python -m ingest.sample_generator --vault vault
-          python .agent/skills/audit-anchors.py
-          python .agent/skills/audit-practice.py
+        run: python -m ingest.sample_generator --vault vault && python .agent/skills/audit-anchors.py && python .agent/skills/audit-practice.py
