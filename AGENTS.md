@@ -75,7 +75,7 @@ You are acting as a Principal Systems & Frontend Engineer specializing in local-
 Before declaring any task or phase complete:
 1. Run the anchor integrity check: `python .agent/skills/audit-anchors.py vault/books/<book-id>`
 2. Run pipeline tests: `pytest packages/ingestion/tests/`
-3. Verify that search benchmarks pass under 15ms: `python .agent/skills/benchmark-fts.py`
+3. Verify the search benchmarks: `python .agent/skills/benchmark-fts.py`. A real word must answer in under 15 ms and a two-letter prefix, the broadest search the app allows, in under 120 ms. Every query is held to its limit on its own, never the average of the lot (SI-04).
 4. Verify verbatim practice integrity: `python .agent/skills/audit-practice.py`
 
 ---
