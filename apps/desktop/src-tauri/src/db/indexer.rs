@@ -182,6 +182,10 @@ fn index_book(
 
 /// Writes the search rows of one chapter, unless its rows already hold this text. Gives the number of paragraphs
 /// written, or None when the chapter was up to date.
+#[expect(
+    clippy::string_slice,
+    reason = "the position comes from `rfind`, which always answers on a letter boundary"
+)]
 fn index_chapter(
     conn: &Connection,
     book_id: &str,

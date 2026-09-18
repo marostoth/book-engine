@@ -58,6 +58,10 @@ pub fn scan_all_notes(book_id: &str) -> Result<Vec<ChapterNoteFile>> {
 
 /// Scans and parses both human-written reflection Markdown and embedded W3C highlight JSON blocks
 /// across all `vault/notes/<book-id>/ch-*-notes.md`, grouping entries by chapter and anchor.
+#[expect(
+    clippy::string_slice,
+    reason = "every position comes from `find` or `rfind`, plus the length of an ASCII marker"
+)]
 pub fn parse_all_book_notes(book_id: &str) -> Result<Vec<AggregatedNoteItem>> {
     let note_files = scan_all_notes(book_id)?;
     let mut chapter_info: std::collections::HashMap<String, (String, usize)> = std::collections::HashMap::new();

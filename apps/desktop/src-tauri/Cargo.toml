@@ -16,6 +16,13 @@ rust-version = "1.88"
 [lints.clippy]
 uninlined_format_args = "warn"
 
+# Cutting a string by byte position stops the whole program when the cut lands inside a letter. A book may hold any
+# letter: `(①)` as an option label crashed the deck sync and took every card of that run with it, and a count of
+# characters used as a count of bytes is how it happened (TL-10). Most cuts here are safe on purpose, because their
+# position came from `find`, which always answers on a letter boundary. Each of those carries `#[expect(...)]` with
+# the reason, and `expect` rather than `allow`, so clippy says to remove it once the cut is gone.
+string_slice = "warn"
+
 [lib]
 name = "book_engine_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]

@@ -106,6 +106,10 @@ fn read_old_comment(book_id: &str, chapter_file: &str) -> Result<Option<Vec<High
 /// A saved quote may hold `-->`, and stopping there cut the list in half and lost every highlight
 /// of the chapter (DS-06). A comment whose list cannot be found gives an error, never an empty
 /// list, so nothing is moved and nothing is removed.
+#[expect(
+    clippy::string_slice,
+    reason = "every position comes from `find` plus the length of an ASCII marker, or from `json_array_end`, which counts bytes of JSON"
+)]
 fn comment_json(notes: &str) -> Result<Option<&str>> {
     let Some(marker) = notes.find(COMMENT_START) else {
         return Ok(None);
@@ -118,6 +122,10 @@ fn comment_json(notes: &str) -> Result<Option<&str>> {
 }
 
 /// The byte offset of the `[` that opens the list, when the text starts with one.
+#[expect(
+    clippy::string_slice,
+    reason = "the offset is the white space `trim_start` would remove, which ends on a letter boundary"
+)]
 fn list_start(body: &str) -> Option<usize> {
     let offset = body.len() - body.trim_start().len();
     body[offset..].starts_with('[').then_some(offset)
@@ -152,6 +160,10 @@ fn json_array_end(text: &str) -> Option<usize> {
 
 /// The byte range of the whole comment in `notes`, including its `-->`. The end marker is looked
 /// for after the list, so a `-->` inside a quote does not cut the comment short.
+#[expect(
+    clippy::string_slice,
+    reason = "as `comment_json`: every position comes from `find` plus the length of an ASCII marker"
+)]
 fn comment_range(notes: &str) -> Option<std::ops::Range<usize>> {
     let marker = notes.find(COMMENT_START)?;
     let body_at = marker + COMMENT_START.len();

@@ -304,6 +304,33 @@ def test_the_clippy_rules_that_move_between_releases_are_named():
     assert cargo["lints"]["clippy"]["uninlined_format_args"] == "warn"
 
 
+def test_cutting_a_string_by_byte_is_a_warning():
+    """A book may hold any letter. Cutting by byte after counting characters crashed the deck sync on `(①)`, and
+    the same shape put an offset four bytes out in the citation parser. The lint is off by default, so it has to
+    be named here or nothing stops the next one (TL-10)."""
+    cargo = tomllib.loads((REPO / "apps" / "desktop" / "src-tauri" / "Cargo.toml").read_text(encoding="utf-8"))
+    assert cargo["lints"]["clippy"].get("string_slice") == "warn", (
+        "`string_slice` is not a warning, so a new byte cut into a string passes `npm run check` in silence"
+    )
+
+
+def test_every_byte_cut_that_is_left_says_why_it_is_safe():
+    """The lint above only helps if the cuts that stay carry their proof, and `expect` rather than `allow`, so
+    clippy asks for the attribute back once the cut is gone and a stale one cannot pile up."""
+    source = REPO / "apps" / "desktop" / "src-tauri" / "src"
+    marked = 0
+    for path in sorted(source.rglob("*.rs")):
+        text = path.read_text(encoding="utf-8")
+        # `cargo fmt` breaks a long attribute over several lines, so the name and the lint are not one string.
+        assert not re.search(r"allow\(\s*clippy::string_slice", text), (
+            f"{path.name} silences the lint with `allow`. Use `expect`, which clippy takes back when the cut goes."
+        )
+        for match in re.finditer(r"expect\(\s*clippy::string_slice\s*,\s*reason\s*=\s*\"([^\"]*)\"", text):
+            assert len(match.group(1)) > 30, f"{path.name}: a byte cut is kept with no real reason given"
+            marked += 1
+    assert marked >= 5, f"only {marked} byte cuts carry a reason; the rest are either gone or unexplained"
+
+
 def test_the_rust_that_runs_the_checks_is_not_below_the_rust_the_code_needs():
     """`rust-version` says the lowest Rust this code builds on. A toolchain below it could not build at all."""
     cargo = tomllib.loads((REPO / "apps" / "desktop" / "src-tauri" / "Cargo.toml").read_text(encoding="utf-8"))
