@@ -10,6 +10,8 @@ pub mod card_identity;
 pub mod chapter_blocks;
 #[cfg(test)]
 mod chapter_blocks_tests;
+#[cfg(test)]
+mod content_hash_tests;
 pub mod deck_sync;
 #[cfg(test)]
 mod deck_sync_tests;

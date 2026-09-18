@@ -190,8 +190,9 @@ fn index_chapter(
     ch_file: &str,
     content: &str,
 ) -> Result<Option<usize>> {
-    // Simple hash to detect updates. It holds the form of the rows too, so rows of an older form are written again.
-    let content_hash = format!("{:x}", md5_hash(&format!("{SEARCH_ROWS_FORM}\n{content}")));
+    // The hash that says whether this chapter changed. It holds the form of the rows too, so rows of an older form
+    // are written again (SI-06).
+    let content_hash = sha256_of(&format!("{SEARCH_ROWS_FORM}\n{content}"));
 
     // Check if already indexed with same hash and has indexed rows
     let mut check_stmt =
@@ -416,9 +417,21 @@ pub fn search_vault_blocking(raw_query: &str) -> Result<Vec<SearchResult>> {
     Ok(results)
 }
 
-pub fn md5_hash(text: &str) -> u64 {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    text.hash(&mut hasher);
-    hasher.finish()
+/// The SHA-256 of some text, as lower-case hex.
+///
+/// The index saves this for every chapter it wrote, and skips a chapter whose text still gives the same answer. So
+/// the answer must be the same on every computer and after every toolchain update, for ever.
+///
+/// It used to be `md5_hash`, which was not MD5: it was `std::collections::hash_map::DefaultHasher`. That hasher
+/// promises nothing about its output. The standard library is free to change it in any release, and it is seeded
+/// per process for some types. The day it changed, every chapter of every book would be read and written again, in
+/// silence, and nobody would know why the first run after a Rust update took so long.
+///
+/// The name says the algorithm on purpose. `md5_hash` said one thing and did another for as long as it existed, and
+/// a name that carries the algorithm cannot be left behind by a change to it (SI-06).
+pub fn sha256_of(text: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(text.as_bytes());
+    format!("{:x}", hasher.finalize())
 }
