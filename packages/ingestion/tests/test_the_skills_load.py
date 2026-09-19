@@ -70,6 +70,11 @@ LISTING_CAP = 1536
 #: `docs/rules/` page for its area and leave one line here.
 AGENTS_CAP = 13000
 
+#: How many rules `AGENTS.md` and the `docs/rules/` pages hold between them. 56 went into the split and 58
+#: came out, because two rules were written while it was being made. This is the number the guard printed,
+#: not a round one: a floor set below the real count is a floor that lets a rule be deleted for free.
+RULE_FLOOR = 58
+
 #: A named rule of `AGENTS.md` or of a skill body.
 RULE = re.compile(r"^- \*\*(.+?):?\*\*")
 
@@ -260,13 +265,18 @@ def test_a_rule_is_in_exactly_one_place():
 
 
 def test_no_rule_was_lost_on_the_way_out_of_agents_md():
-    """56 rules went in. The count is a floor, so adding a rule is fine and dropping one is not."""
+    """A ratchet on the number of rules: adding one is fine, dropping one is not.
+
+    The floor is the number counted right after the split, not the 56 that went in. Set to 56 it granted two
+    free deletions, and a mutation that took a rule off a page went unnoticed (see
+    `a-guard-limit-must-be-measured`). Raise it when you add a rule.
+    """
     total = len(rules_in(AGENTS.read_text(encoding="utf-8")))
     for path in sorted(RULE_PAGES.glob("*.md")):
         total += len(rules_in(path.read_text(encoding="utf-8")))
-    assert total >= 56, (
-        f"AGENTS.md and the rule pages hold {total} rules between them, and there were 56 before they were "
-        f"split up. A rule was dropped rather than moved."
+    assert total >= RULE_FLOOR, (
+        f"AGENTS.md and the rule pages hold {total} rules between them, and the floor is {RULE_FLOOR}. "
+        f"A rule was dropped rather than moved."
     )
 
 
