@@ -140,6 +140,7 @@ def where(pattern: re.Pattern[str], paths: list[Path]) -> list[str]:
 
 # ---------------------------------------------------------------- the reader can see
 
+
 def test_the_reader_sees_the_app():
     found = sources()
     assert len(found) > 100, f"only {len(found)} source files found, so every count in this file is worthless"
@@ -168,6 +169,7 @@ def test_the_comment_stripper_keeps_code_and_drops_prose():
 
 # ---------------------------------------------------------------- 1: no `any`
 
+
 def test_no_file_of_the_app_turns_the_type_check_off():
     found = where(re.compile(r"\bas\s+any\b|:\s*any\b|<any>|\bany\[\]"), sources(with_tests=True))
     assert not found, "an `any` switches the type check off for everything it touches:\n" + "\n".join(found)
@@ -193,6 +195,7 @@ def test_no_field_name_is_read_that_nothing_writes():
 
 
 # ---------------------------------------------------------------- 2: what comes in is checked
+
 
 def test_the_book_file_is_checked_before_the_app_believes_it():
     api = without_comments((SRC / "lib" / "api.ts").read_text(encoding="utf-8"))
@@ -233,11 +236,10 @@ def test_every_real_book_passes_the_check_the_app_now_makes():
 
 # ---------------------------------------------------------------- 3: the public Tauri door
 
+
 def test_only_one_file_names_the_private_tauri_object():
     named = {
-        under_src(path)
-        for path in app_code()
-        if PRIVATE_DOOR in without_comments(path.read_text(encoding="utf-8"))
+        under_src(path) for path in app_code() if PRIVATE_DOOR in without_comments(path.read_text(encoding="utf-8"))
     }
     extra = named - MAY_NAME_THE_PRIVATE_DOOR
     assert not extra, (
@@ -262,6 +264,7 @@ def test_the_app_calls_the_public_door_for_a_book_picture():
 
 
 # ---------------------------------------------------------------- 4: one flag per setting
+
 
 def test_bionic_reading_is_one_saved_setting():
     hook = without_comments((SRC / "hooks" / "useSettings.ts").read_text(encoding="utf-8"))
@@ -352,6 +355,7 @@ def test_every_imported_package_is_declared():
 
 # ---------------------------------------------------------------- 6: prop drilling
 
+
 def props_of(path: Path, interface: str) -> int:
     """How many properties a props interface declares, counting a name at the top level only."""
     text = without_comments(path.read_text(encoding="utf-8"))
@@ -427,9 +431,7 @@ def test_no_component_takes_more_props_than_it_did_on_the_day_this_was_measured(
 
 def test_the_settings_are_not_passed_as_props_any_more():
     found = [
-        name
-        for name, body in component_props_blocks()
-        if re.search(r"\bpreferences\??:\s*ReaderPreferences\b", body)
+        name for name, body in component_props_blocks() if re.search(r"\bpreferences\??:\s*ReaderPreferences\b", body)
     ]
     assert not found, (
         "the settings travel through a context now (`hooks/useSettings.ts`). A component that takes them as a prop "
