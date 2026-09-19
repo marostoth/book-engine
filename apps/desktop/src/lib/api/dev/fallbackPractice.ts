@@ -1,4 +1,4 @@
-import type { PracticeCardItem, CardSchedule, DeckStats } from "../../types.ts";
+import type { PracticeCardItem, CardSchedule } from "../../types.ts";
 import { fallbackCardsMemory } from "./mockData.ts";
 
 /** Browser stand-in for `sync_practice_deck`. */
@@ -67,19 +67,5 @@ export function submitReview(cardId: string, rating: number): CardSchedule {
   };
 }
 
-/** Browser stand-in for `get_deck_stats`. */
-export function getDeckStats(): DeckStats {
-  const now = Math.floor(Date.now() / 1000);
-  const due = fallbackCardsMemory.filter((c) => c.due <= now || c.reps === 0).length;
-  const newCards = fallbackCardsMemory.filter((c) => c.state === 0).length;
-  const learning = fallbackCardsMemory.filter((c) => c.state === 1 || c.state === 3).length;
-  const review = fallbackCardsMemory.filter((c) => c.state === 2).length;
-
-  return {
-    due_count: due,
-    new_count: newCards,
-    learning_count: learning,
-    review_count: review,
-    total_cards: fallbackCardsMemory.length,
-  };
-}
+// The stand-in for `get_deck_stats` was deleted here with the command (LC-03). Browser mode answers the analytics
+// window through `getFallbackStudyAnalytics`, which carries the same card counts.

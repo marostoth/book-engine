@@ -175,13 +175,8 @@ export interface CardSchedule {
   interval_days: number;
 }
 
-export interface DeckStats {
-  due_count: number;
-  new_count: number;
-  learning_count: number;
-  review_count: number;
-  total_cards: number;
-}
+// `DeckStats` was deleted here with the `get_deck_stats` command (LC-03). `StudyAnalytics.state_counts` carries
+// the same card counts, and that is what the analytics window reads.
 
 export interface ElementaryPreferences {
   pacerWpm: number;

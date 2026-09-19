@@ -1,4 +1,4 @@
-import type { PracticeCardItem, CardSchedule, DeckStats } from "../types.ts";
+import type { PracticeCardItem, CardSchedule } from "../types.ts";
 import { callBackend } from "./clientBase.ts";
 
 export async function syncPracticeDeck(bookId: string): Promise<number> {
@@ -35,6 +35,5 @@ export async function submitReview(cardId: string, rating: number): Promise<Card
   return callBackend<CardSchedule>("submit_review", { cardId, rating }, (dev) => dev.submitReview(cardId, rating));
 }
 
-export async function getDeckStats(bookId?: string): Promise<DeckStats> {
-  return callBackend<DeckStats>("get_deck_stats", { bookId }, (dev) => dev.getDeckStats());
-}
+// `getDeckStats` was deleted here (LC-03). No screen ever called it: the counts it asked for are part of what
+// `getStudyAnalytics` returns, and the analytics window has read that instead since AN-03.
