@@ -109,8 +109,19 @@ FILE_SUFFIX = (
 #: Folders that make a backticked word a path even with no extension, such as `apps/desktop/src/lib/api/dev/`.
 REPO_FOLDERS = ("apps/", "packages/", "scripts/", ".agent/", "docs/", "vault/", "inbox/", ".github/")
 
-#: Paths a build makes. They are correct to name and absent until something is built.
-BUILD_OUTPUT = ("target/", "node_modules/", "dist/", "__pycache__/")
+#: Folder names a build or a tool makes. They are correct for a document to name and absent from a fresh
+#: clone, so a path holding one of them as a whole segment is not checked. `gen/` and `target/` are both
+#: git-ignored (TL-08), and a document that names them, as the build instructions do, is right to.
+GENERATED = {"target", "gen", "node_modules", "dist", "__pycache__", ".venv"}
+
+#: Folders that hold the reader's own data, not files of this repository. git keeps five placeholder files
+#: between them, so `vault/preferences.json` and `vault/syntopicon/` are real on the owner's machine and on
+#: no fresh clone. The first run of this test in CI failed for exactly that, which is the fault it exists to
+#: catch, one level up: a check that passes only where the checker sits.
+#:
+#: A path under these that ends in a source extension is NOT data. `vault/text_file.rs` is how the documents
+#: write `apps/desktop/src-tauri/src/vault/text_file.rs`, and that one is still held to the disk.
+RUNTIME_DATA = ("vault/", "inbox/")
 
 #: A review id, such as `IN-05`. The manifest may not carry one: that history lives in docs/review/.
 REVIEW_ID = re.compile(r"\b[A-Z]{2,3}-\d{2}\b")
@@ -197,11 +208,16 @@ def is_placeholder(path: str) -> bool:
     return any(mark in path for mark in PLACEHOLDERS)
 
 
+def is_runtime_data(word: str) -> bool:
+    """Whether the path is the reader's own data, which a fresh clone and CI do not have."""
+    return word.startswith(RUNTIME_DATA) and not word.endswith(SOURCE_SUFFIX)
+
+
 def looks_like_a_path(word: str) -> bool:
     """Whether a backticked word with a slash in it is a file or folder this repository should have."""
     if is_placeholder(word) or "*" in word or "::" in word or word.startswith(("http", "//")):
         return False
-    if any(part in word for part in BUILD_OUTPUT):
+    if any(part in GENERATED for part in word.split("/")) or is_runtime_data(word):
         return False
     return word.endswith(FILE_SUFFIX) or word.startswith(REPO_FOLDERS)
 
@@ -270,6 +286,17 @@ def test_the_path_reader_knows_a_path_from_prose():
     assert not looks_like_a_path("src/**/*.test.tsx"), "a glob names no one file"
     assert not looks_like_a_path("vault/books/<book-id>/_meta.json"), "a book id stands for any book"
     assert not looks_like_a_path("target/release/book-engine-desktop.exe"), "a build makes that one"
+    assert not looks_like_a_path("apps/desktop/src-tauri/target"), "a generated folder with no trailing slash"
+    assert not looks_like_a_path("apps/desktop/src-tauri/gen/"), "`gen/` is git-ignored (TL-08)"
+
+    # git keeps five placeholder files under vault/ and inbox/ and nothing else, so these are real on the
+    # owner's machine and on no fresh clone. Requiring them failed CI on the first run of this very test.
+    assert not looks_like_a_path("vault/preferences.json"), "the app writes that one; a clone has no vault"
+    assert not looks_like_a_path("vault/syntopicon/topics/"), "the reader's own topics, ignored by git"
+    assert not looks_like_a_path("inbox/processed/some-book.epub"), "the reader's own book file"
+    assert looks_like_a_path("vault/text_file.rs"), (
+        "a Rust module under `src-tauri/src/vault/` is source, not vault data, and stays checked"
+    )
 
     assert found_somewhere("apps/desktop/src/App.tsx"), "the root of the repository is searched"
     assert found_somewhere("db/indexer.rs"), "the Rust source root is searched"
@@ -349,7 +376,7 @@ def test_every_path_the_documents_name_exists():
 
 def test_every_path_in_the_manifest_exists():
     for path, _, _ in manifest_entries():
-        if is_placeholder(path):
+        if is_placeholder(path) or is_runtime_data(path):
             continue
         assert (REPO / path).exists(), (
             f"the manifest names `{path}`, which is not on the disk. Take the line out, or add the file."
