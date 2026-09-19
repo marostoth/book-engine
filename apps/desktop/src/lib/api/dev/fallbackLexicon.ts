@@ -176,3 +176,18 @@ export function fallbackSaveVocabulary(bookId: string, entry: VocabularyEntry): 
 
   localStorage.setItem(key, JSON.stringify(list));
 }
+
+/**
+ * The words this browser has saved for a book. `vocabularyFrom` (`../../backendShapes.ts`) checks the answer, so
+ * a half-written entry left in browser storage is dropped here too, not only when the real backend answers.
+ */
+export function fallbackGetVocabulary(bookId: string): unknown {
+  const raw = localStorage.getItem(`vocabulary_${bookId}`);
+  if (!raw) return [];
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}

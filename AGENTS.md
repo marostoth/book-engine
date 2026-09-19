@@ -8,6 +8,9 @@ it is broken. The full story of a rule is in `docs/review/2026-09-14-findings.md
 extractive-only practice, Python importing while Rust runs, FSRS-5, FTS5 in a throwaway cache, Tauri. Each
 says what was chosen, what was not, and what it cost.
 
+**A new feature starts with a spec in `docs/specs/`**, never with code: what a reader should be able to do,
+then a plan held against the rules below.
+
 **Before you touch one of these areas, open its page and follow every rule on it.**
 
 | When you touch | Read | Holds |

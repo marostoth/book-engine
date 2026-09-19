@@ -6,10 +6,13 @@ import {
   CheckCircle2,
   BookOpen,
   Sparkles,
+  TriangleAlert,
 } from "lucide-react";
-import { BookMeta, AggregatedNoteItem } from "../lib/types";
-import { getAllBookNotes, exportBookSummary } from "../lib/api";
+import { BookMeta, AggregatedNoteItem, DrawerFilter } from "../lib/types";
+import { getAllBookNotes, exportBookSummary, getBookVocabulary } from "../lib/api";
 import { reportBackendError } from "../lib/backendErrors";
+import { vocabularyEntries } from "../lib/vocabularyEntries";
+import { onVocabularySaved } from "../lib/vocabularySaves";
 import { NoteEntryCard } from "./notes/NoteEntryCard";
 import { DrawerFilterBar } from "./notes/DrawerFilterBar";
 import { useDialog } from "../hooks/useDialog";
@@ -27,29 +30,62 @@ export const NotesDrawer: React.FC<NotesDrawerProps> = ({
   bookMeta,
   onNavigateToAnchor,
 }) => {
-  const [allEntries, setAllEntries] = useState<AggregatedNoteItem[]>([]);
+  const [notes, setNotes] = useState<AggregatedNoteItem[]>([]);
+  const [words, setWords] = useState<AggregatedNoteItem[]>([]);
+  const [wordsFailed, setWordsFailed] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
-  const [filterType, setFilterType] = useState<"all" | "highlight" | "note">("all");
+  const [filterType, setFilterType] = useState<DrawerFilter>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
+  /** A word saved while this drawer is open counts up here, and the load below runs again (RD-10). */
+  const [savedWords, setSavedWords] = useState<number>(0);
 
   useEffect(() => {
     if (!isOpen || !bookMeta) return;
 
     setLoading(true);
-    getAllBookNotes(bookMeta.book_id)
-      .then((items) => {
-        setAllEntries(items);
+
+    // The notes and the words are asked for apart. A damaged vocabulary file must not lose the reader their
+    // highlights, and a damaged notes file must not lose them their words.
+    const bookId = bookMeta.book_id;
+    const spine = bookMeta.spine;
+
+    const loadNotes = getAllBookNotes(bookId)
+      .then(setNotes)
+      .catch((err) => {
+        setNotes([]);
+        reportBackendError("Could not load the notes and highlights of this book.", err);
+      });
+
+    const loadWords = getBookVocabulary(bookId)
+      .then((saved) => {
+        setWords(vocabularyEntries(saved, spine));
+        setWordsFailed(false);
       })
       .catch((err) => {
-        setAllEntries([]);
-        reportBackendError("Could not load the notes and highlights of this book.", err);
-      })
-      .finally(() => {
-        setLoading(false);
+        // An empty list in place of a damaged file would read as "you saved nothing", so the drawer says so.
+        setWords([]);
+        setWordsFailed(true);
+        reportBackendError("Could not read the words you saved in this book.", err);
       });
+
+    Promise.all([loadNotes, loadWords]).finally(() => {
+      setLoading(false);
+    });
+  }, [isOpen, bookMeta, savedWords]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    return onVocabularySaved((bookId) => {
+      if (bookId === bookMeta?.book_id) {
+        setSavedWords((count) => count + 1);
+      }
+    });
   }, [isOpen, bookMeta]);
+
+  const allEntries = useMemo(() => [...notes, ...words], [notes, words]);
 
   // Escape, the focus and the role all come from the one shared rule now (RD-07). This drawer used to watch
   // `window` for Escape, so one key closed it together with every other open dialog.
@@ -91,6 +127,7 @@ export const NotesDrawer: React.FC<NotesDrawerProps> = ({
 
   const highlightCount = useMemo(() => allEntries.filter((e) => e.item_type === "highlight").length, [allEntries]);
   const noteCount = useMemo(() => allEntries.filter((e) => e.item_type === "note").length, [allEntries]);
+  const wordCount = words.length;
 
   const handleExportSummary = async () => {
     if (!bookMeta || isExporting) return;
@@ -110,6 +147,9 @@ export const NotesDrawer: React.FC<NotesDrawerProps> = ({
   };
 
   const handleEntryClick = (entry: AggregatedNoteItem) => {
+    // A word saved before the app kept chapters has nowhere to jump to, and nothing is invented for it (RD-04).
+    if (!entry.chapter_file) return;
+
     onNavigateToAnchor(entry.chapter_file, entry.anchor || undefined);
     onClose();
   };
@@ -136,7 +176,7 @@ export const NotesDrawer: React.FC<NotesDrawerProps> = ({
             </div>
             <div className="min-w-0">
               <h2 id={titleId} className="text-sm font-bold truncate text-[var(--theme-text)]">
-                Notes & Highlights Drawer
+                Notes, Highlights & Words
               </h2>
               <p className="text-[11px] text-[var(--theme-muted)] truncate">
                 {bookMeta?.title || "Active Book"} • {allEntries.length} aggregated entries
@@ -182,6 +222,17 @@ export const NotesDrawer: React.FC<NotesDrawerProps> = ({
           </div>
         )}
 
+        {/* The words could not be read. Never shown as "no words": the reader may have saved many (RD-10). */}
+        {wordsFailed && (
+          <div className="px-4 py-2 bg-amber-500/15 border-b border-amber-500/20 text-amber-900 dark:text-amber-300 text-xs flex items-center gap-2">
+            <TriangleAlert className="w-4 h-4 flex-shrink-0" />
+            <span>
+              The words you saved in this book could not be read. They are still in the vault. Nothing below is
+              missing a note or a highlight.
+            </span>
+          </div>
+        )}
+
         {/* Filter and Search Bar Subcomponent */}
         <DrawerFilterBar
           searchQuery={searchQuery}
@@ -191,6 +242,7 @@ export const NotesDrawer: React.FC<NotesDrawerProps> = ({
           totalCount={allEntries.length}
           highlightCount={highlightCount}
           noteCount={noteCount}
+          wordCount={wordCount}
           filteredCount={filteredEntries.length}
         />
 
@@ -209,8 +261,8 @@ export const NotesDrawer: React.FC<NotesDrawerProps> = ({
               </h3>
               <p className="text-[11px] max-w-xs text-[var(--theme-muted)]">
                 {searchQuery
-                  ? "No highlights or reflection notes matched your filter criteria."
-                  : "Highlight passages in the text or jot notes in the editor to populate this drawer."}
+                  ? "No saved word, highlight or reflection note matched your filter criteria."
+                  : "Highlight a passage, write a note, or double-click a word and save it. Everything you keep in this book shows up here."}
               </p>
             </div>
           ) : (

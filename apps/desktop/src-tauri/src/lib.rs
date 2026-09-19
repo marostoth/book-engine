@@ -9,8 +9,8 @@ pub mod vault;
 
 use commands::{
     choose_vault_folder, create_syntopic_topic, export_book_summary, export_syntopic_report, get_all_book_notes,
-    get_analytical_data, get_bookmark, get_chapter_due_cards, get_chapter_highlights, get_due_cards,
-    get_inspectional_blueprint, get_inspectional_exit_assessment, get_last_bookmark, get_library_books,
+    get_analytical_data, get_book_vocabulary, get_bookmark, get_chapter_due_cards, get_chapter_highlights,
+    get_due_cards, get_inspectional_blueprint, get_inspectional_exit_assessment, get_last_bookmark, get_library_books,
     get_preferences, get_reading_velocity, get_study_analytics, get_syntopic_topic, get_syntopic_topics,
     get_vault_path, get_vault_status, index_vault, load_book_meta, load_chapter, load_notes, lookup_dictionary_term,
     record_reading_progress, save_analytical_data, save_book_vocabulary, save_bookmark, save_chapter_highlights,
@@ -115,6 +115,7 @@ pub fn run() {
             choose_vault_folder,
             lookup_dictionary_term,
             save_book_vocabulary,
+            get_book_vocabulary,
             get_chapter_highlights,
             save_chapter_highlights,
             get_bookmark,

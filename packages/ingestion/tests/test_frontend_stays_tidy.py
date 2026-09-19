@@ -213,6 +213,7 @@ def test_the_checks_have_tests_of_their_own():
     tests = (SRC / "lib" / "backendShapes.test.ts").read_text(encoding="utf-8")
     assert "with no spine is refused" in tests, "the check for a book with no chapters needs a test"
     assert "damaged highlight is dropped" in tests, "the check that keeps the good highlights needs a test"
+    assert "damaged word is dropped" in tests, "the check that keeps the good saved words needs a test"
 
 
 def check_book(meta: Path) -> None:

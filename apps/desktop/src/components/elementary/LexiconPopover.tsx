@@ -4,6 +4,7 @@ import { DictionaryEntry, VocabularyEntry } from "../../lib/types";
 import { lookupDictionaryTerm, saveBookVocabulary } from "../../lib/api";
 import { savedWord } from "../../lib/citations";
 import { reportBackendError } from "../../lib/backendErrors";
+import { vocabularyWasSaved } from "../../lib/vocabularySaves";
 
 interface LexiconPopoverProps {
   word: string;
@@ -14,7 +15,6 @@ interface LexiconPopoverProps {
   chapterFile?: string;
   position: { x: number; y: number } | null;
   onClose: () => void;
-  onSavedVocabulary?: (entry: VocabularyEntry) => void;
 }
 
 export const LexiconPopover: React.FC<LexiconPopoverProps> = ({
@@ -24,7 +24,6 @@ export const LexiconPopover: React.FC<LexiconPopoverProps> = ({
   chapterFile,
   position,
   onClose,
-  onSavedVocabulary,
 }) => {
   const [entry, setEntry] = useState<DictionaryEntry | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -71,9 +70,9 @@ export const LexiconPopover: React.FC<LexiconPopoverProps> = ({
     try {
       await saveBookVocabulary(bookId, vocabEntry);
       setIsSaved(true);
-      if (onSavedVocabulary) {
-        onSavedVocabulary(vocabEntry);
-      }
+      // The notes drawer reloads its words if it is open. This used to be an `onSavedVocabulary` prop that
+      // nothing ever passed, so a saved word reached no screen at all (RD-10, `lib/vocabularySaves.ts`).
+      vocabularyWasSaved(bookId);
     } catch (e) {
       reportBackendError(`"${vocabEntry.word}" was not saved to your vocabulary.`, e);
     } finally {
@@ -173,7 +172,7 @@ export const LexiconPopover: React.FC<LexiconPopoverProps> = ({
                 ? "bg-emerald-600 text-white shadow-sm"
                 : "bg-[var(--theme-accent)] text-white hover:opacity-90 shadow-sm"
             }`}
-            title="Persist to vault/notes/<book-id>/vocabulary.json"
+            title="Keep this word. It joins your notes and highlights in this book."
           >
             {isSaved ? (
               <>

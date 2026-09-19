@@ -1,14 +1,16 @@
 import React from "react";
-import { Search, Highlighter, FileText, X } from "lucide-react";
+import { Search, Highlighter, FileText, X, Bookmark } from "lucide-react";
+import type { DrawerFilter } from "../../lib/types";
 
 interface DrawerFilterBarProps {
   searchQuery: string;
   onSearchChange: (q: string) => void;
-  filterType: "all" | "highlight" | "note";
-  onFilterChange: (t: "all" | "highlight" | "note") => void;
+  filterType: DrawerFilter;
+  onFilterChange: (t: DrawerFilter) => void;
   totalCount: number;
   highlightCount: number;
   noteCount: number;
+  wordCount: number;
   filteredCount: number;
 }
 
@@ -20,6 +22,7 @@ export const DrawerFilterBar: React.FC<DrawerFilterBarProps> = ({
   totalCount,
   highlightCount,
   noteCount,
+  wordCount,
   filteredCount,
 }) => {
   return (
@@ -28,7 +31,7 @@ export const DrawerFilterBar: React.FC<DrawerFilterBarProps> = ({
         <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--theme-muted)]" />
         <input
           type="text"
-          placeholder="Search highlights, reflections, or ^p-anchors..."
+          placeholder="Search words, highlights, reflections, or ^p-anchors..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           className="w-full pl-8.5 pr-3 py-1.5 text-xs rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg)] text-[var(--theme-text)] placeholder:text-[var(--theme-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-accent)]"
@@ -77,6 +80,17 @@ export const DrawerFilterBar: React.FC<DrawerFilterBarProps> = ({
           >
             <FileText className="w-3 h-3 text-[var(--theme-accent)]" />
             <span>Notes ({noteCount})</span>
+          </button>
+          <button
+            onClick={() => onFilterChange("word")}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+              filterType === "word"
+                ? "bg-[var(--theme-accent)]/20 text-[var(--theme-text)] shadow-sm font-semibold"
+                : "text-[var(--theme-muted)] hover:text-[var(--theme-text)]"
+            }`}
+          >
+            <Bookmark className="w-3 h-3 text-[var(--theme-accent)]" />
+            <span>Words ({wordCount})</span>
           </button>
         </div>
 

@@ -1,4 +1,5 @@
 import type { DictionaryEntry, VocabularyEntry } from "../types.ts";
+import { vocabularyFrom } from "../backendShapes.ts";
 import { callBackend } from "./clientBase.ts";
 
 /** Cleans a word for the dictionary: trims it, removes non-letters at both ends, and makes it lowercase. */
@@ -26,4 +27,18 @@ export async function lookupDictionaryTerm(word: string): Promise<DictionaryEntr
  */
 export async function saveBookVocabulary(bookId: string, entry: VocabularyEntry): Promise<void> {
   return callBackend<void>("save_book_vocabulary", { bookId, entry }, (dev) => dev.saveBookVocabulary(bookId, entry));
+}
+
+/**
+ * Every word saved in one book, newest first once `vocabularyEntries` (`../vocabularyEntries.ts`) has them.
+ *
+ * A damaged file gives an error from the backend, and the error travels: the drawer tells the reader the words
+ * could not be read. An empty list in its place would read as "you saved nothing" (RD-10).
+ */
+export async function getBookVocabulary(bookId: string): Promise<VocabularyEntry[]> {
+  const answer = await callBackend<unknown>("get_book_vocabulary", { bookId }, (dev) =>
+    dev.getBookVocabulary(bookId)
+  );
+
+  return vocabularyFrom(answer, `get_book_vocabulary(${bookId})`);
 }
