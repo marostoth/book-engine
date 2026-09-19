@@ -29,8 +29,15 @@ import subprocess
 import pytest
 from conftest import REPO
 
-#: The documents a reader or an agent takes as the description of this app.
-DOCUMENTS = ("README.md", "AGENTS.md", "ARCHITECTURE.md")
+#: The documents a reader or an agent takes as the description of this app. The skill files joined them when
+#: 38 rules moved out of `AGENTS.md` into `.claude/skills/`: they carry the same claims about the same files,
+#: so a path or a promise that goes stale in one of them is worth exactly as much as one in the README.
+DOCUMENTS = (
+    "README.md",
+    "AGENTS.md",
+    "ARCHITECTURE.md",
+    *sorted(str(p.relative_to(REPO)).replace("\\", "/") for p in (REPO / ".claude" / "skills").glob("*/SKILL.md")),
+)
 
 ARCHITECTURE = REPO / "ARCHITECTURE.md"
 LIB_RS = REPO / "apps" / "desktop" / "src-tauri" / "src" / "lib.rs"
