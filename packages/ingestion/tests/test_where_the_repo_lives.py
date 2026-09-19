@@ -2,8 +2,10 @@
 
 Measured on 2026-09-18, with the repository still at `C:\\Users\\maros\\OneDrive\\Documents\\Antigravity\\book-engine`:
 
-- git kept **424** files. The folder held **37,083** files and **24.22 GB**. (TL-08 later untracked 53 of those
-  files, so git keeps **379** and **3.28 MB** now. The point stands either way: the build writes tens of thousands.)
+- git kept **424** files. The folder held **37,083** files and **24.22 GB**. (TL-08 later untracked 53 of those and
+  added 3, so git keeps **382** and **3.30 MB** now. The point stands either way: the build writes tens of
+  thousands.) The message below counts the files when it is shown, rather than repeating a number: the first version
+  of this line said 379, because the count was taken before the three new files of that same change were tracked.
 - `apps/desktop/src-tauri/target` alone was **23.79 GB**, which is what cargo writes again on every build. The
   review that opened this entry measured 8.3 GB four days earlier, so it had almost tripled.
 - **Every** file was a OneDrive placeholder, including the files inside `.git`. A stale `.git/worktrees` folder
@@ -17,6 +19,7 @@ keep a vault in a synced folder on purpose. What must not be synced is the repos
 """
 
 import os
+import subprocess
 from pathlib import Path
 
 from conftest import REPO
@@ -28,10 +31,21 @@ SYNC_VARIABLES = ("OneDrive", "OneDriveConsumer", "OneDriveCommercial", "Dropbox
 #: work account gives it, so it is matched by its start.
 SYNC_NAMES = ("onedrive", "dropbox", "google drive", "googledrive", "icloud drive", "iclouddrive")
 
-WHERE_TO_PUT_IT = (
-    "Move it somewhere the client does not reach, for example C:\\dev\\book-engine, or point CARGO_TARGET_DIR "
-    "at a folder outside it. git keeps 379 files of this repository; the build writes tens of thousands more."
-)
+
+def where_to_put_it() -> str:
+    """What to do about a synced repository, with the tracked file count measured as the message is written.
+
+    It counts instead of quoting a number, because a number in a string goes stale in silence. This very line said
+    "379 files" for one commit: the count was taken before the three new files of that same change were tracked.
+    """
+    tracked = subprocess.run(
+        ["git", "ls-files"], cwd=REPO, capture_output=True, text=True, check=False
+    ).stdout.splitlines()
+    how_many = f"{len([line for line in tracked if line])} files" if tracked else "a few hundred files"
+    return (
+        "Move it somewhere the client does not reach, for example C:\\dev\\book-engine, or point CARGO_TARGET_DIR "
+        f"at a folder outside it. git keeps {how_many} of this repository; the build writes tens of thousands more."
+    )
 
 
 def syncing_folder_over(path: Path) -> str | None:
@@ -61,13 +75,13 @@ def test_the_repository_is_not_inside_a_folder_a_cloud_client_syncs():
     """The client uploads every file the build writes, marks folders read-only while it works, and holds a file
     open long enough for a rename to fail."""
     holder = syncing_folder_over(REPO)
-    assert holder is None, f"This repository is inside {holder}, which a cloud client syncs. {WHERE_TO_PUT_IT}"
+    assert holder is None, f"This repository is inside {holder}, which a cloud client syncs. {where_to_put_it()}"
 
 
 def test_what_the_build_writes_is_not_inside_a_folder_a_cloud_client_syncs():
     """Moving the repository is one answer and `CARGO_TARGET_DIR` is the other, so this reads whichever is in use."""
     holder = syncing_folder_over(build_output())
-    assert holder is None, f"cargo writes into {holder}, which a cloud client syncs. {WHERE_TO_PUT_IT}"
+    assert holder is None, f"cargo writes into {holder}, which a cloud client syncs. {where_to_put_it()}"
 
 
 def test_the_readme_and_the_rules_say_where_to_keep_this_repository():
