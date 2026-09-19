@@ -135,6 +135,7 @@ const ReaderView: React.FC<ReaderProps> = ({
   // Selection, highlight, and lexicon popover coordination hook
   const {
     selectionPos,
+    closeSelectionMenu,
     selectedText,
     isSingleWord,
     lexiconWord,
@@ -278,6 +279,7 @@ const ReaderView: React.FC<ReaderProps> = ({
       {selectionPos && selectedText && !lexiconWord && (
         <SelectionMenu
           position={selectionPos} isSingleWord={isSingleWord} activeLevel={activeLevel}
+          onDismiss={closeSelectionMenu}
           onHighlight={handleHighlight} onAddNote={handleAddNote} onCopyLink={handleCopyLink}
           onDefine={handleDefine} onAddTerm={handleAddTerm} onAddArgument={handleAddArgument}
           onAddCritique={handleAddCritique} onAddInquiry={handleAddInquiry} onAddSyntopic={handleAddSyntopic}

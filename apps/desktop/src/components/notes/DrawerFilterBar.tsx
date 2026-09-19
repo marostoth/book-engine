@@ -35,6 +35,7 @@ export const DrawerFilterBar: React.FC<DrawerFilterBarProps> = ({
         />
         {searchQuery && (
           <button
+            aria-label="Clear the notes search box"
             onClick={() => onSearchChange("")}
             className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--theme-muted)] hover:text-[var(--theme-text)]"
           >

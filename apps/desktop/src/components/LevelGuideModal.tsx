@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { ReadingLevelMode } from "../lib/types";
 import { LEVEL_GUIDE_SECTIONS, UNIVERSAL_SHORTCUTS, LevelGuideSection } from "../lib/levelGuideData";
 import { HelpCircle, X, CheckCircle2, Sparkles } from "lucide-react";
+import { useDialog } from "../hooks/useDialog";
 
 interface LevelGuideModalProps {
   isOpen: boolean;
@@ -22,18 +23,9 @@ export const LevelGuideModal: React.FC<LevelGuideModalProps> = ({
     if (isOpen) setSelectedTab(activeLevel);
   }, [isOpen, activeLevel]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        e.preventDefault();
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown, true);
-    return () => window.removeEventListener("keydown", handleKeyDown, true);
-  }, [isOpen, onClose]);
+  // Escape, the focus and the role all come from the one shared rule now (RD-07). This window used to watch
+  // `window` for Escape, so one key closed it together with every other open dialog.
+  const { panelProps, titleId, close } = useDialog({ isOpen, onClose });
 
   if (!isOpen) return null;
   const section: LevelGuideSection = LEVEL_GUIDE_SECTIONS[selectedTab];
@@ -41,9 +33,10 @@ export const LevelGuideModal: React.FC<LevelGuideModalProps> = ({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
-      onClick={onClose}
+      onClick={close}
     >
       <div
+        {...panelProps}
         className="w-full max-w-2xl bg-[var(--theme-surface)] border border-[var(--theme-border)] rounded-xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden text-[var(--theme-text)] transition-colors"
         onClick={(e) => e.stopPropagation()}
       >
@@ -55,7 +48,7 @@ export const LevelGuideModal: React.FC<LevelGuideModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-sm font-bold tracking-tight">Adlerian Reading Field Guide</h2>
+                <h2 id={titleId} className="text-sm font-bold tracking-tight">Adlerian Reading Field Guide</h2>
                 <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg)] text-neutral-500">
                   Active Mode: {LEVEL_GUIDE_SECTIONS[activeLevel].levelNum}
                 </span>
@@ -66,7 +59,8 @@ export const LevelGuideModal: React.FC<LevelGuideModalProps> = ({
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={close}
+            aria-label="Close the field guide"
             className="p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-neutral-500 hover:text-[var(--theme-text)] transition-colors cursor-pointer"
             title="Close Guide (Esc)"
           >

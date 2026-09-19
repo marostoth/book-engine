@@ -49,6 +49,7 @@ export const InspectionalTab: React.FC<InspectionalTabProps> = ({
         <div className="flex items-center gap-1.5 bg-[var(--theme-bg)] p-1 rounded-lg border border-[var(--theme-border)]">
           <button
             type="button"
+            aria-label="Shorter skimming timer"
             onClick={() => handleTimerChange(-5)}
             disabled={inspectional.defaultTimerMinutes <= 3}
             className="w-6 h-6 rounded flex items-center justify-center font-bold text-[var(--theme-muted)] hover:text-[var(--theme-text)] disabled:opacity-40"
@@ -60,6 +61,7 @@ export const InspectionalTab: React.FC<InspectionalTabProps> = ({
           </span>
           <button
             type="button"
+            aria-label="Longer skimming timer"
             onClick={() => handleTimerChange(5)}
             disabled={inspectional.defaultTimerMinutes >= 60}
             className="w-6 h-6 rounded flex items-center justify-center font-bold text-[var(--theme-muted)] hover:text-[var(--theme-text)] disabled:opacity-40"
@@ -85,6 +87,7 @@ export const InspectionalTab: React.FC<InspectionalTabProps> = ({
         <div className="flex items-center gap-1.5 bg-[var(--theme-bg)] p-1 rounded-lg border border-[var(--theme-border)]">
           <button
             type="button"
+            aria-label="Fewer sampled paragraphs"
             onClick={() => handleDepthChange(-1)}
             disabled={inspectional.samplingDepthParagraphs <= 1}
             className="w-6 h-6 rounded flex items-center justify-center font-bold text-[var(--theme-muted)] hover:text-[var(--theme-text)] disabled:opacity-40"
@@ -96,6 +99,7 @@ export const InspectionalTab: React.FC<InspectionalTabProps> = ({
           </span>
           <button
             type="button"
+            aria-label="More sampled paragraphs"
             onClick={() => handleDepthChange(1)}
             disabled={inspectional.samplingDepthParagraphs >= 4}
             className="w-6 h-6 rounded flex items-center justify-center font-bold text-[var(--theme-muted)] hover:text-[var(--theme-text)] disabled:opacity-40"
@@ -121,6 +125,7 @@ export const InspectionalTab: React.FC<InspectionalTabProps> = ({
         <button
           type="button"
           role="switch"
+          aria-label="Exit comprehension card"
           aria-checked={inspectional.autoPromptExitCard}
           onClick={() =>
             updateInspectional({ autoPromptExitCard: !inspectional.autoPromptExitCard })
@@ -153,6 +158,7 @@ export const InspectionalTab: React.FC<InspectionalTabProps> = ({
         <button
           type="button"
           role="switch"
+          aria-label="Auto-collapse sidebar"
           aria-checked={inspectional.autoHideDrawerOnSkim}
           onClick={() =>
             updateInspectional({ autoHideDrawerOnSkim: !inspectional.autoHideDrawerOnSkim })
@@ -185,6 +191,7 @@ export const InspectionalTab: React.FC<InspectionalTabProps> = ({
         <button
           type="button"
           role="switch"
+          aria-label="Single-key paging"
           aria-checked={inspectional.singleKeyPagingEnabled}
           onClick={() =>
             updateInspectional({ singleKeyPagingEnabled: !inspectional.singleKeyPagingEnabled })

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { NeutralTerm, TermMapping, StagedCitation } from "../../lib/types/syntopicon";
 import { Plus, Trash2, Link, BookOpen } from "lucide-react";
+import { useDialog } from "../../hooks/useDialog";
+import { DiscardNotice } from "../DiscardNotice";
 
 interface NeutralTermModalProps {
   isOpen: boolean;
@@ -60,6 +62,9 @@ export const NeutralTermModal: React.FC<NeutralTermModalProps> = ({
     setError(null);
   }, [editingTerm, stagedCitation, currentBookId, currentChapterFile, isOpen]);
 
+  // A form the reader types into: Escape asks before it throws the words away (RD-07).
+  const { panelProps, titleId, close, askedToDiscard } = useDialog({ isOpen, onClose, protectTyping: true });
+
   if (!isOpen) return null;
 
   const handleAddMapping = () => {
@@ -114,10 +119,13 @@ export const NeutralTermModal: React.FC<NeutralTermModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-stone-900 border border-stone-700 rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden text-stone-200">
+      <div
+        {...panelProps}
+        className="bg-stone-900 border border-stone-700 rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden text-stone-200"
+      >
         <div className="px-6 py-4 border-b border-stone-800 flex justify-between items-center bg-stone-900/80">
           <div>
-            <h3 className="text-lg font-semibold text-amber-200 flex items-center gap-2">
+            <h3 id={titleId} className="text-lg font-semibold text-amber-200 flex items-center gap-2">
               <BookOpen className="w-5 h-5 text-amber-400" />
               {editingTerm ? "Edit Neutral Term" : "New Neutral Term (Rule 2: Bringing Authors to Terms)"}
             </h3>
@@ -125,8 +133,20 @@ export const NeutralTermModal: React.FC<NeutralTermModalProps> = ({
               Establish a common vocabulary that transcends any single author&apos;s idiosyncratic terminology.
             </p>
           </div>
-          <button onClick={onClose} className="text-stone-400 hover:text-stone-200 text-lg px-2">✕</button>
+          <button
+            onClick={close}
+            aria-label="Close without saving the term"
+            className="text-stone-400 hover:text-stone-200 text-lg px-2"
+          >
+            ✕
+          </button>
         </div>
+
+        {askedToDiscard && (
+          <div className="px-6 pt-3">
+            <DiscardNotice />
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
           {error && <div className="p-3 bg-red-950/60 border border-red-800/80 rounded text-red-300 text-xs">{error}</div>}
@@ -172,7 +192,7 @@ export const NeutralTermModal: React.FC<NeutralTermModalProps> = ({
                         {m.citation.quote && <p className="italic text-stone-400 mt-0.5 line-clamp-1">&ldquo;{m.citation.quote}&rdquo;</p>}
                       </div>
                     </div>
-                    <button type="button" onClick={() => handleRemoveMapping(idx)} className="text-stone-500 hover:text-red-400 p-1">
+                    <button type="button" aria-label="Remove this mapping" onClick={() => handleRemoveMapping(idx)} className="text-stone-500 hover:text-red-400 p-1">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -236,7 +256,7 @@ export const NeutralTermModal: React.FC<NeutralTermModalProps> = ({
           </div>
 
           <div className="border-t border-stone-800 pt-4 flex justify-end gap-2">
-            <button type="button" onClick={onClose} className="px-4 py-2 rounded text-xs font-medium bg-stone-800 hover:bg-stone-700 text-stone-300">
+            <button type="button" onClick={close} className="px-4 py-2 rounded text-xs font-medium bg-stone-800 hover:bg-stone-700 text-stone-300">
               Cancel
             </button>
             <button type="submit" className="px-4 py-2 rounded text-xs font-semibold bg-amber-600 hover:bg-amber-500 text-stone-950">

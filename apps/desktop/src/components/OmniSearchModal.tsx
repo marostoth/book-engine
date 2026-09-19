@@ -6,6 +6,7 @@ import { ReaderLocation, searchResultBookTitle, searchResultLocation } from "../
 import { MIN_SEARCH_CHARACTERS, isSearchable } from "../lib/searchQuery";
 import { reportBackendError } from "../lib/backendErrors";
 import { snippetNodes } from "../lib/searchSnippet";
+import { useDialog } from "../hooks/useDialog";
 
 interface OmniSearchModalProps {
   isOpen: boolean;
@@ -68,11 +69,19 @@ export const OmniSearchModal: React.FC<OmniSearchModalProps> = ({
     return () => clearTimeout(timer);
   }, [query]);
 
-  // Keyboard navigation
+  /**
+   * Escape, the focus and the role come from the one shared rule now (RD-07). This window has no heading of its own,
+   * so it carries a plain name instead of pointing at one.
+   *
+   * Escape used to live in the handler below, on the panel element. React sends a key to the handlers above the
+   * element the key reached, so Escape worked only while the focus was already inside the window. It works wherever
+   * the focus is now.
+   */
+  const { panelProps, close } = useDialog({ isOpen, onClose, label: "Search every book of the vault" });
+
+  // Moving through the hits, and opening one
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
-      onClose();
-    } else if (e.key === "ArrowDown") {
+    if (e.key === "ArrowDown") {
       e.preventDefault();
       setSelectedIndex((prev) => (results.length > 0 ? (prev + 1) % results.length : 0));
     } else if (e.key === "ArrowUp") {
@@ -82,7 +91,7 @@ export const OmniSearchModal: React.FC<OmniSearchModalProps> = ({
       e.preventDefault();
       if (results[selectedIndex]) {
         onSelectResult(searchResultLocation(results[selectedIndex]));
-        onClose();
+        close();
       }
     }
   };
@@ -92,9 +101,10 @@ export const OmniSearchModal: React.FC<OmniSearchModalProps> = ({
   return (
     <div
       className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-150"
-      onClick={onClose}
+      onClick={close}
     >
       <div
+        {...panelProps}
         className="relative w-full max-w-2xl rounded-2xl shadow-2xl border bg-[var(--theme-surface)] text-[var(--theme-text)] border-[var(--theme-border)] overflow-hidden flex flex-col max-h-[75vh]"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
@@ -113,6 +123,7 @@ export const OmniSearchModal: React.FC<OmniSearchModalProps> = ({
           {query && (
             <button
               onClick={() => setQuery("")}
+              aria-label="Clear the search box"
               className="p-1 rounded-full text-[var(--theme-muted)] hover:text-[var(--theme-text)]"
             >
               <X className="w-4 h-4" />

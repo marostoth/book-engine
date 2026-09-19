@@ -132,6 +132,7 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({
         <div className="flex items-center gap-1.5 bg-[var(--theme-bg)] p-1 rounded-lg border border-[var(--theme-border)]">
           <button
             type="button"
+            aria-label="Smaller font size"
             onClick={() => handleFontSizeChange(-1)}
             disabled={general.fontSize <= 12}
             className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold text-[var(--theme-muted)] hover:text-[var(--theme-text)] disabled:opacity-40"
@@ -143,6 +144,7 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({
           </span>
           <button
             type="button"
+            aria-label="Larger font size"
             onClick={() => handleFontSizeChange(1)}
             disabled={general.fontSize >= 26}
             className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold text-[var(--theme-muted)] hover:text-[var(--theme-text)] disabled:opacity-40"
@@ -161,6 +163,7 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({
         <div className="flex items-center gap-1.5 bg-[var(--theme-bg)] p-1 rounded-lg border border-[var(--theme-border)]">
           <button
             type="button"
+            aria-label="Tighter line height"
             onClick={() => handleLineHeightChange(-0.05)}
             disabled={general.lineHeightRatio <= 1.3}
             className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold text-[var(--theme-muted)] hover:text-[var(--theme-text)] disabled:opacity-40"
@@ -172,6 +175,7 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({
           </span>
           <button
             type="button"
+            aria-label="Looser line height"
             onClick={() => handleLineHeightChange(0.05)}
             disabled={general.lineHeightRatio >= 2.4}
             className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold text-[var(--theme-muted)] hover:text-[var(--theme-text)] disabled:opacity-40"

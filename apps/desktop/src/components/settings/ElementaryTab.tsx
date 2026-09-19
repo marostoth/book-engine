@@ -76,6 +76,7 @@ export const ElementaryTab: React.FC<ElementaryTabProps> = ({
         <div className="flex items-center gap-1.5 bg-[var(--theme-bg)] p-1 rounded-lg border border-[var(--theme-border)]">
           <button
             type="button"
+            aria-label="Narrower line measure"
             onClick={() => handleCplChange(-5)}
             disabled={elementary.measureCharsPerLine <= 45}
             className="w-6 h-6 rounded flex items-center justify-center font-bold text-[var(--theme-muted)] hover:text-[var(--theme-text)] disabled:opacity-40"
@@ -87,6 +88,7 @@ export const ElementaryTab: React.FC<ElementaryTabProps> = ({
           </span>
           <button
             type="button"
+            aria-label="Wider line measure"
             onClick={() => handleCplChange(5)}
             disabled={elementary.measureCharsPerLine >= 95}
             className="w-6 h-6 rounded flex items-center justify-center font-bold text-[var(--theme-muted)] hover:text-[var(--theme-text)] disabled:opacity-40"
@@ -112,6 +114,7 @@ export const ElementaryTab: React.FC<ElementaryTabProps> = ({
         <button
           type="button"
           role="switch"
+          aria-label="Bionic eye fixation"
           aria-checked={bionicActive}
           onClick={handleBionicToggle}
           className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 cursor-pointer ${
@@ -140,6 +143,7 @@ export const ElementaryTab: React.FC<ElementaryTabProps> = ({
         <button
           type="button"
           role="switch"
+          aria-label="Instant dictionary"
           aria-checked={elementary.instantDictionaryEnabled}
           onClick={() =>
             updateElementary({ instantDictionaryEnabled: !elementary.instantDictionaryEnabled })

@@ -12,6 +12,7 @@ import { getAllBookNotes, exportBookSummary } from "../lib/api";
 import { reportBackendError } from "../lib/backendErrors";
 import { NoteEntryCard } from "./notes/NoteEntryCard";
 import { DrawerFilterBar } from "./notes/DrawerFilterBar";
+import { useDialog } from "../hooks/useDialog";
 
 interface NotesDrawerProps {
   isOpen: boolean;
@@ -50,16 +51,9 @@ export const NotesDrawer: React.FC<NotesDrawerProps> = ({
       });
   }, [isOpen, bookMeta]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
+  // Escape, the focus and the role all come from the one shared rule now (RD-07). This drawer used to watch
+  // `window` for Escape, so one key closed it together with every other open dialog.
+  const { panelProps, titleId, close } = useDialog({ isOpen, onClose });
 
   const filteredEntries = useMemo(() => {
     return allEntries.filter((entry) => {
@@ -126,10 +120,11 @@ export const NotesDrawer: React.FC<NotesDrawerProps> = ({
     <div className="fixed inset-0 z-50 overflow-hidden flex justify-end animate-in fade-in duration-150 select-none">
       <div
         className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm transition-opacity"
-        onClick={onClose}
+        onClick={close}
       />
 
       <div
+        {...panelProps}
         className="relative z-10 w-full max-w-lg md:max-w-xl bg-[var(--theme-bg)] border-l border-[var(--theme-border)] shadow-2xl flex flex-col h-full overflow-hidden animate-in slide-in-from-right duration-200"
         style={{ backgroundColor: "var(--theme-bg)", color: "var(--theme-text)" }}
       >
@@ -140,7 +135,7 @@ export const NotesDrawer: React.FC<NotesDrawerProps> = ({
               <BookMarked className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-sm font-bold truncate text-[var(--theme-text)]">
+              <h2 id={titleId} className="text-sm font-bold truncate text-[var(--theme-text)]">
                 Notes & Highlights Drawer
               </h2>
               <p className="text-[11px] text-[var(--theme-muted)] truncate">
@@ -161,7 +156,8 @@ export const NotesDrawer: React.FC<NotesDrawerProps> = ({
             </button>
 
             <button
-              onClick={onClose}
+              onClick={close}
+              aria-label="Close the notes drawer"
               className="p-1.5 rounded-lg text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-accent)]/10 transition-colors"
               title="Close Drawer (Esc)"
             >

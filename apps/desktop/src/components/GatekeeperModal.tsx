@@ -7,6 +7,7 @@ import { currentSessionCard, recordSessionReview, startSession, syncSession } fr
 import { reportBackendError } from "../lib/backendErrors";
 
 import { GatekeeperCardDrill } from "./practice/GatekeeperCardDrill";
+import { useDialog } from "../hooks/useDialog";
 
 interface GatekeeperModalProps {
   isOpen: boolean;
@@ -58,6 +59,10 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
     setRevealed(false);
   }, [currentCard?.card_id]);
 
+  // Escape closes the gate and leaves the reader in the chapter they are in. It is not a way through the gate: the
+  // "Skip Gatekeeper for now" button opens the next chapter, and Escape does not (RD-07).
+  const { panelProps, titleId } = useDialog({ isOpen, onClose });
+
   const handleRate = async (rating: number) => {
     if (!currentCard || submitting) return;
     setSubmitting(true);
@@ -78,6 +83,7 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
       <div
+        {...panelProps}
         className="w-full max-w-lg rounded-3xl border border-[var(--theme-border)] shadow-2xl p-6 flex flex-col space-y-5 select-none text-[var(--theme-text)]"
         style={{ backgroundColor: "var(--theme-surface)" }}
       >
@@ -88,7 +94,7 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-[var(--theme-text)]">
+              <h2 id={titleId} className="text-sm font-bold text-[var(--theme-text)]">
                 Chapter Gatekeeper Challenge
               </h2>
               <p className="text-xs text-[var(--theme-muted)]">

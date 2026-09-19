@@ -5,6 +5,8 @@ import {
   AnchoredCitation,
 } from "../../lib/types/analytical";
 import { citationPlace } from "../../lib/citations";
+import { useDialog } from "../../hooks/useDialog";
+import { DiscardNotice } from "../DiscardNotice";
 
 interface ArgumentBuilderModalProps {
   isOpen: boolean;
@@ -34,6 +36,8 @@ export const ArgumentBuilderModal: React.FC<ArgumentBuilderModalProps> = ({
   const [premises, setPremises] = useState<AnchoredCitation[]>([]);
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // A form the reader types into: Escape asks before it throws the words away (RD-07).
+  const { panelProps, titleId, close, askedToDiscard } = useDialog({ isOpen, onClose, protectTyping: true });
 
   useEffect(() => {
     if (editingArgument) {
@@ -123,7 +127,10 @@ export const ArgumentBuilderModal: React.FC<ArgumentBuilderModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-xl border border-zinc-700/80 bg-zinc-900 shadow-2xl overflow-hidden">
+      <div
+        {...panelProps}
+        className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-xl border border-zinc-700/80 bg-zinc-900 shadow-2xl overflow-hidden"
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-zinc-800 px-6 py-4">
           <div>
@@ -132,17 +139,24 @@ export const ArgumentBuilderModal: React.FC<ArgumentBuilderModalProps> = ({
                 Rules 6 &amp; 7: Propositions &amp; Arguments
               </span>
             </div>
-            <h3 className="mt-1 text-lg font-bold text-zinc-100">
+            <h3 id={titleId} className="mt-1 text-lg font-bold text-zinc-100">
               {editingArgument ? "Edit Argument Graph" : "Assemble Argument Graph"}
             </h3>
           </div>
           <button
-            onClick={onClose}
+            onClick={close}
+            aria-label="Close without saving the argument"
             className="rounded p-1 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
           >
             ✕
           </button>
         </div>
+
+        {askedToDiscard && (
+          <div className="px-6">
+            <DiscardNotice />
+          </div>
+        )}
 
         {/* Scrollable Form Body */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-4 space-y-4 text-sm">
@@ -258,7 +272,7 @@ export const ArgumentBuilderModal: React.FC<ArgumentBuilderModalProps> = ({
           <div className="flex justify-end gap-3 pt-3 border-t border-zinc-800">
             <button
               type="button"
-              onClick={onClose}
+              onClick={close}
               className="rounded-md px-4 py-2 text-xs font-medium text-zinc-400 hover:bg-zinc-800"
             >
               Cancel

@@ -22,6 +22,7 @@ import { countText, NO_DATA, retentionText } from "../lib/analyticsText";
 import { reviewsPerDay, reviewStreaks } from "../lib/reviewDays";
 import { HeatmapGrid } from "./analytics/HeatmapGrid";
 import { VelocityTable } from "./analytics/VelocityTable";
+import { useDialog } from "../hooks/useDialog";
 
 interface AnalyticsModalProps {
   isOpen: boolean;
@@ -66,16 +67,9 @@ export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
     }
   }, [isOpen, scope, activeBookId]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
+  // Escape, the focus and the role all come from the one shared rule now (RD-07). This window used to watch
+  // `window` for Escape, so one key closed it together with every other open dialog.
+  const { panelProps, titleId, close } = useDialog({ isOpen, onClose });
 
   // Reviews per day and the streaks, in the time zone of this window (AN-02)
   const perDay = useMemo(() => reviewsPerDay(reviewBlocks), [reviewBlocks]);
@@ -87,10 +81,11 @@ export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
     <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 sm:p-6 select-none animate-in fade-in duration-150">
       <div
         className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm transition-opacity"
-        onClick={onClose}
+        onClick={close}
       />
 
       <div
+        {...panelProps}
         className="relative z-10 w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-3xl border border-[var(--theme-border)] shadow-2xl p-6 sm:p-7 flex flex-col space-y-6 animate-in zoom-in-95 duration-150"
         style={{ backgroundColor: "var(--theme-surface)", color: "var(--theme-text)" }}
       >
@@ -101,7 +96,7 @@ export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
               <BarChart3 className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-[var(--theme-text)] flex items-center gap-2">
+              <h1 id={titleId} className="text-lg font-bold text-[var(--theme-text)] flex items-center gap-2">
                 Study & Reading Analytics
               </h1>
               <p className="text-xs text-[var(--theme-muted)]">
@@ -143,7 +138,7 @@ export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
             </button>
 
             <button
-              onClick={onClose}
+              onClick={close}
               className="p-2 rounded-xl text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-accent)]/10 transition-colors"
               title="Close (Esc)"
             >

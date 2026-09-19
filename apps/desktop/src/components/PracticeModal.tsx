@@ -14,6 +14,7 @@ import { RatingBar } from "./practice/RatingBar";
 import { ScenarioCardView } from "./practice/ScenarioCardView";
 import { currentSessionCard, recordSessionReview, startSession, syncSession } from "../lib/practiceSession";
 import { reportBackendError } from "../lib/backendErrors";
+import { useDialog } from "../hooks/useDialog";
 
 interface PracticeModalProps {
   isOpen: boolean;
@@ -71,38 +72,38 @@ export const PracticeModal: React.FC<PracticeModalProps> = ({
     [currentCard, submitting, onReviewSubmitted]
   );
 
-  useEffect(() => {
-    if (!isOpen) return;
+  // Escape, the focus and the role all come from the one shared rule now (RD-07).
+  const { panelProps, titleId, close } = useDialog({ isOpen, onClose });
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onClose();
-        return;
+  /**
+   * The rating keys of this window, and Enter to reveal a cloze answer.
+   *
+   * They sit on the panel, not on `window`. The focus is held inside the practice window while it is open, so the
+   * keys still reach it; and a rating must never be recorded while another dialog covers this one, which is what a
+   * `window` listener allowed.
+   */
+  const handlePracticeKeys = (e: React.KeyboardEvent) => {
+    if (revealed && !submitting && !completed) {
+      if (e.key === "1") handleRate(1);
+      else if (e.key === "2") handleRate(2);
+      else if (e.key === "3") handleRate(3);
+      else if (e.key === "4") handleRate(4);
+    } else if (e.key === "Enter" && !revealed && currentCard?.item_type === "cloze") {
+      if (userAnswer.trim()) {
+        setRevealed(true);
       }
-
-      if (revealed && !submitting && !completed) {
-        if (e.key === "1") handleRate(1);
-        else if (e.key === "2") handleRate(2);
-        else if (e.key === "3") handleRate(3);
-        else if (e.key === "4") handleRate(4);
-      } else if (e.key === "Enter" && !revealed && currentCard?.item_type === "cloze") {
-        if (userAnswer.trim()) {
-          setRevealed(true);
-        }
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, revealed, submitting, completed, currentCard, userAnswer, handleRate, onClose]);
+    }
+  };
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
       <div
+        {...panelProps}
         className="w-full max-w-2xl rounded-3xl border border-[var(--theme-border)] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden select-none text-[var(--theme-text)]"
         style={{ backgroundColor: "var(--theme-surface)" }}
+        onKeyDown={handlePracticeKeys}
       >
         {/* Header */}
         <div className="px-6 py-4 border-b border-[var(--theme-border)] flex items-center justify-between">
@@ -111,7 +112,7 @@ export const PracticeModal: React.FC<PracticeModalProps> = ({
               <Sparkles className="w-4 h-4 text-[var(--theme-accent)]" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-[var(--theme-text)] flex items-center gap-2">
+              <h2 id={titleId} className="text-sm font-bold text-[var(--theme-text)] flex items-center gap-2">
                 <span>Extractive Practice Suite</span>
                 {currentCard && (
                   <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-[var(--theme-bg)] border border-[var(--theme-border)] text-[var(--theme-muted)]">
@@ -132,7 +133,7 @@ export const PracticeModal: React.FC<PracticeModalProps> = ({
               </span>
             )}
             <button
-              onClick={onClose}
+              onClick={close}
               className="p-1.5 rounded-lg text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-accent)]/10 transition-colors"
               title="Close Practice Session (Esc)"
             >
@@ -160,7 +161,7 @@ export const PracticeModal: React.FC<PracticeModalProps> = ({
               <div className="flex justify-center gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={close}
                   className="px-6 py-2.5 rounded-xl bg-[var(--theme-accent)] hover:brightness-110 text-white font-medium text-sm transition-all shadow-md active:scale-95"
                 >
                   Return to Reader
@@ -178,7 +179,7 @@ export const PracticeModal: React.FC<PracticeModalProps> = ({
               </p>
               <button
                 type="button"
-                onClick={onClose}
+                onClick={close}
                 className="px-5 py-2 rounded-xl bg-[var(--theme-bg)] border border-[var(--theme-border)] text-[var(--theme-text)] text-xs font-semibold hover:bg-[var(--theme-surface)] transition-colors"
               >
                 Back to Book

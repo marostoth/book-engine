@@ -100,6 +100,7 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
               <span>Reader Settings</span>
             </div>
             <button
+              aria-label="Close the reader settings"
               onClick={() => setIsOpen(false)}
               className="p-1 rounded-md text-[var(--theme-muted)] hover:text-[var(--theme-text)] transition-colors"
             >
