@@ -177,3 +177,37 @@ test("a chapter whose notes did not load stays locked, and says so", async () =>
 
   assert.equal(paneSays(), "Locked", "a pane whose notes did not read must never accept typing (DS-07)");
 });
+
+test("Try again says it is loading, on the same pane, without being built afresh", async () => {
+  // App.tsx keys this pane by book and chapter, so a chapter change builds a new one and its state starts over.
+  // "Try again" does NOT: it counts the attempt up on the pane already on screen. So this is the one path where
+  // the load state has to be worked out from WHICH attempt finished, and not merely from whether any did. A
+  // mutation that read `finished === null` instead went green until this test existed.
+  const first = later<string>();
+  fetchNotes.mockReturnValue(first.promise);
+  render(
+    <NotesPane bookId="wealth-of-nations" chapterFile="ch-01.md" insertedQuote={null} onClearInsertedQuote={() => {}} />
+  );
+  await act(async () => {
+    first.fail(new Error("the notes file could not be read"));
+  });
+  assert.equal(paneSays(), "Locked", "the first load did not fail, so this test never reaches what it is about");
+
+  const second = later<string>();
+  fetchNotes.mockReturnValue(second.promise);
+  await act(async () => {
+    fireEvent.click(screen.getByText("Try again"));
+  });
+
+  assert.equal(
+    paneSays(),
+    "Loading...",
+    "the pane still says Locked while it is reading the file again, so Try again looks like it did nothing"
+  );
+  assert.equal(fetchNotes.mock.calls.length, 2, "Try again did not read the file again at all");
+
+  await act(async () => {
+    second.settle("The notes of chapter one, read on the second try.");
+  });
+  assert.equal(paneSays(), "Saved", "the pane never unlocked after the second try worked");
+});

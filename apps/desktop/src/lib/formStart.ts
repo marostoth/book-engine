@@ -43,6 +43,10 @@ const BETWEEN_PARTS = "\u0000";
  *
  * The parts are the same values the effect this replaced watched. A part that is missing counts as an empty one, so
  * "no term is being edited" and "a term whose id is empty" are the same form, exactly as they were before.
+ *
+ * The `?? ""` is redundant, and deliberately kept: `Array.prototype.join` already writes a missing part as an
+ * empty string. NO TEST CAN TELL THE TWO APART, and a mutation that took it out went green. It stays because a
+ * reader should not have to know that rule of `join` to see that a missing part is safe here.
  */
 export function formKey(parts: readonly (string | null | undefined)[]): string {
   return parts.map((part) => part ?? "").join(BETWEEN_PARTS);
