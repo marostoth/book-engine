@@ -8,11 +8,11 @@ can run beside them. Every task names its exact file. Tests come before the code
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-- [ ] **T001** [P] Put this folder on `DOCUMENT_FOLDERS` in
+- [x] **T001** [P] Put this folder on `DOCUMENT_FOLDERS` in
   `packages/ingestion/tests/test_the_docs_match_the_code.py`, as two entries: the `README.md` and the `*/*.md`
   of each feature folder. A folder of documents that is not on that list is checked by nothing, which has
   already happened twice.
-- [ ] **T002** [P] New guard `packages/ingestion/tests/test_the_specs_are_usable.py`: every feature folder holds
+- [x] **T002** [P] New guard `packages/ingestion/tests/test_the_specs_are_usable.py`: every feature folder holds
   the three files of the loop, the numbering has no gaps and no repeats, the folder name matches the title, the
   status is one of the three allowed words, the README table and the folders agree on both, `spec.md` holds
   every mandatory heading, and `spec.md` names no file, language or library.
@@ -21,11 +21,11 @@ can run beside them. Every task names its exact file. Tests come before the code
 
 Nothing in Phase 3 can be reached until the window can ask for the words.
 
-- [ ] **T003** Add `get_book_vocabulary` to `apps/desktop/src-tauri/src/commands.rs`. It runs on
+- [x] **T003** Add `get_book_vocabulary` to `apps/desktop/src-tauri/src/commands.rs`. It runs on
   `tokio::task::spawn_blocking` and calls `crate::vault::get_book_vocabulary`, the same shape as
   `save_book_vocabulary` two functions above it.
-- [ ] **T004** Add it to `generate_handler!` in `apps/desktop/src-tauri/src/lib.rs`.
-- [ ] **T005** Add its row to the backend command table of `ARCHITECTURE.md`.
+- [x] **T004** Add it to `generate_handler!` in `apps/desktop/src-tauri/src/lib.rs`.
+- [x] **T005** Add its row to the backend command table of `ARCHITECTURE.md`.
 
 **No new test for these three.** `packages/ingestion/tests/test_no_dead_commands.py` already fails when a
 command is defined and not registered, registered and never called, or reached only by the browser stand-in.
@@ -41,31 +41,31 @@ back to the paragraph.
 
 ### Tests for User Story 1
 
-- [ ] **T006** [P] [US1] `apps/desktop/src/lib/vocabularyEntries.test.ts`: the newest word is first; a word with
+- [x] **T006** [P] [US1] `apps/desktop/src/lib/vocabularyEntries.test.ts`: the newest word is first; a word with
   no chapter lands in the last group; a word whose chapter is not in the spine lands there too; an empty anchor
   stays empty; the chapter title and order come from the spine.
-- [ ] **T007** [P] [US1] Add the vocabulary cases to `apps/desktop/src/lib/backendShapes.test.ts`: a damaged word
+- [x] **T007** [P] [US1] Add the vocabulary cases to `apps/desktop/src/lib/backendShapes.test.ts`: a damaged word
   is dropped and the good ones are kept; a word that is not an object is dropped; a missing meaning reads as
   empty rather than refusing the file.
-- [ ] **T008** [P] [US1] `apps/desktop/src/components/NotesDrawer.test.tsx`, first line
+- [x] **T008** [P] [US1] `apps/desktop/src/components/NotesDrawer.test.tsx`, first line
   `// @vitest-environment jsdom`: the words appear with the highlights, the Words filter shows the words only,
   the counts are on screen, and a click on a word asks to open its chapter at its anchor.
 
 ### Implementation for User Story 1
 
-- [ ] **T009** [US1] `vocabularyFrom` in `apps/desktop/src/lib/backendShapes.ts`, next to `highlightsFrom` and
+- [x] **T009** [US1] `vocabularyFrom` in `apps/desktop/src/lib/backendShapes.ts`, next to `highlightsFrom` and
   built the same way: one damaged word is dropped, the rest are kept.
-- [ ] **T010** [US1] `getBookVocabulary` in `apps/desktop/src/lib/api/lexiconApi.ts`, calling the new command
+- [x] **T010** [US1] `getBookVocabulary` in `apps/desktop/src/lib/api/lexiconApi.ts`, calling the new command
   and passing the answer through `vocabularyFrom`.
-- [ ] **T011** [P] [US1] The browser-mode answer in `apps/desktop/src/lib/api/dev/fallbackLexicon.ts`, wired in
+- [x] **T011** [P] [US1] The browser-mode answer in `apps/desktop/src/lib/api/dev/fallbackLexicon.ts`, wired in
   `apps/desktop/src/lib/api/dev/devBackend.ts`.
-- [ ] **T012** [US1] Add `"word"` to `item_type` on `AggregatedNoteItem` in `apps/desktop/src/lib/types.ts`.
-- [ ] **T013** [US1] `apps/desktop/src/lib/vocabularyEntries.ts`: saved words plus the book's spine become
+- [x] **T012** [US1] Add `"word"` to `item_type` on `AggregatedNoteItem` in `apps/desktop/src/lib/types.ts`.
+- [x] **T013** [US1] `apps/desktop/src/lib/vocabularyEntries.ts`: saved words plus the book's spine become
   drawer entries, newest first, with one last group for a chapter the book does not have.
-- [ ] **T014** [P] [US1] How a word looks in `apps/desktop/src/components/notes/NoteEntryCard.tsx`: the word,
+- [x] **T014** [P] [US1] How a word looks in `apps/desktop/src/components/notes/NoteEntryCard.tsx`: the word,
   then its meaning. Not a quotation and not a note.
-- [ ] **T015** [P] [US1] The Words filter and its count in `apps/desktop/src/components/notes/DrawerFilterBar.tsx`.
-- [ ] **T016** [US1] `apps/desktop/src/components/NotesDrawer.tsx` asks for the words as well as the notes,
+- [x] **T015** [P] [US1] The Words filter and its count in `apps/desktop/src/components/notes/DrawerFilterBar.tsx`.
+- [x] **T016** [US1] `apps/desktop/src/components/NotesDrawer.tsx` asks for the words as well as the notes,
   merges them, and tells the reader when the words could not be read instead of showing none.
 
 **Checkpoint:** User Story 1 works on its own. Nothing below is needed for it.
@@ -78,28 +78,28 @@ back to the paragraph.
 
 ### Tests for User Story 2
 
-- [ ] **T017** [P] [US2] `apps/desktop/src/lib/vocabularySaves.test.ts`: a listener hears a saved word, a
+- [x] **T017** [P] [US2] `apps/desktop/src/lib/vocabularySaves.test.ts`: a listener hears a saved word, a
   listener that has gone away hears nothing, and two listeners both hear.
 
 ### Implementation for User Story 2
 
-- [ ] **T018** [US2] `apps/desktop/src/lib/vocabularySaves.ts`: a list of listeners, `onVocabularySaved` to
+- [x] **T018** [US2] `apps/desktop/src/lib/vocabularySaves.ts`: a list of listeners, `onVocabularySaved` to
   join and a function to leave.
-- [ ] **T019** [US2] `apps/desktop/src/components/elementary/LexiconPopover.tsx` tells the listeners after a
+- [x] **T019** [US2] `apps/desktop/src/components/elementary/LexiconPopover.tsx` tells the listeners after a
   save that worked, and the dead `onSavedVocabulary` prop goes away in the same change.
-- [ ] **T020** [US2] `apps/desktop/src/components/NotesDrawer.tsx` listens while it is open and loads the words
+- [x] **T020** [US2] `apps/desktop/src/components/NotesDrawer.tsx` listens while it is open and loads the words
   again.
 
 ## Phase 5: Polish & Cross-Cutting Concerns
 
-- [ ] **T021** [P] The save button in `apps/desktop/src/components/elementary/LexiconPopover.tsx` says where the
+- [x] **T021** [P] The save button in `apps/desktop/src/components/elementary/LexiconPopover.tsx` says where the
   word goes in plain words, not by naming a file on disk.
-- [ ] **T022** [P] The two new source files go into the As-Built Directory Manifest of `ARCHITECTURE.md`. The
+- [x] **T022** [P] The two new source files go into the As-Built Directory Manifest of `ARCHITECTURE.md`. The
   manifest guard fails on a source file that is not there, and it reads git, so it says nothing until the files
   are staged.
-- [ ] **T023** Tick RD-10 in `docs/review/2026-09-14-findings.md` with the fixing commit, and set the status of
+- [x] **T023** Tick RD-10 in `docs/review/2026-09-14-findings.md` with the fixing commit, and set the status of
   0001 in `docs/specs/README.md`.
-- [ ] **T024** `npm run check` green, the vault snapshotted before and after, and every new guard broken on
+- [x] **T024** `npm run check` green, the vault snapshotted before and after, and every new guard broken on
   purpose one at a time to prove it catches what it claims.
 
 ## Dependencies & Execution Order

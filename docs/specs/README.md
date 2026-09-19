@@ -46,6 +46,6 @@ describes it, and the spec stays as the record of what was asked for.
 
 | # | Feature | Status | Finding |
 |---|---|---|---|
-| [0001](0001-the-vocabulary-bank/spec.md) | The vocabulary bank | planned | [RD-10](../review/2026-09-14-findings.md#rd-10) |
+| [0001](0001-the-vocabulary-bank/spec.md) | The vocabulary bank | implemented | [RD-10](../review/2026-09-14-findings.md#rd-10) |
 
 A status is one of `draft`, `planned` or `implemented`.

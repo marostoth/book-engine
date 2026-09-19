@@ -1,6 +1,6 @@
 # Feature Specification: The vocabulary bank
 
-**Status:** planned
+**Status:** implemented
 **Written:** 2026-09-19
 **Closes:** [RD-10](../../review/2026-09-14-findings.md#rd-10)
 
