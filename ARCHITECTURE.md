@@ -354,6 +354,7 @@ book-engine/
 │       │   ├── pdf_sanitizer.py              # PDF slug normalization, drop-cap healing, heading & author sanitization
 │       │   ├── pipeline.py                   # End-to-end ingestion pipeline coordinator
 │       │   ├── places.py                     # A new import finds each old chapter and paragraph in the new text, and moves what the reader's files point to
+│       │   ├── reading_order.py              # A page with two things side by side is read down one and then the other
 │       │   ├── reimport.py                   # Stops an import of a book the vault already has before it writes anything, and names the reader's own files
 │       │   ├── salience.py                   # Deterministic salience scorer & practice deck writer
 │       │   ├── sample_generator.py           # Starter sample generator for development
