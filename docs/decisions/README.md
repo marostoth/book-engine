@@ -28,6 +28,7 @@ What belongs here, and what does not:
 | [0004](0004-fsrs-5-schedules-reviews.md) | FSRS-5 schedules reviews | accepted |
 | [0005](0005-search-is-sqlite-fts5-in-a-throwaway-cache.md) | Search is SQLite FTS5 in a throwaway cache | accepted |
 | [0006](0006-tauri-v2-is-the-desktop-shell.md) | Tauri v2 is the desktop shell | accepted |
+| [0007](0007-the-vault-is-copied-as-dated-zip-snapshots.md) | The vault is copied as dated zip snapshots | accepted |
 
 ## Adding one
 
