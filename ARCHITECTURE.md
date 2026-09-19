@@ -76,6 +76,7 @@ book-engine/
 │       ├── audit-anchors.py                  # Verifies paragraph anchor & footnote definition integrity
 │       ├── audit-practice.py                 # Audits zero-hallucination verbatim extractive study cards
 │       ├── audit-system.py                   # Health orchestrator; runs the 12 verification vectors
+│       ├── backup-vault.py                   # Makes a dated snapshot of the vault in every folder named, or checks a fresh one is there
 │       ├── benchmark-fts.py                  # Benchmarks FTS5 query latency on a copy of the index, never the live one
 │       ├── process-inbox.py                  # Automated fail-safe batch book intake pipeline & ledger manager
 │       └── test-index-rebuild.py             # Verifies self-healing FTS5 index reconstruction from vault
@@ -359,7 +360,9 @@ book-engine/
 │       │   ├── scenarios.py                  # Quiz cards that ask which sentence comes right after a passage
 │       │   ├── text_repair.py                # A page's own layout marks come off the text, and a word a hyphen cut in two is made whole
 │       │   ├── toc_links.py                  # Links the EPUB contents to the import
+│       │   ├── vault_backup.py               # Makes one dated zip snapshot of the vault and reads it back to prove it is whole
 │       │   ├── vault_changes.py              # Puts a new book folder and changed vault files in place all together, or puts each change back
+│       │   ├── vault_copies.py               # Where the copies of the vault live, and whether the newest one is fresh enough to count
 │       │   └── vector_figures.py             # Vector diagram rasterization, boundary stops & full-width section bounds
 │       ├── tests/                            # Pytest verification suite for anchors, schemas, TOC, and pipeline
 │       ├── pyproject.toml                    # Python package configuration and CLI entrypoints
