@@ -215,23 +215,50 @@ def test_the_checks_have_tests_of_their_own():
     assert "damaged highlight is dropped" in tests, "the check that keeps the good highlights needs a test"
 
 
-@pytest.mark.skipif(not (VAULT / "books").is_dir(), reason="no vault on this machine")
+def check_book(meta: Path) -> None:
+    """Holds one real `_meta.json` to the check the app now makes, and names the book when it fails."""
+    book = json.loads(meta.read_text(encoding="utf-8-sig"))
+    name = meta.parent.name
+    assert isinstance(book.get("book_id"), str), f"{name}: no book_id, and the app would now refuse it"
+    assert isinstance(book.get("title"), str), f"{name}: no title"
+    assert isinstance(book.get("spine"), list) and book["spine"], f"{name}: no chapters"
+    for index, chapter in enumerate(book["spine"], 1):
+        for field in ("id", "title", "file_path"):
+            assert isinstance(chapter.get(field), str), f"{name}: chapter {index} has no {field}"
+
+
+def test_the_book_check_of_this_test_can_pass_and_can_fail(tmp_path: Path):
+    """The sight check for the test below, which has no book to read on a fresh clone or in CI.
+
+    `vault/books/.gitkeep` is in the repository, so that folder is on every machine and its being there proves
+    nothing. Without this test, a `check_book` that had stopped checking would look exactly like a machine
+    with no books in it.
+    """
+    whole = {"book_id": "a-book", "title": "A Book", "spine": [{"id": "ch-01", "title": "One", "file_path": "a.md"}]}
+
+    good = tmp_path / "a-book" / "_meta.json"
+    good.parent.mkdir(parents=True)
+    good.write_text(json.dumps(whole), encoding="utf-8")
+    check_book(good)
+
+    broken = tmp_path / "no-chapters" / "_meta.json"
+    broken.parent.mkdir(parents=True)
+    broken.write_text(json.dumps({**whole, "spine": []}), encoding="utf-8")
+    with pytest.raises(AssertionError, match="no-chapters: no chapters"):
+        check_book(broken)
+
+
 def test_every_real_book_passes_the_check_the_app_now_makes():
     """The check must not shut the reader out of their own books.
 
-    This reads the vault of this machine. A fresh clone has none, and the test is skipped there.
+    This reads the vault of this machine. It skips on the books, not on the folder: a fresh clone and CI both
+    have `vault/books`, because `.gitkeep` is in it, and neither has a book inside.
     """
     metas = sorted((VAULT / "books").rglob("_meta.json"))
-    assert metas, "the vault has books but no _meta.json, so this test proves nothing"
+    if not metas:
+        pytest.skip("no book in the vault of this machine, so there is no real book to hold the check to")
     for meta in metas:
-        book = json.loads(meta.read_text(encoding="utf-8-sig"))
-        name = meta.parent.name
-        assert isinstance(book.get("book_id"), str), f"{name}: no book_id, and the app would now refuse it"
-        assert isinstance(book.get("title"), str), f"{name}: no title"
-        assert isinstance(book.get("spine"), list) and book["spine"], f"{name}: no chapters"
-        for index, chapter in enumerate(book["spine"], 1):
-            for field in ("id", "title", "file_path"):
-                assert isinstance(chapter.get(field), str), f"{name}: chapter {index} has no {field}"
+        check_book(meta)
 
 
 # ---------------------------------------------------------------- 3: the public Tauri door
