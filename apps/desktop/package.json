@@ -14,21 +14,17 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@floating-ui/react": "^0.27.4",
     "@tauri-apps/api": "^2.2.0",
     "@tiptap/core": "^3.31.3",
     "@tiptap/extension-highlight": "^3.31.3",
     "@tiptap/extension-image": "^3.31.3",
-    "@tiptap/extension-typography": "^3.31.3",
     "@tiptap/pm": "^3.31.3",
     "@tiptap/react": "^3.31.3",
     "@tiptap/starter-kit": "^3.31.3",
-    "clsx": "^2.1.1",
     "lucide-react": "^0.475.0",
     "markdown-it": "^14.3.1",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "tailwind-merge": "^3.0.1"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

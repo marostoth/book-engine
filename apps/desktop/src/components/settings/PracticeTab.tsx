@@ -1,10 +1,9 @@
 import React from "react";
-import { ReaderPreferences } from "../../lib/types";
+import { useSettings } from "../../hooks/useSettings";
 import { ShieldCheck, Target, RefreshCw, BarChart3, BrainCircuit, ListOrdered } from "lucide-react";
 
+/** The settings come from `useSettings`, not from props (RD-09). */
 interface PracticeTabProps {
-  preferences: ReaderPreferences;
-  onPreferencesChange: (prefs: ReaderPreferences) => void;
   onResyncDeck?: () => void;
   onOpenAnalytics?: () => void;
   dueCardsCount?: number;
@@ -12,13 +11,12 @@ interface PracticeTabProps {
 }
 
 export const PracticeTab: React.FC<PracticeTabProps> = ({
-  preferences,
-  onPreferencesChange,
   onResyncDeck,
   onOpenAnalytics,
   dueCardsCount = 0,
   onClosePopover,
 }) => {
+  const { settings: preferences, change: onPreferencesChange } = useSettings();
   const study = preferences.study;
 
   const updateStudy = (patch: Partial<typeof study>) => {

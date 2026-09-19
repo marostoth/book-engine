@@ -1,15 +1,10 @@
 import React from "react";
-import {
-  BookMeta,
-  BookMetadata,
-  PracticeCardItem,
-  CardSchedule,
-  ReaderPreferences,
-  ReadingLevelMode,
-} from "../lib/types";
+import { PracticeCardItem, CardSchedule, ReadingLevelMode } from "../lib/types";
 import { ReaderLocation } from "../lib/readerLocation";
 import { InspectionalSessionState } from "../hooks/useInspectionalSession";
 import { ChapterGate } from "../hooks/useChapterGate";
+import { useLibrary } from "../hooks/useLibrary";
+import { useSettings } from "../hooks/useSettings";
 import { OmniSearchModal } from "./OmniSearchModal";
 import { PracticeModal } from "./PracticeModal";
 import { GatekeeperModal } from "./GatekeeperModal";
@@ -57,10 +52,6 @@ interface AppModalsProps {
   onNavigateAnchor: (chapterFile: string, anchor?: string) => void;
   /** Opens a location in its own book; search hits come from all books. */
   onNavigateLocation: (location: ReaderLocation) => void;
-  activeBookId: string;
-  bookMeta: BookMeta | null;
-  availableBooks: BookMetadata[];
-  preferences: ReaderPreferences;
   inspectionalSession: InspectionalSessionState;
   analyticalSession?: {
     termModalOpen: boolean;
@@ -104,15 +95,15 @@ export const AppModals: React.FC<AppModalsProps> = ({
   onReviewSubmitted,
   onNavigateAnchor,
   onNavigateLocation,
-  activeBookId,
-  bookMeta,
-  availableBooks,
-  preferences,
   inspectionalSession,
   analyticalSession,
   syntopiconSession,
   currentChapterFile,
 }) => {
+  // The open book, the book list and the saved settings come from the two contexts `App.tsx` holds, not from
+  // props: four of them travelled through here only to reach one window each (RD-09).
+  const { activeBookId, bookMeta, availableBooks } = useLibrary();
+  const { settings: preferences } = useSettings();
   return (
     <>
       <OmniSearchModal
@@ -153,7 +144,6 @@ export const AppModals: React.FC<AppModalsProps> = ({
         isOpen={analyticsModalOpen}
         onClose={onCloseAnalytics}
         activeBookId={activeBookId}
-        preferences={preferences}
       />
 
       <InspectionalExitModal

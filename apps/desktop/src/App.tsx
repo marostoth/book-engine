@@ -7,6 +7,8 @@ import { persistPreferences } from "./lib/api";
 import { reportBackendError } from "./lib/backendErrors";
 import { appShortcut, shortcutKey } from "./lib/readerShortcuts";
 import { useBookSession } from "./hooks/useBookSession";
+import { SettingsContext, useSettingsValue } from "./hooks/useSettings";
+import { LibraryContext, useLibraryValue } from "./hooks/useLibrary";
 import { usePracticeDeck } from "./hooks/usePracticeDeck";
 import { useChapterGate } from "./hooks/useChapterGate";
 import { useInspectionalSession } from "./hooks/useInspectionalSession";
@@ -33,7 +35,6 @@ interface AppProps {
 
 export const App: React.FC<AppProps> = ({ startingPreferences }) => {
   const [viewMode, setViewMode] = useState<ViewMode>("reading");
-  const [isBionic, setIsBionic] = useState<boolean>(false);
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
   const [activeLevel, setActiveLevel] = useState<ReadingLevelMode>("elementary");
   const [isPacingRunning, setIsPacingRunning] = useState<boolean>(false);
@@ -57,6 +58,13 @@ export const App: React.FC<AppProps> = ({ startingPreferences }) => {
   // The reading theme is one of the saved settings, so the app starts with the theme the reader chose (DS-11).
   const theme = themeOf(preferences);
   const handleThemeChange = (next: Theme) => handlePreferencesChange(withTheme(preferences, next));
+
+  // Bionic Reading is one saved setting now, read through `useBionic` by the button in the top navigation, the switch
+  // in Settings and the reader itself (RD-09). There used to be a second flag here, held only while the window was
+  // open: the button wrote that one, the switch wrote the saved one, and nothing ever read the saved one back.
+
+  /** The settings, for every part of the app. One value while the settings do not change, so `Reader` stays put (RD-06). */
+  const settingsValue = useSettingsValue(preferences, handlePreferencesChange);
 
   const handleTogglePacer = useCallback(() => {
     setIsPacingRunning((prev) => {
@@ -107,6 +115,15 @@ export const App: React.FC<AppProps> = ({ startingPreferences }) => {
     handleNavigateAnchor,
     navigateToCrossBookCitation,
   } = useBookSession({ requestChapterMove });
+
+  /** The books of the vault and the one that is open, for the navigation, the sidebar and the windows (RD-09). */
+  const libraryValue = useLibraryValue({
+    activeBookId,
+    bookMeta,
+    availableBooks,
+    selectBook: handleSelectBook,
+    rescan: libraryRescan,
+  });
 
   /** Keeps where the reader stopped, and remembers the paragraph for a citation that opens from a button (RD-04). */
   const handleSettled = useCallback(
@@ -228,7 +245,11 @@ export const App: React.FC<AppProps> = ({ startingPreferences }) => {
   const isFocus = viewMode === "focus";
   const isDual = viewMode === "dual";
 
+  // The settings and the library are held once here, and read where they are needed. They used to be passed down as
+  // props through every component on the way, whether it read them or not (RD-09).
   return (
+    <SettingsContext.Provider value={settingsValue}>
+    <LibraryContext.Provider value={libraryValue}>
     <div className="flex h-screen w-screen overflow-hidden bg-[var(--theme-bg)] text-[var(--theme-text)]">
       {/* 36px Fixed Outer Level Rail */}
       <LevelRail activeLevel={activeLevel} onSelectLevel={setActiveLevel} />
@@ -236,8 +257,6 @@ export const App: React.FC<AppProps> = ({ startingPreferences }) => {
       {!isFocus && (
         <Sidebar
           isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)}
-          bookMeta={bookMeta} availableBooks={availableBooks} onSelectBook={handleSelectBook}
-          libraryRescan={libraryRescan}
           activeChapterId={activeChapter?.id || ""} onSelectChapter={openChapter}
           onOpenNotesDrawer={handleOpenNotesDrawer}
           activeLevel={activeLevel} activeSubView={inspectionalSession.activeSubView}
@@ -247,19 +266,15 @@ export const App: React.FC<AppProps> = ({ startingPreferences }) => {
 
       <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
         <TopNav
-          currentBookId={activeBookId} bookTitle={bookMeta?.title} bookAuthor={bookMeta?.author}
-          availableBooks={availableBooks} onSelectBook={handleSelectBook} libraryRescan={libraryRescan}
           chapterTitle={activeChapter?.title || "Reading"} progressPercent={progressPercent}
           sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           theme={theme} onThemeChange={handleThemeChange}
           viewMode={viewMode} onViewModeChange={setViewMode}
-          isBionic={isBionic} onToggleBionic={() => setIsBionic(!isBionic)}
           onOpenSearch={() => setSearchOpen(true)} dueCardsCount={dueCardsCount}
           onOpenPractice={() => setPracticeModalOpen(true)}
           onOpenNotesDrawer={handleOpenNotesDrawer}
           onOpenAnalytics={() => setAnalyticsModalOpen(true)}
           onOpenGuide={() => setGuideOpen(true)}
-          preferences={preferences} onPreferencesChange={handlePreferencesChange}
           onResyncDeck={() => refreshPracticeCards(activeBookId)}
           activeLevel={activeLevel} inspectionalSession={inspectionalSession}
           isPacingRunning={isPacingRunning} onTogglePacer={handleTogglePacer}
@@ -286,7 +301,7 @@ export const App: React.FC<AppProps> = ({ startingPreferences }) => {
             <>
               <Reader
                 bookId={bookMeta?.book_id || activeBookId}
-                vaultPath={vaultPath} markdown={chapterMarkdown} isBionic={isBionic}
+                vaultPath={vaultPath} markdown={chapterMarkdown}
                 markdownSource={markdownSource} onPlaceSettled={handleSettled}
                 highlights={highlights} targetAnchor={targetAnchor}
                 onProgressChange={handleProgressChange} onAddHighlight={handleAddHighlight}
@@ -296,7 +311,6 @@ export const App: React.FC<AppProps> = ({ startingPreferences }) => {
                 onAddSyntopic={handleAddSyntopic}
                 analyticalStore={analyticalSession.analyticalStore}
                 currentChapterFile={activeChapter?.file_path}
-                preferences={preferences} onPreferencesChange={handlePreferencesChange}
                 activeLevel={activeLevel}
                 onOpenInSplit={handleOpenInSplit}
                 isPacingRunning={isPacingRunning} onTogglePacer={handleTogglePacer}
@@ -334,13 +348,14 @@ export const App: React.FC<AppProps> = ({ startingPreferences }) => {
         dueCards={dueCards}
         onGatekeeperComplete={completeChapterGate} onReviewSubmitted={handleReviewSubmitted}
         onNavigateAnchor={handleNavigateAnchor} onNavigateLocation={navigateToCrossBookCitation}
-        activeBookId={activeBookId} bookMeta={bookMeta} availableBooks={availableBooks}
-        preferences={preferences} inspectionalSession={inspectionalSession}
+        inspectionalSession={inspectionalSession}
         analyticalSession={analyticalSession} syntopiconSession={syntopiconSession} currentChapterFile={activeChapter?.file_path}
       />
 
       {/* Every failed backend load or save shows here */}
       <BackendErrorBar />
     </div>
+    </LibraryContext.Provider>
+    </SettingsContext.Provider>
   );
 };

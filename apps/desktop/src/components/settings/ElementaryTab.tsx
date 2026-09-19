@@ -1,26 +1,21 @@
 import React from "react";
-import { ReaderPreferences } from "../../lib/types";
+import { useBionic, useSettings } from "../../hooks/useSettings";
 import { Sparkles, BookA, LayoutTemplate } from "lucide-react";
 import { PacerControls } from "./PacerControls";
 import { FocusRulerControls } from "./FocusRulerControls";
 
+/** The settings come from `useSettings`, and Bionic Reading from `useBionic` (RD-09). */
 interface ElementaryTabProps {
-  preferences: ReaderPreferences;
-  onPreferencesChange: (prefs: ReaderPreferences) => void;
-  isBionic?: boolean;
-  onToggleBionic?: () => void;
   isPacingRunning?: boolean;
   onTogglePacer?: () => void;
 }
 
 export const ElementaryTab: React.FC<ElementaryTabProps> = ({
-  preferences,
-  onPreferencesChange,
-  isBionic,
-  onToggleBionic,
   isPacingRunning,
   onTogglePacer,
 }) => {
+  const { settings: preferences, change: onPreferencesChange } = useSettings();
+  const bionic = useBionic();
   const elementary = preferences.elementary;
 
   const updateElementary = (patch: Partial<typeof elementary>) => {
@@ -38,12 +33,10 @@ export const ElementaryTab: React.FC<ElementaryTabProps> = ({
     updateElementary({ measureCharsPerLine: next });
   };
 
-  const bionicActive = isBionic !== undefined ? isBionic : elementary.bionicFixationEnabled;
-
-  const handleBionicToggle = () => {
-    if (onToggleBionic) onToggleBionic();
-    updateElementary({ bionicFixationEnabled: !bionicActive });
-  };
+  // One switch, one saved setting. This used to write the setting and call a second flag that `App.tsx` held in
+  // memory, and the two could say different things (RD-09).
+  const bionicActive = bionic.on;
+  const handleBionicToggle = bionic.toggle;
 
   return (
     <div className="space-y-4 text-xs">

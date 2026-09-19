@@ -1,13 +1,12 @@
 import React from "react";
-import { ReaderPreferences } from "../../lib/types";
+import { useSettings } from "../../hooks/useSettings";
 import { useElementaryMechanics } from "./useElementaryMechanics";
 import { PacingOverlay } from "./PacingOverlay";
 import { FocusRuler } from "./FocusRuler";
 
+/** The settings come from `useSettings`, not from props (RD-09). */
 interface ElementaryCanvasProps {
   containerRef: React.RefObject<HTMLDivElement | null>;
-  preferences: ReaderPreferences;
-  onPreferencesChange?: (prefs: ReaderPreferences) => void;
   activeLevel?: string;
   isPacingRunning?: boolean;
   onTogglePacer?: () => void;
@@ -16,13 +15,12 @@ interface ElementaryCanvasProps {
 
 export const ElementaryCanvas: React.FC<ElementaryCanvasProps> = ({
   containerRef,
-  preferences,
-  onPreferencesChange,
   activeLevel = "elementary",
   isPacingRunning,
   onTogglePacer,
   children,
 }) => {
+  const { settings: preferences, change: onPreferencesChange } = useSettings();
   const elementary = preferences.elementary;
 
   // Elementary pacing state & pacer speed keys ([, ]). Alt+P is handled in App.tsx.

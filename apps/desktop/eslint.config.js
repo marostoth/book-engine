@@ -26,6 +26,12 @@ export default tseslint.config(
       // A name that starts with an underscore is one the code says it does not read.
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
 
+      // An `any` switches the type check off for everything it touches. There were 14 `as any` casts, and two of
+      // them read backend fields that the backend never sends. The count is zero today, so the rule costs nothing
+      // now and stops the next one (RD-09). A value from outside the window is typed `unknown` and checked in
+      // `lib/backendShapes.ts` instead.
+      "@typescript-eslint/no-explicit-any": "error",
+
       // These five belong to React's newest rules, the ones written for its compiler. They are right, and every
       // one of them asks for a component to be built a different way: 30 places set state inside an effect, and
       // the rest read or write a ref while the component is drawing. Changing 26 components at once, in the same

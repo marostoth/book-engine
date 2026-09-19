@@ -13,22 +13,21 @@ import {
   BarChart3,
   BookMarked,
 } from "lucide-react";
-import { Theme, ViewMode, BookMetadata, ReaderPreferences, ReadingLevelMode } from "../lib/types";
+import { Theme, ViewMode, ReadingLevelMode } from "../lib/types";
 import { BookSelector } from "./BookSelector";
-import type { LibraryRescanControl } from "../lib/libraryRescan";
+import { useLibrary } from "../hooks/useLibrary";
+import { useBionic } from "../hooks/useSettings";
 import { SettingsPopover } from "./SettingsPopover";
 import { InspectionalSessionState } from "../hooks/useInspectionalSession";
 import { SkimTimerWidget } from "./inspectional/SkimTimerWidget";
 import { ElementaryPacingControls } from "./elementary/ElementaryPacingControls";
 
+/**
+ * The top bar takes only what belongs to the bar itself. Which books exist and which one is open come from
+ * `useLibrary`, and the saved settings from `useSettings`, so a new setting no longer means a new prop here and in
+ * `App.tsx` (RD-09).
+ */
 interface TopNavProps {
-  currentBookId?: string;
-  bookTitle?: string;
-  bookAuthor?: string;
-  availableBooks?: BookMetadata[];
-  onSelectBook?: (bookId: string) => void;
-  /** The "Rescan library" button of the book list (DS-13). */
-  libraryRescan?: LibraryRescanControl;
   chapterTitle: string;
   progressPercent: number;
   sidebarOpen: boolean;
@@ -37,16 +36,12 @@ interface TopNavProps {
   onThemeChange: (theme: Theme) => void;
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
-  isBionic: boolean;
-  onToggleBionic: () => void;
   onOpenSearch: () => void;
   dueCardsCount?: number;
   onOpenPractice?: () => void;
   onOpenNotesDrawer?: () => void;
   onOpenAnalytics?: () => void;
   onOpenGuide?: () => void;
-  preferences: ReaderPreferences;
-  onPreferencesChange: (prefs: ReaderPreferences) => void;
   onResyncDeck?: () => void;
   activeLevel?: ReadingLevelMode;
   inspectionalSession?: InspectionalSessionState;
@@ -55,14 +50,15 @@ interface TopNavProps {
 }
 
 export const TopNav: React.FC<TopNavProps> = ({
-  currentBookId, bookTitle, bookAuthor, availableBooks, onSelectBook, libraryRescan,
   chapterTitle, progressPercent, sidebarOpen, onToggleSidebar,
-  theme, onThemeChange, viewMode, onViewModeChange, isBionic, onToggleBionic,
+  theme, onThemeChange, viewMode, onViewModeChange,
   onOpenSearch, dueCardsCount = 0, onOpenPractice, onOpenNotesDrawer,
-  onOpenAnalytics, onOpenGuide, preferences, onPreferencesChange,
+  onOpenAnalytics, onOpenGuide,
   onResyncDeck, activeLevel = "elementary", inspectionalSession,
   isPacingRunning, onTogglePacer,
 }) => {
+  const { activeBookId, bookMeta, availableBooks, selectBook, rescan } = useLibrary();
+  const bionic = useBionic();
   const isFocus = viewMode === "focus";
 
   return (
@@ -92,15 +88,15 @@ export const TopNav: React.FC<TopNavProps> = ({
         )}
 
         {/* Compact Book Selector shown when sidebar is collapsed */}
-        {!sidebarOpen && availableBooks && onSelectBook && (
+        {!sidebarOpen && (
           <div className="w-52 max-w-[32vw] flex-shrink-0">
             <BookSelector
-              currentBookId={currentBookId || ""}
-              currentTitle={bookTitle || "Select Book"}
-              currentAuthor={bookAuthor || ""}
+              currentBookId={activeBookId}
+              currentTitle={bookMeta?.title || "Select Book"}
+              currentAuthor={bookMeta?.author || ""}
               books={availableBooks}
-              onSelectBook={onSelectBook}
-              libraryRescan={libraryRescan}
+              onSelectBook={selectBook}
+              libraryRescan={rescan}
               compact
             />
           </div>
@@ -124,8 +120,6 @@ export const TopNav: React.FC<TopNavProps> = ({
 
         {(activeLevel === "elementary" || isPacingRunning) && (
           <ElementaryPacingControls
-            preferences={preferences}
-            onPreferencesChange={onPreferencesChange}
             isPacingRunning={isPacingRunning}
             onTogglePacer={onTogglePacer}
           />
@@ -188,13 +182,14 @@ export const TopNav: React.FC<TopNavProps> = ({
 
         {/* Bionic Reading Toggle */}
         <button
-          onClick={onToggleBionic}
+          onClick={bionic.toggle}
           className={`flex items-center gap-1 px-2.5 h-8 flex-shrink-0 whitespace-nowrap rounded-lg text-xs font-medium transition-all cursor-pointer ${
-            isBionic
+            bionic.on
               ? "bg-amber-600 text-white shadow-sm"
               : "text-neutral-600 dark:text-neutral-300 hover:bg-black/5 dark:hover:bg-white/5"
           }`}
           title="Toggle Bionic Fixation Reading"
+          aria-pressed={bionic.on}
         >
           <Sparkles className="w-3.5 h-3.5 flex-shrink-0" />
           <span className="hidden sm:inline">Bionic</span>
@@ -265,14 +260,10 @@ export const TopNav: React.FC<TopNavProps> = ({
 
         {/* Settings Popover */}
         <SettingsPopover
-          preferences={preferences}
-          onPreferencesChange={onPreferencesChange}
           onResyncDeck={onResyncDeck}
           dueCardsCount={dueCardsCount}
           theme={theme}
           onThemeChange={onThemeChange}
-          isBionic={isBionic}
-          onToggleBionic={onToggleBionic}
           isPacingRunning={isPacingRunning}
           onTogglePacer={onTogglePacer}
           onOpenAnalytics={onOpenAnalytics}

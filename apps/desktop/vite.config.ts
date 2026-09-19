@@ -32,7 +32,9 @@ export default defineConfig({
           if (id.includes("@tiptap") || id.includes("prosemirror")) {
             return "vendor-editor";
           }
-          if (id.includes("lucide-react") || id.includes("@floating-ui")) {
+          // `@floating-ui` was named here as well. No file of the app ever imported it, so the name matched
+          // nothing and the package was carried as a dependency for nothing (RD-09).
+          if (id.includes("lucide-react")) {
             return "vendor-ui";
           }
         },

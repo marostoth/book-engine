@@ -1,20 +1,18 @@
 import React from "react";
 import { Gauge, Eye, EyeOff, Play, Pause } from "lucide-react";
-import { ReaderPreferences } from "../../lib/types";
+import { useSettings } from "../../hooks/useSettings";
 
+/** The settings come from `useSettings`, not from props (RD-09). */
 interface ElementaryPacingControlsProps {
-  preferences: ReaderPreferences;
-  onPreferencesChange: (prefs: ReaderPreferences) => void;
   isPacingRunning?: boolean;
   onTogglePacer?: () => void;
 }
 
 export const ElementaryPacingControls: React.FC<ElementaryPacingControlsProps> = ({
-  preferences,
-  onPreferencesChange,
   isPacingRunning = false,
   onTogglePacer,
 }) => {
+  const { settings: preferences, change: onPreferencesChange } = useSettings();
   const elementary = preferences.elementary;
 
   const handleWpmChange = (delta: number) => {

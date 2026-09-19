@@ -3,10 +3,11 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import { parseChapterMarkdown } from "../lib/markdown";
 import { resolveAssetUrl } from "../lib/api";
 import { applyBionicReading } from "../lib/bionic";
+import { bionicOn, useSettings } from "../hooks/useSettings";
 import { toAnchorAttribute } from "../lib/anchors";
 import { createPlaceWatcher, paragraphAtMiddle, type ChapterRef } from "../lib/readingPlace";
 import { createProgressTicker } from "../lib/readerProgress";
-import { FootnoteItem, HighlightItem, ReaderPreferences } from "../lib/types";
+import { FootnoteItem, HighlightItem } from "../lib/types";
 import { FootnotePopover } from "./FootnotePopover";
 import { SelectionMenu } from "./SelectionMenu";
 import { readerEditorOptions, type ChapterClick } from "./reader/readerEditorOptions";
@@ -40,7 +41,6 @@ interface ReaderProps {
   markdownSource?: ChapterRef | null;
   /** Called once the reader stops scrolling, with the chapter on screen and the paragraph in the middle of it (DS-11). */
   onPlaceSettled?: (place: ChapterRef, anchor: string | undefined) => void;
-  isBionic: boolean;
   highlights: HighlightItem[];
   targetAnchor?: string;
   /** Called on every scroll with how far down the reader is, in percent, and the chapter whose words are on screen. */
@@ -55,8 +55,6 @@ interface ReaderProps {
   onAddSyntopic?: (quote: string, anchor: string) => void;
   analyticalStore?: AnalyticalStore;
   currentChapterFile?: string;
-  preferences?: ReaderPreferences;
-  onPreferencesChange?: (prefs: ReaderPreferences) => void;
   activeLevel?: string;
   onOpenInSplit?: () => void;
   isPacingRunning?: boolean;
@@ -64,12 +62,17 @@ interface ReaderProps {
 }
 
 const ReaderView: React.FC<ReaderProps> = ({
-  bookId, vaultPath, markdown, markdownSource, onPlaceSettled, isBionic, highlights, targetAnchor,
+  bookId, vaultPath, markdown, markdownSource, onPlaceSettled, highlights, targetAnchor,
   onProgressChange, onAddHighlight, onAddNoteFromSelection,
   onAddTerm, onAddArgument, onAddCritique, onAddInquiry, onAddSyntopic,
-  analyticalStore, currentChapterFile, preferences, onPreferencesChange,
+  analyticalStore, currentChapterFile,
   activeLevel = "elementary", onOpenInSplit, isPacingRunning, onTogglePacer,
 }) => {
+  // The saved settings and Bionic Reading come from the two contexts `App.tsx` holds, not from props (RD-09).
+  // The value of each context keeps its identity while the settings do not change, so a scroll still leaves the
+  // chapter on screen alone (RD-06).
+  const { settings: preferences } = useSettings();
+  const isBionic = bionicOn(preferences);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Where the reader stopped is reported a moment after the scrolling stops, for the chapter whose words are on
@@ -162,7 +165,7 @@ const ReaderView: React.FC<ReaderProps> = ({
     onAddCritique,
     onAddInquiry,
     onAddSyntopic,
-    instantDictionaryEnabled: preferences?.elementary?.instantDictionaryEnabled,
+    instantDictionaryEnabled: preferences.elementary?.instantDictionaryEnabled,
   });
 
   // A chapter opens at its top. The reader used to keep the scroll position of the chapter before, so a chapter opened
@@ -248,22 +251,14 @@ const ReaderView: React.FC<ReaderProps> = ({
       className="relative flex-1 h-full overflow-y-auto overflow-x-hidden bg-[var(--theme-bg)] scroll-smooth px-8 py-12 md:px-16 lg:px-24"
     >
       <div className="w-full min-h-full pb-32">
-        {preferences ? (
-          <ElementaryCanvas
-            containerRef={containerRef}
-            preferences={preferences}
-            onPreferencesChange={onPreferencesChange}
-            activeLevel={activeLevel}
-            isPacingRunning={isPacingRunning}
-            onTogglePacer={onTogglePacer}
-          >
-            <EditorContent editor={editor} />
-          </ElementaryCanvas>
-        ) : (
-          <div className="max-w-3xl mx-auto">
-            <EditorContent editor={editor} />
-          </div>
-        )}
+        <ElementaryCanvas
+          containerRef={containerRef}
+          activeLevel={activeLevel}
+          isPacingRunning={isPacingRunning}
+          onTogglePacer={onTogglePacer}
+        >
+          <EditorContent editor={editor} />
+        </ElementaryCanvas>
       </div>
 
       {/* Popover citation footnote resolver */}

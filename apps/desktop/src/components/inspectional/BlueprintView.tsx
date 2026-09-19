@@ -20,12 +20,6 @@ import {
   FileText,
 } from "lucide-react";
 
-/** What an older import called the groups of the synthetic index. */
-interface OlderClusters {
-  concept_clusters?: IndexCluster[];
-  clusters?: IndexCluster[];
-}
-
 interface BlueprintViewProps {
   bookMeta: BookMeta | null;
   /** The reader's exit assessment of this book (`useInspectionalSession`), or null when there is none. */
@@ -71,16 +65,11 @@ export const BlueprintView: React.FC<BlueprintViewProps> = ({
     (typeof frontMatter?.publisher_blurb === "string" ? frontMatter.publisher_blurb : "") ||
     `A structured structural blueprint for systematic skimming and superficial reading of ${bookMeta.title}.`;
   const pivotalChapterIds = new Set(blueprint?.pivotal_chapters || []);
-  // An older import wrote the groups of the synthetic index under other names, and in another place.
-  const olderBlueprint = blueprint as unknown as OlderClusters | undefined;
-  const olderBook = bookMeta as unknown as OlderClusters;
-  const clusters: IndexCluster[] =
-    blueprint?.synthetic_index_clusters ||
-    olderBlueprint?.concept_clusters ||
-    olderBlueprint?.clusters ||
-    olderBook?.clusters ||
-    olderBook?.concept_clusters ||
-    [];
+  // The groups of the synthetic index have one name and one place. Four other names used to be read here as well,
+  // under the belief that an older import had written them: `concept_clusters` and `clusters`, on the blueprint and
+  // on the book. None of the four is written by the Rust backend, by the Python import, or held in the vault, so
+  // nothing could ever arrive under them (RD-09).
+  const clusters: IndexCluster[] = blueprint?.synthetic_index_clusters || [];
 
   return (
     <div className="flex-1 h-full overflow-y-auto p-6 md:p-8 space-y-6 max-w-5xl mx-auto select-text">

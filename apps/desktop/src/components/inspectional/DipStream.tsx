@@ -5,14 +5,6 @@ import { bookText, isHeadingBlock } from "../../lib/markdown";
 import { reportBackendError } from "../../lib/backendErrors";
 import { BookOpen, ArrowRight, Compass, Scissors, CornerDownRight } from "lucide-react";
 
-/** What an older import called the first and last words of a chapter, before `inspectional_sampling`. */
-interface OlderExcerpts {
-  opening_summary?: string;
-  head_sample?: string;
-  closing_summary?: string;
-  tail_sample?: string;
-}
-
 interface DipStreamProps {
   bookMeta: BookMeta | null;
   onReadFullChapter: (chapter: ChapterMeta, targetAnchor?: string) => void;
@@ -33,11 +25,14 @@ export const DipStream: React.FC<DipStreamProps> = ({
   useEffect(() => {
     if (!bookMeta) return;
 
+    // The first and last words of a chapter have one name each, `head_text_preview` and `tail_text_preview`. Four
+    // other names used to be read here too, under the belief that an older import had written them. None of the four
+    // is written by the Rust backend, by the Python import, or held in the vault, so a chapter could never carry
+    // them, and the chapter was read from disk anyway (RD-09).
     const chaptersToHydrate = bookMeta.spine.filter((ch) => {
       const s = ch.inspectional_sampling;
-      const older = ch as unknown as OlderExcerpts;
-      const hasHead = Boolean(s?.head_text_preview || older.opening_summary || older.head_sample);
-      const hasTail = Boolean(s?.tail_text_preview || older.closing_summary || older.tail_sample);
+      const hasHead = Boolean(s?.head_text_preview);
+      const hasTail = Boolean(s?.tail_text_preview);
       return (!hasHead || !hasTail) && !hydratedExcerpts[ch.id];
     });
 
@@ -170,19 +165,10 @@ export const DipStream: React.FC<DipStreamProps> = ({
         {chapters.map((chapter, idx) => {
           const sampling = chapter.inspectional_sampling;
           const hydrated = hydratedExcerpts[chapter.id];
-          const older = chapter as unknown as OlderExcerpts;
           const headPreview =
-            sampling?.head_text_preview ||
-            older.opening_summary ||
-            older.head_sample ||
-            hydrated?.head ||
-            "Opening summary unavailable for this chapter.";
+            sampling?.head_text_preview || hydrated?.head || "Opening summary unavailable for this chapter.";
           const tailPreview =
-            sampling?.tail_text_preview ||
-            older.closing_summary ||
-            older.tail_sample ||
-            hydrated?.tail ||
-            "Closing conclusion unavailable for this chapter.";
+            sampling?.tail_text_preview || hydrated?.tail || "Closing conclusion unavailable for this chapter.";
           // No anchor opens the chapter at its top, which is where a dip starts anyway (RD-04).
           const targetAnchor = chapter.first_anchor || hydrated?.firstAnchor;
           const dipMinutes = Math.max(1, Math.min(3, Math.ceil(chapter.word_count / 10000) + 1));

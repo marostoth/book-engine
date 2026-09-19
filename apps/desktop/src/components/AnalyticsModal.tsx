@@ -10,12 +10,7 @@ import {
   BookOpen,
   Layers,
 } from "lucide-react";
-import {
-  ReaderPreferences,
-  ReviewBlock,
-  ReadingVelocityStats,
-  StudyAnalytics,
-} from "../lib/types";
+import { ReviewBlock, ReadingVelocityStats, StudyAnalytics } from "../lib/types";
 import { getStudyAnalytics, fetchReadingVelocity } from "../lib/api";
 import { reportBackendError } from "../lib/backendErrors";
 import { countText, NO_DATA, retentionText } from "../lib/analyticsText";
@@ -23,20 +18,21 @@ import { reviewsPerDay, reviewStreaks } from "../lib/reviewDays";
 import { HeatmapGrid } from "./analytics/HeatmapGrid";
 import { VelocityTable } from "./analytics/VelocityTable";
 import { useDialog } from "../hooks/useDialog";
+import { useSettings } from "../hooks/useSettings";
 
 interface AnalyticsModalProps {
   isOpen: boolean;
   onClose: () => void;
   activeBookId: string;
-  preferences: ReaderPreferences;
 }
 
 export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
   isOpen,
   onClose,
   activeBookId,
-  preferences,
 }) => {
+  // The daily target is a saved setting, read here instead of passed down through `AppModals` (RD-09).
+  const { settings: preferences } = useSettings();
   const [scope, setScope] = useState<"active" | "all">("active");
   const [loading, setLoading] = useState<boolean>(true);
   const [studyAnalytics, setStudyAnalytics] = useState<StudyAnalytics | null>(null);
