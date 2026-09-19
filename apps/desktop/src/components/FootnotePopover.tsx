@@ -30,6 +30,7 @@ export const FootnotePopover: React.FC<FootnotePopoverProps> = ({
             <span>Citation [^{footnote.number}]</span>
           </div>
           <button
+            aria-label="Close the citation"
             onClick={onClose}
             className="p-1 rounded-full hover:bg-[var(--theme-accent)]/15 text-[var(--theme-muted)] hover:text-[var(--theme-text)] transition-colors"
           >

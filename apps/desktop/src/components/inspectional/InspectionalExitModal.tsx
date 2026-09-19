@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { X, Check, BookCheck, Plus, Trash2, HelpCircle } from "lucide-react";
 import { ExitAssessmentPayload } from "../../lib/types";
 import { reportBackendError } from "../../lib/backendErrors";
+import { useDialog } from "../../hooks/useDialog";
+import { DiscardNotice } from "../DiscardNotice";
 
 interface InspectionalExitModalProps {
   isOpen: boolean;
@@ -46,6 +48,9 @@ export const InspectionalExitModal: React.FC<InspectionalExitModalProps> = ({
     }
     setErrorMsg(null);
   }, [initialAssessment, isOpen]);
+
+  // A form the reader types into: Escape asks before it throws the words away (RD-07).
+  const { panelProps, titleId, close, askedToDiscard } = useDialog({ isOpen, onClose, protectTyping: true });
 
   if (!isOpen) return null;
 
@@ -100,7 +105,10 @@ export const InspectionalExitModal: React.FC<InspectionalExitModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150 select-text">
-      <div className="relative w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-surface)] shadow-2xl p-6 text-[var(--theme-text)]">
+      <div
+        {...panelProps}
+        className="relative w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-surface)] shadow-2xl p-6 text-[var(--theme-text)]"
+      >
         {/* Modal Header */}
         <div className="flex items-center justify-between pb-4 border-b border-[var(--theme-border)]">
           <div className="flex items-center gap-2.5">
@@ -108,7 +116,7 @@ export const InspectionalExitModal: React.FC<InspectionalExitModalProps> = ({
               <BookCheck className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold font-serif">
+              <h2 id={titleId} className="text-base font-bold font-serif">
                 Inspectional Exit Assessment
               </h2>
               <p className="text-xs text-[var(--theme-muted)] truncate max-w-sm">
@@ -118,12 +126,15 @@ export const InspectionalExitModal: React.FC<InspectionalExitModalProps> = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={close}
+            aria-label="Close without saving the exit card"
             className="p-1.5 rounded-lg text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
+
+        {askedToDiscard && <DiscardNotice />}
 
         {errorMsg && (
           <div className="mt-3 p-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-xs">
@@ -246,7 +257,7 @@ export const InspectionalExitModal: React.FC<InspectionalExitModalProps> = ({
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-[var(--theme-border)]">
             <button
               type="button"
-              onClick={onClose}
+              onClick={close}
               className="px-4 py-2 text-xs rounded-xl border border-[var(--theme-border)] text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
             >
               Cancel

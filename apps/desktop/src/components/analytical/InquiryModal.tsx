@@ -7,6 +7,8 @@ import {
   AnchoredCitation,
   ArgumentNode,
 } from "../../lib/types/analytical";
+import { useDialog } from "../../hooks/useDialog";
+import { DiscardNotice } from "../DiscardNotice";
 
 interface InquiryModalProps {
   isOpen: boolean;
@@ -36,6 +38,9 @@ export const InquiryModal: React.FC<InquiryModalProps> = ({
   const [solutionNotes, setSolutionNotes] = useState("");
   const [solutionArgumentIds, setSolutionArgumentIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+
+  // A form the reader types into: Escape asks before it throws the words away (RD-07).
+  const { panelProps, titleId, close, askedToDiscard } = useDialog({ isOpen, onClose, protectTyping: true });
 
   useEffect(() => {
     if (!isOpen) return;
@@ -97,24 +102,34 @@ export const InquiryModal: React.FC<InquiryModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in">
-      <div className="w-full max-w-xl max-h-[90vh] flex flex-col rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-100 shadow-2xl overflow-hidden">
+      <div
+        {...panelProps}
+        className="w-full max-w-xl max-h-[90vh] flex flex-col rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-100 shadow-2xl overflow-hidden"
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-3.5 bg-zinc-950/40">
           <div>
             <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">
               Rules 4 &amp; 8: Inquiry Ledger
             </span>
-            <h2 className="text-base font-semibold text-zinc-100">
+            <h2 id={titleId} className="text-base font-semibold text-zinc-100">
               {editingInquiry ? "Edit Author Inquiry" : "Catalog Author Inquiry"}
             </h2>
           </div>
           <button
-            onClick={onClose}
+            onClick={close}
+            aria-label="Close without saving the inquiry"
             className="rounded p-1 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
           >
             ✕
           </button>
         </div>
+
+        {askedToDiscard && (
+          <div className="px-5">
+            <DiscardNotice />
+          </div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
@@ -255,7 +270,7 @@ export const InquiryModal: React.FC<InquiryModalProps> = ({
           <div className="flex justify-end gap-2 pt-2 border-t border-zinc-800">
             <button
               type="button"
-              onClick={onClose}
+              onClick={close}
               className="rounded-lg border border-zinc-700 px-4 py-1.5 text-zinc-300 hover:bg-zinc-800"
             >
               Cancel

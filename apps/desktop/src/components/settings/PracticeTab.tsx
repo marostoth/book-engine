@@ -59,6 +59,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
         <button
           type="button"
           role="switch"
+          aria-label="Chapter gatekeeper"
           aria-checked={study.gatekeeperMode}
           onClick={() => updateStudy({ gatekeeperMode: !study.gatekeeperMode })}
           className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 cursor-pointer ${
@@ -82,6 +83,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           <div className="flex items-center gap-1.5 bg-[var(--theme-bg)] p-1 rounded-lg border border-[var(--theme-border)]">
             <button
               type="button"
+              aria-label="Fewer gatekeeper cards"
               onClick={() => handleQuotaChange(-1)}
               disabled={study.gatekeeperQuota <= 1}
               className="w-5 h-5 rounded flex items-center justify-center font-bold text-[var(--theme-muted)] hover:text-[var(--theme-text)] disabled:opacity-40"
@@ -93,6 +95,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
             </span>
             <button
               type="button"
+              aria-label="More gatekeeper cards"
               onClick={() => handleQuotaChange(1)}
               disabled={study.gatekeeperQuota >= 10}
               className="w-5 h-5 rounded flex items-center justify-center font-bold text-[var(--theme-muted)] hover:text-[var(--theme-text)] disabled:opacity-40"
@@ -119,6 +122,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
         <div className="flex items-center gap-1.5 bg-[var(--theme-bg)] p-1 rounded-lg border border-[var(--theme-border)]">
           <button
             type="button"
+            aria-label="Lower daily review target"
             onClick={() => handleTargetChange(-5)}
             disabled={study.dailyTargetCards <= 5}
             className="w-6 h-6 rounded flex items-center justify-center font-bold text-[var(--theme-muted)] hover:text-[var(--theme-text)] disabled:opacity-40"
@@ -130,6 +134,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           </span>
           <button
             type="button"
+            aria-label="Higher daily review target"
             onClick={() => handleTargetChange(5)}
             disabled={study.dailyTargetCards >= 100}
             className="w-6 h-6 rounded flex items-center justify-center font-bold text-[var(--theme-muted)] hover:text-[var(--theme-text)] disabled:opacity-40"

@@ -1,10 +1,22 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import type { EditorView } from "@tiptap/pm/view";
 import { reportBackendError } from "../../lib/backendErrors";
 import { citationAnchorAt, NO_ANCHOR } from "../../lib/citations";
 import { createHighlight } from "../../lib/highlights";
 import { HighlightItem } from "../../lib/types";
+
+/** The keys that move the caret, and so change what is selected when Shift is held down. */
+const MOVES_THE_CARET = new Set([
+  "ArrowLeft",
+  "ArrowRight",
+  "ArrowUp",
+  "ArrowDown",
+  "Home",
+  "End",
+  "PageUp",
+  "PageDown",
+]);
 
 /**
  * The document positions of the selected text of the chapter, or null when the selection holds none of it. A selection
@@ -72,7 +84,14 @@ export function useReaderSelection({
     return place ? citationAnchorAt(editor.state.doc, place.from) : undefined;
   };
 
-  const handleMouseUp = () => {
+  /**
+   * Opens the selection menu over what is selected now, or shuts it when nothing useful is.
+   *
+   * `mustHoldChapter` is true for the keyboard, which is watched on the whole document: a passage picked somewhere
+   * else on the page, in the notes drawer for example, must not raise the reader's own menu. The mouse is watched on
+   * the chapter element itself, so it needs no such check.
+   */
+  const showMenuForSelection = (mustHoldChapter: boolean) => {
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed || !selection.toString().trim()) {
       setSelectionPos(null);
@@ -81,6 +100,11 @@ export function useReaderSelection({
 
     const text = selection.toString().trim();
     if (text.length < 2) {
+      setSelectionPos(null);
+      return;
+    }
+
+    if (mustHoldChapter && (!editor || editor.isDestroyed || !selectedPlace(editor.view, selection))) {
       setSelectionPos(null);
       return;
     }
@@ -95,6 +119,34 @@ export function useReaderSelection({
     setSelectedText(text);
     setSelectedAnchor(anchor);
   };
+
+  const handleMouseUp = () => showMenuForSelection(false);
+
+  /** Closes the selection menu and leaves the selection alone, so the reader can go on changing it. */
+  const closeSelectionMenu = () => setSelectionPos(null);
+
+  /**
+   * A passage picked with the keyboard raises the menu too (RD-07).
+   *
+   * This watches the whole document, not the chapter element. A chapter is not something you type in, so nothing
+   * inside it holds the focus: after a click in the text the focus stays on the body of the page, and a key never
+   * passes through the chapter element at all. The menu used to open on `mouseup` and nothing else, so a passage
+   * picked with Shift and the arrows could not be highlighted, noted or quoted.
+   *
+   * No dependency list on purpose. The handler reads the editor and the selection as they are on this render, and
+   * swapping one listener for another costs nothing next to what it would take to keep a stale one correct.
+   */
+  useEffect(() => {
+    const answer = (event: KeyboardEvent) => {
+      const movedTheCaret = MOVES_THE_CARET.has(event.key);
+      const tookEverything = (event.ctrlKey || event.metaKey) && (event.key === "a" || event.key === "A");
+      if (!movedTheCaret && !tookEverything) return;
+      // The selection has already changed by the time the key comes back up, so it can be read at once.
+      showMenuForSelection(true);
+    };
+    document.addEventListener("keyup", answer);
+    return () => document.removeEventListener("keyup", answer);
+  });
 
   const handleHighlight = () => {
     const selection = window.getSelection();
@@ -206,6 +258,7 @@ export function useReaderSelection({
     selectionPos,
     selectedText,
     selectedAnchor,
+    closeSelectionMenu,
     isSingleWord,
     lexiconWord,
     lexiconPos,

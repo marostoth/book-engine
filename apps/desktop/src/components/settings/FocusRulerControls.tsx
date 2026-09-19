@@ -42,6 +42,7 @@ export const FocusRulerControls: React.FC<FocusRulerControlsProps> = ({
         <button
           type="button"
           role="switch"
+          aria-label="Focus ruler"
           aria-checked={elementary.focusRulerEnabled}
           onClick={() => onUpdate({ focusRulerEnabled: !elementary.focusRulerEnabled })}
           className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 cursor-pointer ${

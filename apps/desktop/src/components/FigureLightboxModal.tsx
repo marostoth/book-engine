@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { X, ZoomIn, ZoomOut, RotateCcw, Columns, Image as ImageIcon } from "lucide-react";
+import { useDialog } from "../hooks/useDialog";
 
 interface FigureLightboxModalProps {
   isOpen: boolean;
@@ -22,27 +23,31 @@ export const FigureLightboxModal: React.FC<FigureLightboxModalProps> = ({
   const handleZoomIn = useCallback(() => setScale((s) => Math.min(s + 0.25, 3)), []);
   const handleZoomOut = useCallback(() => setScale((s) => Math.max(s - 0.25, 0.5)), []);
 
+  // Escape and the focus come from the one shared rule now (RD-07).
+  const { panelProps, titleId, close } = useDialog({ isOpen, onClose });
+
   useEffect(() => {
-    if (!isOpen) {
-      setScale(1);
-      return;
-    }
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      else if (e.key === "+" || e.key === "=") handleZoomIn();
-      else if (e.key === "-") handleZoomOut();
-      else if (e.key === "0") handleResetZoom();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose, handleZoomIn, handleZoomOut, handleResetZoom]);
+    if (!isOpen) setScale(1);
+  }, [isOpen]);
+
+  /**
+   * The zoom keys of this window. They sit on the panel, not on `window`: the focus is held inside the lightbox while
+   * it is open, and a key must never reach a window that another dialog covers.
+   */
+  const handleZoomKeys = (e: React.KeyboardEvent) => {
+    if (e.key === "+" || e.key === "=") handleZoomIn();
+    else if (e.key === "-") handleZoomOut();
+    else if (e.key === "0") handleResetZoom();
+  };
 
   if (!isOpen || !imageSrc) return null;
 
   return (
     <div
+      {...panelProps}
       className="fixed inset-0 z-50 flex flex-col items-center justify-between bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
-      onClick={onClose}
+      onClick={close}
+      onKeyDown={handleZoomKeys}
     >
       {/* Top Bar */}
       <div
@@ -51,7 +56,7 @@ export const FigureLightboxModal: React.FC<FigureLightboxModalProps> = ({
       >
         <div className="flex items-center gap-2.5 max-w-[60%]">
           <ImageIcon className="w-5 h-5 text-nord-accent flex-shrink-0" />
-          <h3 className="text-sm font-semibold truncate text-neutral-100" title={imageAlt}>
+          <h3 id={titleId} className="text-sm font-semibold truncate text-neutral-100" title={imageAlt}>
             {imageAlt || "Figure Diagram"}
           </h3>
         </div>
@@ -89,7 +94,7 @@ export const FigureLightboxModal: React.FC<FigureLightboxModalProps> = ({
             <button
               onClick={() => {
                 onOpenInSplit();
-                onClose();
+                close();
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-nord-accent/20 hover:bg-nord-accent/30 text-nord-accent border border-nord-accent/40 rounded-lg transition-all"
               title="View original publisher page in Split View"
@@ -100,7 +105,7 @@ export const FigureLightboxModal: React.FC<FigureLightboxModalProps> = ({
           )}
 
           <button
-            onClick={onClose}
+            onClick={close}
             className="p-1.5 hover:bg-white/15 rounded-lg text-neutral-400 hover:text-white transition-colors ml-1"
             title="Close (Esc)"
           >
@@ -112,7 +117,7 @@ export const FigureLightboxModal: React.FC<FigureLightboxModalProps> = ({
       {/* Main Image Stage */}
       <div
         className="flex-1 w-full flex items-center justify-center p-6 overflow-auto"
-        onClick={onClose}
+        onClick={close}
       >
         <div
           className="transition-transform duration-150 ease-out max-w-full max-h-full flex items-center justify-center"

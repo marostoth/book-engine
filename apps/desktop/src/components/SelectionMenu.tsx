@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Highlighter, FileText, Copy, Check, BookA } from "lucide-react";
+import { aDialogIsOpen } from "../hooks/useDialog";
 
 interface SelectionMenuProps {
   position: { x: number; y: number } | null;
@@ -14,6 +15,8 @@ interface SelectionMenuProps {
   onAddCritique?: () => void;
   onAddInquiry?: () => void;
   onAddSyntopic?: () => void;
+  /** Closes the menu. Escape calls it, and the passage stays selected so the reader can go on changing it. */
+  onDismiss?: () => void;
 }
 
 export const SelectionMenu: React.FC<SelectionMenuProps> = ({
@@ -29,8 +32,42 @@ export const SelectionMenu: React.FC<SelectionMenuProps> = ({
   onAddCritique,
   onAddInquiry,
   onAddSyntopic,
+  onDismiss,
 }) => {
   const [copied, setCopied] = useState(false);
+  const menu = useRef<HTMLDivElement>(null);
+
+  /**
+   * The keyboard reaches this menu (RD-07). Escape shuts it, and Tab steps into it.
+   *
+   * Tab has to be taken here because nothing in a chapter holds the focus: after a click in the text the focus is on
+   * the body of the page, so the next Tab would jump to the first control of the whole app instead of to this menu,
+   * which floats right beside the words the reader just picked. Once the focus is inside, Tab walks the buttons as
+   * usual and this stands aside.
+   */
+  useEffect(() => {
+    if (!position) return;
+    const answer = (event: KeyboardEvent) => {
+      // A dialog on top owns the keyboard. This menu sits on the page behind it.
+      if (aDialogIsOpen()) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onDismiss?.();
+        return;
+      }
+      if (event.key !== "Tab" || event.shiftKey) return;
+      const buttons = menu.current;
+      if (!buttons) return;
+      const at = document.activeElement;
+      if (at instanceof HTMLElement && buttons.contains(at)) return;
+      const first = buttons.querySelector("button");
+      if (!(first instanceof HTMLElement)) return;
+      event.preventDefault();
+      first.focus();
+    };
+    document.addEventListener("keydown", answer);
+    return () => document.removeEventListener("keydown", answer);
+  }, [position, onDismiss]);
 
   if (!position) return null;
 
@@ -45,7 +82,12 @@ export const SelectionMenu: React.FC<SelectionMenuProps> = ({
       className="fixed z-50 transform -translate-x-1/2 -translate-y-full mb-2 pointer-events-auto transition-all duration-150 animate-in fade-in zoom-in-95"
       style={{ left: `${position.x}px`, top: `${position.y - 8}px` }}
     >
-      <div className="flex items-center gap-1 px-1.5 py-1 rounded-full shadow-xl border bg-[var(--theme-surface)]/95 backdrop-blur-md border-[var(--theme-border)] text-xs font-medium text-[var(--theme-text)]">
+      <div
+        ref={menu}
+        role="group"
+        aria-label="What to do with the passage you picked"
+        className="flex items-center gap-1 px-1.5 py-1 rounded-full shadow-xl border bg-[var(--theme-surface)]/95 backdrop-blur-md border-[var(--theme-border)] text-xs font-medium text-[var(--theme-text)]"
+      >
         {isSingleWord && onDefine && (
           <>
             <button
