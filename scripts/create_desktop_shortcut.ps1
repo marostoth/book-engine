@@ -20,10 +20,14 @@ $shortcutPath = Join-Path $desktopPath "Book Engine.lnk"
 # Launcher command:
 # 1. If Book Engine is already open, start its program again and stop there. The app lets only one copy run, so
 #    the open window comes to the front, and the dev server of the open app keeps running (DS-13).
-# 2. Otherwise kill any lingering process occupying port 5173
-# 3. Set working directory to apps/desktop
-# 4. Execute npm run tauri dev
-$launchCommand = "`$open = Get-Process -Name 'book-engine-desktop' -ErrorAction SilentlyContinue | Where-Object Path | Select-Object -First 1; if (`$open) { Start-Process -FilePath `$open.Path } else { Get-NetTCPConnection -LocalPort 5173 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id `$_.OwningProcess -Force -ErrorAction SilentlyContinue }; Set-Location '$appsDesktop'; npm run tauri dev }"
+# 2. Otherwise free port 5173, through scripts/free-dev-port.mjs. This step used to be
+#    `Get-NetTCPConnection -LocalPort 5173 | Stop-Process -Force`, which stopped WHATEVER held that port. 5173 is
+#    Vite's default, so another project's dev server was stopped without a word (TL-08). The script stops only this
+#    project's own leftover, and names anything else instead of killing it.
+# 3. If the port is held by something else, the script exits non-zero. Wait for a key, so the shortcut window does
+#    not close before the message can be read, and do not start.
+# 4. Set working directory to apps/desktop and execute npm run tauri dev.
+$launchCommand = "`$open = Get-Process -Name 'book-engine-desktop' -ErrorAction SilentlyContinue | Where-Object Path | Select-Object -First 1; if (`$open) { Start-Process -FilePath `$open.Path } else { Set-Location '$repoRoot'; node scripts/free-dev-port.mjs; if (`$LASTEXITCODE -ne 0) { Write-Host ''; Read-Host 'Press Enter to close'; exit 1 }; Set-Location '$appsDesktop'; npm run tauri dev }"
 
 $wshShell = New-Object -ComObject WScript.Shell
 $shortcut = $wshShell.CreateShortcut($shortcutPath)

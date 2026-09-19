@@ -13,6 +13,11 @@ dist/
 target/
 src-tauri/target/
 
+# What the Tauri build script writes from src-tauri/capabilities/. Every `cargo build` rewrites the two 120 KB
+# schema files, so while they were tracked, `git status` showed a change after every build that nobody had made,
+# and a real change hid in that noise (TL-08).
+apps/desktop/src-tauri/gen/
+
 # Local cache & databases
 *.db
 *.db-wal
@@ -35,6 +40,11 @@ vault/notes/*
 !vault/notes/.gitkeep
 vault/.import/
 vault/preferences.json*
+
+# The app writes these while you use it: saving a topic or exporting a report rewrote a tracked file, so reading a
+# book made the repository dirty (TL-08). `vault/_ledger.json` is deliberately still tracked: only an import writes
+# it, and it is the one vault file git keeps, which matters while DS-14 is open and the vault has no second copy.
+vault/syntopicon/
 
 # IDE & OS files
 .DS_Store
