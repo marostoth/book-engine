@@ -31,17 +31,28 @@ from conftest import REPO
 
 #: The documents a reader or an agent takes as the description of this app.
 #:
-#: `docs/rules/*.md` joined them when 38 rules moved out of `AGENTS.md`: those pages now carry most of the
-#: claims about most of the files, so a path or a promise that goes stale there is worth exactly as much as
-#: one in the README. A mutation run found they were the only documents nothing was checking, which is the
-#: same fault one level up: the guard did not follow the content when the content moved.
+#: `docs/rules/*.md` joined them when 38 rules moved out of `AGENTS.md`, and `docs/decisions/*.md` when the
+#: decision records were written: those pages now carry most of the claims about most of the files, so a
+#: path or a promise that goes stale there is worth exactly as much as one in the README.
+#:
+#: **Both were added only after a mutation run found them uncovered**, and the second time the commit
+#: message had already claimed the cover existed. That is the same fault one level up, twice: the guard did
+#: not follow the content when the content moved. A new folder of documents belongs on this list the day it
+#: is created, and the way to know is to break one on purpose and watch nothing happen.
+DOCUMENT_FOLDERS = (
+    (REPO / "docs" / "rules", "*.md"),
+    (REPO / "docs" / "decisions", "*.md"),
+    (REPO / ".claude" / "skills", "*/SKILL.md"),
+)
+
 DOCUMENTS = (
     "README.md",
     "AGENTS.md",
     "ARCHITECTURE.md",
     *sorted(
         str(p.relative_to(REPO)).replace("\\", "/")
-        for p in [*(REPO / "docs" / "rules").glob("*.md"), *(REPO / ".claude" / "skills").glob("*/SKILL.md")]
+        for folder, pattern in DOCUMENT_FOLDERS
+        for p in folder.glob(pattern)
     ),
 )
 
@@ -258,6 +269,21 @@ def denies(line: str, words: str) -> bool:
 # --------------------------------------------------------------------------------------------------------
 # Sight checks. Without these, a reader that found nothing would pass every test below in silence.
 # --------------------------------------------------------------------------------------------------------
+
+
+def test_every_folder_of_documents_is_on_the_list():
+    """A folder of documents nothing checks is how `docs/rules/` and `docs/decisions/` each slipped through.
+
+    Both were caught by a mutation run rather than by anyone noticing, and the second time the commit
+    message had already said the cover was there. So this asks the other way round: every folder that holds
+    documents must put at least one real file into `DOCUMENTS`.
+    """
+    for folder, pattern in DOCUMENT_FOLDERS:
+        on_disk = sorted(folder.glob(pattern))
+        assert on_disk, f"{folder.relative_to(REPO)} holds no {pattern}; take it off DOCUMENT_FOLDERS"
+        for path in on_disk:
+            named = str(path.relative_to(REPO)).replace("\\", "/")
+            assert named in DOCUMENTS, f"{named} is on the disk and not in DOCUMENTS, so nothing checks it"
 
 
 def test_the_readers_of_this_file_all_find_something():
