@@ -5,6 +5,119 @@ use anyhow::{Context, Result};
 /// The summary that the app exports, in `vault/notes/<book-id>/`.
 const SUMMARY_EXPORT_FILE: &str = "summary-export.md";
 
+/// The markers that start a line of Markdown but say nothing the notes drawer has to show.
+const LINE_MARKERS: [char; 4] = ['-', '*', '\u{2022}', '>'];
+
+/// Quote marks that come in pairs, as `"a" b"` must keep both of its own.
+const QUOTE_PAIRS: [(char, char); 4] = [
+    ('"', '"'),
+    ('\u{201c}', '\u{201d}'),
+    ('\'', '\''),
+    ('\u{2018}', '\u{2019}'),
+];
+
+/// The label the pane writes above the empty line it leaves for the reader's own thought.
+const REFLECTION_LABEL: &str = "reflection:";
+
+/// The text and the paragraph anchor of one note line, as the drawer must show them, or `None` when the line has
+/// nothing to show (RD-08).
+///
+/// The notes pane writes a saved quote as `> "the sentence" (#^p-001)`, and an empty `- Reflection: ` line under it
+/// for the reader's own thought (`lib/notesQuote.ts`). The drawer showed that as `> "the sentence" (#` and a bare
+/// `Reflection:`, because the parser stripped only `-`, `*` and `\u{2022}`, then trimmed one `(` that was never the
+/// last character: the `#` was.
+///
+/// Two more faults went with it, neither of them in the finding. Text after an anchor was dropped, so a note reading
+/// `See ^p-012 for the rest` showed as `See`. And `lib/notesAggregator.ts`, which answers for the backend in browser
+/// dev mode, got a DIFFERENT wrong answer for the same line, `> "the sentence" (#)`, so the two could never be told
+/// apart by looking at one of them. `tests/test_one_note_format.py` now holds them to the same answers.
+pub fn note_text_and_anchor(line: &str) -> Option<(String, Option<String>)> {
+    let mut text = line.trim().to_string();
+
+    // `- > "a quote"` and `> - "a quote"` both read as one quote, so strip markers until none is left.
+    loop {
+        let without = text.trim_start_matches(LINE_MARKERS).trim_start();
+        if without.len() == text.len() {
+            break;
+        }
+        text = without.to_string();
+    }
+
+    let anchor = take_anchor(&mut text);
+    text = without_wrapping_quotes(text.trim());
+
+    // An empty `Reflection:` is the prompt itself, not a note. One with words after it keeps the words: the card
+    // already prints the section heading as its own label, so repeating it in the body says nothing twice.
+    if let Some(rest) = strip_label(&text, REFLECTION_LABEL) {
+        text = without_wrapping_quotes(rest.trim());
+    }
+
+    if text.is_empty() {
+        return None;
+    }
+    Some((text, anchor))
+}
+
+/// Takes the last `^p-NNN` out of `text` and returns it, keeping whatever was written on either side.
+///
+/// The bracket the pane writes around it, `(#...)`, goes too. An earlier version dropped everything after the
+/// anchor, so `See ^p-012 for the rest` became `See`.
+fn take_anchor(text: &mut String) -> Option<String> {
+    let start = text.rfind("^p-")?;
+    #[expect(
+        clippy::string_slice,
+        reason = "rfind returns the byte index where ^p- starts, so both cuts are on a character boundary"
+    )]
+    let anchor: String = text[start..]
+        .chars()
+        .take_while(|c| c.is_ascii_digit() || *c == '^' || *c == 'p' || *c == '-')
+        .collect();
+
+    #[expect(
+        clippy::string_slice,
+        reason = "same boundary, and anchor is a prefix of the text from start"
+    )]
+    let before = text[..start].trim_end().trim_end_matches(['(', '#', ' ']).to_string();
+    #[expect(
+        clippy::string_slice,
+        reason = "anchor was taken from the front of this slice, so its length is a boundary"
+    )]
+    let after = text[start + anchor.len()..]
+        .trim_start_matches([')', ' '])
+        .trim()
+        .to_string();
+
+    *text = if after.is_empty() {
+        before
+    } else if before.is_empty() {
+        after
+    } else {
+        format!("{before} {after}")
+    };
+    Some(anchor)
+}
+
+/// `text` without one matching pair of quote marks around the whole of it.
+///
+/// Only a pair is taken, so a note that holds one quote mark of its own keeps it.
+fn without_wrapping_quotes(text: &str) -> String {
+    for (open, close) in QUOTE_PAIRS {
+        if let Some(inner) = text.strip_prefix(open).and_then(|rest| rest.strip_suffix(close)) {
+            return inner.trim().to_string();
+        }
+    }
+    text.to_string()
+}
+
+/// What follows `label:` at the start of `text`, whatever its case, or `None` when the label is not there.
+fn strip_label(text: &str, label: &str) -> Option<String> {
+    let start: String = text.chars().take(label.chars().count()).collect();
+    if start.to_lowercase() != label {
+        return None;
+    }
+    Some(text.chars().skip(label.chars().count()).collect())
+}
+
 /// Helper: extracts numeric index from paragraph anchor like "^p-042" -> 42
 pub fn extract_anchor_index(anchor_opt: Option<&str>) -> usize {
     if let Some(anchor) = anchor_opt {
@@ -147,37 +260,23 @@ pub fn parse_all_book_notes(book_id: &str) -> Result<Vec<AggregatedNoteItem>> {
                 continue;
             }
 
-            let mut text = line.trim_start_matches(['-', '*', '•']).trim().to_string();
-            if text.is_empty() || text == "-" {
+            // One rule for the markers, the anchor, the quote marks and the empty prompt (RD-08).
+            let Some((text, anchor)) = note_text_and_anchor(line) else {
                 continue;
-            }
+            };
 
-            // Extract anchor (^p-xxx) if present
-            let mut anchor: Option<String> = None;
-            if let Some(anchor_start) = text.rfind("^p-") {
-                let candidate = &text[anchor_start..];
-                let anchor_str: String = candidate
-                    .chars()
-                    .take_while(|c| !c.is_whitespace() && *c != ')')
-                    .collect();
-                text = text[..anchor_start].trim().trim_end_matches('(').trim().to_string();
-                anchor = Some(anchor_str);
-            }
-
-            if !text.is_empty() {
-                items.push(AggregatedNoteItem {
-                    id: format!("note-{}-{}-{}", file.chapter_file, line_idx, items.len()),
-                    item_type: "note".to_string(),
-                    chapter_file: file.chapter_file.clone(),
-                    chapter_title: ch_title.clone(),
-                    chapter_order: ch_order,
-                    anchor,
-                    text,
-                    color: None,
-                    section_heading: Some(current_heading.clone()),
-                    created_at: None,
-                });
-            }
+            items.push(AggregatedNoteItem {
+                id: format!("note-{}-{}-{}", file.chapter_file, line_idx, items.len()),
+                item_type: "note".to_string(),
+                chapter_file: file.chapter_file.clone(),
+                chapter_title: ch_title.clone(),
+                chapter_order: ch_order,
+                anchor,
+                text,
+                color: None,
+                section_heading: Some(current_heading.clone()),
+                created_at: None,
+            });
         }
     }
 

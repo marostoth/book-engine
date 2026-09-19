@@ -19,6 +19,8 @@ pub mod locate;
 mod locate_tests;
 pub mod models;
 pub mod notes;
+#[cfg(test)]
+mod notes_tests;
 pub mod paths;
 #[cfg(test)]
 mod paths_tests;
