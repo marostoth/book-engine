@@ -97,7 +97,7 @@ export const FigureLightboxModal: React.FC<FigureLightboxModalProps> = ({
                 close();
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-nord-accent/20 hover:bg-nord-accent/30 text-nord-accent border border-nord-accent/40 rounded-lg transition-all"
-              title="View original publisher page in Split View"
+              title="Open the notes pane beside the chapter text"
             >
               <Columns className="w-3.5 h-3.5" />
               <span>Split View</span>

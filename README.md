@@ -40,7 +40,7 @@ book-engine/
 ├── AGENTS.md                    # Canonical agent directives, guardrails & standards
 ├── apps/
 │   └── desktop/                 # Tauri v2 desktop application
-│       ├── src/                 # React 18+ frontend (TipTap, Floating UI, Tailwind CSS)
+│       ├── src/                 # React 18+ frontend (TipTap, Tailwind CSS, lucide-react)
 │       └── src-tauri/           # Rust backend (Tauri v2, rusqlite/FTS5, search index)
 ├── packages/
 │   └── ingestion/               # Python CLI & pipeline for deterministic book parsing
@@ -197,7 +197,7 @@ npm run tauri dev
 ```
 
 #### One-Click Windows Desktop Shortcut
-To generate a convenient desktop shortcut (`Book Engine.lnk`) configured with automated port cleanup and minimized console launching:
+To generate a desktop shortcut (`Book Engine.lnk`) that frees the dev port first and opens a normal console window:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/create_desktop_shortcut.ps1
