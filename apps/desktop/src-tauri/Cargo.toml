@@ -4,6 +4,11 @@ version = "0.1.0"
 description = "Local Book Engine Desktop Reader"
 authors = ["Maros Toth"]
 edition = "2021"
+# AGPL-3.0-or-later, the same as `LICENSE` at the root, and `publish = false` so `cargo publish` refuses
+# instead of asking. Without the licence line this crate is the one crate of 281 whose licence cannot be read,
+# including by the check that reads all the others (SEC-06).
+license = "AGPL-3.0-or-later"
+publish = false
 # The oldest Rust that can build this. It is the highest `rust-version` of the crates in `Cargo.lock`, not tauri's
 # own 1.77.2, because darling 0.24.1 and the icu crates ask for more. Cargo says so plainly on an older toolchain,
 # instead of failing somewhere inside a dependency (TL-06).
