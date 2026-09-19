@@ -4,6 +4,10 @@
 with that area. Each rule below is one line: what to do, what it cost to learn, and the test that fails when
 it is broken. The full story of a rule is in `docs/review/2026-09-14-findings.md` under the id at its end.
 
+**Why it is built this way is in `docs/decisions/`**, one record per decision: the plain-file vault,
+extractive-only practice, Python importing while Rust runs, FSRS-5, FTS5 in a throwaway cache, Tauri. Each
+says what was chosen, what was not, and what it cost.
+
 **Before you touch one of these areas, open its page and follow every rule on it.**
 
 | When you touch | Read | Holds |
@@ -14,11 +18,10 @@ it is broken. The full story of a rule is in `docs/review/2026-09-14-findings.md
 | bringing new books in | `docs/rules/import-books.md` | the inbox procedure and what each result means |
 | a health check of the whole system | `docs/rules/health-audit.md` | the 12-vector audit and how to read it |
 
-Those pages are plain Markdown, and they are the only copy of each rule. **This repository is agent-neutral:
-this file is canonical, `CLAUDE.md` and `GEMINI.md` point at it, and nothing an agent needs is kept in a
-folder only one vendor reads.** `.claude/skills/<name>/SKILL.md` holds no rules of its own; it is a pointer
-that lets Claude Code open the right page by itself when you touch matching files. Any other agent reaches
-the same page from the table above.
+**This repository is agent-neutral: this file is canonical, `CLAUDE.md` and `GEMINI.md` point at it, and
+nothing an agent needs is kept in a folder only one vendor reads.** Those pages are the only copy of each
+rule. `.claude/skills/<name>/SKILL.md` holds none of its own; it is a pointer that lets Claude Code open the
+right page by itself. Any other agent reaches the same page from the table above.
 
 `tests/test_the_skills_load.py` fails when a rule page is missing, when a pointer names a page that is not
 there, when a skill's frontmatter will not parse, when a `paths:` pattern matches no file, or when a rule is
