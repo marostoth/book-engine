@@ -2,7 +2,7 @@
 
 import assert from "node:assert/strict";
 import { afterEach, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { AggregatedNoteItem, BookMeta, VocabularyEntry } from "../lib/types.ts";
 
 /**
@@ -83,6 +83,7 @@ test("a saved word is on screen with its meaning, beside the highlights of the s
 
   assert.equal(screen.queryAllByText("The smallest number of people who may decide.").length, 1);
   assert.equal(screen.queryAllByText("A sentence the reader marked.", { exact: false }).length, 1);
+  assert.equal(screen.queryAllByText("Word").length, 1, "the word is not marked as a word, so it reads as a note");
 });
 
 test("the counts of each kind are on screen, so the reader knows how many words they have", async () => {
@@ -149,7 +150,11 @@ test("a word saved in another book does not reload this one", async () => {
   openDrawer();
 
   await screen.findByText("Words (0)");
-  vocabularyWasSaved("another-book");
+  // `act` runs the effects the state change would start. Without it the check below asks the question before
+  // React has had a chance to answer it, and a drawer that reloads for every book reads as one that does not.
+  await act(async () => {
+    vocabularyWasSaved("another-book");
+  });
 
   assert.equal(getBookVocabulary.mock.calls.length, 1);
 });
