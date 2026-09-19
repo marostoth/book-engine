@@ -52,9 +52,61 @@ APP_WRITES_IN_VAULT = (
 )
 
 
+#: The AGENTS.md rule that must name every ignored vault path, so nobody untracks one without reading why it is
+#: dangerous. See `test_every_ignored_vault_path_is_written_down`.
+UNTRACKING_RULE = "Untracking a Vault File Almost Deleted Two of Them"
+
+
 def tracked_files() -> list[str]:
     run = subprocess.run(["git", "ls-files"], cwd=REPO, capture_output=True, text=True, check=True)
     return [line for line in run.stdout.splitlines() if line]
+
+
+def ignored_vault_paths() -> list[str]:
+    """Every `vault/...` pattern `.gitignore` keeps out, with its `!` exceptions left aside.
+
+    A pattern that names a folder keeps its `/`, and one that names files loses its `*`. Getting that backwards
+    turns `vault/preferences.json*` into `vault/preferences.json/`, a folder that does not exist, and the rule can
+    then never name it. The first version of this function did that.
+    """
+    found = []
+    for raw in (REPO / ".gitignore").read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line.startswith("vault/") or line.startswith("!"):
+            continue
+        if line.endswith(("/", "/*")):
+            found.append(line.removesuffix("*").removesuffix("/") + "/")
+        else:
+            found.append(line.removesuffix("*"))
+    return sorted(set(found))
+
+
+def test_every_ignored_vault_path_is_written_down():
+    """A vault path git stops tracking must be named in the AGENTS.md rule about why that is dangerous (RD-08).
+
+    `git rm --cached` leaves the file on disk, so it looks safe. The deletion comes at the NEXT `checkout` or `pull`
+    that crosses the commit where tracking stopped: the branch still tracks the file, the bytes match, and git
+    removes it. That is how TL-08 deleted `vault/syntopicon/topics/division-of-labor.json` and its report.
+
+    A test cannot watch an operation that has already happened, so this holds the next best thing that a check can
+    hold: whoever ignores a new vault path has to add it to the rule, and reads the rule while doing so. The rule
+    also tells them to copy the files out first and to compare hashes after every merge.
+    """
+    rule_holder = (REPO / "AGENTS.md").read_text(encoding="utf-8")
+    assert UNTRACKING_RULE in rule_holder, (
+        f"AGENTS.md no longer holds the rule {UNTRACKING_RULE!r}, so nothing tells the next reader that untracking a "
+        f"vault file gets it deleted one command later"
+    )
+
+    ignored = ignored_vault_paths()
+    assert ignored, ".gitignore ignores no vault path at all, so this test is watching nothing"
+
+    unwritten = sorted(path for path in ignored if path not in rule_holder)
+    assert not unwritten, (
+        "these vault paths are ignored by .gitignore but are not named in the AGENTS.md rule "
+        f"{UNTRACKING_RULE!r}. Add each one there, and read the rule while you do: a file you untrack is deleted by "
+        "the next checkout that crosses the commit where tracking stopped.\n" + "\n".join(f"  {p}" for p in unwritten)
+    )
 
 
 def test_git_can_be_asked_what_it_tracks():

@@ -1,5 +1,6 @@
 import { BookMeta, ChapterNoteFile, AggregatedEntry } from "./types";
 import { parseHighlightsFromNotes } from "./highlights";
+import { noteLine } from "./noteLine";
 
 /**
  * Extracts numeric anchor index from anchor string (e.g. "^p-042" -> 42).
@@ -75,30 +76,22 @@ export function aggregateBookNotes(
         continue;
       }
 
-      // Check for bullet or paragraph
-      let text = line.replace(/^[-*•]\s+/, "").trim();
-      if (!text || text === "-") continue;
+      // One rule for the markers, the anchor, the quote marks and the empty prompt (RD-08). `noteLine` is the
+      // TypeScript half of `note_text_and_anchor` in src-tauri/src/vault/notes.rs; the two must answer the same,
+      // and `tests/test_one_note_format.py` holds them to it.
+      const shown = noteLine(line);
+      if (!shown) continue;
 
-      // Check for paragraph anchor in note line (e.g. ^p-042 or (§p-042))
-      let anchor: string | undefined;
-      const anchorMatch = text.match(/(\^p-\d+)/i);
-      if (anchorMatch) {
-        anchor = anchorMatch[1];
-        text = text.replace(anchorMatch[0], "").replace(/\(\s*\)/g, "").trim();
-      }
-
-      if (text.length > 0) {
-        entries.push({
-          id: `note-${file.chapter_file}-${i}-${Date.now().toString(36)}`,
-          type: "note",
-          chapterFile: file.chapter_file,
-          chapterTitle: chapter.title,
-          chapterOrder: chapter.order,
-          anchor,
-          text,
-          sectionHeading: currentHeading,
-        });
-      }
+      entries.push({
+        id: `note-${file.chapter_file}-${i}-${Date.now().toString(36)}`,
+        type: "note",
+        chapterFile: file.chapter_file,
+        chapterTitle: chapter.title,
+        chapterOrder: chapter.order,
+        anchor: shown.anchor,
+        text: shown.text,
+        sectionHeading: currentHeading,
+      });
     }
   }
 
