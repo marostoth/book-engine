@@ -36,6 +36,11 @@ dev = [
     "packaging>=23.0",
     "mypy>=1.8.0",
     "ruff>=0.4.0",
+    # `tests/test_the_skills_load.py` parses the frontmatter of each `.claude/skills/*/SKILL.md` with a real
+    # YAML parser, because Claude Code parses it with one: frontmatter it cannot read loads the skill with no
+    # metadata at all, and the skill then never triggers on its own. A hand-written reader that is more
+    # forgiving than YAML would pass exactly the file that silently fails.
+    "pyyaml>=6.0",
 ]
 
 [project.scripts]

@@ -64,6 +64,13 @@ out of the tree on purpose; a test sits beside the file it tests.
 
 ```
 book-engine/
+├── .claude/                                  # What Claude Code loads by itself
+│   └── skills/                               # The rules for one area, loaded when you touch that area
+│       ├── backend-rules/SKILL.md            # 6 Rust rules, for `apps/desktop/src-tauri/`
+│       ├── frontend-rules/SKILL.md           # 12 React rules, for `apps/desktop/src/`
+│       ├── health-audit/SKILL.md             # The 12-vector audit procedure; type `/health-audit`
+│       ├── import-books/SKILL.md             # The inbox procedure; type `/import-books`
+│       └── ingestion-rules/SKILL.md          # 18 import rules, for `packages/ingestion/`
 ├── .agent/
 │   └── skills/                               # Autonomous verification harnesses
 │       ├── audit-anchors.py                  # Verifies paragraph anchor & footnote definition integrity

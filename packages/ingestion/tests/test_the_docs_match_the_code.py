@@ -30,7 +30,20 @@ import pytest
 from conftest import REPO
 
 #: The documents a reader or an agent takes as the description of this app.
-DOCUMENTS = ("README.md", "AGENTS.md", "ARCHITECTURE.md")
+#:
+#: `docs/rules/*.md` joined them when 38 rules moved out of `AGENTS.md`: those pages now carry most of the
+#: claims about most of the files, so a path or a promise that goes stale there is worth exactly as much as
+#: one in the README. A mutation run found they were the only documents nothing was checking, which is the
+#: same fault one level up: the guard did not follow the content when the content moved.
+DOCUMENTS = (
+    "README.md",
+    "AGENTS.md",
+    "ARCHITECTURE.md",
+    *sorted(
+        str(p.relative_to(REPO)).replace("\\", "/")
+        for p in [*(REPO / "docs" / "rules").glob("*.md"), *(REPO / ".claude" / "skills").glob("*/SKILL.md")]
+    ),
+)
 
 ARCHITECTURE = REPO / "ARCHITECTURE.md"
 LIB_RS = REPO / "apps" / "desktop" / "src-tauri" / "src" / "lib.rs"
