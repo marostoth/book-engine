@@ -247,9 +247,14 @@ def test_the_import_repairs_the_character_maps_before_it_reads_any_text():
     source = (Path(__file__).resolve().parents[1] / "ingest" / "pdf_parser.py").read_text(encoding="utf-8")
 
     assert "from ingest.glyph_repair import repair_glyph_maps" in source
+
+    # The text of a page is read in one place, through `ingest/reading_order.py` (CQ-07). Counting the
+    # call makes this guard fail when that name changes, instead of passing while it reads nothing.
+    reader = "to_markdown_in_reading_order("
+    assert source.count(reader) == 1, f"{reader} is not called exactly once, so this guard read nothing"
+
     repaired_at = source.index("repair_glyph_maps(doc)")
-    read_at = source.index("pymupdf4llm.to_markdown(")
-    assert repaired_at < read_at, "the character maps must be repaired before any text is read"
+    assert repaired_at < source.index(reader), "the character maps must be repaired before any text is read"
 
 
 @pytest.mark.parametrize("wrong,right", [("¼", "="), ("þ", "+")])

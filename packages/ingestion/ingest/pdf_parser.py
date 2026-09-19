@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 
 import pymupdf
-import pymupdf4llm
 
 from ingest.anchors import clean_preview_text, extract_anchors, extract_inspectional_sampling, inject_paragraph_anchors
 from ingest.assets import (
@@ -24,6 +23,7 @@ from ingest.models import BookMeta, BookSource, ChapterMeta, InspectionalBluepri
 from ingest.pdf_outline import CHAPTER, describe_pages, outline_parts
 from ingest.pdf_sanitizer import book_language, clean_author_metadata, generate_pdf_slug, sanitize_pdf_markdown
 from ingest.places import read_book_text
+from ingest.reading_order import to_markdown_in_reading_order
 from ingest.reimport import book_to_import
 from ingest.salience import (
     format_practice_deck_markdown,
@@ -199,8 +199,11 @@ class PDFParser:
             # 3. Pristine Snapshot Pass: Vector diagram rasterization directly from unredacted doc
             vec_figures = detect_and_rasterize_vector_figures(doc, page_numbers, chapter_idx, assets_dir)
 
-            # 4. Non-Destructive Markdown Conversion directly from source doc (Zero Redaction)
-            raw_chapter_md = pymupdf4llm.to_markdown(
+            # 4. Non-Destructive Markdown Conversion directly from source doc (Zero Redaction).
+            # The pages are read in the order a reader reads them: a label or a big first letter
+            # standing beside a paragraph used to be read across the gap, which cut a word of the
+            # paragraph in two (CQ-07, `ingest/reading_order.py`).
+            raw_chapter_md = to_markdown_in_reading_order(
                 doc,
                 pages=page_numbers,
                 write_images=True,
