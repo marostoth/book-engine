@@ -269,4 +269,14 @@ python -m pytest packages/ingestion/tests/
 
 ## License
 
-Private & Proprietary. All rights reserved.
+Copyright (C) 2026 Maros Toth. Free software under the GNU Affero General Public License, version 3 or later.
+See [LICENSE](./LICENSE).
+
+The import pipeline is built on `ebooklib`, which is AGPL and nothing else, so this program cannot be handed
+to anybody under anything narrower. Giving it to one friend counts as handing it over, the same as
+publishing: the licence does not count people or money. What that means in practice, what ships and what does
+not, and the licence of every package this repository installs, is measured in
+[LICENSES.md](./LICENSES.md). Read that page before you give this to anyone.
+
+A vault is not covered by any of it. A vault holds the text of real books, and that is the book publisher's
+copyright.

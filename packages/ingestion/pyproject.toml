@@ -7,6 +7,11 @@ name = "book-engine-ingestion"
 version = "0.1.0"
 description = "Deterministic Ingestion & Content Pipeline for Local Book Engine"
 readme = "README.md"
+# AGPL-3.0-or-later, the same as `LICENSE` at the root. `ebooklib` is AGPL and nothing else, so this pipeline
+# cannot be handed to anybody under anything narrower. Named here because a package that says nothing is the
+# one package in the install whose licence nobody can read, including the check that reads all the others
+# (SEC-06).
+license = "AGPL-3.0-or-later"
 # 3.11 is where `tomllib` arrived, and the code itself needs nothing newer. The number here is 3.13 because
 # `requirements.lock` is the install this repository ships and the README tells you to run, it is made on 3.13, and
 # `numpy==2.5.3` in it has no build for 3.11. On 3.11 that install stops with "No matching distribution found",
