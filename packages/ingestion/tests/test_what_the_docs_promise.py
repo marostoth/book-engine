@@ -19,6 +19,7 @@ two are one case of: the line whose whole job is to name the crates of the Rust 
 `Cargo.lock` really has.
 """
 
+import json
 import re
 
 from conftest import REPO
@@ -50,6 +51,20 @@ THE_BUTTON = "Rescan library"
 CARGO_TOML = REPO / "apps" / "desktop" / "src-tauri" / "Cargo.toml"
 CARGO_LOCK = REPO / "apps" / "desktop" / "src-tauri" / "Cargo.lock"
 
+DESKTOP_PACKAGE_JSON = REPO / "apps" / "desktop" / "package.json"
+
+#: Names on the TypeScript `**Tooling:**` line that are a way of working, not a package to install. Every
+#: other name there must be a dependency of `apps/desktop/package.json`.
+NOT_PACKAGES = {
+    "react",  # named as "React 18+", the framework, whose package is `react`
+    "prosemirror",  # named as "TipTap 3 / ProseMirror", which ships inside the TipTap packages
+    "jsdom",  # the vitest environment, a dev dependency of vitest itself
+}
+
+#: An npm package name never ends in a file extension, so `apps/desktop/package.json` on that line is a
+#: pointer to a file and not a package to install.
+A_FILE_NAME = re.compile(r"\.[a-z]{1,5}$")
+
 #: The shape of a crate name: lower case letters, digits, hyphens and underscores. A path (`vault/notes.rs`), a
 #: module (`tokio::task::spawn_blocking`) and a file name (`Cargo.toml`) are all left out by it.
 CRATE_NAME = re.compile(r"^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$")
@@ -68,6 +83,22 @@ def rust_tooling_line() -> str:
     lines = [line for line in section.group(1).splitlines() if line.startswith("- **Tooling:**")]
     assert len(lines) == 1, f"the Rust section has {len(lines)} '**Tooling:**' lines; it needs exactly one"
     return lines[0]
+
+
+def web_tooling_line() -> str:
+    """The `**Tooling:**` line of the "TypeScript / Frontend" section of `AGENTS.md`."""
+    text = (REPO / "AGENTS.md").read_text(encoding="utf-8")
+    section = re.search(r"^### TypeScript / Frontend$(.*?)^(?:### |## )", text, flags=re.MULTILINE | re.DOTALL)
+    assert section, "AGENTS.md has no '### TypeScript / Frontend' section"
+    lines = [line for line in section.group(1).splitlines() if line.startswith("- **Tooling:**")]
+    assert len(lines) == 1, f"the TypeScript section has {len(lines)} '**Tooling:**' lines; it needs exactly one"
+    return lines[0]
+
+
+def installed_packages() -> set[str]:
+    """Every package `apps/desktop/package.json` asks for, which is every package the window really builds with."""
+    manifest = json.loads(DESKTOP_PACKAGE_JSON.read_text(encoding="utf-8"))
+    return set(manifest.get("dependencies", {})) | set(manifest.get("devDependencies", {}))
 
 
 def promises_a_watcher(line: str) -> str | None:
@@ -130,4 +161,28 @@ def test_the_rust_tooling_line_names_only_crates_the_build_really_has():
     assert not missing, (
         f"the Rust '**Tooling:**' line of AGENTS.md names {missing}, which {CARGO_LOCK.name} does not have. "
         f"Name a crate there only after `apps/desktop/src-tauri/Cargo.toml` has it (SI-05)."
+    )
+
+
+def test_the_web_tooling_line_names_only_packages_the_window_really_has():
+    """`@floating-ui/react` sat on that line, and on two other pages, after RD-09 uninstalled it (TL-07)."""
+    installed = installed_packages()
+    assert "react" in installed, f"{DESKTOP_PACKAGE_JSON} was not read as expected: it holds {len(installed)} names"
+
+    assert A_FILE_NAME.search("apps/desktop/package.json"), "the file-name reader does not know a file"
+    assert not A_FILE_NAME.search("@testing-library/react"), "the file-name reader called a package a file"
+
+    line = web_tooling_line()
+    named = [
+        word
+        for word in re.findall(r"`([^`]+)`", line)
+        if word.lower() not in NOT_PACKAGES and not A_FILE_NAME.search(word)
+    ]
+    assert named, f"the TypeScript '**Tooling:**' line names no package at all: {line!r}"
+
+    missing = [word for word in named if word not in installed]
+    assert not missing, (
+        f"the TypeScript '**Tooling:**' line of AGENTS.md names {missing}, which "
+        f"apps/desktop/package.json does not install. Name a package there only after the manifest has it, "
+        f"and keep an explanation in a bullet of its own so this line stays a list (TL-07)."
     )
