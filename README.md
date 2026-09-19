@@ -184,6 +184,11 @@ npm run dev
 # Starts Vite dev server at http://localhost:5173
 ```
 
+Port 5173 is Vite's default, so another project of yours may be on it. `npm run dev` frees it first, but only from
+this project's own leftover; anything else it names and leaves alone, and the start stops so you can decide
+(TL-08). The port cannot move on its own: `apps/desktop/vite.config.ts` sets `strictPort`, and `tauri.conf.json`
+points `devUrl` at it, so a change has to be made in both.
+
 #### Run Native Desktop App (Tauri v2)
 To launch the full native desktop client with the Rust backend and SQLite FTS5 search:
 

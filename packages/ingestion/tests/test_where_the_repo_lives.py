@@ -2,7 +2,8 @@
 
 Measured on 2026-09-18, with the repository still at `C:\\Users\\maros\\OneDrive\\Documents\\Antigravity\\book-engine`:
 
-- git kept **424** files. The folder held **37,083** files and **24.22 GB**.
+- git kept **424** files. The folder held **37,083** files and **24.22 GB**. (TL-08 later untracked 53 of those
+  files, so git keeps **379** and **3.28 MB** now. The point stands either way: the build writes tens of thousands.)
 - `apps/desktop/src-tauri/target` alone was **23.79 GB**, which is what cargo writes again on every build. The
   review that opened this entry measured 8.3 GB four days earlier, so it had almost tripled.
 - **Every** file was a OneDrive placeholder, including the files inside `.git`. A stale `.git/worktrees` folder
@@ -29,7 +30,7 @@ SYNC_NAMES = ("onedrive", "dropbox", "google drive", "googledrive", "icloud driv
 
 WHERE_TO_PUT_IT = (
     "Move it somewhere the client does not reach, for example C:\\dev\\book-engine, or point CARGO_TARGET_DIR "
-    "at a folder outside it. git keeps 424 files of this repository; the build writes tens of thousands more."
+    "at a folder outside it. git keeps 379 files of this repository; the build writes tens of thousands more."
 )
 
 
