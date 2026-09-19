@@ -3,6 +3,7 @@ import type { HighlightItem } from "./types";
 // The .ts extensions let the Node test runner load this module (highlights.test.ts).
 import { toAnchorAttribute } from "./anchors.ts";
 import { readerText } from "./readerText.ts";
+import { highlightsFrom } from "./backendShapes.ts";
 
 const PREFIX_SUFFIX_LEN = 32;
 
@@ -220,8 +221,10 @@ export function parseHighlightsFromNotes(notesContent: string): HighlightItem[] 
   if (close === -1) return [];
 
   try {
-    const parsed = JSON.parse(body.slice(open, open + close + 1));
-    return Array.isArray(parsed) ? parsed : [];
+    const parsed: unknown = JSON.parse(body.slice(open, open + close + 1));
+    // Every entry is checked, and a damaged one is dropped on its own. The list used to go through as it was, so an
+    // entry with no `exact` text reached the reader and threw while the chapter was being drawn (RD-09).
+    return highlightsFrom(parsed, "The old highlights block of this chapter");
   } catch (e) {
     console.warn("Failed to parse highlights-json block:", e);
     return [];

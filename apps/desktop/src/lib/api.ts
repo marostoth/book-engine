@@ -7,12 +7,9 @@ import type {
   InspectionalBlueprint,
   ExitAssessmentPayload,
 } from "./types.ts";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { callBackend, isTauri } from "./api/clientBase.ts";
-
-/** What the desktop app puts on `window`. A browser tab has none of it. */
-interface TauriWindow {
-  __TAURI_INTERNALS__?: { convertFileSrc?: (path: string, protocol: string) => string };
-}
+import { bookMetaFrom } from "./backendShapes.ts";
 
 export * from "./api/practiceApi.ts";
 export * from "./api/notesApi.ts";
@@ -42,9 +39,15 @@ export async function fetchAvailableBooks(): Promise<BookSummary[]> {
   }));
 }
 
+/**
+ * The metadata of one book. Rejects with the name of the first field that is wrong (RD-09).
+ *
+ * The text used to go straight through `JSON.parse`, so a book file with no `spine` reached the reader as `undefined`
+ * and failed later, deep in the chapter list, with a message that named no file.
+ */
 export async function fetchBookMeta(bookId: string): Promise<BookMeta> {
   const json = await callBackend<string>("load_book_meta", { bookId }, (dev) => dev.loadBookMetaJson());
-  return JSON.parse(json);
+  return bookMetaFrom(json, bookId);
 }
 
 export async function getInspectionalBlueprint(bookId: string): Promise<InspectionalBlueprint> {
@@ -119,10 +122,14 @@ export function resolveAssetUrl(bookId: string, src: string, vaultPath?: string)
   const cleanVault = vPath.replace(/\\/g, "/").replace(/\/+$/, "");
   const fullPath = `${cleanVault}/books/${bookId}/assets/${filename}`;
 
-  const insideTheApp = (window as unknown as TauriWindow).__TAURI_INTERNALS__;
-  if (typeof window !== "undefined" && insideTheApp?.convertFileSrc) {
-    return insideTheApp.convertFileSrc(fullPath, "asset");
+  // The public door of the app shell, `convertFileSrc` from `@tauri-apps/api/core`. This used to reach into
+  // `window.__TAURI_INTERNALS__` instead. That object is Tauri's own private one: it is in no promise Tauri makes, so
+  // an update is free to rename it, and every picture in every book would go blank with no error anywhere (RD-09).
+  // The public function reads the same object with no check of its own, so a shell without it throws here.
+  try {
+    return convertFileSrc(fullPath, "asset");
+  } catch (e) {
+    console.warn("The app could not make a URL for a book picture:", e);
+    return src;
   }
-
-  return src;
 }

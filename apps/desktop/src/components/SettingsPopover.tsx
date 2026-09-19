@@ -1,21 +1,18 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Settings, X, Sliders, BookOpen, Clock, Brain } from "lucide-react";
-import { ReaderPreferences, Theme } from "../lib/types";
+import { Theme } from "../lib/types";
 import { GeneralTab } from "./settings/GeneralTab";
 import { ElementaryTab } from "./settings/ElementaryTab";
 import { InspectionalTab } from "./settings/InspectionalTab";
 import { PracticeTab } from "./settings/PracticeTab";
 
+/** Every tab inside reads the settings through `useSettings`, so this window passes none of them on (RD-09). */
 interface SettingsPopoverProps {
-  preferences: ReaderPreferences;
-  onPreferencesChange: (prefs: ReaderPreferences) => void;
   onResyncDeck?: () => void;
   onOpenAnalytics?: () => void;
   dueCardsCount?: number;
   theme?: Theme;
   onThemeChange?: (theme: Theme) => void;
-  isBionic?: boolean;
-  onToggleBionic?: () => void;
   isPacingRunning?: boolean;
   onTogglePacer?: () => void;
 }
@@ -23,15 +20,11 @@ interface SettingsPopoverProps {
 type TabKey = "general" | "elementary" | "inspectional" | "practice";
 
 export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
-  preferences,
-  onPreferencesChange,
   onResyncDeck,
   onOpenAnalytics,
   dueCardsCount = 0,
   theme,
   onThemeChange,
-  isBionic,
-  onToggleBionic,
   isPacingRunning,
   onTogglePacer,
 }) => {
@@ -135,8 +128,6 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
           <div className="pt-3.5 max-h-[460px] overflow-y-auto pr-0.5">
             {activeTab === "general" && (
               <GeneralTab
-                preferences={preferences}
-                onPreferencesChange={onPreferencesChange}
                 theme={theme}
                 onThemeChange={onThemeChange}
               />
@@ -144,26 +135,17 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
 
             {activeTab === "elementary" && (
               <ElementaryTab
-                preferences={preferences}
-                onPreferencesChange={onPreferencesChange}
-                isBionic={isBionic}
-                onToggleBionic={onToggleBionic}
                 isPacingRunning={isPacingRunning}
                 onTogglePacer={onTogglePacer}
               />
             )}
 
             {activeTab === "inspectional" && (
-              <InspectionalTab
-                preferences={preferences}
-                onPreferencesChange={onPreferencesChange}
-              />
+              <InspectionalTab />
             )}
 
             {activeTab === "practice" && (
               <PracticeTab
-                preferences={preferences}
-                onPreferencesChange={onPreferencesChange}
                 onResyncDeck={onResyncDeck}
                 onOpenAnalytics={onOpenAnalytics}
                 dueCardsCount={dueCardsCount}

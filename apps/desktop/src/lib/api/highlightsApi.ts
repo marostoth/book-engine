@@ -1,16 +1,21 @@
 import type { HighlightItem } from "../types.ts";
+import { highlightsFrom } from "../backendShapes.ts";
 import { callBackend } from "./clientBase.ts";
 
 /**
  * The saved highlights of a chapter, from `vault/notes/<book-id>/<chapter>-highlights.json`.
  * A chapter that still keeps them in the old notes comment is moved over by the backend.
+ *
+ * Every entry is checked, and a damaged one is dropped on its own, so one bad entry cannot lose the reader every
+ * other highlight of the chapter (RD-09).
  */
 export async function getChapterHighlights(bookId: string, chapterFile: string): Promise<HighlightItem[]> {
-  return callBackend<HighlightItem[]>(
+  const answer = await callBackend<unknown>(
     "get_chapter_highlights",
     { bookId, chapterFile },
     (dev) => dev.getChapterHighlights(bookId, chapterFile)
   );
+  return highlightsFrom(answer, `The saved highlights of ${chapterFile}`);
 }
 
 /**

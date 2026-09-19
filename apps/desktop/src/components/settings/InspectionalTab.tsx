@@ -1,16 +1,10 @@
 import React from "react";
-import { ReaderPreferences } from "../../lib/types";
+import { useSettings } from "../../hooks/useSettings";
 import { Timer, HelpCircle, Layers, PanelLeftClose, Keyboard } from "lucide-react";
 
-interface InspectionalTabProps {
-  preferences: ReaderPreferences;
-  onPreferencesChange: (prefs: ReaderPreferences) => void;
-}
-
-export const InspectionalTab: React.FC<InspectionalTabProps> = ({
-  preferences,
-  onPreferencesChange,
-}) => {
+/** The settings come from `useSettings`, so this tab takes no props at all (RD-09). */
+export const InspectionalTab: React.FC = () => {
+  const { settings: preferences, change: onPreferencesChange } = useSettings();
   const inspectional = preferences.inspectional;
 
   const updateInspectional = (patch: Partial<typeof inspectional>) => {

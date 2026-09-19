@@ -8,9 +8,9 @@ import {
   Search,
   BookMarked,
 } from "lucide-react";
-import { BookMeta, ChapterMeta, BookMetadata, TOCItem, ReadingLevelMode, InspectionalSubView } from "../lib/types";
+import { ChapterMeta, TOCItem, ReadingLevelMode, InspectionalSubView } from "../lib/types";
 import { BookSelector } from "./BookSelector";
-import type { LibraryRescanControl } from "../lib/libraryRescan";
+import { useLibrary } from "../hooks/useLibrary";
 import { TOCItemRow } from "./sidebar/TOCItemRow";
 import { contentsOpenChapters, contentsTarget, type ContentsTarget } from "../lib/tableOfContents";
 import { Compass, BookCheck } from "lucide-react";
@@ -18,11 +18,6 @@ import { Compass, BookCheck } from "lucide-react";
 interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
-  bookMeta: BookMeta | null;
-  availableBooks: BookMetadata[];
-  onSelectBook: (bookId: string) => void;
-  /** The "Rescan library" button of the book list (DS-13). */
-  libraryRescan?: LibraryRescanControl;
   activeChapterId: string;
   /** Opens a chapter, at the paragraph `anchor` when given: an entry of the contents can start inside a chapter. */
   onSelectChapter: (chapter: ChapterMeta, anchor?: string) => void;
@@ -35,10 +30,6 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({
   isOpen,
   onToggle,
-  bookMeta,
-  availableBooks,
-  onSelectBook,
-  libraryRescan,
   activeChapterId,
   onSelectChapter,
   onOpenNotesDrawer,
@@ -46,6 +37,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeSubView = "blueprint",
   onSelectSubView,
 }) => {
+  // The open book and the book list come from `useLibrary`, not from props (RD-09).
+  const { bookMeta, availableBooks, selectBook, rescan } = useLibrary();
   const [activeTab, setActiveTab] = useState<"toc" | "chapters">("toc");
   const [searchFilter, setSearchFilter] = useState("");
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
@@ -109,8 +102,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             currentTitle={bookMeta?.title || "Select a Book"}
             currentAuthor={bookMeta?.author || "Local Vault Library"}
             books={availableBooks}
-            onSelectBook={onSelectBook}
-            libraryRescan={libraryRescan}
+            onSelectBook={selectBook}
+            libraryRescan={rescan}
           />
         </div>
         <button

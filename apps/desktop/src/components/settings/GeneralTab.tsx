@@ -1,20 +1,19 @@
 import React from "react";
-import { Theme, ReaderPreferences } from "../../lib/types";
+import { Theme } from "../../lib/types";
+import { useSettings } from "../../hooks/useSettings";
 import { Sun, Coffee, Moon, Type, AlignLeft } from "lucide-react";
 
+/** The settings come from `useSettings`, not from props (RD-09). */
 interface GeneralTabProps {
-  preferences: ReaderPreferences;
-  onPreferencesChange: (prefs: ReaderPreferences) => void;
   theme?: Theme;
   onThemeChange?: (theme: Theme) => void;
 }
 
 export const GeneralTab: React.FC<GeneralTabProps> = ({
-  preferences,
-  onPreferencesChange,
   theme = "paper",
   onThemeChange,
 }) => {
+  const { settings: preferences, change: onPreferencesChange } = useSettings();
   const general = preferences.general ?? {
     theme: "paper",
     fontSize: 16,
