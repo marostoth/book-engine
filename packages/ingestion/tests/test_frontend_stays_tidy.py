@@ -1,6 +1,6 @@
 """The app window keeps its hygiene: no `any`, checked data, the public Tauri door, one flag per setting (RD-09).
 
-Six things made the frontend hard to change safely:
+Seven things made the frontend hard to change safely:
 
 1. 14 `as any` casts. Four more read backend fields that nothing writes.
 2. Nothing checked a backend answer or a `JSON.parse` result, so a damaged file failed far from its cause.
@@ -9,6 +9,9 @@ Six things made the frontend hard to change safely:
    saved one back, so the app always started with Bionic off.
 5. Four declared dependencies were never imported.
 6. `App.tsx` passed 29 props to `TopNav`, 24 to `Reader` and 26 to `AppModals`.
+7. One test built a new date formatter for each of the 360 cells of the review heatmap. It took 66 ms, about 60 times
+   the next slowest test of its file, and 7778 ms on a cold CI runner, where it went past vitest's 5000 ms default and
+   read as a broken test (TL-12).
 
 This file is the guard. A reader that finds nothing looks the same as a repository with no faults, so every reader
 here is checked against a case whose answer is known. Three of the readers below had a fault of their own first:
@@ -57,6 +60,26 @@ NAMES_NOTHING_WRITES = [
     "closing_summary",
     "tail_sample",
 ]
+
+# Every call that builds a date or number formatter. `toLocaleDateString` and its family build a new
+# `Intl.DateTimeFormat` on each call, and the first one of a process also starts the locale data up.
+FORMATS_A_DATE = re.compile(
+    r"\btoLocale(?:Date|Time)?String\b|\bIntl\.(?:DateTimeFormat|NumberFormat|RelativeTimeFormat)\b"
+)
+
+# What was measured on 2026-09-19, and the most calls each test file may hold. A number here may go down, never up.
+#
+# A test file is counted, not the app. One call sat in a helper the row check of the heatmap called for each of its 360
+# cells, so one test built 360 formatters: 66 ms, about 60 times the next slowest test of that file, and 7778 ms on a
+# cold CI runner, where it went past vitest's 5000 ms default and read as a broken test (TL-12). Measured here: 360
+# calls cost 34.2 ms, 360 `getDay()` reads cost 0.2 ms, and both give the same names.
+#
+# The one call left is the test of the date the reader is shown, which is what that test is about. It runs five times,
+# and it pays the one-time locale start-up of about 30 ms that no test of `Intl` can avoid. A second call in this file
+# is what the fault looked like, so the number stays at 1: a new one has to be measured and written here on purpose.
+MOST_DATE_FORMATS_IN_A_TEST = {
+    "lib/reviewDays.test.ts": 1,
+}
 
 
 def sources(with_tests: bool = False) -> list[Path]:
@@ -473,3 +496,33 @@ def test_the_settings_context_keeps_its_value_still():
     assert "useMemo(() => ({ settings, change }), [settings, change])" in hook
     tests = (SRC / "hooks" / "useSettings.test.tsx").read_text(encoding="utf-8")
     assert "does not draw the reader again" in tests, "that guard needs a test, or the next edit can drop the useMemo"
+
+
+# ---------------------------------------------------------------- 7: a test is not slow for nothing
+
+
+def test_the_date_format_reader_finds_a_call_it_is_shown():
+    """The reader must catch a formatter it is handed, or a clean count means nothing."""
+    assert FORMATS_A_DATE.search('day.toLocaleDateString("en-GB", { weekday: "short" })'), "a plain call is missed"
+    assert FORMATS_A_DATE.search("new Intl.DateTimeFormat(locale)"), "a formatter built by hand is missed"
+    assert FORMATS_A_DATE.search("total.toLocaleString()"), "toLocaleString builds one as well"
+    assert not FORMATS_A_DATE.search("startOfLocalDay(day).getDay()"), "the reader sees a call that is not there"
+
+
+def test_no_test_file_builds_more_date_formatters_than_it_did_on_the_day_this_was_measured():
+    tests = [path for path in sources(with_tests=True) if ".test." in path.name]
+    assert len(tests) > 20, f"only {len(tests)} test files found, so this guard sees almost nothing"
+    counted: dict[str, list[str]] = {}
+    for line in where(FORMATS_A_DATE, tests):
+        counted.setdefault(line.split(":", 1)[0], []).append(line)
+    too_many = [
+        f"{name}: {len(lines)} calls, and {MOST_DATE_FORMATS_IN_A_TEST.get(name, 0)} is the most it had\n"
+        + "\n".join("    " + line for line in lines)
+        for name, lines in sorted(counted.items())
+        if len(lines) > MOST_DATE_FORMATS_IN_A_TEST.get(name, 0)
+    ]
+    assert not too_many, (
+        "a locale formatter is built on every call, so a test that builds one for each item of a list can time out on "
+        "CI with nothing wrong with it. Read the day number against a list of names instead, or measure the new call "
+        "and write its number in MOST_DATE_FORMATS_IN_A_TEST on purpose:\n" + "\n".join(too_many)
+    )

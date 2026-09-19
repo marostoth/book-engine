@@ -28,7 +28,17 @@ const REVIEWS_AFTER_MIDNIGHT = [
 const wednesdayEvening = () => new Date(2026, 8, 16, 18, 36);
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const weekdayOf = (day: string) => startOfLocalDay(day).toLocaleDateString("en-GB", { weekday: "short" });
+
+/**
+ * The row a "YYYY-MM-DD" day belongs in, read from the day number (TL-12).
+ *
+ * This was `toLocaleDateString("en-GB", { weekday: "short" })`, which builds a new `Intl.DateTimeFormat` on every
+ * call. The heatmap has 360 cells, so the row check below built 360 formatters: 66 ms, about 60 times the next
+ * slowest test of this file. On a cold CI runner the same test took 7778 ms, went past vitest's 5000 ms default, and
+ * read as a broken test when nothing was broken. `getDay()` is 0 on Sunday and the rows start on Monday, so the
+ * shift by 6 puts Monday in row 0. Both give the same names, which was checked on all 360 cells.
+ */
+const weekdayOf = (day: string) => WEEKDAYS[(startOfLocalDay(day).getDay() + 6) % 7];
 
 test("a review after midnight counts on the day of the window's time zone, not on the UTC day", () => {
   process.env.TZ = "Europe/London";
@@ -43,6 +53,15 @@ test("a review after midnight counts on the day of the window's time zone, not o
     ],
     "UTC-4: at 19:40 and 19:52 on 15 September, and at 06:05 on 16 September"
   );
+});
+
+test("row 0 is a Monday and row 6 is a Sunday, so the row check below reads real weekdays", () => {
+  process.env.TZ = "Europe/London";
+  // 14 to 20 September 2026 is a Monday to a Sunday. The row check trusts `weekdayOf`, so `weekdayOf` is checked
+  // here against days whose weekday is known, and not against `Intl` on all 360 cells (TL-12).
+  const week = ["2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17", "2026-09-18", "2026-09-19", "2026-09-20"];
+  assert.deepEqual(week.map(weekdayOf), WEEKDAYS);
+  assert.equal(weekdayOf("2026-03-29"), "Sun", "the day the clocks go forward is still a Sunday");
 });
 
 test("the rows go from Monday to Sunday, and the last column ends with today and its reviews", () => {

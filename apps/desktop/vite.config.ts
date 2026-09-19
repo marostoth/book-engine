@@ -11,6 +11,11 @@ export default defineConfig({
   // The default place is `node`, because 30 of these files test plain functions and a DOM would only slow them
   // down. A file that needs a DOM says so on its first line with `// @vitest-environment jsdom`, which is also
   // how a reader of that file learns it draws components.
+  //
+  // No `testTimeout` is named here, and that is a decision, not an omission (TL-12). Vitest's default is 5000 ms.
+  // One test once went past it on a cold CI runner and read as broken; the fault was 360 date formatters inside the
+  // test, and the same test now takes 2 ms. A longer timeout would have hidden that. A test slow enough to reach
+  // 5000 ms is worth seeing.
   test: {
     include: ["src/**/*.test.{ts,tsx}"],
     environment: "node",
