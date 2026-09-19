@@ -22,6 +22,7 @@ export { getChapterHighlights, saveChapterHighlights } from "./fallbackHighlight
 export {
   fallbackLookupDictionaryTerm as lookupDictionaryTerm,
   fallbackSaveVocabulary as saveBookVocabulary,
+  fallbackGetVocabulary as getBookVocabulary,
 } from "./fallbackLexicon.ts";
 export { getAnalyticalData, saveAnalyticalData } from "./fallbackAnalytical.ts";
 export { getVaultStatus, chooseVaultFolder } from "./fallbackVault.ts";

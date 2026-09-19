@@ -42,6 +42,8 @@ from conftest import REPO
 DOCUMENT_FOLDERS = (
     (REPO / "docs" / "rules", "*.md"),
     (REPO / "docs" / "decisions", "*.md"),
+    (REPO / "docs" / "specs", "README.md"),
+    (REPO / "docs" / "specs", "*/*.md"),
     (REPO / ".claude" / "skills", "*/SKILL.md"),
 )
 

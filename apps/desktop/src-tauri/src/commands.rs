@@ -301,6 +301,16 @@ pub async fn save_book_vocabulary(book_id: String, entry: crate::vault::Vocabula
         .map_err(|e| format!("Failed to save vocabulary term: {e}"))
 }
 
+/// The words saved in one book. A damaged file gives an error, never an empty list, so the window can say the
+/// words could not be read instead of "you saved nothing" (RD-10).
+#[command]
+pub async fn get_book_vocabulary(book_id: String) -> Result<Vec<crate::vault::VocabularyEntry>, String> {
+    tokio::task::spawn_blocking(move || crate::vault::get_book_vocabulary(&book_id))
+        .await
+        .map_err(|e| format!("Task join error: {e}"))?
+        .map_err(|e| format!("Failed to read the saved vocabulary: {e}"))
+}
+
 #[command]
 pub async fn get_chapter_highlights(
     book_id: String,

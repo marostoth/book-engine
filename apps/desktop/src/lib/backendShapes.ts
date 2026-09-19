@@ -1,4 +1,4 @@
-import type { BookMeta, ChapterMeta, HighlightItem } from "./types.ts";
+import type { BookMeta, ChapterMeta, HighlightItem, VocabularyEntry } from "./types.ts";
 
 /**
  * Checks what comes in from outside the app window before the app believes it (RD-09).
@@ -118,6 +118,42 @@ export function highlightsFrom(value: unknown, where: string): HighlightItem[] {
   const good = value.filter(isHighlight);
   if (good.length !== value.length) {
     console.warn(`${where}: ${value.length - good.length} of ${value.length} saved highlights are damaged.`);
+  }
+  return good;
+}
+
+/**
+ * One saved vocabulary word.
+ *
+ * Only the word itself is needed. The meaning, the chapter, the paragraph and the time may all be empty: a word
+ * saved by an older version of the app has no chapter and no anchor, and dropping it would lose the reader a word
+ * they really saved (RD-04, RD-10).
+ */
+function wordFrom(value: unknown): VocabularyEntry | null {
+  if (!isRecord(value)) return null;
+  const word = isText(value.word) ? value.word.trim() : "";
+  if (!word) return null;
+
+  return {
+    word,
+    definition: isText(value.definition) ? value.definition : "",
+    chapterFile: isText(value.chapterFile) ? value.chapterFile : "",
+    anchor: isText(value.anchor) ? value.anchor : "",
+    savedAt: isText(value.savedAt) ? value.savedAt : "",
+  };
+}
+
+/**
+ * The saved words of a book, from a value that may be anything.
+ *
+ * A damaged word is dropped and the rest are kept, the same way one damaged highlight does not lose the reader
+ * the whole chapter. The count of dropped words goes to the console, so the loss is never silent.
+ */
+export function vocabularyFrom(value: unknown, where: string): VocabularyEntry[] {
+  if (!Array.isArray(value)) return [];
+  const good = value.map(wordFrom).filter((word): word is VocabularyEntry => word !== null);
+  if (good.length !== value.length) {
+    console.warn(`${where}: ${value.length - good.length} of ${value.length} saved words are damaged.`);
   }
   return good;
 }

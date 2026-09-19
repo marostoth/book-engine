@@ -1,6 +1,6 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
-import { bookMetaFrom, highlightsFrom, isHighlight, isRecord } from "./backendShapes.ts";
+import { bookMetaFrom, highlightsFrom, isHighlight, isRecord, vocabularyFrom } from "./backendShapes.ts";
 
 /** A book file with everything the app reads. Each test takes this and breaks one thing. */
 function goodBook(): Record<string, unknown> {
@@ -137,4 +137,52 @@ test("isRecord says no to a list and to null", () => {
   assert.equal(isRecord([]), false);
   assert.equal(isRecord(null), false);
   assert.equal(isRecord({}), true);
+});
+
+/** A saved word with everything the drawer reads. Each test takes this and breaks one thing. */
+function goodWord(): Record<string, unknown> {
+  return {
+    word: "quorum",
+    definition: "The smallest number of people who may decide.",
+    chapterFile: "ch-02.md",
+    anchor: "^p-005",
+    savedAt: "2026-09-18T10:00:00.000Z",
+  };
+}
+
+test("one damaged word is dropped and the good words are kept", () => {
+  const kept = vocabularyFrom([goodWord(), "not a word", { word: 7 }, goodWord()], "test");
+
+  assert.equal(kept.length, 2, "a damaged word must not lose the reader every other word of the book");
+});
+
+test("a word with no meaning is kept, with an empty meaning", () => {
+  const noMeaning = goodWord();
+  delete noMeaning.definition;
+
+  const [kept] = vocabularyFrom([noMeaning], "test");
+
+  assert.equal(kept.word, "quorum");
+  assert.equal(kept.definition, "");
+});
+
+test("a word saved before the app kept chapters is kept, with no chapter and no anchor", () => {
+  const old = { word: "quorum", definition: "A meaning." };
+
+  const [kept] = vocabularyFrom([old], "test");
+
+  assert.equal(kept.chapterFile, "");
+  assert.equal(kept.anchor, "");
+  assert.equal(kept.savedAt, "");
+});
+
+test("a word with no word at all is dropped, because nothing could be shown for it", () => {
+  assert.equal(vocabularyFrom([{ definition: "A meaning." }], "test").length, 0);
+  assert.equal(vocabularyFrom([{ word: "   " }], "test").length, 0);
+});
+
+test("a word list that is not a list gives an empty list, never a crash", () => {
+  assert.deepEqual(vocabularyFrom(null, "test"), []);
+  assert.deepEqual(vocabularyFrom("[]", "test"), []);
+  assert.deepEqual(vocabularyFrom({ 0: goodWord() }, "test"), []);
 });

@@ -305,7 +305,9 @@ book-engine/
 │       │   │   ├── searchQuery.ts            # Search box minimum length (2 characters), the same as the backend
 │       │   │   ├── searchSnippet.ts          # Search result snippets as React text with a <mark> around each hit, so book text never becomes HTML
 │       │   │   ├── tableOfContents.ts        # Contents entries
-│       │   │   └── types.ts                  # Canonical TypeScript interfaces & data contracts
+│       │   │   ├── types.ts                  # Canonical TypeScript interfaces & data contracts
+│       │   │   ├── vocabularyEntries.ts      # Saved words as notes-drawer entries, grouped by the chapter they were read in
+│       │   │   └── vocabularySaves.ts        # Says a word was saved, so an open notes drawer loads its words again
 │       │   ├── App.tsx                       # Application shell, global state coordinator & router
 │       │   ├── index.css                     # Editorial design tokens, typography, and margin glyphs
 │       │   ├── main.tsx                      # React DOM mount entrypoint
@@ -597,6 +599,7 @@ six commands that no longer existed and missed nine that did.
 | `save_preferences` | `(preferences) -> Result<(), String>` | Writes them. |
 | `lookup_dictionary_term` | `(word) -> Result<Option<DictionaryEntry>, String>` | Looks a word up in the bundled lexicon. |
 | `save_book_vocabulary` | `(book_id, entry) -> Result<(), String>` | Saves a looked-up word with the chapter and anchor it was read at. |
+| `get_book_vocabulary` | `(book_id) -> Result<Vec<VocabularyEntry>, String>` | Every word saved in a book, for the Words filter of the notes drawer. |
 | `get_inspectional_blueprint` | `(book_id) -> Result<InspectionalBlueprint, String>` | Level 2: the pivotal chapters, the preface and the dip samples of a book. |
 | `get_inspectional_exit_assessment` | `(book_id) -> Result<Option<ExitAssessmentPayload>, String>` | The reader's exit assessment. |
 | `save_inspectional_exit_assessment` | `(book_id, assessment) -> Result<(), String>` | Writes it to `inspectional.json`. |

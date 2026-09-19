@@ -288,9 +288,13 @@ export interface ReadingVelocityStats {
   chapter_stats: ChapterReadingStatItem[];
 }
 
+/** What the notes drawer is showing. `word` is a word the reader saved while reading (RD-10). */
+export type DrawerFilter = "all" | "highlight" | "note" | "word";
+
 export interface AggregatedNoteItem {
   id: string;
-  item_type: "highlight" | "note";
+  /** A `word` is a saved vocabulary word, mapped into this shape so the drawer groups and searches it too (RD-10). */
+  item_type: "highlight" | "note" | "word";
   chapter_file: string;
   chapter_title: string;
   chapter_order: number;
