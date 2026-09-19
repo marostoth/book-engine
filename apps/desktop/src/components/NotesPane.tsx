@@ -52,13 +52,24 @@ export const NotesPane: React.FC<NotesPaneProps> = ({
   onClearInsertedQuote,
 }) => {
   const [content, setContent] = useState<string>("");
-  const [loadState, setLoadState] = useState<NotesLoadState>("loading");
+  /** Which load finished, and whether it worked. A load that has not finished is what "loading" means below. */
+  const [finished, setFinished] = useState<{ attempt: number; ready: boolean } | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [loadAttempt, setLoadAttempt] = useState<number>(0);
   const [mode, setMode] = useState<"edit" | "preview">("edit");
   const isOpenRef = useRef<boolean>(true);
 
   const notesFileName = chapterFile.replace(".md", "-notes.md");
+  /**
+   * Whether the notes of this chapter are on screen yet.
+   *
+   * It is worked out from WHICH load finished, not held as its own state. It used to be set to "loading" inside the
+   * effect below, before the fetch: the pane was drawn once as ready, with the chapter before it still unlocked for
+   * typing, and only then locked (TL-11). A save in that moment writes the wrong chapter's notes.
+   */
+  const loadState: NotesLoadState =
+    finished?.attempt !== loadAttempt ? "loading" : finished.ready ? "ready" : "failed";
+
   const canEdit = loadState === "ready";
   const status = saveStatus(loadState, saveState);
   const target = { bookId, notesFile: notesFileName };
@@ -94,18 +105,18 @@ export const NotesPane: React.FC<NotesPaneProps> = ({
   // notes file with text that is not in it.
   useEffect(() => {
     let isMounted = true;
-    setLoadState("loading");
+    const attempt = loadAttempt;
     fetchNotes(bookId, notesFileName)
       .then((loaded) => {
         if (isMounted) {
           setContent(loaded);
           setSaveState("saved");
-          setLoadState("ready");
+          setFinished({ attempt, ready: true });
         }
       })
       .catch((err) => {
         if (isMounted) {
-          setLoadState("failed");
+          setFinished({ attempt, ready: false });
           reportBackendError("Your chapter notes did not load, so the notes pane is locked.", err);
         }
       });

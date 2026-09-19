@@ -239,6 +239,7 @@ book-engine/
 │       │   │   ├── useLibrary.ts             # React context for the book list and the rescan control
 │       │   │   ├── usePracticeDeck.ts        # Practice deck state, mode/ratio filtering & daily target limits
 │       │   │   ├── useSettings.ts            # React context for the reader settings
+│       │   │   ├── useStartAgainWhen.ts     # State back to its start when the thing it belongs to changes, while drawing
 │       │   │   └── useSyntopiconSession.ts   # Level 4 Syntopicon registry, cascade-pruning & topic session hook
 │       │   ├── lib/                          # Core TypeScript utilities, transformers, and contracts
 │       │   │   ├── api/                      # Modular Tauri IPC client modules (every call goes through callBackend)
@@ -279,6 +280,7 @@ book-engine/
 │       │   │   ├── citations.ts              # Where a passage is
 │       │   │   ├── elementaryPacer.ts        # Pure pacer timing, chunking, and contrast opacity functions
 │       │   │   ├── exitAssessment.ts         # The exit assessment of the open book
+│       │   │   ├── formStart.ts              # What each form window holds the moment it opens, worked out before it is built
 │       │   │   ├── highlights.ts             # W3C Text Quote Selector
 │       │   │   ├── levelGuideData.ts         # Mortimer Adler levels static cheatsheet & hotkeys registry
 │       │   │   ├── libraryRescan.ts          # "Rescan library"

@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   ArgumentNode,
   InferenceType,
   AnchoredCitation,
 } from "../../lib/types/analytical";
 import { citationPlace } from "../../lib/citations";
+import { argumentFormStart, formKey } from "../../lib/formStart";
 import { useDialog } from "../../hooks/useDialog";
 import { DiscardNotice } from "../DiscardNotice";
 
@@ -17,7 +18,22 @@ interface ArgumentBuilderModalProps {
   currentChapterFile?: string;
 }
 
-export const ArgumentBuilderModal: React.FC<ArgumentBuilderModalProps> = ({
+/**
+ * The window is built only while it is open, and a new argument to write is a new `key`, so React builds the form
+ * again from what `argumentFormStart` works out. An effect used to write over every field instead (TL-11).
+ */
+export const ArgumentBuilderModal: React.FC<ArgumentBuilderModalProps> = (props) => {
+  if (!props.isOpen) return null;
+  const { editingArgument, stagedCitation, currentChapterFile } = props;
+  return (
+    <OpenArgumentBuilderModal
+      {...props}
+      key={formKey([editingArgument?.id, stagedCitation?.anchor, currentChapterFile])}
+    />
+  );
+};
+
+const OpenArgumentBuilderModal: React.FC<ArgumentBuilderModalProps> = ({
   isOpen,
   onClose,
   onSave,
@@ -25,51 +41,16 @@ export const ArgumentBuilderModal: React.FC<ArgumentBuilderModalProps> = ({
   editingArgument,
   currentChapterFile,
 }) => {
-  const [title, setTitle] = useState("");
-  const [inferenceType, setInferenceType] = useState<InferenceType>("deductive");
+  const [start] = useState(() => argumentFormStart(editingArgument, stagedCitation, currentChapterFile));
+  const [title, setTitle] = useState(start.title);
+  const [inferenceType, setInferenceType] = useState<InferenceType>(start.inferenceType);
   // A citation with no anchor names no paragraph. The app never writes an anchor of its own (RD-04).
-  const [conclusion, setConclusion] = useState<AnchoredCitation>({
-    chapterFile: "",
-    anchor: "",
-    quote: "",
-  });
-  const [premises, setPremises] = useState<AnchoredCitation[]>([]);
-  const [notes, setNotes] = useState("");
+  const [conclusion, setConclusion] = useState<AnchoredCitation>(start.conclusion);
+  const [premises, setPremises] = useState<AnchoredCitation[]>(start.premises);
+  const [notes, setNotes] = useState(start.notes);
   const [error, setError] = useState<string | null>(null);
   // A form the reader types into: Escape asks before it throws the words away (RD-07).
   const { panelProps, titleId, close, askedToDiscard } = useDialog({ isOpen, onClose, protectTyping: true });
-
-  useEffect(() => {
-    if (editingArgument) {
-      setTitle(editingArgument.title);
-      setInferenceType(editingArgument.inferenceType);
-      setConclusion(editingArgument.conclusion);
-      setPremises(editingArgument.premises);
-      setNotes(editingArgument.notes);
-    } else if (stagedCitation) {
-      setTitle("");
-      setInferenceType("deductive");
-      setConclusion(stagedCitation);
-      setPremises([
-        {
-          chapterFile: currentChapterFile || stagedCitation.chapterFile,
-          anchor: "",
-          quote: "",
-        },
-      ]);
-      setNotes("");
-    } else {
-      const defaultChap = currentChapterFile || "unknown.md";
-      setTitle("");
-      setInferenceType("deductive");
-      setConclusion({ chapterFile: defaultChap, anchor: "", quote: "" });
-      setPremises([{ chapterFile: defaultChap, anchor: "", quote: "" }]);
-      setNotes("");
-    }
-    setError(null);
-  }, [editingArgument, stagedCitation, currentChapterFile, isOpen]);
-
-  if (!isOpen) return null;
 
   const handleAddPremise = () => {
     if (premises.length >= 4) return;

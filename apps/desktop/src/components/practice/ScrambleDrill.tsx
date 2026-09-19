@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { RotateCcw, CheckCircle2, AlertCircle, X } from "lucide-react";
 import { PracticeCardItem } from "../../lib/types";
+import { scramblePieces } from "../../lib/practiceSession";
 
 interface ScrambleDrillProps {
   card: PracticeCardItem;
@@ -8,33 +9,18 @@ interface ScrambleDrillProps {
   onReveal: () => void;
 }
 
+/**
+ * The puzzle of one card. The window gives this a `key` of the card's id, so a new card is a new drill and the
+ * pieces are in place before it is drawn. An effect used to build them after an empty drill was on screen (TL-11).
+ */
 export const ScrambleDrill: React.FC<ScrambleDrillProps> = ({
   card,
   revealed,
   onReveal,
 }) => {
-  const [scramblePool, setScramblePool] = useState<string[]>([]);
+  const [scramblePool, setScramblePool] = useState<string[]>(() => scramblePieces(card.prompt));
   const [assembledClauses, setAssembledClauses] = useState<string[]>([]);
   const [scrambleCorrect, setScrambleCorrect] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    setScrambleCorrect(null);
-    let pieces = card.prompt.split("|").map((p) => p.trim()).filter(Boolean);
-    if (pieces.length < 2) {
-      pieces = card.prompt.split(/[,;]\s*/).map((p) => p.trim()).filter(Boolean);
-    }
-    if (pieces.length < 2) {
-      const words = card.prompt.split(/\s+/);
-      pieces = [];
-      for (let i = 0; i < words.length; i += 3) {
-        pieces.push(words.slice(i, i + 3).join(" "));
-      }
-    }
-
-    const shuffled = [...pieces].sort((a, b) => b.localeCompare(a));
-    setScramblePool(shuffled);
-    setAssembledClauses([]);
-  }, [card]);
 
   const handleSelectScramblePiece = (piece: string, index: number) => {
     setAssembledClauses((prev) => [...prev, piece]);

@@ -36,21 +36,29 @@ export const BlueprintView: React.FC<BlueprintViewProps> = ({
   onSwitchToDips,
   onOpenExitModal,
 }) => {
-  const [blueprint, setBlueprint] = useState<InspectionalBlueprint | null>(
-    bookMeta?.inspectional_blueprint || null
-  );
+  /** The blueprint fetched for one book, and which book it belongs to. A blueprint of another book is not this one. */
+  const [fetched, setFetched] = useState<{ of: string; blueprint: InspectionalBlueprint | null } | null>(null);
+
+  const bookId = bookMeta?.book_id;
+  const ownBlueprint = bookMeta?.inspectional_blueprint;
+  /**
+   * A book that carries its own blueprint needs no fetch, and that was copied into state inside an effect: the
+   * page was drawn once with no blueprint, then again with it (TL-11). It is read straight off the book now.
+   */
+  const blueprint = ownBlueprint ?? (fetched && fetched.of === bookId ? fetched.blueprint : null);
 
   useEffect(() => {
-    if (bookMeta?.book_id) {
-      if (bookMeta.inspectional_blueprint) {
-        setBlueprint(bookMeta.inspectional_blueprint);
-      } else {
-        getInspectionalBlueprint(bookMeta.book_id)
-          .then((bp) => setBlueprint(bp))
-          .catch((e) => reportBackendError("Could not load the blueprint of this book.", e));
-      }
-    }
-  }, [bookMeta]);
+    if (!bookId || ownBlueprint) return;
+    let isCurrent = true;
+    getInspectionalBlueprint(bookId)
+      .then((bp) => {
+        if (isCurrent) setFetched({ of: bookId, blueprint: bp });
+      })
+      .catch((e) => reportBackendError("Could not load the blueprint of this book.", e));
+    return () => {
+      isCurrent = false;
+    };
+  }, [bookId, ownBlueprint]);
 
   if (!bookMeta) {
     return (

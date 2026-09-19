@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import { X, ZoomIn, ZoomOut, RotateCcw, Columns, Image as ImageIcon } from "lucide-react";
 import { useDialog } from "../hooks/useDialog";
 
@@ -10,7 +10,16 @@ interface FigureLightboxModalProps {
   onOpenInSplit?: () => void;
 }
 
-export const FigureLightboxModal: React.FC<FigureLightboxModalProps> = ({
+/**
+ * The lightbox is built only while a picture is in it, so every opening starts at its own zoom. An effect used to
+ * put the zoom back to 1 after the window had closed, on a component that never left the page (TL-11).
+ */
+export const FigureLightboxModal: React.FC<FigureLightboxModalProps> = (props) => {
+  if (!props.isOpen || !props.imageSrc) return null;
+  return <OpenFigureLightboxModal {...props} key={props.imageSrc} />;
+};
+
+const OpenFigureLightboxModal: React.FC<FigureLightboxModalProps> = ({
   isOpen,
   onClose,
   imageSrc,
@@ -26,10 +35,6 @@ export const FigureLightboxModal: React.FC<FigureLightboxModalProps> = ({
   // Escape and the focus come from the one shared rule now (RD-07).
   const { panelProps, titleId, close } = useDialog({ isOpen, onClose });
 
-  useEffect(() => {
-    if (!isOpen) setScale(1);
-  }, [isOpen]);
-
   /**
    * The zoom keys of this window. They sit on the panel, not on `window`: the focus is held inside the lightbox while
    * it is open, and a key must never reach a window that another dialog covers.
@@ -39,8 +44,6 @@ export const FigureLightboxModal: React.FC<FigureLightboxModalProps> = ({
     else if (e.key === "-") handleZoomOut();
     else if (e.key === "0") handleResetZoom();
   };
-
-  if (!isOpen || !imageSrc) return null;
 
   return (
     <div

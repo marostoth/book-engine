@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   AuthorInquiry,
   InquiryDomain,
@@ -7,6 +7,7 @@ import {
   AnchoredCitation,
   ArgumentNode,
 } from "../../lib/types/analytical";
+import { formKey, inquiryFormStart } from "../../lib/formStart";
 import { useDialog } from "../../hooks/useDialog";
 import { DiscardNotice } from "../DiscardNotice";
 
@@ -21,7 +22,16 @@ interface InquiryModalProps {
   currentChapterFile?: string;
 }
 
-export const InquiryModal: React.FC<InquiryModalProps> = ({
+/**
+ * The window is built only while it is open, and a new question to ask is a new `key`, so React builds the form
+ * again from what `inquiryFormStart` works out. An effect used to write over every field instead (TL-11).
+ */
+export const InquiryModal: React.FC<InquiryModalProps> = (props) => {
+  if (!props.isOpen) return null;
+  return <OpenInquiryModal {...props} key={formKey([props.editingInquiry?.id, props.stagedQuestion])} />;
+};
+
+const OpenInquiryModal: React.FC<InquiryModalProps> = ({
   isOpen,
   onClose,
   onSave,
@@ -31,38 +41,17 @@ export const InquiryModal: React.FC<InquiryModalProps> = ({
   editingInquiry,
   currentChapterFile = "ch-01.md",
 }) => {
-  const [question, setQuestion] = useState("");
-  const [domain, setDomain] = useState<InquiryDomain>("theoretical");
-  const [priority, setPriority] = useState<InquiryPriority>("primary");
-  const [resolution, setResolution] = useState<ResolutionStatus>("solved");
-  const [solutionNotes, setSolutionNotes] = useState("");
-  const [solutionArgumentIds, setSolutionArgumentIds] = useState<string[]>([]);
+  const [start] = useState(() => inquiryFormStart(editingInquiry, stagedQuestion));
+  const [question, setQuestion] = useState(start.question);
+  const [domain, setDomain] = useState<InquiryDomain>(start.domain);
+  const [priority, setPriority] = useState<InquiryPriority>(start.priority);
+  const [resolution, setResolution] = useState<ResolutionStatus>(start.resolution);
+  const [solutionNotes, setSolutionNotes] = useState(start.solutionNotes);
+  const [solutionArgumentIds, setSolutionArgumentIds] = useState<string[]>(start.solutionArgumentIds);
   const [saving, setSaving] = useState(false);
 
   // A form the reader types into: Escape asks before it throws the words away (RD-07).
   const { panelProps, titleId, close, askedToDiscard } = useDialog({ isOpen, onClose, protectTyping: true });
-
-  useEffect(() => {
-    if (!isOpen) return;
-    if (editingInquiry) {
-      setQuestion(editingInquiry.question);
-      setDomain(editingInquiry.domain);
-      setPriority(editingInquiry.priority);
-      setResolution(editingInquiry.resolution);
-      setSolutionNotes(editingInquiry.solutionNotes || "");
-      setSolutionArgumentIds(editingInquiry.solutionArgumentIds || []);
-    } else {
-      setQuestion(stagedQuestion || "");
-      setDomain("theoretical");
-      setPriority("primary");
-      setResolution("solved");
-      setSolutionNotes("");
-      setSolutionArgumentIds([]);
-    }
-    setSaving(false);
-  }, [isOpen, editingInquiry, stagedQuestion]);
-
-  if (!isOpen) return null;
 
   const toggleArgId = (id: string) => {
     setSolutionArgumentIds((prev) =>

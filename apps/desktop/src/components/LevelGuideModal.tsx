@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { ReadingLevelMode } from "../lib/types";
 import { LEVEL_GUIDE_SECTIONS, UNIVERSAL_SHORTCUTS, LevelGuideSection } from "../lib/levelGuideData";
+import { formKey } from "../lib/formStart";
 import { HelpCircle, X, CheckCircle2, Sparkles } from "lucide-react";
 import { useDialog } from "../hooks/useDialog";
 
@@ -12,22 +13,26 @@ interface LevelGuideModalProps {
 
 const TAB_LEVELS: ReadingLevelMode[] = ["elementary", "inspectional", "analytical", "syntopical"];
 
-export const LevelGuideModal: React.FC<LevelGuideModalProps> = ({
+/**
+ * The window is built only while it is open, and opening it at another reading level is a new `key`, so it starts
+ * on that level's tab. An effect used to move the tab after the window was already drawn (TL-11).
+ */
+export const LevelGuideModal: React.FC<LevelGuideModalProps> = (props) => {
+  if (!props.isOpen) return null;
+  return <OpenLevelGuideModal {...props} key={formKey([props.activeLevel])} />;
+};
+
+const OpenLevelGuideModal: React.FC<LevelGuideModalProps> = ({
   isOpen,
   onClose,
   activeLevel = "elementary",
 }) => {
   const [selectedTab, setSelectedTab] = useState<ReadingLevelMode>(activeLevel);
 
-  useEffect(() => {
-    if (isOpen) setSelectedTab(activeLevel);
-  }, [isOpen, activeLevel]);
-
   // Escape, the focus and the role all come from the one shared rule now (RD-07). This window used to watch
   // `window` for Escape, so one key closed it together with every other open dialog.
   const { panelProps, titleId, close } = useDialog({ isOpen, onClose });
 
-  if (!isOpen) return null;
   const section: LevelGuideSection = LEVEL_GUIDE_SECTIONS[selectedTab];
 
   return (

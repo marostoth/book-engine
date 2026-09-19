@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   CritiqueItem,
   CritiqueJudgment,
@@ -7,6 +7,7 @@ import {
   ArgumentNode,
 } from "../../lib/types/analytical";
 import { citationPlace } from "../../lib/citations";
+import { critiqueFormStart, formKey } from "../../lib/formStart";
 import { useDialog } from "../../hooks/useDialog";
 import { DiscardNotice } from "../DiscardNotice";
 
@@ -28,7 +29,22 @@ const DEFECT_OPTIONS: Array<{ id: CritiqueDefect; label: string; desc: string }>
   { id: "incomplete", label: "Incomplete", desc: "Author failed to solve the structural problem posed" },
 ];
 
-export const CritiqueModal: React.FC<CritiqueModalProps> = ({
+/**
+ * The window is built only while it is open, and a new critique is a new `key`, so React builds the form again from
+ * what `critiqueFormStart` works out. An effect used to write over every field instead (TL-11).
+ */
+export const CritiqueModal: React.FC<CritiqueModalProps> = (props) => {
+  if (!props.isOpen) return null;
+  const { editingCritique, targetArgId, targetCitation, currentChapterFile } = props;
+  return (
+    <OpenCritiqueModal
+      {...props}
+      key={formKey([editingCritique?.id, targetArgId, targetCitation?.anchor, currentChapterFile])}
+    />
+  );
+};
+
+const OpenCritiqueModal: React.FC<CritiqueModalProps> = ({
   isOpen,
   onClose,
   onSave,
@@ -38,41 +54,16 @@ export const CritiqueModal: React.FC<CritiqueModalProps> = ({
   editingCritique,
   currentChapterFile,
 }) => {
-  const [understandingDeclared, setUnderstandingDeclared] = useState<boolean>(false);
-  const [judgment, setJudgment] = useState<CritiqueJudgment>("agree");
-  const [defects, setDefects] = useState<CritiqueDefect[]>([]);
-  const [rationale, setRationale] = useState<string>("");
-  const [selectedArgId, setSelectedArgId] = useState<string>("");
-  const [citation, setCitation] = useState<AnchoredCitation | null>(null);
+  const [start] = useState(() => critiqueFormStart(editingCritique, targetArgId, targetCitation, currentChapterFile));
+  const [understandingDeclared, setUnderstandingDeclared] = useState<boolean>(start.understandingDeclared);
+  const [judgment, setJudgment] = useState<CritiqueJudgment>(start.judgment);
+  const [defects, setDefects] = useState<CritiqueDefect[]>(start.defects);
+  const [rationale, setRationale] = useState<string>(start.rationale);
+  // What the critique is about. The window is opened on one argument or one passage, and this form never moves it.
+  const { selectedArgId, citation }: { selectedArgId: string; citation: AnchoredCitation | null } = start;
   const [error, setError] = useState<string | null>(null);
   // A form the reader types into: Escape asks before it throws the words away (RD-07).
   const { panelProps, titleId, close, askedToDiscard } = useDialog({ isOpen, onClose, protectTyping: true });
-
-  useEffect(() => {
-    if (editingCritique) {
-      setUnderstandingDeclared(editingCritique.understandingDeclared);
-      setJudgment(editingCritique.judgment);
-      setDefects(editingCritique.defects || []);
-      setRationale(editingCritique.rationale || "");
-      setSelectedArgId(editingCritique.targetArgumentId || "");
-      setCitation(editingCritique.citation || null);
-    } else {
-      setUnderstandingDeclared(false);
-      setJudgment("agree");
-      setDefects([]);
-      setRationale("");
-      setSelectedArgId(targetArgId || "");
-      setCitation(
-        targetCitation ||
-          (currentChapterFile
-            ? { chapterFile: currentChapterFile, anchor: "", quote: "" }
-            : null)
-      );
-    }
-    setError(null);
-  }, [editingCritique, targetArgId, targetCitation, currentChapterFile, isOpen]);
-
-  if (!isOpen) return null;
 
   const targetArg = argumentsList.find((a) => a.id === selectedArgId);
 

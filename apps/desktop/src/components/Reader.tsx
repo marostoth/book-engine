@@ -284,6 +284,7 @@ const ReaderView: React.FC<ReaderProps> = ({
       {/* Offline Lexicon Definition Popover */}
       {lexiconWord && lexiconPos && (
         <LexiconPopover
+          key={lexiconWord}
           word={lexiconWord} anchor={lexiconAnchor} bookId={bookId} chapterFile={currentChapterFile}
           position={lexiconPos} onClose={() => setLexiconWord(null)}
         />

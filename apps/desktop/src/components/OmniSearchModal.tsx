@@ -7,6 +7,7 @@ import { MIN_SEARCH_CHARACTERS, isSearchable } from "../lib/searchQuery";
 import { reportBackendError } from "../lib/backendErrors";
 import { snippetNodes } from "../lib/searchSnippet";
 import { useDialog } from "../hooks/useDialog";
+import { useStartAgainWhen } from "../hooks/useStartAgainWhen";
 
 interface OmniSearchModalProps {
   isOpen: boolean;
@@ -17,53 +18,68 @@ interface OmniSearchModalProps {
   onSelectResult: (location: ReaderLocation) => void;
 }
 
-export const OmniSearchModal: React.FC<OmniSearchModalProps> = ({
+/** The answer to one search, and the query it answers. An answer to an older query is not the answer to this one. */
+interface SearchAnswer {
+  to: string;
+  results: SearchResult[];
+  /** The search failed in the backend, so "No matching paragraphs" would not be true. */
+  failed: boolean;
+}
+
+/**
+ * The window is built only while it is open, so every opening starts with an empty box and no results. An effect
+ * used to clear all three after the window with the last search in it was already on screen (TL-11).
+ */
+export const OmniSearchModal: React.FC<OmniSearchModalProps> = (props) => {
+  if (!props.isOpen) return null;
+  return <OpenOmniSearchModal {...props} />;
+};
+
+const OpenOmniSearchModal: React.FC<OmniSearchModalProps> = ({
   isOpen,
   onClose,
   books,
   onSelectResult,
 }) => {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [answer, setAnswer] = useState<SearchAnswer | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [isSearching, setIsSearching] = useState(false);
-  // The last search failed in the backend, so "No matching paragraphs" would not be true.
-  const [searchFailed, setSearchFailed] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Focus input on open
+  const asked = query.trim();
+  const searchable = isSearchable(query);
+  /**
+   * What is shown comes from the query in the box, never from what the last search left behind.
+   *
+   * These three used to be cleared in an effect when the query grew too short, one drawing after the short query
+   * was on screen, so the reader could see results under a box that no longer matched them (TL-11).
+   */
+  const forThisQuery = searchable && answer?.to === asked ? answer : null;
+  const results = forThisQuery?.results ?? [];
+  const searchFailed = forThisQuery?.failed ?? false;
+  const isSearching = searchable && forThisQuery === null;
+
+  // The first control of the panel already takes the focus (`useDialog`), and this puts it in the box once the
+  // window has been laid out, for a panel whose first control is not the box.
   useEffect(() => {
-    if (isOpen) {
-      setTimeout(() => inputRef.current?.focus(), 50);
-      setQuery("");
-      setResults([]);
-      setSelectedIndex(0);
-    }
-  }, [isOpen]);
+    const focusing = setTimeout(() => inputRef.current?.focus(), 50);
+    return () => clearTimeout(focusing);
+  }, []);
+
+  // The highlighted row belongs to the results of one query, and goes back to the first row with a new query.
+  useStartAgainWhen(asked, () => setSelectedIndex(0));
 
   // Debounced search: a search shorter than MIN_SEARCH_CHARACTERS does not run.
   useEffect(() => {
-    if (!isSearchable(query)) {
-      setResults([]);
-      setSearchFailed(false);
-      setIsSearching(false);
-      return;
-    }
-
-    setIsSearching(true);
+    if (!isSearchable(query)) return;
+    const asking = query.trim();
     const timer = setTimeout(() => {
-      searchVault(query.trim())
-        .then((res) => {
-          setResults(res);
-          setSearchFailed(false);
-          setSelectedIndex(0);
-        })
+      searchVault(asking)
+        .then((found) => setAnswer({ to: asking, results: found, failed: false }))
         .catch((err) => {
-          setResults([]);
-          setSearchFailed(true);
+          setAnswer({ to: asking, results: [], failed: true });
           reportBackendError("The search did not run.", err);
-        })
-        .finally(() => setIsSearching(false));
+        });
     }, 150);
 
     return () => clearTimeout(timer);
@@ -96,7 +112,6 @@ export const OmniSearchModal: React.FC<OmniSearchModalProps> = ({
     }
   };
 
-  if (!isOpen) return null;
 
   return (
     <div

@@ -40,6 +40,44 @@ export function currentSessionCard(session: PracticeSession): PracticeCardItem |
   return session.completed ? undefined : session.cards[session.index];
 }
 
+/**
+ * A name for a deck, so a window can tell one deck from another by what is in it (TL-11).
+ *
+ * The due list is fetched again whenever the book, the mode or the target changes, so the array is a fresh one each
+ * time even when it holds the same cards. A window that watched the array itself would start its session again for
+ * nothing. Two decks holding the same cards in the same order are the same deck, and get the same name.
+ */
+export function deckName(cards: readonly PracticeCardItem[]): string {
+  return cards.map((card) => card.card_id).join(" ");
+}
+
+/** How many words go in one piece when a prompt holds no punctuation to cut it at. */
+const WORDS_IN_A_PIECE = 3;
+
+/**
+ * The pieces a scramble drill shuffles, in the order they were shuffled into (TL-11).
+ *
+ * A prompt is cut at its pipes, or failing that at its commas and semicolons, or failing that into runs of three
+ * words. The shuffle is the reverse of alphabetical order, so the same prompt always gives the same puzzle: a
+ * different puzzle on every redraw would move the pieces under the reader's hand.
+ *
+ * The drill used to do this inside an effect, so it drew an empty puzzle first and the real one straight after.
+ */
+export function scramblePieces(prompt: string): string[] {
+  let pieces = prompt.split("|").map((piece) => piece.trim()).filter(Boolean);
+  if (pieces.length < 2) {
+    pieces = prompt.split(/[,;]\s*/).map((piece) => piece.trim()).filter(Boolean);
+  }
+  if (pieces.length < 2) {
+    const words = prompt.split(/\s+/);
+    pieces = [];
+    for (let at = 0; at < words.length; at += WORDS_IN_A_PIECE) {
+      pieces.push(words.slice(at, at + WORDS_IN_A_PIECE).join(" "));
+    }
+  }
+  return [...pieces].sort((a, b) => b.localeCompare(a));
+}
+
 /** Records the rating of the shown card, then moves to the next card or completes the session. */
 export function recordSessionReview(session: PracticeSession, cardId: string, rating: number): PracticeSession {
   if (currentSessionCard(session)?.card_id !== cardId) return session;

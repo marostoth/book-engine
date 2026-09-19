@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { X, Check, BookCheck, Plus, Trash2, HelpCircle } from "lucide-react";
 import { ExitAssessmentPayload } from "../../lib/types";
 import { reportBackendError } from "../../lib/backendErrors";
+import { exitAssessmentFormStart, formKey } from "../../lib/formStart";
 import { useDialog } from "../../hooks/useDialog";
 import { DiscardNotice } from "../DiscardNotice";
 
@@ -14,45 +15,33 @@ interface InspectionalExitModalProps {
   onSave: (assessment: ExitAssessmentPayload) => Promise<void>;
 }
 
-export const InspectionalExitModal: React.FC<InspectionalExitModalProps> = ({
+/**
+ * The window is built only while it is open, and a saved assessment of another book is a new `key`, so React builds
+ * the form again from what `exitAssessmentFormStart` works out. An effect used to write over every field (TL-11).
+ */
+export const InspectionalExitModal: React.FC<InspectionalExitModalProps> = (props) => {
+  if (!props.isOpen) return null;
+  const saved = props.initialAssessment;
+  return <OpenInspectionalExitModal {...props} key={formKey([saved?.classification, saved?.completedAt])} />;
+};
+
+const OpenInspectionalExitModal: React.FC<InspectionalExitModalProps> = ({
   isOpen,
   onClose,
   bookTitle,
   initialAssessment,
   onSave,
 }) => {
-  const [kind, setKind] = useState<"Theoretical" | "Practical">("Theoretical");
-  const [category, setCategory] = useState<string>("Science");
-  const [unityStatement, setUnityStatement] = useState<string>("");
-  const [parts, setParts] = useState<string[]>(["", "", ""]);
+  const [start] = useState(() => exitAssessmentFormStart(initialAssessment));
+  const [kind, setKind] = useState<"Theoretical" | "Practical">(start.kind);
+  const [category, setCategory] = useState<string>(start.category);
+  const [unityStatement, setUnityStatement] = useState<string>(start.unityStatement);
+  const [parts, setParts] = useState<string[]>(start.parts);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (initialAssessment) {
-      const partsArr = initialAssessment.partsStructure || [];
-      setParts(partsArr.length >= 3 ? partsArr : [...partsArr, "", "", ""].slice(0, 3));
-      setUnityStatement(initialAssessment.unityStatement || "");
-      if (initialAssessment.classification.includes("Practical")) {
-        setKind("Practical");
-      } else {
-        setKind("Theoretical");
-      }
-      const catMatch = initialAssessment.classification.split("-")[1]?.trim();
-      if (catMatch) setCategory(catMatch);
-    } else {
-      setKind("Theoretical");
-      setCategory("Science");
-      setUnityStatement("");
-      setParts(["", "", ""]);
-    }
-    setErrorMsg(null);
-  }, [initialAssessment, isOpen]);
-
   // A form the reader types into: Escape asks before it throws the words away (RD-07).
   const { panelProps, titleId, close, askedToDiscard } = useDialog({ isOpen, onClose, protectTyping: true });
-
-  if (!isOpen) return null;
 
   const handleAddPart = () => {
     if (parts.length < 6) {

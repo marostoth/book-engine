@@ -26,7 +26,30 @@ interface AnalyticsModalProps {
   activeBookId: string;
 }
 
-export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
+/** No blocks, as one value. A fresh `[]` on every drawing would work the heatmap out again on every drawing. */
+const NO_BLOCKS: ReviewBlock[] = [];
+
+/** The numbers of one question, and the question they answer. Numbers for another question are not these. */
+interface Analytics {
+  to: string;
+  study: StudyAnalytics | null;
+  blocks: ReviewBlock[];
+  velocity: ReadingVelocityStats | null;
+}
+
+/**
+ * The window is built only while it is open, so every opening asks for the numbers again (TL-11).
+ *
+ * What is shown, and whether the spinner turns, both come from WHICH question the numbers answer. A window that
+ * held `loading` as its own state had to set it inside an effect, one drawing after the new question was on
+ * screen, so the reader could see last month's numbers under this month's heading.
+ */
+export const AnalyticsModal: React.FC<AnalyticsModalProps> = (props) => {
+  if (!props.isOpen) return null;
+  return <OpenAnalyticsModal {...props} />;
+};
+
+const OpenAnalyticsModal: React.FC<AnalyticsModalProps> = ({
   isOpen,
   onClose,
   activeBookId,
@@ -34,34 +57,32 @@ export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
   // The daily target is a saved setting, read here instead of passed down through `AppModals` (RD-09).
   const { settings: preferences } = useSettings();
   const [scope, setScope] = useState<"active" | "all">("active");
-  const [loading, setLoading] = useState<boolean>(true);
-  const [studyAnalytics, setStudyAnalytics] = useState<StudyAnalytics | null>(null);
-  const [reviewBlocks, setReviewBlocks] = useState<ReviewBlock[]>([]);
-  const [velocityStats, setVelocityStats] = useState<ReadingVelocityStats | null>(null);
+  /** Counts up when the reader asks again with the Refresh button, so the same question is asked a second time. */
+  const [askedAgain, setAskedAgain] = useState(0);
+  const [answer, setAnswer] = useState<Analytics | null>(null);
 
-  const loadAnalytics = async () => {
-    setLoading(true);
-    const targetBookId = scope === "active" ? activeBookId : undefined;
-    try {
-      const [analytics, velocity] = await Promise.all([
-        getStudyAnalytics(targetBookId),
-        fetchReadingVelocity(targetBookId),
-      ]);
-      setStudyAnalytics(analytics);
-      setReviewBlocks(analytics.review_blocks);
-      setVelocityStats(velocity);
-    } catch (err) {
-      reportBackendError("Could not load your study analytics.", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const targetBookId = scope === "active" ? activeBookId : undefined;
+  const asked = `${askedAgain} ${scope} ${targetBookId ?? ""}`;
+  const loading = answer?.to !== asked;
+  const studyAnalytics = answer?.to === asked ? answer.study : null;
+  const reviewBlocks = answer?.to === asked ? answer.blocks : NO_BLOCKS;
+  const velocityStats = answer?.to === asked ? answer.velocity : null;
 
   useEffect(() => {
-    if (isOpen) {
-      loadAnalytics();
-    }
-  }, [isOpen, scope, activeBookId]);
+    let isCurrent = true;
+    Promise.all([getStudyAnalytics(targetBookId), fetchReadingVelocity(targetBookId)])
+      .then(([study, velocity]) => {
+        if (isCurrent) setAnswer({ to: asked, study, blocks: study.review_blocks, velocity });
+      })
+      .catch((err) => {
+        // The window shows what it has. Asking again is one button away, and the reason is at the bottom.
+        if (isCurrent) setAnswer({ to: asked, study: null, blocks: NO_BLOCKS, velocity: null });
+        reportBackendError("Could not load your study analytics.", err);
+      });
+    return () => {
+      isCurrent = false;
+    };
+  }, [asked, targetBookId]);
 
   // Escape, the focus and the role all come from the one shared rule now (RD-07). This window used to watch
   // `window` for Escape, so one key closed it together with every other open dialog.
@@ -71,7 +92,6 @@ export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
   const perDay = useMemo(() => reviewsPerDay(reviewBlocks), [reviewBlocks]);
   const { current: currentStreak, longest: longestStreak } = useMemo(() => reviewStreaks(perDay, new Date()), [perDay]);
 
-  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 sm:p-6 select-none animate-in fade-in duration-150">
@@ -126,7 +146,7 @@ export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
             </div>
 
             <button
-              onClick={loadAnalytics}
+              onClick={() => setAskedAgain((asked) => asked + 1)}
               className="p-2 rounded-xl text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-accent)]/10 transition-colors"
               title="Refresh Analytics"
             >

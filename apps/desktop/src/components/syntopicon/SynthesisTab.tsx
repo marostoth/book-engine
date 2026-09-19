@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useSyntopiconSession } from "../../hooks/useSyntopiconSession";
 import { FileText, Download, Check, Copy, Scale } from "lucide-react";
+import { useStartAgainWhen } from "../../hooks/useStartAgainWhen";
 
 interface SynthesisTabProps {
   session: ReturnType<typeof useSyntopiconSession>;
@@ -24,15 +25,15 @@ export const SynthesisTab: React.FC<SynthesisTabProps> = ({ session }) => {
     latestResRef.current = resolution;
   }, [synthesisNotes, resolution]);
 
-  // Sync state when active topic changes
-  useEffect(() => {
-    if (activeTopic) {
-      setSynthesisNotes(activeTopic.synthesisNotes || "");
-      setResolution(activeTopic.dialecticalResolution || "");
-      setSaveStatus("saved");
-      setExportSuccess(null);
-    }
-  }, [activeTopic?.id]);
+  // The words on this tab belong to the topic they were written about, and go with it. An effect used to bring the
+  // next topic's words in one drawing after its name was already at the top of the tab (TL-11).
+  useStartAgainWhen(activeTopic?.id, () => {
+    if (!activeTopic) return;
+    setSynthesisNotes(activeTopic.synthesisNotes || "");
+    setResolution(activeTopic.dialecticalResolution || "");
+    setSaveStatus("saved");
+    setExportSuccess(null);
+  });
 
   // Flush on unmount
   useEffect(() => {
