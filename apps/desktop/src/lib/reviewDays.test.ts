@@ -134,6 +134,21 @@ test("the count next to the heatmap title is the reviews of the past 365 days", 
   assert.equal(reviewsInLastDays(perDay, wednesdayEvening()), 5, "today and the 364 days before it, not 365 days ago");
 });
 
+/**
+ * Long enough that a cold CI runner does not fail a healthy test, because this one pays a cost nothing can remove.
+ *
+ * TL-12 took 360 date formatters out of the row test, and the locale data those 360 calls started up had to be
+ * started up by SOMETHING: this is now the first test of the file to touch `Intl`, and it pays about 30 ms of it.
+ * Measured on this machine, node v22.19.0: 27 ms. On the CI runner of PR #85 it went past vitest's 5000 ms default
+ * and read as a broken test, which is between 185 and 200 times the figure here; TL-12 measured the same runner at
+ * 127 times. So the default is simply too tight for a test that has to load the zone rules of five zones.
+ *
+ * This is NOT a licence for a slow test. What would make this test slow for a real reason is a formatter built in a
+ * loop, and `MOST_DATE_FORMATS_IN_A_TEST` in `test_frontend_stays_tidy.py` allows this file exactly one call. That
+ * count is the guard; this number only stops a busy runner failing a test that is working.
+ */
+const ENOUGH_FOR_A_COLD_RUNNER_MS = 30_000;
+
 test("the date shown for a day is that day in every time zone", () => {
   for (const zone of ["Pacific/Pago_Pago", "America/New_York", "Europe/London", "Asia/Kathmandu", "Pacific/Kiritimati"]) {
     process.env.TZ = zone;
@@ -141,7 +156,7 @@ test("the date shown for a day is that day in every time zone", () => {
     assert.equal(start.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }), "16 September 2026", zone);
     assert.equal(localDay(start), "2026-09-16", zone);
   }
-});
+}, ENOUGH_FOR_A_COLD_RUNNER_MS);
 
 test("all the reviews of a 15-minute block are on one day in every time zone", () => {
   // Zones 30 or 45 minutes off a whole hour: India +5:30, Nepal +5:45, Chatham Islands +12:45, Marquesas -9:30.
