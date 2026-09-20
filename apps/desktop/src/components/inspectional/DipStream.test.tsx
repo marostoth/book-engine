@@ -115,9 +115,10 @@ test("two books that name a chapter the same way do not share its sample", async
   view.rerender(<DipStream bookMeta={book("the-federalist", ["ch-01"])} onReadFullChapter={() => {}} />);
   await settleAll();
 
-  assert.equal(
-    screen.queryByText(/Opening of wealth-of-nations ch-01.md/),
-    null,
+  // `assert.ok(x === null)`, never `assert.equal(x, null)`: the value here is a page element, and node:assert
+  // drags the whole of React's fiber graph into the message it builds for a failure. That takes minutes.
+  assert.ok(
+    screen.queryByText(/Opening of wealth-of-nations ch-01.md/) === null,
     "the second book's first chapter showed the FIRST book's opening words, because both are called ch-01"
   );
   assert.ok(
@@ -146,6 +147,27 @@ test("a chapter whose read failed is asked for again when the view opens the boo
     screen.getByText(/Opening of wealth-of-nations ch-01.md/),
     "a chapter whose read failed once was never asked for again, so it says 'unavailable' for as long as the app runs"
   );
+});
+
+test("a chapter whose sample already arrived is not read again when the reader comes back to the book", async () => {
+  fetchChapter.mockImplementation((bookId, filePath) =>
+    Promise.resolve(chapterText(`Opening of ${bookId} ${filePath}`, `Closing of ${bookId} ${filePath}`))
+  );
+
+  const view = render(<DipStream bookMeta={book("wealth-of-nations", ["ch-01"])} onReadFullChapter={() => {}} />);
+  await settleAll();
+  view.rerender(<DipStream bookMeta={book("the-federalist", ["ch-09"])} onReadFullChapter={() => {}} />);
+  await settleAll();
+  view.rerender(<DipStream bookMeta={book("wealth-of-nations", ["ch-01"])} onReadFullChapter={() => {}} />);
+  await settleAll();
+
+  assert.equal(
+    fetchChapter.mock.calls.length,
+    2,
+    "a chapter whose sample the view already holds was read from disk again. Only a read that gave NO sample may " +
+      "be given up on; giving up on the ones that worked too makes every book switch read the whole book again."
+  );
+  assert.ok(screen.getByText(/Opening of wealth-of-nations ch-01.md/), "the sample that arrived must still be shown");
 });
 
 test("a read still on its way when the reader opens another book is started again on the way back", async () => {
