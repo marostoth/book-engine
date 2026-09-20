@@ -320,7 +320,8 @@ book-engine/
 │   ├── decisions/                            # Why the program is built this way, one MADR record per decision
 │   │   └── README.md                         # The index of the records, and how to add one
 │   ├── review/                               # Code review registers
-│   │   └── 2026-09-14-findings.md            # 81 entries: 76 found reviewing commit 050fe3f, 5 opened while fixing
+│   │   ├── 2026-09-14-findings.md            # 81 entries: 76 found reviewing commit 050fe3f, 5 opened while fixing
+│   │   └── 2026-09-20-findings.md            # 26 entries, found auditing 28ea1af; 2 more were raised and disproved
 │   └── rules/                                # The rules for one area, which `AGENTS.md` sends every agent to
 ├── inbox/                                    # Ingestion quarantine & staging directory
 │   ├── .gitkeep                              # Tracked directory marker
