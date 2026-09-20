@@ -137,37 +137,35 @@ def test_rustfmt_is_set_to_the_width_this_repository_writes_to():
     assert "max_width = 120" in RUSTFMT.read_text(encoding="utf-8")
 
 
-# The React rules that were still warnings on 2026-09-19, when TL-05 turned the linter on. This number may go
-# DOWN as TL-11 closes each one and turns it into an error, never up: a rule that goes back to a warning is a rule
-# whose warnings are allowed to grow again. Three of the five are closed: `set-state-in-effect`, then
-# `exhaustive-deps` and `immutability`. `refs` and `purity` are the two that are left.
-MOST_REACT_RULES_THAT_ONLY_WARN = 2
+# The five React rules TL-05 turned on as warnings on 2026-09-19, with 51 warnings between them. TL-11 closed all
+# five, in three parts, and every one is an error. None of them may fall back to a warning: a warning is a count
+# that is allowed to grow, and each of these is at zero.
+REACT_RULES_TL_11_CLOSED = [
+    "react-hooks/set-state-in-effect",
+    "react-hooks/exhaustive-deps",
+    "react-hooks/immutability",
+    "react-hooks/refs",
+    "react-hooks/purity",
+]
 
 
-def test_every_react_rule_that_only_warns_says_why_and_names_who_owns_it():
-    """A warning nobody has to act on is a warning nobody reads, so each one names the finding that owns it."""
+def test_no_react_rule_only_warns():
+    """A warning nobody has to act on is a warning nobody reads. TL-11 took the last one to zero."""
     text = ESLINT.read_text(encoding="utf-8")
     warned = re.findall(r'"(react-hooks/[a-z-]+)": "warn"', text)
-    assert warned, "no React rule is a warning, so this guard reads nothing. Lower the number below instead."
-    assert len(warned) <= MOST_REACT_RULES_THAT_ONLY_WARN, (
-        f"{len(warned)} React rules only warn, and {MOST_REACT_RULES_THAT_ONLY_WARN} is the most there have been: "
-        f"{warned}"
+    assert not warned, (
+        f"these React rules only warn: {warned}. TL-11 took every one of the five to zero warnings and made it an "
+        "error. A new rule may start as a warning, but it needs a finding that owns it and a line here saying so."
     )
-    assert "TL-11" in text, "the rules that only warn must name the finding that owns them"
 
 
 def test_a_react_rule_that_is_closed_is_an_error_and_cannot_come_back():
-    """TL-11 closes each rule by turning it into an error. A rule already closed must not fall back to a warning."""
+    """TL-11 closed each rule by turning it into an error. A rule already closed must not fall back to a warning."""
     text = ESLINT.read_text(encoding="utf-8")
-    closed = [
-        "react-hooks/set-state-in-effect",
-        "react-hooks/exhaustive-deps",
-        "react-hooks/immutability",
-    ]
-    fallen_back = [rule for rule in closed if f'"{rule}": "error"' not in text]
+    fallen_back = [rule for rule in REACT_RULES_TL_11_CLOSED if f'"{rule}": "error"' not in text]
     assert not fallen_back, (
         "these rules had every one of their warnings fixed, so a warning of theirs can never appear again. A rule "
-        f"back at 'warn' lets them: {fallen_back}"
+        f"back at 'warn', or taken out of the config, lets them: {fallen_back}"
     )
 
 

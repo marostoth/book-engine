@@ -567,3 +567,62 @@ def test_the_byte_reader_can_see_a_control_character():
     assert control_bytes_in(escaped + b"\r\n\t") == [], "a tab and a Windows line ending are allowed"
     assert control_bytes_in(real_nul) == [0x00], "a real NUL is the fault this catches, and it was not seen"
     assert len(sources(with_tests=True)) > 100, "the test above read almost no files"
+
+
+# ---------------------------------------------------------------- 9: a rule that is switched off
+
+#: Every line that switches an ESLint rule off, on 2026-09-20, when TL-11 made all five React rules errors. This
+#: number may go DOWN, never up. A rule is switched off only where the rule is wrong about that one line, and a
+#: line that switches one off is a line nothing checks any more unless something else does.
+MOST_RULES_SWITCHED_OFF = 4
+
+#: What a line that switches a rule off must look like: the rule by name, then ` -- ` and a reason.
+#:
+#: The directive has to come straight after the `//` or `/*`, which is the only place ESLint itself reads one.
+#: Without that, this reader finds every COMMENT that merely names the directive, and the write-up of the three
+#: exceptions in `lib/nothingIsReadWhileDrawing.test.ts` counted as a fourth exception.
+SWITCHED_OFF = re.compile(r"(?://|/\*)\s*eslint-disable(?:-next-line|-line)?\s*(?P<rest>[^\r\n]*)")
+
+
+def rules_switched_off() -> list[tuple[str, str]]:
+    """Every `(file:line, the text after eslint-disable)` in the app window, tests included."""
+    found: list[tuple[str, str]] = []
+    for path in sources(with_tests=True):
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if (hit := SWITCHED_OFF.search(line)) is not None:
+                found.append((f"{under_src(path)}:{number}", hit.group("rest").strip()))
+    return found
+
+
+def test_a_rule_that_is_switched_off_names_the_rule_and_says_why():
+    """A bare `eslint-disable` switches EVERY rule off for that line, and says nothing about why."""
+    nameless = [where for where, rest in rules_switched_off() if not rest.split(" --")[0].strip()]
+    assert not nameless, (
+        "these lines switch every rule off at once, which hides faults nobody was thinking about. Name the one "
+        "rule: `eslint-disable-next-line the-rule -- why`:\n" + "\n".join(nameless)
+    )
+    reasonless = [f"{where}: {rest}" for where, rest in rules_switched_off() if " -- " not in f"{rest} "]
+    assert not reasonless, (
+        "these lines switch a rule off and do not say why. A reader cannot tell a measured exception from a "
+        "silenced fault, so every one carries ` -- ` and the reason:\n" + "\n".join(reasonless)
+    )
+
+
+def test_the_number_of_rules_switched_off_only_goes_down():
+    """Each of these is a line the linter no longer reads. Four is the most there have ever been."""
+    found = rules_switched_off()
+    assert len(found) <= MOST_RULES_SWITCHED_OFF, (
+        f"{len(found)} lines switch a rule off, and {MOST_RULES_SWITCHED_OFF} is the most there have been. Fix the "
+        "code instead, or lower the number above with the reason in the commit:\n"
+        + "\n".join(f"{where}: {rest}" for where, rest in found)
+    )
+
+
+def test_the_reader_of_switched_off_rules_can_see_one():
+    """Without this, the two tests above would pass on a list of files where the pattern never matched."""
+    assert rules_switched_off(), "no line switches a rule off, so both tests above read nothing"
+    assert SWITCHED_OFF.search("// eslint-disable-next-line a-rule -- why").group("rest") == "a-rule -- why"
+    assert SWITCHED_OFF.search("// eslint-disable-next-line").group("rest") == ""
+    assert SWITCHED_OFF.search("  code(); // eslint-disable-line a-rule -- why") is not None, "a trailing one counts"
+    named_in_prose = " * three places carry an `eslint-disable-next-line` for it, and this is not one of them"
+    assert SWITCHED_OFF.search(named_in_prose) is None, "a comment that NAMES the directive is not one"
