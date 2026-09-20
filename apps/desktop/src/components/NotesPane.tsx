@@ -4,6 +4,7 @@ import { fetchNotes, persistNotes } from "../lib/api";
 import { reportBackendError } from "../lib/backendErrors";
 import { createNotesAutosave } from "../lib/notesAutosave";
 import { addQuoteToNotes, type NotesLoadState } from "../lib/notesQuote";
+import { useSaveBeforeClose } from "../hooks/useSaveBeforeClose";
 
 /**
  * App.tsx gives this pane a key of book and chapter, so every chapter gets its own pane. A pane that keeps
@@ -101,10 +102,14 @@ export const NotesPane: React.FC<NotesPaneProps> = ({
   // chapter is open by then (DS-07).
   useEffect(() => {
     return () => {
-      autosave.flush();
+      void autosave.flush();
       isOpenRef.current = false;
     };
   }, [autosave]);
+
+  // Closing the window destroys this pane instead of unmounting it, so the clean-up above never runs then. The
+  // window asks first, and this is the answer (DS-17).
+  useSaveBeforeClose(() => autosave.flush());
 
   // Load notes when chapter changes. Editing stays locked until they load: a save before that would overwrite the
   // notes file with text that is not in it.

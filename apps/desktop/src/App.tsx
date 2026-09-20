@@ -24,6 +24,9 @@ import { BackendErrorBar } from "./components/BackendErrorBar";
 import { useAnalyticalSession } from "./hooks/useAnalyticalSession";
 import { useSyntopiconSession } from "./hooks/useSyntopiconSession";
 import { LevelCompanionPane } from "./components/LevelCompanionPane";
+import { saversBeforeClose, saveWhenTheWindowCloses } from "./lib/savingBeforeClose";
+import { letTheWindowClose, listenForWindowClose } from "./lib/api/windowApi";
+import { useSaveBeforeClose } from "./hooks/useSaveBeforeClose";
 
 /** A changed setting is saved this long after the last change, so holding a key down makes one save. */
 const PREFERENCES_SAVE_DELAY_MS = 400;
@@ -44,7 +47,21 @@ export const App: React.FC<AppProps> = ({ startingPreferences }) => {
   const [preferencesSaver] = useState(() =>
     createPreferencesSaver(PREFERENCES_SAVE_DELAY_MS, persistPreferences, reportBackendError, startingPreferences.canSave)
   );
-  useEffect(() => () => preferencesSaver.flush(), [preferencesSaver]);
+  useEffect(() => () => void preferencesSaver.flush(), [preferencesSaver]);
+  useSaveBeforeClose(() => preferencesSaver.flush());
+
+  // The reader closed the window. Everything that is waiting is saved first, and the window is told last (DS-17).
+  useEffect(() => {
+    const listening = saveWhenTheWindowCloses(
+      listenForWindowClose,
+      saversBeforeClose,
+      letTheWindowClose,
+      reportBackendError
+    );
+    return () => {
+      void listening.then((stop) => stop());
+    };
+  }, []);
 
   // Made once, because the reader is only drawn again for new props of its own (RD-06).
   const handlePreferencesChange = useCallback(

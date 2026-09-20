@@ -39,7 +39,7 @@ export interface ReadingTimer {
    * The words of `chapter` are on screen now, or the words of no chapter (null). The time of the chapter before that is
    * not saved yet is saved now.
    */
-  show(chapter: ChapterRef | null, nowMs: number, focused: boolean): void;
+  show(chapter: ChapterRef | null, nowMs: number, focused: boolean): Promise<void>;
   /** A tick of the timer. The time since the last tick counts when the window has focus. */
   tick(nowMs: number, focused: boolean): void;
   /**
@@ -50,7 +50,7 @@ export interface ReadingTimer {
 }
 
 /** Counts reading time, and gives each piece to `save` with the chapter it was read in. */
-export function createReadingTimer(save: (chapter: ChapterRef, piece: ReadingPiece) => void): ReadingTimer {
+export function createReadingTimer(save: (chapter: ChapterRef, piece: ReadingPiece) => unknown): ReadingTimer {
   let onScreen: ChapterRef | null = null;
   let lastTickMs = 0;
   let countedMs = 0;
@@ -63,17 +63,21 @@ export function createReadingTimer(save: (chapter: ChapterRef, piece: ReadingPie
   };
 
   return {
-    show(chapter, nowMs, focused) {
+    async show(chapter, nowMs, focused) {
       if (sameChapter(onScreen, chapter)) return;
+      // The save is started and given back, and everything below it is done before this waits for anything, so
+      // the timer is ready for the next chapter whether the vault answers or not.
+      let saving: unknown;
       if (onScreen) {
         count(nowMs, focused);
         const seconds = Math.round(countedMs / 1000);
-        if (seconds > 0) save(onScreen, { seconds, completed: finished });
+        if (seconds > 0) saving = save(onScreen, { seconds, completed: finished });
       }
       onScreen = chapter;
       lastTickMs = nowMs;
       countedMs = 0;
       finished = false;
+      await saving;
     },
     tick(nowMs, focused) {
       if (!onScreen) return;

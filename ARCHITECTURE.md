@@ -239,6 +239,7 @@ book-engine/
 │       │   │   ├── useLibrary.ts             # React context for the book list and the rescan control
 │       │   │   ├── usePracticeDeck.ts        # Practice deck state, mode/ratio filtering & daily target limits
 │       │   │   ├── useSettings.ts            # React context for the reader settings
+│       │   │   ├── useSaveBeforeClose.ts    # Adds a saver to the set the window runs before it closes
 │       │   │   ├── useStartAgainWhen.ts     # State back to its start when the thing it belongs to changes, while drawing
 │       │   │   └── useSyntopiconSession.ts   # Level 4 Syntopicon registry, cascade-pruning & topic session hook
 │       │   ├── lib/                          # Core TypeScript utilities, transformers, and contracts
@@ -266,7 +267,8 @@ book-engine/
 │       │   │   │   ├── practiceApi.ts        # FSRS practice card synchronization & review IPC
 │       │   │   │   ├── preferencesApi.ts     # Reader settings IPC
 │       │   │   │   ├── syntopiconApi.ts      # Level 4 Syntopicon topic registry & persistence IPC client
-│       │   │   │   └── vaultApi.ts           # Wrappers for the vault commands, and the `VaultStatus` shape
+│       │   │   │   ├── vaultApi.ts           # Wrappers for the vault commands, and the `VaultStatus` shape
+│       │   │   │   └── windowApi.ts          # The window asking the page to save, and the page answering that it may close
 │       │   │   ├── types/                    # Modular contract definitions
 │       │   │   │   ├── analytical.ts         # Level 3 analytical terms, citations & argument graph interfaces
 │       │   │   │   └── syntopicon.ts         # Level 4 syntopical neutral terms, questions & controversy models
@@ -306,6 +308,7 @@ book-engine/
 │       │   │   ├── reviewDays.ts             # Review days
 │       │   │   ├── searchIndex.ts            # Search update when the app opens and on Rescan
 │       │   │   ├── searchQuery.ts            # Search box minimum length (2 characters), the same as the backend
+│       │   │   ├── savingBeforeClose.ts      # Every saver that runs, and is waited for, before the window closes
 │       │   │   ├── searchSnippet.ts          # Search result snippets as React text with a <mark> around each hit, so book text never becomes HTML
 │       │   │   ├── tableOfContents.ts        # Contents entries
 │       │   │   ├── types.ts                  # Canonical TypeScript interfaces & data contracts
@@ -617,6 +620,7 @@ six commands that no longer existed and missed nine that did.
 | `create_syntopic_topic` | `(title, description) -> Result<SyntopicTopic, String>` | Makes a new topic file. |
 | `save_syntopic_topic` | `(topic) -> Result<(), String>` | Writes it. |
 | `export_syntopic_report` | `(topic_id) -> Result<String, String>` | Compiles the dialectical dossier into `vault/syntopicon/reports/`. |
+| `let_the_window_close` | `(window) -> ()` | The page has saved what the reader typed, so the window may close now (DS-17). |
 
 ---
 
