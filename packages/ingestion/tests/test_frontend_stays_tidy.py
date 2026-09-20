@@ -581,9 +581,7 @@ MOST_RULES_SWITCHED_OFF = 4
 #: The directive has to come straight after the `//` or `/*`, which is the only place ESLint itself reads one.
 #: Without that, this reader finds every COMMENT that merely names the directive, and the write-up of the three
 #: exceptions in `lib/nothingIsReadWhileDrawing.test.ts` counted as a fourth exception.
-SWITCHED_OFF = re.compile(
-    r"(?://|/\*)\s*eslint-disable(?:-next-line|-line)?\s*(?P<rest>[^\r\n]*)"
-)
+SWITCHED_OFF = re.compile(r"(?://|/\*)\s*eslint-disable(?:-next-line|-line)?\s*(?P<rest>[^\r\n]*)")
 
 
 def rules_switched_off() -> list[tuple[str, str]]:
