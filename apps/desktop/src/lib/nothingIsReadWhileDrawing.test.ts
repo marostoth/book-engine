@@ -1,5 +1,6 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { createNotesAutosave } from "./notesAutosave.ts";
 import { createPlaceWatcher } from "./readingPlace.ts";
 import { readerEditorOptions, type ChapterClick } from "../components/reader/readerEditorOptions.ts";
@@ -83,5 +84,26 @@ test("building the reader's editor options never calls the click handler (TL-11)
     options.editorProps?.handleClick,
     handleClick,
     "the options must hand TipTap the very same click handler, or the reader builds its editor again (RD-06)"
+  );
+});
+
+test("the pacer hands its drag no value read from a ref while drawing (TL-11)", () => {
+  // The two remaining `react-hooks/refs` warnings were one line: `currentLineIndex: lineIndexRef.current` in the
+  // options the pacer gives `usePacerDrag`. The rule at "error" is one guard against it returning; this is the
+  // other, and it reads the file rather than trusting the linter to keep behaving as it does today.
+  //
+  // The options are the pacer's own lines, four spaces in. Anything deeper is inside a handler, which runs on a
+  // pointer and may read a ref freely.
+  const pacer = fs.readFileSync(new URL("../components/elementary/useLinePacer.ts", import.meta.url), "utf8");
+  const start = pacer.indexOf("usePacerDrag({");
+  assert.ok(start > 0, "useLinePacer.ts must still build its drag through usePacerDrag");
+  const options = pacer.slice(start, pacer.indexOf("usePacerKeyboard({"));
+
+  const handedOver = options.split("\n").filter((line) => /^ {4}\S.*Ref\.current/.test(line));
+  assert.deepEqual(
+    handedOver,
+    [],
+    "useLinePacer.ts reads a ref while it is drawing and hands the value to usePacerDrag. React does not draw " +
+      `again when a ref changes, so the drag would be told something older than the screen:\n${handedOver.join("\n")}`
   );
 });

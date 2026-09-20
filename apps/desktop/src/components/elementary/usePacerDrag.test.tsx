@@ -139,11 +139,31 @@ test("a tap straight after a real drag does not end that drag a second time", ()
   );
 });
 
-test("the pacer is told nothing about which line it is on", () => {
-  // The hook works the line out from where the pointer went, so nothing has to read the pacer's ref while it is
-  // drawing. A `currentLineIndex` back in its options is that ref read returning.
+test("a second finger down before the first is lifted starts a new drag, not the end of the old one", () => {
+  const { drags, ended } = drawHook();
+
+  // A real drag that never gets its pointer up: a second finger, or a pointer the browser took away without
+  // sending anything. This is the one case where the mark "this drag moved" would survive into the next drag.
+  act(() => now(drags).handlePointerDown(pointer(0, 5)));
+  act(() => now(drags).handlePointerMove(pointer(180, 70)));
+
+  act(() => now(drags).handlePointerDown(pointer(20, 5)));
+  act(() => now(drags).handlePointerUp(pointer(20, 5)));
+
+  assert.deepEqual(
+    ended,
+    [],
+    "a drag that never moved ended where the drag BEFORE it had been left, because the mark saying that one " +
+      "moved was still set. Pointer down clears it, and that is why (TL-11)."
+  );
+});
+
+test("nothing new is asked of the drag hook", () => {
+  // The hook works the line out from where the pointer went. It used to be TOLD, from a ref read while the pacer
+  // was drawing. This holds the shape of what it hands back, so the page cannot quietly start passing the line in
+  // as something else. That the pacer passes NO ref value in is checked in `lib/nothingIsReadWhileDrawing.test.ts`,
+  // which runs outside a browser and can read the file.
   const { drags } = drawHook();
-  assert.ok(now(drags).handlePointerDown, "the hook must still give the page its handlers");
   assert.deepEqual(
     Object.keys(now(drags)).sort(),
     ["handlePointerDown", "handlePointerMove", "handlePointerUp", "isDragging", "isDraggingRef"],
