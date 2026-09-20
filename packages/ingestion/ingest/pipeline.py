@@ -12,6 +12,7 @@ from ebooklib import epub
 from ingest.anchors import clean_preview_text, extract_anchors, extract_inspectional_sampling, inject_paragraph_anchors
 from ingest.assets import extract_epub_assets, normalize_image_markdown
 from ingest.book_build import BookBuild
+from ingest.book_check import BookCheckError
 from ingest.chapter_shape import HeldOverBlocks, chapter_name, holds_no_text
 from ingest.elementary import compute_elementary_metrics
 from ingest.endnotes import EndnoteRegistry, relocate_chapter_footnotes
@@ -36,6 +37,18 @@ from ingest.toc_links import (
     link_toc_to_chapters,
     without_entries_that_lead_nowhere,
 )
+
+
+def documents_that_said_nothing(became: dict[str, str]) -> list[str]:
+    """The documents of the spine that left the import without a reason, out of `document name -> what became of it`.
+
+    A document earns its reason at every way out of the spine loop: it makes a chapter, or its title waits for the
+    chapter it introduces, or it holds only notes, or it holds nothing a reader could read. A name still carrying
+    the empty reason went out on a `continue` that says nothing, and that is the shape of CQ-09: a page that goes
+    and leaves no hole anything can measure. The import stops on it, because a book quietly shorter than the book
+    it was made from is the fault this is here to catch.
+    """
+    return [name for name, reason in became.items() if not reason]
 
 
 def ingest_epub(
@@ -120,6 +133,10 @@ def _build_epub_book(
     # A document that holds nothing but notes makes no chapter: each of those notes is already at the foot of
     # the chapter that cites it. It is known by what it holds, never by the end of its file name (IN-07).
     only_notes = documents_of_only_notes(book, registry)
+    # What became of each document of the spine. Every one of them leaves its reason here, and a document
+    # still holding the empty reason at the end of the loop went past on a `continue` that said nothing,
+    # which is the fault itself (CQ-09).
+    became: dict[str, str] = {}
 
     for item_entry in book.spine:
         item_id = item_entry[0] if isinstance(item_entry, (tuple, list)) else item_entry
@@ -128,22 +145,19 @@ def _build_epub_book(
             continue
 
         item_name = item.get_name()
+        became[item_name] = ""
 
         if item_name in only_notes:
             print(
                 f"[*] {item_name} holds only notes, which go to the foot of the chapters that cite "
                 "them, so it makes no chapter of its own."
             )
+            became[item_name] = "holds only notes"
             continue
 
         html_bytes = item.get_content()
         # The text of the document with \n line endings only, also from a book made on Windows (IN-06)
         soup = read_html(html_bytes)
-
-        # Skip empty / purely whitespace pages
-        text_preview = soup.get_text(strip=True)
-        if len(text_preview) < 20:
-            continue
 
         # Relocate footnotes
         footnotes = relocate_chapter_footnotes(soup, item_name, registry)
@@ -151,7 +165,14 @@ def _build_epub_book(
         # Convert HTML to Markdown blocks, and note the block where each element starts
         element_blocks: dict[str, int] = {}
         blocks = html_to_markdown_blocks(soup, element_blocks)
+        # A page that makes no block at all is the one page that makes no chapter and holds nothing back, and
+        # it is named on the way past, because a document that leaves the import in silence is a document
+        # nobody can miss. A length used to stand in front of this, twenty letters of text, and a dedication,
+        # an epigraph, a frontispiece caption and a one-line closing page are all shorter than that. They were
+        # in no book, in no message, and in no count, so nothing could tell a reader they had gone (CQ-09).
         if not blocks:
+            print(f"[*] {item_name} holds nothing a reader could read, so it makes no chapter.")
+            became[item_name] = "holds nothing a reader could read"
             continue
 
         # Normalize images in blocks
@@ -163,6 +184,7 @@ def _build_epub_book(
         # nothing to read. Its headings wait for the chapter they introduce (CQ-04).
         if holds_no_text(normalized_blocks) and not footnotes:
             held_over.hold(normalized_blocks, item_name)
+            became[item_name] = "holds a title, which waits for the chapter it introduces"
             continue
 
         # The headings of the pages that held no text go in front of this chapter. Its own blocks move down
@@ -197,6 +219,7 @@ def _build_epub_book(
         ch_filename = f"{ch_id}.md"
         ch_path = book_dir / ch_filename
         write_text_file(ch_path, anchored_md)
+        became[item_name] = f"makes {ch_filename}"
         imported_documents[posixpath.normpath(item_name)] = ImportedDocument(
             chapter_file=ch_filename,
             element_anchors=element_anchors(normalized_blocks[: len(blocks)], element_blocks, anchored_md),
@@ -239,6 +262,17 @@ def _build_epub_book(
         all_scenarios.extend(generate_chapter_scenario_cards(anchored_md, ch_id, max_items=3))
 
         chapter_index += 1
+
+    # Every document of the spine is counted against what became of it. Nothing compared the source against
+    # the chapters written before this, so a page could go and leave no hole that anything measured (CQ-09).
+    said_nothing = documents_that_said_nothing(became)
+    if said_nothing:
+        raise BookCheckError(book_id, [f"these documents of the book went past the import in silence: {said_nothing}"])
+    made_a_chapter = [name for name, reason in became.items() if reason.startswith("makes ")]
+    print(
+        f"[*] {len(became)} documents of the spine: {len(made_a_chapter)} made a chapter, "
+        f"{len(became) - len(made_a_chapter)} did not, and each of those said why."
+    )
 
     # The contents open chapter files and paragraphs of the vault, not the source documents of the EPUB (CQ-01)
     link_toc_to_chapters(toc_items, imported_documents)

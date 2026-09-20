@@ -62,7 +62,8 @@ DOCUMENT = """<?xml version="1.0" encoding="utf-8"?>
 </html>
 """
 
-# A paragraph long enough that the import keeps its page: a page of under 20 letters is dropped as blank
+# A paragraph of an ordinary chapter. It used to have to be long: a page of under 20 letters was dropped
+# as blank, and five test files worked around that instead of pinning it. The length is gone now (CQ-09).
 PARAGRAPH = (
     "<p>The great commerce of every civilized society is that carried on between the inhabitants of the town "
     "and those of the country.</p>"
