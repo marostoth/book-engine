@@ -40,6 +40,10 @@ vault/notes/*
 !vault/notes/.gitkeep
 vault/.import/
 vault/preferences.json*
+# A ledger that could not be read leaves its bytes in `_ledger.json.corrupt-<time>` beside it, so nothing is lost
+# while a person puts it right (DS-18). It is a rescue of the user's data, like the rest of the vault, and an
+# import that meets a damaged ledger may not make the repository dirty (TL-08).
+vault/_ledger.json.corrupt-*
 
 # The app writes these while you use it: saving a topic or exporting a report rewrote a tracked file, so reading a
 # book made the repository dirty (TL-08). `vault/_ledger.json` is deliberately still tracked: only an import writes

@@ -14,13 +14,18 @@ import json
 import shutil
 import sys
 import zipfile
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import pymupdf
+import pytest
 from ingest.ledger import (
+    LedgerDamaged,
+    LedgerWouldShrink,
     book_numbers,
     keep_numbers_true,
+    kept_copy_of,
     lines_that_disagree,
     read_ledger,
     write_ledger,
@@ -105,10 +110,15 @@ def test_a_vault_with_no_ledger_reads_as_no_lines(tmp_path: Path):
     assert read_ledger(tmp_path) == []
 
 
-def test_a_ledger_that_is_not_readable_reads_as_no_lines(tmp_path: Path):
+def test_a_ledger_that_is_not_readable_is_not_read_as_no_lines(tmp_path: Path):
+    # This test asserted the opposite until DS-18. Reading a damaged ledger as no lines is what let the
+    # next import write its one record back over the record of every book ever taken in.
     (tmp_path / "_ledger.json").write_text("{not json at all", encoding="utf-8")
 
-    assert read_ledger(tmp_path) == []
+    with pytest.raises(LedgerDamaged) as damage:
+        read_ledger(tmp_path)
+
+    assert "_ledger.json" in str(damage.value)
 
 
 def test_a_ledger_written_as_one_object_per_key_still_reads(tmp_path: Path):
@@ -457,9 +467,171 @@ def test_the_inbox_and_the_audit_use_this_module():
     inbox = (skills / "process-inbox.py").read_text(encoding="utf-8")
     audit = (skills / "audit-system.py").read_text(encoding="utf-8")
 
-    assert "from ingest.ledger import read_ledger, write_ledger" in inbox
+    # The names, not the order they are written in: the inbox also imports `LedgerDamaged` now (DS-18)
+    assert "from ingest.ledger import" in inbox
+    for name in ("read_ledger", "write_ledger", "LedgerDamaged"):
+        assert name in inbox, f"the inbox must ask this module for {name}"
     # It keeps no second copy of the reading and writing
     assert "def load_ledger" not in inbox
     assert "def save_ledger" not in inbox
     assert "from ingest.ledger import lines_that_disagree" in audit
     assert "lines_that_disagree(VAULT_DIR)" in audit
+
+
+# --- a damaged ledger is never an empty ledger (DS-18) ---
+
+DAMAGED = b'[{"sha256": "aaaa", "book_id": "harbour-l'
+
+
+def a_damaged_ledger_in(vault: Path) -> Path:
+    """A vault whose ledger is there and cannot be read."""
+    vault.mkdir(parents=True, exist_ok=True)
+    path = vault / "_ledger.json"
+    path.write_bytes(DAMAGED)
+    return path
+
+
+def copies_beside(path: Path) -> list[Path]:
+    """Every kept copy of the damaged bytes, as `<file name>.corrupt-<time>`."""
+    return sorted(path.parent.glob(f"{path.name}.corrupt-*"))
+
+
+def test_a_damaged_ledger_keeps_a_copy_of_its_bytes(tmp_path: Path):
+    path = a_damaged_ledger_in(tmp_path)
+
+    with pytest.raises(LedgerDamaged) as damage:
+        read_ledger(tmp_path)
+
+    kept = copies_beside(path)
+    assert len(kept) == 1, kept
+    assert kept[0].read_bytes() == DAMAGED, "the copy must hold the bytes that were there"
+    assert str(kept[0]) in str(damage.value), "the error must say where the copy is"
+
+
+def test_the_same_damaged_bytes_keep_one_copy_only(tmp_path: Path):
+    # A run that reads the ledger twice must not fill the vault with copies of one damaged file
+    path = a_damaged_ledger_in(tmp_path)
+
+    for _ in range(3):
+        with pytest.raises(LedgerDamaged):
+            read_ledger(tmp_path)
+
+    assert len(copies_beside(path)) == 1, copies_beside(path)
+
+
+def test_the_same_damaged_bytes_keep_one_copy_across_two_moments(tmp_path: Path):
+    # The test above passes even with no rule at all, because three reads inside one second write one
+    # name. Only two moments show the rule, so the moment is an argument.
+    path = a_damaged_ledger_in(tmp_path)
+
+    first = kept_copy_of(path, DAMAGED, when=datetime(2026, 9, 20, 12, 0, 0, tzinfo=UTC))
+    second = kept_copy_of(path, DAMAGED, when=datetime(2026, 9, 20, 12, 0, 1, tzinfo=UTC))
+
+    assert second == first, "the same bytes must give back the copy that is already there"
+    assert len(copies_beside(path)) == 1, copies_beside(path)
+
+
+def test_damaged_bytes_that_differ_keep_a_second_copy(tmp_path: Path):
+    # The control for the test above: the rule must not swallow a second, different damage
+    path = a_damaged_ledger_in(tmp_path)
+
+    kept_copy_of(path, DAMAGED, when=datetime(2026, 9, 20, 12, 0, 0, tzinfo=UTC))
+    kept_copy_of(path, b"[{a second damage, of other bytes", when=datetime(2026, 9, 20, 12, 0, 1, tzinfo=UTC))
+
+    assert len(copies_beside(path)) == 2, copies_beside(path)
+
+
+def test_a_ledger_that_is_not_a_list_of_lines_is_damaged_too(tmp_path: Path):
+    (tmp_path / "_ledger.json").write_text("7", encoding="utf-8")
+
+    with pytest.raises(LedgerDamaged):
+        read_ledger(tmp_path)
+
+
+def test_a_shorter_ledger_is_not_written_over_a_longer_one(tmp_path: Path):
+    write_ledger(tmp_path, [line(sha="a" * 64), line(book_id="other", sha="b" * 64)])
+    before = (tmp_path / "_ledger.json").read_bytes()
+
+    with pytest.raises(LedgerWouldShrink) as refused:
+        write_ledger(tmp_path, [line(sha="a" * 64)])
+
+    assert (tmp_path / "_ledger.json").read_bytes() == before, "the longer ledger must still be there"
+    assert "2" in str(refused.value) and "1" in str(refused.value), str(refused.value)
+
+
+def test_an_import_leaves_a_damaged_ledger_as_it_is(tmp_path: Path):
+    # The book is in the vault by the time the numbers are kept true, so a ledger nobody can read may not
+    # turn finished work into a failed import (IN-09). It may not be written over either (DS-18).
+    vault = tmp_path / "vault"
+    path = a_damaged_ledger_in(vault)
+
+    meta = ingest_epub(make_epub(tmp_path / f"{BOOK_ID}.epub", PARAGRAPH), vault, custom_book_id=BOOK_ID)
+
+    assert meta.total_words > 0, "the book itself must still be imported"
+    assert path.read_bytes() == DAMAGED, "the ledger must be exactly as it was"
+    assert len(copies_beside(path)) == 1, "and its bytes must be kept in a copy"
+
+
+def test_the_inbox_leaves_a_damaged_ledger_as_it_is(tmp_path: Path, monkeypatch, capsys):
+    # This is the loss itself: the inbox read the ledger as no lines, added its one new record, and wrote
+    # a one-line ledger over the record of every book ever taken in.
+    inbox = an_inbox_on(tmp_path, monkeypatch)
+    path = a_damaged_ledger_in(tmp_path / "vault")
+    (tmp_path / "inbox").mkdir()
+    make_epub(tmp_path / "inbox" / f"{BOOK_ID}.epub", PARAGRAPH)
+
+    assert inbox.main() == 1, "a ledger it could not read must stop the run"
+
+    assert path.read_bytes() == DAMAGED, "the ledger must be exactly as it was"
+    assert not (tmp_path / "vault" / "books" / BOOK_ID).exists(), "and no book may be taken in"
+    said = capsys.readouterr()
+    assert str(copies_beside(path)[0]) in said.out + said.err, "the run must say where the copy is"
+
+
+# --- and the controls, which must stay green ---
+
+
+def test_a_good_ledger_still_reads(tmp_path: Path):
+    write_ledger(tmp_path, [line(words=5)])
+
+    assert [it["total_words"] for it in read_ledger(tmp_path)] == [5]
+    assert copies_beside(tmp_path / "_ledger.json") == [], "a good ledger keeps no copy"
+
+
+def test_a_ledger_with_a_byte_order_mark_is_not_damaged(tmp_path: Path):
+    # Some editors write one at the start of a UTF-8 file. It carries no data, as the Rust reader says.
+    (tmp_path / "_ledger.json").write_bytes(b"\xef\xbb\xbf" + json.dumps([line(words=5)]).encode("utf-8"))
+
+    assert [it["total_words"] for it in read_ledger(tmp_path)] == [5]
+
+
+def test_a_ledger_holding_a_stray_line_is_not_damaged(tmp_path: Path):
+    # A file that parses is not damaged. Only the lines that are not lines are left out.
+    (tmp_path / "_ledger.json").write_text(json.dumps([line(), "a stray string", 7]), encoding="utf-8")
+
+    assert len(read_ledger(tmp_path)) == 1
+    assert copies_beside(tmp_path / "_ledger.json") == []
+
+
+def test_a_ledger_of_the_same_length_is_written(tmp_path: Path):
+    write_ledger(tmp_path, [line(words=1)])
+
+    write_ledger(tmp_path, [line(words=2)])
+
+    assert [it["total_words"] for it in read_ledger(tmp_path)] == [2]
+
+
+def test_a_longer_ledger_is_written(tmp_path: Path):
+    write_ledger(tmp_path, [line(sha="a" * 64)])
+
+    write_ledger(tmp_path, [line(sha="a" * 64), line(book_id="other", sha="b" * 64)])
+
+    assert len(read_ledger(tmp_path)) == 2
+
+
+def test_a_shorter_ledger_is_written_when_the_caller_says_so(tmp_path: Path):
+    write_ledger(tmp_path, [line(sha="a" * 64), line(book_id="other", sha="b" * 64)])
+
+    write_ledger(tmp_path, [line(sha="a" * 64)], may_be_shorter=True)
+
+    assert len(read_ledger(tmp_path)) == 1
