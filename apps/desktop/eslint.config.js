@@ -51,12 +51,19 @@ export default tseslint.config(
       "react-hooks/exhaustive-deps": "error",
       "react-hooks/immutability": "error",
 
-      // These two belong to React's newest rules, the ones written for its compiler. They are right, and each asks
-      // for a component to be built a different way: the rest read or write a ref while the component is drawing.
-      // They are warnings, so every run prints them and the number can only go down. TL-11 owns the work and turns
-      // each one into an error as its last warning goes.
-      "react-hooks/refs": "warn",
-      "react-hooks/purity": "warn",
+      // A ref is not read while a component is drawing. React does not draw again when a ref changes, so what
+      // reaches the screen can be older than the ref. This was 5 warnings. Two were one fault: the pacer's drag
+      // was handed the line the pacer was on, read out of a ref mid-drawing, and the copy it kept moved the
+      // reader on a tap. The other three are things the app builds ONCE, whose handlers read a ref on a timer, a
+      // promise or a click - long after the drawing that built them. The rule stops at the edge of the function
+      // it is handed and says the ref "may" be read while drawing; it is not, so those three carry an
+      // `eslint-disable-next-line` naming the reason, and `lib/nothingIsReadWhileDrawing.test.ts` is what checks
+      // each reason is still true. TL-11 closed the rule, so it is an error now (TL-05).
+      "react-hooks/refs": "error",
+
+      // Drawing a component reads nothing outside it and changes nothing outside it. This one has had 0 warnings
+      // since the linter was turned on, so nothing had to be fixed for it. It is an error so it stays at 0.
+      "react-hooks/purity": "error",
     },
   },
 );

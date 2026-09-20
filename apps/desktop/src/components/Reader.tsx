@@ -81,6 +81,11 @@ const ReaderView: React.FC<ReaderProps> = ({
   useEffect(() => {
     onPlaceSettledRef.current = onPlaceSettled;
   }, [onPlaceSettled]);
+  // The two handlers below read `containerRef` and `onPlaceSettledRef`, and the watcher calls them on a timer,
+  // `PLACE_SETTLE_MS` after the reader stops scrolling. `react-hooks/refs` stops at the edge of
+  // `createPlaceWatcher` and says the refs "may" be read while drawing. They are not, and
+  // `lib/nothingIsReadWhileDrawing.test.ts` is what checks that.
+  // eslint-disable-next-line react-hooks/refs -- the watcher calls these on a timer, never while drawing (TL-11)
   const [placeWatcher] = useState(() =>
     createPlaceWatcher(
       PLACE_SETTLE_MS,
@@ -131,7 +136,13 @@ const ReaderView: React.FC<ReaderProps> = ({
     return false;
   }, []);
 
-  // Single-Chapter Virtualization: Mounts TipTap for only the current chapter
+  // Single-Chapter Virtualization: Mounts TipTap for only the current chapter.
+  //
+  // `handleChapterClick` reads `footnotes`, and TipTap calls it when the reader clicks. `react-hooks/refs` stops at
+  // the edge of `readerEditorOptions` and says the ref "may" be read while drawing. It is not, and
+  // `lib/nothingIsReadWhileDrawing.test.ts` is what checks that. The options are built by that named function and
+  // not written out here on purpose: `lib/readerEditor.test.ts` fails if this file holds options of its own (RD-06).
+  // eslint-disable-next-line react-hooks/refs -- TipTap calls the handler on a click, never while drawing (TL-11)
   const editorOptions = useMemo(() => readerEditorOptions(handleChapterClick), [handleChapterClick]);
   const editor = useEditor(editorOptions);
 

@@ -75,6 +75,11 @@ export const NotesPane: React.FC<NotesPaneProps> = ({
   const target = { bookId, notesFile: notesFileName };
 
   // A failed save keeps the text in the pane. The next edit, or a click on "Not saved", saves it again.
+  //
+  // The save below reads `isOpenRef` to decide which message the reader sees, and it runs when the vault answers,
+  // which is long after this drawing. `react-hooks/refs` stops at the edge of `createNotesAutosave` and says the
+  // ref "may" be read while drawing. It is not, and `lib/nothingIsReadWhileDrawing.test.ts` is what checks that.
+  // eslint-disable-next-line react-hooks/refs -- the save runs when the vault answers, never while drawing (TL-11)
   const [autosave] = useState(() =>
     createNotesAutosave(AUTOSAVE_DELAY_MS, (saveTo, text) => {
       persistNotes(saveTo.bookId, saveTo.notesFile, text)

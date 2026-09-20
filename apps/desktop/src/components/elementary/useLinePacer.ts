@@ -160,7 +160,6 @@ export function useLinePacer({
     lines,
     overlayRef,
     chunkSize,
-    currentLineIndex: lineIndexRef.current,
     onDragUpdate: (bestIdx, progress) => {
       const targetLine = lines[bestIdx];
       const chunkWidthRatio = Math.min(0.35, Math.max(0.12, chunkSize * 0.1));
