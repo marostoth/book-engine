@@ -617,6 +617,7 @@ six commands that no longer existed and missed nine that did.
 | `create_syntopic_topic` | `(title, description) -> Result<SyntopicTopic, String>` | Makes a new topic file. |
 | `save_syntopic_topic` | `(topic) -> Result<(), String>` | Writes it. |
 | `export_syntopic_report` | `(topic_id) -> Result<String, String>` | Compiles the dialectical dossier into `vault/syntopicon/reports/`. |
+| `let_the_window_close` | `(window) -> ()` | The page has saved what the reader typed, so the window may close now (DS-17). |
 
 ---
 

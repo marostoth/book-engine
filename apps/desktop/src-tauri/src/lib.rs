@@ -1,3 +1,5 @@
+#[cfg(test)]
+mod closing_window_tests;
 pub mod commands;
 pub mod db;
 pub mod fsrs;
@@ -12,12 +14,65 @@ use commands::{
     get_analytical_data, get_book_vocabulary, get_bookmark, get_chapter_due_cards, get_chapter_highlights,
     get_due_cards, get_inspectional_blueprint, get_inspectional_exit_assessment, get_last_bookmark, get_library_books,
     get_preferences, get_reading_velocity, get_study_analytics, get_syntopic_topic, get_syntopic_topics,
-    get_vault_path, get_vault_status, index_vault, load_book_meta, load_chapter, load_notes, lookup_dictionary_term,
-    record_reading_progress, save_analytical_data, save_book_vocabulary, save_bookmark, save_chapter_highlights,
-    save_inspectional_exit_assessment, save_notes, save_preferences, save_syntopic_topic, search_vault, submit_review,
-    sync_practice_deck,
+    get_vault_path, get_vault_status, index_vault, let_the_window_close, load_book_meta, load_chapter, load_notes,
+    lookup_dictionary_term, record_reading_progress, save_analytical_data, save_book_vocabulary, save_bookmark,
+    save_chapter_highlights, save_inspectional_exit_assessment, save_notes, save_preferences, save_syntopic_topic,
+    search_vault, submit_review, sync_practice_deck,
 };
-use tauri::{AppHandle, Manager, Runtime};
+use std::sync::atomic::{AtomicBool, Ordering};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
+
+/// The event that asks the page to save what the reader typed, before the window closes.
+///
+/// `src/lib/api/windowApi.ts` listens for this exact word, and `src/lib/savingBeforeClose.test.tsx` reads this
+/// file to check that the two are still the same one (DS-17).
+const SAVE_BEFORE_CLOSE_EVENT: &str = "save-before-close";
+
+/// The longest the window waits for the page to save what is waiting.
+///
+/// Measured, not picked: one save is one `save_notes`, `save_preferences`, `save_bookmark` or
+/// `record_reading_progress`, and each writes one small file. Five of them run at once at the most. A window that
+/// will not close is worse than a lost sentence, so the wait ends whatever the page does.
+const LONGEST_WAIT_FOR_THE_PAGE_MS: u64 = 5_000;
+
+/// Whether the window has already asked the page to save what is waiting.
+///
+/// The first close is held back. Every close after that goes through, so a page that never answers and a reader
+/// who presses the X again can both still close the window.
+#[derive(Default)]
+pub struct ClosingGuard {
+    asked: AtomicBool,
+}
+
+impl ClosingGuard {
+    /// True for the first close of this window only, and false for every one after it.
+    pub fn should_ask_the_page(&self) -> bool {
+        !self.asked.swap(true, Ordering::SeqCst)
+    }
+}
+
+/// Holds one close back, asks the page to save, and closes when the page answers or the wait runs out.
+///
+/// Every saver in the app waits for a pause in the typing. Each of them saved what was waiting in a React unmount
+/// clean-up, and closing the window destroys the webview instead of unmounting it, so none of those clean-ups ran
+/// and the reader's last sentence was lost (DS-17).
+fn ask_the_page_to_save<R: Runtime>(window: &tauri::Window<R>, api: &tauri::CloseRequestApi) {
+    if !window.state::<ClosingGuard>().should_ask_the_page() {
+        return;
+    }
+    api.prevent_close();
+    if window.emit(SAVE_BEFORE_CLOSE_EVENT, ()).is_err() {
+        // No page to ask, so there is nothing to wait for.
+        let _ = window.destroy();
+        return;
+    }
+    let waiting = window.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(LONGEST_WAIT_FOR_THE_PAGE_MS));
+        // The window is usually gone by now, and `destroy` on a window that has gone does nothing.
+        let _ = waiting.destroy();
+    });
+}
 
 /// Only one copy of the app runs, so two copies never save over each other's work (DS-13).
 ///
@@ -46,6 +101,12 @@ pub fn run() {
     let builder = builder.plugin(one_copy_only());
     builder
         .plugin(tauri_plugin_dialog::init())
+        .manage(ClosingGuard::default())
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                ask_the_page_to_save(window, api);
+            }
+        })
         .setup(|app| {
             // Explicitly ensure the main window is unminimized, visible, and focused on startup
             show_main_window(app.handle());
@@ -136,7 +197,8 @@ pub fn run() {
             get_syntopic_topic,
             create_syntopic_topic,
             save_syntopic_topic,
-            export_syntopic_report
+            export_syntopic_report,
+            let_the_window_close
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

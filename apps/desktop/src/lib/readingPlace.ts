@@ -115,8 +115,12 @@ export interface PlaceWatcher {
   shown(place: ChapterRef | null): void;
   /** The reader scrolled. The place is reported when `delayMs` pass without another move. */
   moved(): void;
-  /** Reports now the place that is waiting, if one is. The reader calls it when it closes. */
-  flush(): void;
+  /**
+   * Reports now the place that is waiting, if one is, and gives back that save.
+   *
+   * The reader calls it when it closes, and the window waits for what comes back before it closes (DS-17).
+   */
+  flush(): Promise<void>;
 }
 
 /**
@@ -129,14 +133,14 @@ export interface PlaceWatcher {
 export function createPlaceWatcher(
   delayMs: number,
   readAnchor: () => string | undefined,
-  report: (place: ChapterRef, anchor: string | undefined) => void
+  report: (place: ChapterRef, anchor: string | undefined) => unknown
 ): PlaceWatcher {
   let onScreen: ChapterRef | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
 
-  const reportNow = () => {
+  const reportNow = (): unknown => {
     timer = null;
-    if (onScreen) report(onScreen, readAnchor());
+    return onScreen ? report(onScreen, readAnchor()) : undefined;
   };
 
   return {
@@ -147,10 +151,10 @@ export function createPlaceWatcher(
       if (timer !== null) clearTimeout(timer);
       timer = setTimeout(reportNow, delayMs);
     },
-    flush() {
+    async flush() {
       if (timer === null) return;
       clearTimeout(timer);
-      reportNow();
+      await reportNow();
     },
   };
 }
@@ -159,8 +163,8 @@ export function createPlaceWatcher(
 export interface BookmarkKeeper {
   /** A book opened. `bookmarkRead` is false when its bookmark could not be read. */
   bookOpened(bookId: string, bookmarkRead: boolean): void;
-  /** Saves where the reader is. */
-  save(place: ChapterRef, anchor: string | undefined): void;
+  /** Saves where the reader is, and gives back that save so the window can wait for it (DS-17). */
+  save(place: ChapterRef, anchor: string | undefined): Promise<void>;
 }
 
 /**
@@ -178,8 +182,8 @@ export function createBookmarkKeeper(
       else unreadable.add(bookId);
     },
     save(place, anchor) {
-      if (unreadable.has(place.bookId)) return;
-      persist(place.bookId, place.chapterFile, anchor).catch((err) =>
+      if (unreadable.has(place.bookId)) return Promise.resolve();
+      return persist(place.bookId, place.chapterFile, anchor).catch((err) =>
         reportError("Where you stopped reading was not saved.", err)
       );
     },

@@ -8,8 +8,13 @@ export interface NotesTarget {
 export interface NotesAutosave {
   /** Holds `text` for `target` and saves it when the typing stops. */
   change(target: NotesTarget, text: string): void;
-  /** Saves what is waiting right now. The notes pane calls it when the chapter closes. */
-  flush(): void;
+  /**
+   * Saves what is waiting right now, and gives back that save.
+   *
+   * The notes pane calls it when the chapter closes, and the window calls it before it closes. The window waits
+   * for what comes back: a save that was only started is lost with the webview (DS-17).
+   */
+  flush(): Promise<void>;
   /** True while a text is waiting to be saved. */
   isPending(): boolean;
 }
@@ -23,15 +28,15 @@ export interface NotesAutosave {
  * when the app closed, and the notes pane used to keep its text across a chapter change, so a save could
  * put one chapter's notes into another chapter's file (DS-07).
  */
-export function createNotesAutosave(delayMs: number, save: (target: NotesTarget, text: string) => void): NotesAutosave {
+export function createNotesAutosave(delayMs: number, save: (target: NotesTarget, text: string) => unknown): NotesAutosave {
   let pending: { target: NotesTarget; text: string } | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
 
-  const saveNow = () => {
+  const saveNow = (): unknown => {
     timer = null;
     const due = pending;
     pending = null;
-    if (due) save(due.target, due.text);
+    return due ? save(due.target, due.text) : undefined;
   };
 
   return {
@@ -40,12 +45,12 @@ export function createNotesAutosave(delayMs: number, save: (target: NotesTarget,
       if (timer !== null) clearTimeout(timer);
       timer = setTimeout(saveNow, delayMs);
     },
-    flush() {
+    async flush() {
       if (timer !== null) {
         clearTimeout(timer);
         timer = null;
       }
-      saveNow();
+      await saveNow();
     },
     isPending() {
       return pending !== null;

@@ -6,6 +6,7 @@ import { applyBionicReading } from "../lib/bionic";
 import { bionicOn, useSettings } from "../hooks/useSettings";
 import { toAnchorAttribute } from "../lib/anchors";
 import { createPlaceWatcher, paragraphAtMiddle, type ChapterRef } from "../lib/readingPlace";
+import { useSaveBeforeClose } from "../hooks/useSaveBeforeClose";
 import { createProgressTicker } from "../lib/readerProgress";
 import { FootnoteItem, HighlightItem } from "../lib/types";
 import { FootnotePopover } from "./FootnotePopover";
@@ -95,7 +96,9 @@ const ReaderView: React.FC<ReaderProps> = ({
   );
   // A layout effect, because its clean-up runs while the paragraphs are still on screen: leaving the reader for
   // the inspectional level saves the place that was still waiting.
-  useLayoutEffect(() => () => placeWatcher.flush(), [placeWatcher]);
+  useLayoutEffect(() => () => void placeWatcher.flush(), [placeWatcher]);
+  // Closing the window runs no clean-up at all, so the window asks first (DS-17).
+  useSaveBeforeClose(() => placeWatcher.flush());
 
   // The footnotes of the chapter on screen. A ref, not a state: only a click in the chapter reads them, so a new
   // chapter needs no render for them, and the click handler below stays the same one (RD-06).

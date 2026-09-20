@@ -186,8 +186,13 @@ function forSaving(preferences: ReaderPreferences): ReaderPreferences {
 export interface PreferencesSaver {
   /** Holds the new settings and saves them when `delayMs` pass without another change. */
   change(preferences: ReaderPreferences): void;
-  /** Saves the settings that are waiting, now. */
-  flush(): void;
+  /**
+   * Saves the settings that are waiting, now, and gives back that save.
+   *
+   * The window waits for what comes back before it closes: a save that was only started is lost with the
+   * webview (DS-17).
+   */
+  flush(): Promise<void>;
 }
 
 /**
@@ -207,18 +212,18 @@ export function createPreferencesSaver(
   let timer: ReturnType<typeof setTimeout> | null = null;
   let saving = false;
 
-  const saveWaiting = () => {
+  const saveWaiting = (): Promise<void> => {
     timer = null;
-    if (saving || !waiting) return;
+    if (saving || !waiting) return Promise.resolve();
     const next = forSaving(waiting);
     waiting = null;
     saving = true;
-    persist(next)
+    return persist(next)
       .catch((err) => reportError("Your settings were not saved.", err))
       .finally(() => {
         saving = false;
         // Settings that changed during the save and whose pause is over go now. A pause still running saves them later.
-        if (timer === null) saveWaiting();
+        if (timer === null) void saveWaiting();
       });
   };
 
@@ -235,12 +240,15 @@ export function createPreferencesSaver(
       if (timer !== null) clearTimeout(timer);
       timer = setTimeout(saveWaiting, delayMs);
     },
-    flush() {
+    async flush() {
       if (timer !== null) {
         clearTimeout(timer);
         timer = null;
       }
-      saveWaiting();
+      await saveWaiting();
+      // A save was already running, so the newest settings waited behind it. They go now, and the window waits
+      // for them too (DS-17).
+      if (waiting) await saveWaiting();
     },
   };
 }

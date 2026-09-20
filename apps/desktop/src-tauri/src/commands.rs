@@ -437,3 +437,12 @@ pub async fn export_syntopic_report(topic_id: String) -> Result<String, String> 
         .map_err(|e| format!("Task join error: {e}"))?
         .map_err(|e| format!("Failed to export syntopic report: {e}"))
 }
+
+/// The page has saved everything the reader typed, so the window may close now (DS-17).
+///
+/// `destroy` closes the window without asking again, so this answer cannot start a second round of saving.
+/// `lib.rs` is where the close is held back and the page is asked.
+#[command]
+pub fn let_the_window_close(window: tauri::Window) {
+    let _ = window.destroy();
+}

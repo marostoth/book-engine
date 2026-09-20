@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useSyntopiconSession } from "../../hooks/useSyntopiconSession";
 import { FileText, Download, Check, Copy, Scale } from "lucide-react";
 import { useStartAgainWhen } from "../../hooks/useStartAgainWhen";
+import { useSaveBeforeClose } from "../../hooks/useSaveBeforeClose";
 
 interface SynthesisTabProps {
   session: ReturnType<typeof useSyntopiconSession>;
@@ -35,17 +36,29 @@ export const SynthesisTab: React.FC<SynthesisTabProps> = ({ session }) => {
     setExportSuccess(null);
   });
 
+  /** Saves the words that are waiting, and gives back that save. Nothing is waiting: nothing is saved. */
+  const saveWhatIsWaiting = () => {
+    if (!debounceTimerRef.current) return;
+    clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = null;
+    if (!activeTopic) return;
+    return saveSynthesis(latestNotesRef.current, latestResRef.current);
+  };
+
   // Flush on unmount
   useEffect(() => {
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
         if (activeTopic) {
-          saveSynthesis(latestNotesRef.current, latestResRef.current);
+          void saveSynthesis(latestNotesRef.current, latestResRef.current);
         }
       }
     };
   }, [activeTopic, saveSynthesis]);
+
+  // Closing the window destroys this tab instead of unmounting it, so the clean-up above never runs then (DS-17).
+  useSaveBeforeClose(saveWhatIsWaiting);
 
   const scheduleSave = (newNotes: string, newRes: string) => {
     setSaveStatus("saving");

@@ -26,6 +26,7 @@ import { updateSearch } from "../lib/searchIndex";
 import { createBookmarkKeeper, readBrowserBookId, startingBookId, type ChapterRef } from "../lib/readingPlace";
 import { createReadingTimer, READING_TICK_MS } from "../lib/readingTime";
 import { ChapterMoveRequest } from "./useChapterGate";
+import { useSaveBeforeClose } from "./useSaveBeforeClose";
 
 interface BookSessionOptions {
   onCardsRefreshNeeded?: (bookId: string) => void;
@@ -186,15 +187,18 @@ export function useBookSession({ onCardsRefreshNeeded, requestChapterMove }: Boo
     )
   );
   useEffect(() => {
-    readingTimer.show(markdownSource, Date.now(), document.hasFocus());
+    void readingTimer.show(markdownSource, Date.now(), document.hasFocus());
   }, [readingTimer, markdownSource]);
   useEffect(() => {
     const ticks = setInterval(() => readingTimer.tick(Date.now(), document.hasFocus()), READING_TICK_MS);
     return () => {
       clearInterval(ticks);
-      readingTimer.show(null, Date.now(), document.hasFocus());
+      void readingTimer.show(null, Date.now(), document.hasFocus());
     };
   }, [readingTimer]);
+  // The reading session in hand is written down in that clean-up only, and a window that closes runs no clean-up.
+  // Taking the chapter off the screen is what saves the time, so the window waits for it (DS-17).
+  useSaveBeforeClose(() => readingTimer.show(null, Date.now(), document.hasFocus()));
 
   /** The reader scrolled: the progress bar moves, and the reading timer learns how far down the chapter on screen you are. */
   const handleProgressChange = useCallback(
