@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { NeutralTerm, TermMapping, StagedCitation } from "../../lib/types/syntopicon";
+import { formKey, neutralTermFormStart } from "../../lib/formStart";
 import { Plus, Trash2, Link, BookOpen } from "lucide-react";
 import { useDialog } from "../../hooks/useDialog";
 import { DiscardNotice } from "../DiscardNotice";
@@ -14,7 +15,28 @@ interface NeutralTermModalProps {
   currentChapterFile?: string;
 }
 
-export const NeutralTermModal: React.FC<NeutralTermModalProps> = ({
+/**
+ * The window is built only while it is open, and a new neutral term is a new `key`, so React builds the form again
+ * from what `neutralTermFormStart` works out. An effect used to write over every field instead (TL-11).
+ */
+export const NeutralTermModal: React.FC<NeutralTermModalProps> = (props) => {
+  if (!props.isOpen) return null;
+  const { editingTerm, stagedCitation, currentBookId, currentChapterFile } = props;
+  return (
+    <OpenNeutralTermModal
+      {...props}
+      key={formKey([
+        editingTerm?.id,
+        stagedCitation?.bookId,
+        stagedCitation?.anchor,
+        currentBookId,
+        currentChapterFile,
+      ])}
+    />
+  );
+};
+
+const OpenNeutralTermModal: React.FC<NeutralTermModalProps> = ({
   isOpen,
   onClose,
   onSave,
@@ -23,49 +45,23 @@ export const NeutralTermModal: React.FC<NeutralTermModalProps> = ({
   currentBookId,
   currentChapterFile,
 }) => {
-  const [term, setTerm] = useState("");
-  const [definition, setDefinition] = useState("");
-  const [mappings, setMappings] = useState<TermMapping[]>([]);
+  const [start] = useState(() =>
+    neutralTermFormStart(editingTerm, stagedCitation, currentBookId, currentChapterFile)
+  );
+  const [term, setTerm] = useState(start.term);
+  const [definition, setDefinition] = useState(start.definition);
+  const [mappings, setMappings] = useState<TermMapping[]>(start.mappings);
   const [error, setError] = useState<string | null>(null);
 
   // New mapping form states
-  const [mapBookId, setMapBookId] = useState("");
-  const [mapVariant, setMapVariant] = useState("");
-  const [mapChapter, setMapChapter] = useState("");
-  const [mapAnchor, setMapAnchor] = useState("");
-  const [mapQuote, setMapQuote] = useState("");
-
-  useEffect(() => {
-    if (editingTerm) {
-      setTerm(editingTerm.term);
-      setDefinition(editingTerm.neutralDefinition);
-      setMappings(editingTerm.mappings || []);
-    } else {
-      setTerm("");
-      setDefinition("");
-      setMappings([]);
-    }
-
-    if (stagedCitation) {
-      setMapBookId(stagedCitation.bookId);
-      setMapChapter(stagedCitation.chapterFile);
-      setMapAnchor(stagedCitation.anchor);
-      setMapQuote(stagedCitation.quote);
-      setMapVariant(stagedCitation.quote.slice(0, 30));
-    } else {
-      setMapBookId(currentBookId || "");
-      setMapChapter(currentChapterFile || "ch-01.md");
-      setMapAnchor("");
-      setMapQuote("");
-      setMapVariant("");
-    }
-    setError(null);
-  }, [editingTerm, stagedCitation, currentBookId, currentChapterFile, isOpen]);
+  const [mapBookId, setMapBookId] = useState(start.mapBookId);
+  const [mapVariant, setMapVariant] = useState(start.mapVariant);
+  const [mapChapter, setMapChapter] = useState(start.mapChapter);
+  const [mapAnchor, setMapAnchor] = useState(start.mapAnchor);
+  const [mapQuote, setMapQuote] = useState(start.mapQuote);
 
   // A form the reader types into: Escape asks before it throws the words away (RD-07).
   const { panelProps, titleId, close, askedToDiscard } = useDialog({ isOpen, onClose, protectTyping: true });
-
-  if (!isOpen) return null;
 
   const handleAddMapping = () => {
     if (!mapBookId.trim() || !mapVariant.trim() || !mapAnchor.trim()) {

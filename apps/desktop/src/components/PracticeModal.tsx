@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import {
   X,
   CheckCircle2,
@@ -12,9 +12,10 @@ import { ClozeDrill } from "./practice/ClozeDrill";
 import { ScrambleDrill } from "./practice/ScrambleDrill";
 import { RatingBar } from "./practice/RatingBar";
 import { ScenarioCardView } from "./practice/ScenarioCardView";
-import { currentSessionCard, recordSessionReview, startSession, syncSession } from "../lib/practiceSession";
+import { currentSessionCard, deckName, recordSessionReview, startSession, syncSession } from "../lib/practiceSession";
 import { reportBackendError } from "../lib/backendErrors";
 import { useDialog } from "../hooks/useDialog";
+import { useStartAgainWhen } from "../hooks/useStartAgainWhen";
 
 interface PracticeModalProps {
   isOpen: boolean;
@@ -25,7 +26,16 @@ interface PracticeModalProps {
   bookTitle?: string;
 }
 
-export const PracticeModal: React.FC<PracticeModalProps> = ({
+/**
+ * The window is built only while it is open, so closing it takes the session off the page and the next opening
+ * starts fresh. An effect used to put an empty session back after the window had closed (TL-11).
+ */
+export const PracticeModal: React.FC<PracticeModalProps> = (props) => {
+  if (!props.isOpen) return null;
+  return <OpenPracticeModal {...props} />;
+};
+
+const OpenPracticeModal: React.FC<PracticeModalProps> = ({
   isOpen,
   onClose,
   cards,
@@ -33,7 +43,8 @@ export const PracticeModal: React.FC<PracticeModalProps> = ({
   onJumpToAnchor,
   bookTitle = "Book Engine",
 }) => {
-  const [session, setSession] = useState(() => startSession([]));
+  // Walk a session copy of the due cards, because rating a card removes it from `cards`.
+  const [session, setSession] = useState(() => startSession(cards));
   const [userAnswer, setUserAnswer] = useState("");
   const [revealed, setRevealed] = useState(false);
   const [suggestedRating, setSuggestedRating] = useState<number | undefined>(undefined);
@@ -42,17 +53,16 @@ export const PracticeModal: React.FC<PracticeModalProps> = ({
   const currentCard = currentSessionCard(session);
   const { completed } = session;
 
-  // Walk a session copy of the due cards, because rating a card removes it from `cards`.
-  // Closing the window resets the session, so the next opening starts fresh.
-  useEffect(() => {
-    setSession((prev) => (isOpen ? syncSession(prev, cards) : startSession([])));
-  }, [isOpen, cards]);
+  // The deck can still be loading when the window opens, so the session follows it until the first rating
+  // (`syncSession`). The card ids name the deck: a fresh array holding the same cards is the same deck.
+  useStartAgainWhen(deckName(cards), () => setSession((prev) => syncSession(prev, cards)));
 
-  useEffect(() => {
+  // The answer belongs to the card it was typed against, and goes with it.
+  useStartAgainWhen(currentCard?.card_id, () => {
     setUserAnswer("");
     setRevealed(false);
     setSuggestedRating(undefined);
-  }, [currentCard?.card_id]);
+  });
 
   const handleRate = useCallback(
     async (rating: number) => {
@@ -94,8 +104,6 @@ export const PracticeModal: React.FC<PracticeModalProps> = ({
       }
     }
   };
-
-  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
@@ -218,6 +226,7 @@ export const PracticeModal: React.FC<PracticeModalProps> = ({
               {/* Scenario Drill vs Cloze/Scramble Drill */}
               {currentCard.card_type === "scenario" || currentCard.item_type === "scenario" || currentCard.cardType === "scenario" ? (
                 <ScenarioCardView
+                  key={currentCard.card_id}
                   card={currentCard}
                   onAnswerSubmitted={(isCorrect) => {
                     setRevealed(true);
@@ -241,6 +250,7 @@ export const PracticeModal: React.FC<PracticeModalProps> = ({
                   {/* Scrambled Drill */}
                   {currentCard.item_type === "scramble" && (
                     <ScrambleDrill
+                      key={currentCard.card_id}
                       card={currentCard}
                       revealed={revealed}
                       onReveal={() => setRevealed(true)}

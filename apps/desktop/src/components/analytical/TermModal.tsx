@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { AuthorTerm, AnchoredCitation } from "../../lib/types/analytical";
 import { citationPlace } from "../../lib/citations";
+import { formKey, termFormStart } from "../../lib/formStart";
 import { useDialog } from "../../hooks/useDialog";
 import { DiscardNotice } from "../DiscardNotice";
 
@@ -13,7 +14,17 @@ interface TermModalProps {
   currentChapterFile?: string;
 }
 
-export const TermModal: React.FC<TermModalProps> = ({
+/**
+ * The window is built only while it is open, and a new term to write about is a new `key`, so React builds the form
+ * again from what `termFormStart` works out. An effect used to write over every field instead (TL-11).
+ */
+export const TermModal: React.FC<TermModalProps> = (props) => {
+  if (!props.isOpen) return null;
+  const { editingTerm, stagedCitation, currentChapterFile } = props;
+  return <OpenTermModal {...props} key={formKey([editingTerm?.id, stagedCitation?.anchor, currentChapterFile])} />;
+};
+
+const OpenTermModal: React.FC<TermModalProps> = ({
   isOpen,
   onClose,
   onSave,
@@ -21,39 +32,15 @@ export const TermModal: React.FC<TermModalProps> = ({
   editingTerm,
   currentChapterFile,
 }) => {
-  const [term, setTerm] = useState("");
-  const [definition, setDefinition] = useState("");
-  const [chapterFile, setChapterFile] = useState("");
-  const [anchor, setAnchor] = useState("");
-  const [quote, setQuote] = useState("");
+  const [start] = useState(() => termFormStart(editingTerm, stagedCitation, currentChapterFile));
+  const [term, setTerm] = useState(start.term);
+  const [definition, setDefinition] = useState(start.definition);
+  // The place the term was taken from. Nothing in this form changes it, so it is not state.
+  const { chapterFile, anchor } = start;
+  const [quote, setQuote] = useState(start.quote);
   const [error, setError] = useState<string | null>(null);
   // A form the reader types into: Escape asks before it throws the words away (RD-07).
   const { panelProps, titleId, close, askedToDiscard } = useDialog({ isOpen, onClose, protectTyping: true });
-
-  useEffect(() => {
-    if (editingTerm) {
-      setTerm(editingTerm.term);
-      setDefinition(editingTerm.authorDefinition);
-      setChapterFile(editingTerm.citation.chapterFile);
-      setAnchor(editingTerm.citation.anchor);
-      setQuote(editingTerm.citation.quote);
-    } else if (stagedCitation) {
-      setTerm("");
-      setDefinition("");
-      setChapterFile(stagedCitation.chapterFile);
-      setAnchor(stagedCitation.anchor);
-      setQuote(stagedCitation.quote);
-    } else {
-      setTerm("");
-      setDefinition("");
-      setChapterFile(currentChapterFile || "");
-      setAnchor("");
-      setQuote("");
-    }
-    setError(null);
-  }, [editingTerm, stagedCitation, currentChapterFile, isOpen]);
-
-  if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

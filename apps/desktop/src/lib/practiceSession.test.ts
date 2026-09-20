@@ -1,7 +1,14 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
 import type { PracticeCardItem } from "./practiceTypes.ts";
-import { currentSessionCard, recordSessionReview, startSession, syncSession } from "./practiceSession.ts";
+import {
+  currentSessionCard,
+  deckName,
+  recordSessionReview,
+  scramblePieces,
+  startSession,
+  syncSession,
+} from "./practiceSession.ts";
 
 const makeCards = (count: number): PracticeCardItem[] =>
   Array.from({ length: count }, (_, i): PracticeCardItem => ({
@@ -77,4 +84,55 @@ test("reopening the window starts a new session with the cards due now", () => {
 test("a rating for a card that is not shown leaves the session unchanged", () => {
   const session = startSession(makeCards(2));
   assert.equal(recordSessionReview(session, "card-2", 3), session);
+});
+
+// --------------------------------------------------------------- TL-11: the puzzle and the name of a deck
+
+test("a prompt written with pipes is cut at them", () => {
+  const pieces = scramblePieces("the first part|the second part|the third part");
+  assert.equal(pieces.length, 3, "the pipes are the author's own cuts and must be the ones used");
+  assert.deepEqual([...pieces].sort(), ["the first part", "the second part", "the third part"]);
+});
+
+test("a prompt with no pipes is cut at its commas and semicolons", () => {
+  const pieces = scramblePieces("one thing, another thing; a third");
+  assert.deepEqual([...pieces].sort(), ["a third", "another thing", "one thing"]);
+});
+
+test("a prompt with no punctuation at all is cut into runs of three words", () => {
+  const pieces = scramblePieces("one two three four five six seven");
+  assert.equal(pieces.length, 3, "seven words make two whole runs of three and one of one");
+  assert.deepEqual([...pieces].sort(), ["four five six", "one two three", "seven"]);
+});
+
+test("the pieces of a scramble are shuffled, and the same prompt always gives the same puzzle", () => {
+  const prompt = "alpha|bravo|charlie|delta";
+  const once = scramblePieces(prompt);
+  assert.notDeepEqual(once, ["alpha", "bravo", "charlie", "delta"], "the answer is handed to the reader in order");
+  assert.deepEqual(once, scramblePieces(prompt), "the pieces move under the reader's hand on every redraw");
+});
+
+test("an empty piece is dropped, so no blank tile is shown", () => {
+  assert.deepEqual(scramblePieces("one||two").sort(), ["one", "two"]);
+});
+
+test("two decks holding different cards are named apart", () => {
+  assert.notEqual(deckName(makeCards(2)), deckName(makeCards(3)), "a new deck reads as the deck before it");
+});
+
+test("two lists holding the same cards are the same deck", () => {
+  assert.equal(
+    deckName(makeCards(3)),
+    deckName(makeCards(3)),
+    "a fresh list of the same cards reads as a new deck, so the window starts its session over for nothing"
+  );
+});
+
+test("the same cards in another order are another deck", () => {
+  const cards = makeCards(3);
+  assert.notEqual(deckName(cards), deckName([...cards].reverse()), "the order the reader walks the cards in is lost");
+});
+
+test("no deck at all has a name, and it is not the name of a deck with cards in it", () => {
+  assert.notEqual(deckName([]), deckName(makeCards(1)));
 });

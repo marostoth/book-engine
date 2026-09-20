@@ -526,3 +526,44 @@ def test_no_test_file_builds_more_date_formatters_than_it_did_on_the_day_this_wa
         "CI with nothing wrong with it. Read the day number against a list of names instead, or measure the new call "
         "and write its number in MOST_DATE_FORMATS_IN_A_TEST on purpose:\n" + "\n".join(too_many)
     )
+
+
+# ---------------------------------------------------------------- 8: the bytes of a source file
+
+#: Tab, newline and carriage return. Every other byte below a space is a control character that does not belong in
+#: source, and git reads a file holding one as binary.
+ALLOWED_CONTROL_BYTES = {0x09, 0x0A, 0x0D}
+
+
+def control_bytes_in(raw: bytes) -> list[int]:
+    """Every control byte of a file that is not tab, newline or carriage return, once each, in order."""
+    return sorted({byte for byte in raw if byte < 0x20 and byte not in ALLOWED_CONTROL_BYTES})
+
+
+def test_no_source_file_of_the_app_holds_a_byte_that_makes_git_call_it_binary():
+    r"""A control character written into source turns the file into a blob: no diff, no review, no blame.
+
+    `lib/formStart.ts` was written with a real NUL character in a string literal, where the six-character escape for it means
+    the same thing at run time. It behaved identically and all 406 frontend tests passed, so nothing found it
+    except one word of `git diff --stat`: `Bin`. A reviewer would have been shown 11,014 bytes and no lines.
+    """
+    found = [
+        f"{under_src(path)}: " + ", ".join(f"0x{byte:02x}" for byte in odd)
+        for path in sources(with_tests=True)
+        if (odd := control_bytes_in(path.read_bytes()))
+    ]
+    assert not found, (
+        "these files hold a control character in their bytes, so git reads them as binary and a change to one "
+        "shows as a size and nothing else. Write the escape instead of the character:\n" + "\n".join(found)
+    )
+
+
+def test_the_byte_reader_can_see_a_control_character():
+    """Without this, the test above would pass on a list of files it never read, and nobody would know."""
+    escaped = ('const BETWEEN_PARTS = "' + chr(92) + 'u0000";').encode("utf-8")
+    real_nul = ('const BETWEEN_PARTS = "' + chr(0) + '";').encode("utf-8")
+
+    assert control_bytes_in(escaped) == [], "the escape is ordinary source and must read as clean"
+    assert control_bytes_in(escaped + b"\r\n\t") == [], "a tab and a Windows line ending are allowed"
+    assert control_bytes_in(real_nul) == [0x00], "a real NUL is the fault this catches, and it was not seen"
+    assert len(sources(with_tests=True)) > 100, "the test above read almost no files"

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { CheckCircle2, XCircle, HelpCircle, BookOpen, ChevronRight } from "lucide-react";
 import { PracticeCardItem } from "../../lib/types";
 
@@ -24,19 +24,17 @@ export const ScenarioCardView: React.FC<ScenarioCardViewProps> = ({
   onJumpToAnchor,
 }) => {
   const payload = card.scenario_payload;
+  // The window gives this a `key` of the card's id, so a new card is a new view with nothing chosen and nothing
+  // sent. An effect used to clear both after the next card was already on screen (TL-11).
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
-  // Anti-bias: Shuffle presentation order on mount or card ID change
+  // Anti-bias: the order is shuffled once per card. The card's id is the `key` of this view and not a dependency
+  // here: a new card builds this view again, so the shuffle runs again on its own.
   const options = useMemo(() => {
     const rawOptions = payload?.options || [];
     return shuffleArray(rawOptions);
-  }, [card.card_id, payload?.options]);
-
-  useEffect(() => {
-    setSelectedKey(null);
-    setSubmitted(false);
-  }, [card.card_id]);
+  }, [payload?.options]);
 
   const selectedOption = options.find((o) => o.key === selectedKey);
   const isCorrect = selectedOption?.is_correct ?? false;

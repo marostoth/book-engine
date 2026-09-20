@@ -16,6 +16,12 @@ export default defineConfig({
   // One test once went past it on a cold CI runner and read as broken; the fault was 360 date formatters inside the
   // test, and the same test now takes 2 ms. A longer timeout would have hidden that. A test slow enough to reach
   // 5000 ms is worth seeing.
+  //
+  // ONE test names a timeout of its own: "the date shown for a day is that day in every time zone" in
+  // `lib/reviewDays.test.ts`. It went past 5000 ms on the CI runner of PR #85. It is the first test of that file to
+  // touch `Intl`, so it pays the locale start-up the 360 formatters used to pay, and nothing can remove that cost.
+  // Its own docstring carries the measurement. A timeout belongs on the one test that needs it, never here: a number
+  // here would cover every test of the app and hide the next 360-formatter fault.
   test: {
     include: ["src/**/*.test.{ts,tsx}"],
     environment: "node",

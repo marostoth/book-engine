@@ -30,6 +30,7 @@ What belongs here, and what does not:
 | [0006](0006-tauri-v2-is-the-desktop-shell.md) | Tauri v2 is the desktop shell | accepted |
 | [0007](0007-the-vault-is-copied-as-dated-zip-snapshots.md) | The vault is copied as dated zip snapshots | accepted |
 | [0008](0008-a-page-is-read-in-column-order-not-across-the-gap.md) | A page is read in column order, not across the gap | accepted |
+| [0009](0009-a-window-opens-with-the-right-words-in-it.md) | A window opens with the right words in it | accepted |
 
 ## Adding one
 

@@ -21,18 +21,22 @@ export const FocusRuler: React.FC<FocusRulerProps> = ({
   pacerLockFocus = true,
   activeHighlight = true,
 }) => {
-  const [hoveredAnchor, setHoveredAnchor] = useState<string | null>(null);
+  const [hovered, setHovered] = useState<string | null>(null);
+  /**
+   * The paragraph under the mouse, or nothing while a running pacer holds the focus.
+   *
+   * A running, locked pacer chooses the line, so a hover does not count. That was cleared in the effect below,
+   * which drew one frame with the hovered paragraph still lit before the pacer's line took over (TL-11).
+   */
+  const hoveredAnchor = isPacerRunning && pacerLockFocus ? null : hovered;
 
   // Track mouse hover on paragraphs with [data-anchor] when pacer isn't locked
   useEffect(() => {
     const container = containerRef.current;
     if (!container || !enabled) return;
 
-    // When pacer is running and locked to focus, ignore hover
-    if (isPacerRunning && pacerLockFocus) {
-      setHoveredAnchor(null);
-      return;
-    }
+    // When pacer is running and locked to focus, no hover is listened for at all.
+    if (isPacerRunning && pacerLockFocus) return;
 
     const handleMouseMove = (e: MouseEvent) => {
       const target = e.target as HTMLElement | null;
@@ -41,14 +45,14 @@ export const FocusRuler: React.FC<FocusRulerProps> = ({
       const anchorEl = target.closest<HTMLElement>("[data-anchor]");
       if (anchorEl) {
         const anchor = anchorEl.getAttribute("data-anchor");
-        if (anchor && anchor !== hoveredAnchor) {
-          setHoveredAnchor(anchor);
+        if (anchor && anchor !== hovered) {
+          setHovered(anchor);
         }
       }
     };
 
     const handleMouseLeave = () => {
-      setHoveredAnchor(null);
+      setHovered(null);
     };
 
     container.addEventListener("mousemove", handleMouseMove, { passive: true });
@@ -58,7 +62,7 @@ export const FocusRuler: React.FC<FocusRulerProps> = ({
       container.removeEventListener("mousemove", handleMouseMove);
       container.removeEventListener("mouseleave", handleMouseLeave);
     };
-  }, [containerRef, enabled, hoveredAnchor, isPacerRunning, pacerLockFocus]);
+  }, [containerRef, enabled, hovered, isPacerRunning, pacerLockFocus]);
 
   // Apply or reset sibling paragraph dimming and active paragraph accenting
   useEffect(() => {

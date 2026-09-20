@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { ShieldCheck, ArrowRight, Eye, CheckCircle2, Trophy, RotateCcw, X } from "lucide-react";
 import { PracticeCardItem, CardSchedule } from "../lib/types";
 import { submitReview } from "../lib/api";
 import { gatePassed, gateRightAnswers } from "../lib/chapterGate";
-import { currentSessionCard, recordSessionReview, startSession, syncSession } from "../lib/practiceSession";
+import { currentSessionCard, deckName, recordSessionReview, startSession, syncSession } from "../lib/practiceSession";
 import { reportBackendError } from "../lib/backendErrors";
 
 import { GatekeeperCardDrill } from "./practice/GatekeeperCardDrill";
 import { useDialog } from "../hooks/useDialog";
+import { useStartAgainWhen } from "../hooks/useStartAgainWhen";
 
 interface GatekeeperModalProps {
   isOpen: boolean;
@@ -23,7 +24,16 @@ interface GatekeeperModalProps {
   onReviewSubmitted: (cardId: string, schedule: CardSchedule) => void;
 }
 
-export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
+/**
+ * The gate is built only while it is open, so closing it takes the session and the wrong answers off the page and
+ * the next opening starts fresh. An effect used to put both back after the gate had closed (TL-11).
+ */
+export const GatekeeperModal: React.FC<GatekeeperModalProps> = (props) => {
+  if (!props.isOpen) return null;
+  return <OpenGatekeeperModal {...props} />;
+};
+
+const OpenGatekeeperModal: React.FC<GatekeeperModalProps> = ({
   isOpen,
   onClose,
   leavingChapterTitle,
@@ -33,7 +43,8 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
   onComplete,
   onReviewSubmitted,
 }) => {
-  const [session, setSession] = useState(() => startSession([]));
+  // Walk a session copy of the first `quota` due cards of the chapter the reader leaves.
+  const [session, setSession] = useState(() => startSession(cards, quota));
   // Scenario cards answered with a wrong option. They never count as right, whatever the rating.
   const [wrongAnswers, setWrongAnswers] = useState<ReadonlySet<string>>(() => new Set<string>());
   const [userAnswer, setUserAnswer] = useState("");
@@ -45,19 +56,15 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
   const { completed } = session;
   const passed = gatePassed(session, wrongAnswers);
 
-  // Walk a session copy of the first `quota` due cards of the chapter the reader leaves.
-  // Closing the window resets the session and the wrong answers.
-  useEffect(() => {
-    setSession((prev) => (isOpen ? syncSession(prev, cards, quota) : startSession([])));
-    if (!isOpen) {
-      setWrongAnswers((prev) => (prev.size === 0 ? prev : new Set<string>()));
-    }
-  }, [isOpen, cards, quota]);
+  // The deck can still be loading when the gate opens, so the session follows it until the first rating
+  // (`syncSession`). The card ids and the quota name the deck: a fresh array of the same cards is the same deck.
+  useStartAgainWhen(`${quota} ${deckName(cards)}`, () => setSession((prev) => syncSession(prev, cards, quota)));
 
-  useEffect(() => {
+  // The answer belongs to the card it was typed against, and goes with it.
+  useStartAgainWhen(currentCard?.card_id, () => {
     setUserAnswer("");
     setRevealed(false);
-  }, [currentCard?.card_id]);
+  });
 
   // Escape closes the gate and leaves the reader in the chapter they are in. It is not a way through the gate: the
   // "Skip Gatekeeper for now" button opens the next chapter, and Escape does not (RD-07).
@@ -77,8 +84,6 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
       setSubmitting(false);
     }
   };
-
-  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
@@ -197,6 +202,7 @@ export const GatekeeperModal: React.FC<GatekeeperModalProps> = ({
 
             <div className="p-4 rounded-2xl bg-[var(--theme-bg)] border border-[var(--theme-border)] space-y-3">
               <GatekeeperCardDrill
+                key={currentCard.card_id}
                 card={currentCard}
                 userAnswer={userAnswer}
                 onUserAnswerChange={setUserAnswer}

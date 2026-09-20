@@ -17,56 +17,55 @@ export interface UseAnalyticalSessionProps {
   currentAnchor?: string;
 }
 
+/** No notes, as one value. It is what the app shows for a book whose notes have not read. */
+const NO_NOTES: AnalyticalStore = { terms: [], arguments: [], critiques: [], inquiries: [] };
+
 export function useAnalyticalSession({
   bookId,
   currentChapterFile,
   currentAnchor,
 }: UseAnalyticalSessionProps) {
-  const [analyticalStore, setAnalyticalStore] = useState<AnalyticalStore>({
-    terms: [],
-    arguments: [],
-    critiques: [],
-    inquiries: [],
-  });
-  const [loading, setLoading] = useState<boolean>(false);
-  // The book whose analytical data loaded. Changes are saved only for this book: a save of data that did not load
-  // would replace the analytical.json of the book with it.
-  const [loadedBookId, setLoadedBookId] = useState<string | null>(null);
+  /** The notes on screen. What is SHOWN is this only while the book they belong to did load, see below. */
+  const [notes, setNotes] = useState<AnalyticalStore>(NO_NOTES);
+  /** Which book was asked for, and whether its notes read. Nothing is asked for again while this matches. */
+  const [asked, setAsked] = useState<{ of: string; read: boolean } | null>(null);
 
   const modals = useAnalyticalModals({ currentChapterFile, currentAnchor });
 
+  /**
+   * The book whose analytical data loaded. Changes are saved only for this book: a save of data that did not load
+   * would replace the analytical.json of the book with it.
+   *
+   * All three used to be set inside the effect below, two of them before the fetch was even started, so the page
+   * was drawn once with the book before this one's notes still on it (TL-11). They are worked out here now.
+   */
+  const loadedBookId = bookId && asked?.of === bookId && asked.read ? bookId : null;
+  const analyticalStore = loadedBookId ? notes : NO_NOTES;
+  const loading = Boolean(bookId) && asked?.of !== bookId;
+
   // Load analytical data whenever active book changes
   useEffect(() => {
-    let isCurrent = true;
-    setLoadedBookId(null);
     if (!bookId) {
-      setAnalyticalStore({ terms: [], arguments: [], critiques: [], inquiries: [] });
       modals.closeModals();
       return;
     }
-
-    setLoading(true);
+    let isCurrent = true;
     getAnalyticalData(bookId)
       .then((data) => {
-        if (isCurrent) {
-          setAnalyticalStore({
-            terms: data?.terms || [],
-            arguments: data?.arguments || [],
-            critiques: data?.critiques || [],
-            inquiries: data?.inquiries || [],
-            overallVerdict: data?.overallVerdict,
-          });
-          setLoadedBookId(bookId);
-        }
+        if (!isCurrent) return;
+        setNotes({
+          terms: data?.terms || [],
+          arguments: data?.arguments || [],
+          critiques: data?.critiques || [],
+          inquiries: data?.inquiries || [],
+          overallVerdict: data?.overallVerdict,
+        });
+        setAsked({ of: bookId, read: true });
       })
       .catch((err) => {
-        if (isCurrent) {
-          setAnalyticalStore({ terms: [], arguments: [], critiques: [], inquiries: [] });
-          reportBackendError("Your analytical notes for this book did not load, so changes to them are not saved.", err);
-        }
-      })
-      .finally(() => {
-        if (isCurrent) setLoading(false);
+        if (!isCurrent) return;
+        setAsked({ of: bookId, read: false });
+        reportBackendError("Your analytical notes for this book did not load, so changes to them are not saved.", err);
       });
 
     return () => {
@@ -111,7 +110,7 @@ export function useAnalyticalSession({
         terms: updatedTerms,
       };
 
-      setAnalyticalStore(newStore);
+      setNotes(newStore);
       modals.closeModals();
       await saveStore(newStore);
     },
@@ -127,7 +126,7 @@ export function useAnalyticalSession({
         terms: updatedTerms,
       };
 
-      setAnalyticalStore(newStore);
+      setNotes(newStore);
       await saveStore(newStore);
     },
     [bookId, analyticalStore, canSave, saveStore]
@@ -147,7 +146,7 @@ export function useAnalyticalSession({
         arguments: updatedArguments,
       };
 
-      setAnalyticalStore(newStore);
+      setNotes(newStore);
       modals.closeModals();
       await saveStore(newStore);
     },
@@ -172,7 +171,7 @@ export function useAnalyticalSession({
         inquiries: updatedInquiries,
       };
 
-      setAnalyticalStore(newStore);
+      setNotes(newStore);
       await saveStore(newStore);
     },
     [bookId, analyticalStore, canSave, saveStore]
@@ -193,7 +192,7 @@ export function useAnalyticalSession({
         critiques: updated,
       };
 
-      setAnalyticalStore(newStore);
+      setNotes(newStore);
       modals.closeModals();
       await saveStore(newStore);
     },
@@ -210,7 +209,7 @@ export function useAnalyticalSession({
         critiques: updated,
       };
 
-      setAnalyticalStore(newStore);
+      setNotes(newStore);
       await saveStore(newStore);
     },
     [bookId, analyticalStore, canSave, saveStore]
@@ -231,7 +230,7 @@ export function useAnalyticalSession({
         inquiries: updated,
       };
 
-      setAnalyticalStore(newStore);
+      setNotes(newStore);
       modals.closeModals();
       await saveStore(newStore);
     },
@@ -248,7 +247,7 @@ export function useAnalyticalSession({
         inquiries: updated,
       };
 
-      setAnalyticalStore(newStore);
+      setNotes(newStore);
       await saveStore(newStore);
     },
     [bookId, analyticalStore, canSave, saveStore]

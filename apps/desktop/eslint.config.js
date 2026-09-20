@@ -32,13 +32,18 @@ export default tseslint.config(
       // `lib/backendShapes.ts` instead.
       "@typescript-eslint/no-explicit-any": "error",
 
-      // These five belong to React's newest rules, the ones written for its compiler. They are right, and every
-      // one of them asks for a component to be built a different way: 30 places set state inside an effect, and
-      // the rest read or write a ref while the component is drawing. Changing 26 components at once, in the same
-      // commit as a linter that was not there before, would change how the reader runs with nothing to catch it:
-      // the 241 frontend tests read the functions of `src/lib`, not the components. They are warnings, so every
-      // run prints them and the number can only go down. TL-11 in the review register owns that work (TL-05).
-      "react-hooks/set-state-in-effect": "warn",
+      // State is never set inside an effect. An effect runs AFTER the drawing it belongs to reaches the screen, so
+      // a form filled there is drawn empty first, and an answer cleared there is drawn under the next question
+      // first. What a component starts with is worked out before it is built (`lib/formStart.ts`), a new thing to
+      // show is a new `key`, and state that must go back to its start beside other state uses
+      // `hooks/useStartAgainWhen.ts`. This was 30 warnings in 26 components; TL-11 closed all 30, so it is an
+      // error now and cannot come back (TL-05).
+      "react-hooks/set-state-in-effect": "error",
+
+      // These three belong to React's newest rules, the ones written for its compiler. They are right, and each
+      // asks for a component to be built a different way: the rest read or write a ref while the component is
+      // drawing. They are warnings, so every run prints them and the number can only go down. TL-11 owns the work
+      // and turns each one into an error as its last warning goes.
       "react-hooks/refs": "warn",
       "react-hooks/purity": "warn",
       "react-hooks/immutability": "warn",

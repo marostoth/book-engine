@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { PracticeCardItem } from "../../lib/types";
 import { HelpCircle, CheckCircle2, XCircle } from "lucide-react";
 
@@ -25,11 +25,9 @@ export const GatekeeperCardDrill: React.FC<GatekeeperCardDrillProps> = ({
     !!card.scenario_payload;
 
   const payload = card.scenario_payload;
+  // The gate gives this a `key` of the card's id, so a new card is a new drill with nothing chosen yet. An effect
+  // used to clear the choice after the next card was already on screen (TL-11).
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
-
-  useEffect(() => {
-    setSelectedKey(null);
-  }, [card.card_id]);
 
   const options = useMemo(() => {
     return payload?.options || [];

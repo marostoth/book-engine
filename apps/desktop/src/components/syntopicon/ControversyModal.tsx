@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   SyntopicControversy,
   SyntopicQuestion,
   SyntopicPerspective,
   StagedCitation,
 } from "../../lib/types/syntopicon";
+import { controversyFormStart, formKey } from "../../lib/formStart";
 import { Plus, Trash2, Scale, Link } from "lucide-react";
 import { useDialog } from "../../hooks/useDialog";
 import { DiscardNotice } from "../DiscardNotice";
@@ -20,7 +21,29 @@ interface ControversyModalProps {
   currentChapterFile?: string;
 }
 
-export const ControversyModal: React.FC<ControversyModalProps> = ({
+/**
+ * The window is built only while it is open, and a new controversy is a new `key`, so React builds the form again
+ * from what `controversyFormStart` works out. An effect used to write over every field instead (TL-11).
+ */
+export const ControversyModal: React.FC<ControversyModalProps> = (props) => {
+  if (!props.isOpen) return null;
+  const { editingControversy, questions, stagedCitation, currentBookId, currentChapterFile } = props;
+  return (
+    <OpenControversyModal
+      {...props}
+      key={formKey([
+        editingControversy?.id,
+        questions[0]?.id,
+        stagedCitation?.bookId,
+        stagedCitation?.anchor,
+        currentBookId,
+        currentChapterFile,
+      ])}
+    />
+  );
+};
+
+const OpenControversyModal: React.FC<ControversyModalProps> = ({
   isOpen,
   onClose,
   onSave,
@@ -30,47 +53,23 @@ export const ControversyModal: React.FC<ControversyModalProps> = ({
   currentBookId,
   currentChapterFile,
 }) => {
-  const [questionId, setQuestionId] = useState("");
-  const [title, setTitle] = useState("");
-  const [perspectives, setPerspectives] = useState<SyntopicPerspective[]>([]);
+  const [start] = useState(() =>
+    controversyFormStart(editingControversy, questions, stagedCitation, currentBookId, currentChapterFile)
+  );
+  const [questionId, setQuestionId] = useState(start.questionId);
+  const [title, setTitle] = useState(start.title);
+  const [perspectives, setPerspectives] = useState<SyntopicPerspective[]>(start.perspectives);
   const [error, setError] = useState<string | null>(null);
 
   // Perspective entry form state
-  const [pBookId, setPBookId] = useState("");
+  const [pBookId, setPBookId] = useState(start.pBookId);
   const [pStance, setPStance] = useState("");
-  const [pChapter, setPChapter] = useState("");
-  const [pAnchor, setPAnchor] = useState("");
-  const [pQuote, setPQuote] = useState("");
-
-  useEffect(() => {
-    if (editingControversy) {
-      setQuestionId(editingControversy.questionId);
-      setTitle(editingControversy.title);
-      setPerspectives(editingControversy.perspectives || []);
-    } else {
-      setQuestionId(questions.length > 0 ? questions[0].id : "");
-      setTitle("");
-      setPerspectives([]);
-    }
-
-    if (stagedCitation) {
-      setPBookId(stagedCitation.bookId);
-      setPChapter(stagedCitation.chapterFile);
-      setPAnchor(stagedCitation.anchor);
-      setPQuote(stagedCitation.quote);
-    } else {
-      setPBookId(currentBookId || "");
-      setPChapter(currentChapterFile || "ch-01.md");
-      setPAnchor("");
-      setPQuote("");
-    }
-    setError(null);
-  }, [editingControversy, questions, stagedCitation, currentBookId, currentChapterFile, isOpen]);
+  const [pChapter, setPChapter] = useState(start.pChapter);
+  const [pAnchor, setPAnchor] = useState(start.pAnchor);
+  const [pQuote, setPQuote] = useState(start.pQuote);
 
   // A form the reader types into: Escape asks before it throws the words away (RD-07).
   const { panelProps, titleId, close, askedToDiscard } = useDialog({ isOpen, onClose, protectTyping: true });
-
-  if (!isOpen) return null;
 
   const handleAddPerspective = () => {
     if (!pBookId.trim() || !pStance.trim()) {

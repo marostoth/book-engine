@@ -16,11 +16,23 @@ import {
 } from "../lib/api/syntopiconApi";
 import { reportBackendError } from "../lib/backendErrors";
 
+/** The topic summaries from the backend, or an empty list when the backend could not be asked. */
+async function fetchTopics(): Promise<SyntopicTopicSummary[]> {
+  try {
+    return await getSyntopicTopics();
+  } catch (err) {
+    reportBackendError("Could not load your syntopicon topics.", err);
+    return [];
+  }
+}
+
 export function useSyntopiconSession() {
   const [topics, setTopics] = useState<SyntopicTopicSummary[]>([]);
   const [activeTopicId, setActiveTopicId] = useState<string | null>(null);
-  const [activeTopic, setActiveTopic] = useState<SyntopicTopic | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
+  /** The topic that finished loading, and the id it belongs to. A topic loaded for another id is not this one. */
+  const [loaded, setLoaded] = useState<{ id: string; topic: SyntopicTopic | null } | null>(null);
+  /** False until the list of topics has arrived. It is why the very first drawing shows the spinner. */
+  const [listArrived, setListArrived] = useState(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [lastExportPath, setLastExportPath] = useState<string | null>(null);
 
@@ -36,46 +48,44 @@ export function useSyntopiconSession() {
 
   // Refresh topic summaries list
   const refreshTopics = useCallback(async () => {
-    try {
-      const list = await getSyntopicTopics();
-      setTopics(list);
-      return list;
-    } catch (err) {
-      reportBackendError("Could not load your syntopicon topics.", err);
-      return [];
-    }
+    const list = await fetchTopics();
+    setTopics(list);
+    return list;
   }, []);
 
-  // Initial load
+  /**
+    * The topic on screen, and whether anything is still on its way.
+    *
+    * Both used to be set inside the effects below, before the awaits: the spinner was turned on one drawing after
+    * the new topic's name was already at the top of the page, and the topic before it was still underneath (TL-11).
+    * They are worked out here instead, from WHICH topic the loaded one belongs to.
+    */
+  const activeTopic = activeTopicId !== null && loaded?.id === activeTopicId ? loaded.topic : null;
+  const loading = !listArrived || (activeTopicId !== null && loaded?.id !== activeTopicId);
+
+  // Initial load. The fetch is awaited here rather than through `refreshTopics`, because a call that sets state
+  // is what an effect must not make: it would set the state before the first drawing instead of after it (TL-11).
   useEffect(() => {
     let isCurrent = true;
-    setLoading(true);
-    refreshTopics()
-      .then((list) => {
-        if (!isCurrent) return;
-        if (list.length > 0 && !activeTopicId) setActiveTopicId(list[0].id);
-      })
-      .finally(() => {
-        if (isCurrent) setLoading(false);
-      });
+    fetchTopics().then((list) => {
+      if (!isCurrent) return;
+      setTopics(list);
+      if (list.length > 0 && !activeTopicId) setActiveTopicId(list[0].id);
+      setListArrived(true);
+    });
     return () => { isCurrent = false; };
-  }, [refreshTopics]);
+  }, []);
 
   // Load active topic whenever activeTopicId changes
   useEffect(() => {
+    if (!activeTopicId) return;
     let isCurrent = true;
-    if (!activeTopicId) {
-      setActiveTopic(null);
-      return;
-    }
-    setLoading(true);
     getSyntopicTopic(activeTopicId)
-      .then((t) => { if (isCurrent) setActiveTopic(t); })
+      .then((t) => { if (isCurrent) setLoaded({ id: activeTopicId, topic: t }); })
       .catch((err) => {
-        if (isCurrent) setActiveTopic(null);
+        if (isCurrent) setLoaded({ id: activeTopicId, topic: null });
         reportBackendError("Could not load the syntopicon topic.", err);
-      })
-      .finally(() => { if (isCurrent) setLoading(false); });
+      });
     return () => { isCurrent = false; };
   }, [activeTopicId]);
 
@@ -92,7 +102,7 @@ export function useSyntopiconSession() {
       }
       await refreshTopics();
       setActiveTopicId(newTopic.id);
-      setActiveTopic(newTopic);
+      setLoaded({ id: newTopic.id, topic: newTopic });
       return newTopic;
     },
     [refreshTopics]
@@ -100,7 +110,7 @@ export function useSyntopiconSession() {
 
   // Persist helper for updated active topic. A failed save keeps the change on screen, shows the error, and gives false.
   const persistTopic = useCallback(async (updated: SyntopicTopic): Promise<boolean> => {
-    setActiveTopic(updated);
+    setLoaded({ id: updated.id, topic: updated });
     try {
       await saveSyntopicTopic(updated);
     } catch (err) {

@@ -24,7 +24,19 @@ interface NotesDrawerProps {
   onNavigateToAnchor: (chapterFile: string, anchor?: string) => void;
 }
 
-export const NotesDrawer: React.FC<NotesDrawerProps> = ({
+/**
+ * The drawer is built only while it is open, and on one book, so it opens already loading that book's notes and
+ * words. An effect used to turn the spinner on one drawing after the drawer was already on screen (TL-11).
+ *
+ * The `key` is the book. Opening the drawer on another book builds it again, rather than showing this book's notes
+ * under that book's title while the new ones are on their way.
+ */
+export const NotesDrawer: React.FC<NotesDrawerProps> = (props) => {
+  if (!props.isOpen) return null;
+  return <OpenNotesDrawer {...props} key={props.bookMeta?.book_id ?? ""} />;
+};
+
+const OpenNotesDrawer: React.FC<NotesDrawerProps> = ({
   isOpen,
   onClose,
   bookMeta,
@@ -33,7 +45,8 @@ export const NotesDrawer: React.FC<NotesDrawerProps> = ({
   const [notes, setNotes] = useState<AggregatedNoteItem[]>([]);
   const [words, setWords] = useState<AggregatedNoteItem[]>([]);
   const [wordsFailed, setWordsFailed] = useState<boolean>(false);
-  const [loading, setLoading] = useState<boolean>(false);
+  // A book to read means there is something on its way, from the very first drawing. No book means there is not.
+  const [loading, setLoading] = useState<boolean>(Boolean(bookMeta));
   const [filterType, setFilterType] = useState<DrawerFilter>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [isExporting, setIsExporting] = useState<boolean>(false);
@@ -41,10 +54,11 @@ export const NotesDrawer: React.FC<NotesDrawerProps> = ({
   /** A word saved while this drawer is open counts up here, and the load below runs again (RD-10). */
   const [savedWords, setSavedWords] = useState<number>(0);
 
+  // A word saved while the drawer is open reads this book again. The entries already on screen stay there while
+  // that happens: they belong to this book, and blanking them would be a flicker for nothing (RD-10).
   useEffect(() => {
-    if (!isOpen || !bookMeta) return;
-
-    setLoading(true);
+    if (!bookMeta) return;
+    let isCurrent = true;
 
     // The notes and the words are asked for apart. A damaged vocabulary file must not lose the reader their
     // highlights, and a damaged notes file must not lose them their words.
@@ -52,38 +66,44 @@ export const NotesDrawer: React.FC<NotesDrawerProps> = ({
     const spine = bookMeta.spine;
 
     const loadNotes = getAllBookNotes(bookId)
-      .then(setNotes)
+      .then((found) => {
+        if (isCurrent) setNotes(found);
+      })
       .catch((err) => {
-        setNotes([]);
+        if (isCurrent) setNotes([]);
         reportBackendError("Could not load the notes and highlights of this book.", err);
       });
 
     const loadWords = getBookVocabulary(bookId)
       .then((saved) => {
+        if (!isCurrent) return;
         setWords(vocabularyEntries(saved, spine));
         setWordsFailed(false);
       })
       .catch((err) => {
         // An empty list in place of a damaged file would read as "you saved nothing", so the drawer says so.
-        setWords([]);
-        setWordsFailed(true);
+        if (isCurrent) {
+          setWords([]);
+          setWordsFailed(true);
+        }
         reportBackendError("Could not read the words you saved in this book.", err);
       });
 
     Promise.all([loadNotes, loadWords]).finally(() => {
-      setLoading(false);
+      if (isCurrent) setLoading(false);
     });
-  }, [isOpen, bookMeta, savedWords]);
+    return () => {
+      isCurrent = false;
+    };
+  }, [bookMeta, savedWords]);
 
   useEffect(() => {
-    if (!isOpen) return;
-
     return onVocabularySaved((bookId) => {
       if (bookId === bookMeta?.book_id) {
         setSavedWords((count) => count + 1);
       }
     });
-  }, [isOpen, bookMeta]);
+  }, [bookMeta]);
 
   const allEntries = useMemo(() => [...notes, ...words], [notes, words]);
 

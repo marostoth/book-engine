@@ -30,13 +30,12 @@ export const LexiconPopover: React.FC<LexiconPopoverProps> = ({
   const [isSaved, setIsSaved] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
 
+  // The reader gives this a `key` of the word, so a new word is a new popover: it starts out looking the word up
+  // and not yet saved. An effect used to set both after the last word's answer was already on screen (TL-11).
   useEffect(() => {
     if (!word) return;
 
     let mounted = true;
-    setLoading(true);
-    setIsSaved(false);
-
     lookupDictionaryTerm(word)
       .then((res) => {
         if (mounted) {

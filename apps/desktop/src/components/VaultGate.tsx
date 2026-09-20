@@ -20,10 +20,19 @@ export const VaultGate: React.FC<VaultGateProps> = ({ children }) => {
   const [asking, setAsking] = useState<boolean>(false);
   const [problem, setProblem] = useState<string>("");
 
+  /**
+   * Asks the backend where the vault is. The answer replaces what is shown, message and all.
+   *
+   * The message used to be cleared before the question was asked, which the app also did on its very first
+   * drawing, when nothing had failed yet (TL-11). It is cleared by the answer now, so the reader keeps the reason
+   * the last look failed on screen until there is a new one.
+   */
   const ask = () => {
-    setProblem("");
     getVaultStatus()
-      .then(setStatus)
+      .then((found) => {
+        setStatus(found);
+        setProblem("");
+      })
       .catch((err) => {
         setStatus({ path: "", foundBy: "", message: "" });
         setProblem(errorText(err));
