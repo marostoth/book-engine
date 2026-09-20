@@ -231,7 +231,7 @@ failure (TL-05):
 npm run check
 ```
 
-The same three groups run on every push, in `.github/workflows/check.yml`. To run one group on its own, or to see
+The same four groups run on every push, in `.github/workflows/check.yml`. To run one group on its own, or to see
 what `npm run check` is made of:
 
 ```bash
