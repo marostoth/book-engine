@@ -12,6 +12,7 @@
 //! - A card the vault knows a schedule for takes it back here. The startup restore ran before any of these
 //!   rows existed, so it had none to write onto (DS-15).
 
+use crate::vault::file_is_there::file_is_there;
 use std::collections::HashSet;
 
 use anyhow::Result;
@@ -33,7 +34,7 @@ const DUPLICATE: &str = "duplicate";
 pub fn sync_practice_deck_blocking(book_id: &str) -> Result<usize> {
     let mut conn = open_or_create_db()?;
     let deck_path = crate::vault::paths::notes_file(book_id, "practice-deck.md")?;
-    if !deck_path.exists() {
+    if !file_is_there(&deck_path) {
         return Ok(0);
     }
 

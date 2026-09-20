@@ -1,3 +1,4 @@
+use super::file_is_there::file_is_there;
 use super::models::{AggregatedNoteItem, ChapterNoteFile};
 use super::reader::read_book_meta_json;
 use anyhow::{Context, Result};
@@ -133,7 +134,7 @@ pub fn scan_all_notes(book_id: &str) -> Result<Vec<ChapterNoteFile>> {
     let notes_dir = super::paths::notes_folder(book_id)?;
     let mut entries = Vec::new();
 
-    if !notes_dir.exists() {
+    if !file_is_there(&notes_dir) {
         return Ok(entries);
     }
 

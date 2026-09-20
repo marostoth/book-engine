@@ -123,6 +123,7 @@ book-engine/
 │       │   │       ├── analytical.rs         # Level 3 analytical store loader, saver & unit tests
 │       │   │       ├── book_pictures.rs      # The picture folder of each book (`books/<book>/assets`), the only files the window may load through the asset protocol
 │       │   │       ├── bookmark.rs           # Where you stopped reading
+│       │   │       ├── file_is_there.rs      # Is something saved here? An answer that could not be got means yes
 │       │   │       ├── highlights.rs         # Chapter highlights file
 │       │   │       ├── inspectional.rs       # Your exit assessment in `vault/notes/<book-id>/inspectional.json`, never in the `_meta.json` an import writes again
 │       │   │       ├── json_store.rs         # Safe JSON read for vault files

@@ -1,3 +1,4 @@
+use super::file_is_there::file_is_there;
 use super::models::{AppError, BookMetadata, BookSummary};
 use super::text_file::read_text_file;
 use anyhow::{Context, Result};
@@ -73,10 +74,12 @@ pub fn get_inspectional_blueprint(book_id: &str) -> Result<crate::vault::Inspect
 /// line endings only (IN-06).
 pub fn read_notes_file(book_id: &str, file_name: &str) -> Result<String> {
     let path = super::paths::chapter_notes_path(book_id, file_name)?;
-    if path.exists() {
+    if file_is_there(&path) {
         read_text_file(&path).with_context(|| format!("Failed to read notes file: {}", path.display()))
     } else {
-        // Return default starter template if file does not yet exist
+        // Only a file that was really looked at and was really not there gets the starter template. A file that
+        // could not be looked at gives an error above instead, because the notes pane saves what it was shown,
+        // and being shown the template is how a chapter of notes was written over (DS-16).
         Ok(format!(
             "# Notes: {book_id}\n\n## Key Reflections\n\n- \n\n## Questions\n\n- \n"
         ))
@@ -104,10 +107,7 @@ pub fn book_is_in_vault(book_id: &str) -> Result<bool> {
     let Ok(meta) = super::paths::book_file(book_id, "_meta.json") else {
         return Ok(false);
     };
-    match std::fs::metadata(meta) {
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
-        _ => Ok(true),
-    }
+    Ok(file_is_there(&meta))
 }
 
 /// Scans vault/books/ for all subdirectories containing a _meta.json and returns BookMetadata list.
@@ -119,7 +119,7 @@ pub fn scan_library_books() -> std::result::Result<Vec<BookMetadata>, AppError> 
     let books_dir = vault.join("books");
     let mut results = Vec::new();
 
-    if !books_dir.exists() {
+    if !file_is_there(&books_dir) {
         return Ok(results);
     }
 
@@ -137,7 +137,7 @@ pub fn scan_library_books() -> std::result::Result<Vec<BookMetadata>, AppError> 
         let path = entry.path();
         if path.is_dir() {
             let meta_path = path.join("_meta.json");
-            if meta_path.exists() {
+            if file_is_there(&meta_path) {
                 let content = match std::fs::read_to_string(&meta_path) {
                     Ok(c) => c,
                     Err(e) => {
@@ -213,7 +213,7 @@ pub fn scan_available_books() -> Result<Vec<BookSummary>> {
     let books_dir = vault.join("books");
     let mut results = Vec::new();
 
-    if !books_dir.exists() {
+    if !file_is_there(&books_dir) {
         return Ok(results);
     }
 
@@ -222,7 +222,7 @@ pub fn scan_available_books() -> Result<Vec<BookSummary>> {
         let path = entry.path();
         if path.is_dir() {
             let meta_path = path.join("_meta.json");
-            if meta_path.exists() {
+            if file_is_there(&meta_path) {
                 if let Ok(content) = std::fs::read_to_string(&meta_path) {
                     // A book is known by its folder name, as the library knows it (LC-02).
                     if let (Ok(val), Some(book_id)) =

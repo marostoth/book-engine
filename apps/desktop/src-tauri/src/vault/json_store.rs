@@ -4,6 +4,7 @@
 //! empty data back and every saved item would be gone (DS-04). So a damaged file gives an
 //! error, and its bytes are first copied to `<file name>.corrupt-<time>`.
 
+use super::file_is_there::file_is_there;
 use anyhow::{anyhow, Context, Result};
 use chrono::Utc;
 use serde::de::DeserializeOwned;
@@ -20,7 +21,7 @@ const BYTE_ORDER_MARK: char = '\u{feff}';
 /// A file that cannot be read gives an error. A file that cannot be parsed also gives an error,
 /// and its bytes are kept in a copy named `<file name>.corrupt-<time>` next to it.
 pub fn read_json_file<T: DeserializeOwned>(path: &Path) -> Result<Option<T>> {
-    if !path.exists() {
+    if !file_is_there(path) {
         return Ok(None);
     }
 
