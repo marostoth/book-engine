@@ -9,6 +9,7 @@
 //! module owns the highlights file. A chapter that still keeps its highlights in the old comment
 //! is moved over the first time it is read, and the reader's own text is left alone.
 
+use super::file_is_there::file_is_there;
 use anyhow::{anyhow, Context, Result};
 
 use super::json_store::read_json_file;
@@ -84,7 +85,7 @@ fn write_highlights(path: &std::path::Path, highlights: &[HighlightItem]) -> Res
 /// nothing is moved and nothing is removed (DS-06 keeps the rest).
 fn read_old_comment(book_id: &str, chapter_file: &str) -> Result<Option<Vec<HighlightItem>>> {
     let notes_file = notes_file_name(chapter_file);
-    if !super::paths::chapter_notes_path(book_id, &notes_file)?.exists() {
+    if !file_is_there(&super::paths::chapter_notes_path(book_id, &notes_file)?) {
         return Ok(None);
     }
 

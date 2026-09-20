@@ -1,3 +1,5 @@
+use super::file_is_there::file_is_there;
+use super::json_store::read_json_file;
 use anyhow::{anyhow, bail, Context, Result};
 use chrono::{SecondsFormat, Utc};
 use std::collections::BTreeSet;
@@ -97,24 +99,18 @@ pub fn list_syntopic_topics() -> Result<Vec<SyntopicTopicSummary>> {
 }
 
 /// Loads a single syntopic topic from `vault/syntopicon/topics/<topic-id>.json`.
+///
+/// A topic nobody has made yet is an empty topic under that id. A topic file that cannot be read, or that is
+/// damaged, is an error: reading either one as empty would hand the reader's work to the next save (DS-04,
+/// DS-16). `read_json_file` is the one way this vault reads a JSON file, and it keeps damaged bytes in a copy.
 pub fn load_syntopic_topic(topic_id: &str) -> Result<SyntopicTopic> {
     let file_path = super::paths::topic_path(topic_id)?;
     ensure_syntopicon_dirs()?;
 
-    if !file_path.exists() {
-        return Ok(SyntopicTopic {
-            id: topic_id.to_string(),
-            ..Default::default()
-        });
-    }
-
-    let raw = fs::read_to_string(&file_path)
-        .with_context(|| format!("Failed to read topic file: {}", file_path.display()))?;
-
-    let topic: SyntopicTopic =
-        serde_json::from_str(&raw).with_context(|| format!("Malformed topic JSON in: {}", file_path.display()))?;
-
-    Ok(topic)
+    Ok(read_json_file(&file_path)?.unwrap_or(SyntopicTopic {
+        id: topic_id.to_string(),
+        ..Default::default()
+    }))
 }
 
 /// The id of a new topic, which is also its file name: the title in lowercase letters and digits, with one `-` for
@@ -168,7 +164,7 @@ pub fn create_syntopic_topic(title: &str, description: &str) -> Result<SyntopicT
 
 /// True when the topic file for `id` is there, or when that cannot be told.
 fn is_taken(topics_dir: &Path, id: &str) -> bool {
-    topics_dir.join(format!("{id}.json")).try_exists().unwrap_or(true)
+    file_is_there(&topics_dir.join(format!("{id}.json")))
 }
 
 /// Refuses a new topic whose file is already there, whether that file can be read or not.
@@ -201,9 +197,14 @@ fn first_free_numbered_id(topics_dir: &Path) -> Result<String> {
 }
 
 /// Persists a syntopic topic to `vault/syntopicon/topics/<topic-id>.json`.
+///
+/// The file is read first and the save stops when it cannot be read, as every other vault writer does (DS-04).
+/// Without that, a topic file that was unreadable for a moment came back as an empty topic, and this save wrote
+/// that empty topic over the reader's work (DS-16).
 pub fn save_syntopic_topic(topic: SyntopicTopic) -> Result<()> {
     let file_path = super::paths::topic_path(&topic.id)?;
     ensure_syntopicon_dirs()?;
+    read_json_file::<SyntopicTopic>(&file_path)?;
 
     let serialized = serde_json::to_string_pretty(&topic).context("Failed to serialize SyntopicTopic to JSON")?;
 

@@ -7,6 +7,9 @@ pub mod bookmark;
 mod bookmark_tests;
 #[cfg(test)]
 mod escape_tests;
+pub mod file_is_there;
+#[cfg(test)]
+mod file_is_there_tests;
 pub mod highlights;
 #[cfg(test)]
 mod highlights_tests;

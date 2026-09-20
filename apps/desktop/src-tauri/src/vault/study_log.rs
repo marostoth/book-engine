@@ -21,6 +21,7 @@
 //! the line being written. A line that cannot be read is reported and skipped; every other line still
 //! counts.
 
+use super::file_is_there::file_is_there;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
@@ -131,7 +132,7 @@ pub fn append_reading(reading: &ReadingLine) -> Result<()> {
 /// Reads one log file. A missing file holds nothing. A line that cannot be read is collected in `damaged`
 /// and skipped, so one bad line never hides the rest.
 fn read_lines<T: serde::de::DeserializeOwned>(path: &PathBuf, damaged: &mut Vec<String>) -> Result<Vec<T>> {
-    if !path.exists() {
+    if !file_is_there(path) {
         return Ok(Vec::new());
     }
     let text = std::fs::read_to_string(path).with_context(|| format!("Failed to read {}", path.display()))?;
@@ -166,7 +167,7 @@ pub fn read_book_log(book_id: &str) -> Result<BookStudyLog> {
 /// link, is no book: the app does not read or write it (SEC-03), so it cannot stop a job that reads every book.
 pub fn books_with_notes() -> Result<Vec<String>> {
     let notes = find_vault_root()?.join("notes");
-    if !notes.exists() {
+    if !file_is_there(&notes) {
         return Ok(Vec::new());
     }
     let mut books: Vec<String> = std::fs::read_dir(&notes)
