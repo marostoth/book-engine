@@ -70,7 +70,10 @@ export function useSyntopiconSession() {
     fetchTopics().then((list) => {
       if (!isCurrent) return;
       setTopics(list);
-      if (list.length > 0 && !activeTopicId) setActiveTopicId(list[0].id);
+      // The first topic is opened only when none is open yet. This asks the state itself which topic is open
+      // instead of reading the drawing this effect belongs to, which was the drawing BEFORE the list arrived and
+      // would have named a topic the reader had opened since (TL-11).
+      if (list.length > 0) setActiveTopicId((chosen) => chosen || list[0].id);
       setListArrived(true);
     });
     return () => { isCurrent = false; };

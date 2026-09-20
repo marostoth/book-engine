@@ -139,8 +139,9 @@ def test_rustfmt_is_set_to_the_width_this_repository_writes_to():
 
 # The React rules that were still warnings on 2026-09-19, when TL-05 turned the linter on. This number may go
 # DOWN as TL-11 closes each one and turns it into an error, never up: a rule that goes back to a warning is a rule
-# whose warnings are allowed to grow again. `set-state-in-effect` was the fifth, and is an error since TL-11.
-MOST_REACT_RULES_THAT_ONLY_WARN = 4
+# whose warnings are allowed to grow again. Three of the five are closed: `set-state-in-effect`, then
+# `exhaustive-deps` and `immutability`. `refs` and `purity` are the two that are left.
+MOST_REACT_RULES_THAT_ONLY_WARN = 2
 
 
 def test_every_react_rule_that_only_warns_says_why_and_names_who_owns_it():
@@ -158,7 +159,11 @@ def test_every_react_rule_that_only_warns_says_why_and_names_who_owns_it():
 def test_a_react_rule_that_is_closed_is_an_error_and_cannot_come_back():
     """TL-11 closes each rule by turning it into an error. A rule already closed must not fall back to a warning."""
     text = ESLINT.read_text(encoding="utf-8")
-    closed = ["react-hooks/set-state-in-effect"]
+    closed = [
+        "react-hooks/set-state-in-effect",
+        "react-hooks/exhaustive-deps",
+        "react-hooks/immutability",
+    ]
     fallen_back = [rule for rule in closed if f'"{rule}": "error"' not in text]
     assert not fallen_back, (
         "these rules had every one of their warnings fixed, so a warning of theirs can never appear again. A rule "
