@@ -148,6 +148,31 @@ test("a chapter whose read failed is asked for again when the view opens the boo
   );
 });
 
+test("a read still on its way when the reader opens another book is started again on the way back", async () => {
+  const held = later<string>();
+  fetchChapter.mockReturnValueOnce(held.promise);
+  fetchChapter.mockImplementation((bookId, filePath) =>
+    Promise.resolve(chapterText(`Opening of ${bookId} ${filePath}`, `Closing of ${bookId} ${filePath}`))
+  );
+
+  const view = render(<DipStream bookMeta={book("wealth-of-nations", ["ch-01"])} onReadFullChapter={() => {}} />);
+  await settleAll();
+  assert.equal(fetchChapter.mock.calls.length, 1, "the view must start reading the chapter");
+
+  // The reader opens another book while that read is still on its way, then comes back. The read that was given
+  // up on left no sample, so the chapter has to be asked for again.
+  view.rerender(<DipStream bookMeta={book("the-federalist", ["ch-09"])} onReadFullChapter={() => {}} />);
+  await settleAll();
+  view.rerender(<DipStream bookMeta={book("wealth-of-nations", ["ch-01"])} onReadFullChapter={() => {}} />);
+  await settleAll();
+
+  assert.ok(
+    screen.getByText(/Opening of wealth-of-nations ch-01.md/),
+    "a chapter whose read was given up on was written off for good, so it says 'unavailable' for as long as the " +
+      "app runs. Only a read that GAVE a sample may keep the chapter out of the set (TL-11)."
+  );
+});
+
 test("a chapter that carries its own sample is never read from disk", async () => {
   fetchChapter.mockImplementation(() => Promise.resolve(chapterText("nothing", "here")));
 
