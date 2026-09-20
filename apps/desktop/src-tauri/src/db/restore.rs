@@ -10,6 +10,9 @@
 //! - A review the cache already has, matched on the card and the second it happened, is skipped.
 //! - A card only takes the schedule of a replayed review that is newer than its last review, so a review
 //!   done in the app is never undone by an older line.
+//! - A saved schedule whose card has no row yet is counted, not invented. `fsrs_cards` needs the question
+//!   and the answer of the card and the log holds neither, and this runs at startup, before any deck is
+//!   synced. `deck_sync` makes the row and asks for the schedule then (DS-15).
 //! - The reading time of each chapter in the cache is the sum of its lines, so seconds are never added to a
 //!   count that is already there. A new import can move the lines to other chapter files (IN-04), and the
 //!   cache follows them. The word count on an older line is not put back: it was the length of the whole
@@ -30,6 +33,8 @@ use crate::vault::study_log::{self, ReadingLine, ReviewLine};
 pub struct RestoreReport {
     pub reviews_added: usize,
     pub cards_rescheduled: usize,
+    /// Cards whose saved schedule has no row to go into yet, because the deck has not been synced.
+    pub cards_waiting_for_deck: usize,
     /// Chapters whose reading time the cache took from the vault: a row added, set to the sum of its lines, or
     /// removed because no line names its chapter file any more.
     pub chapters_restored: usize,
@@ -39,7 +44,10 @@ pub struct RestoreReport {
 
 impl RestoreReport {
     pub fn changed_nothing(&self) -> bool {
-        self.reviews_added == 0 && self.cards_rescheduled == 0 && self.chapters_restored == 0
+        self.reviews_added == 0
+            && self.cards_rescheduled == 0
+            && self.cards_waiting_for_deck == 0
+            && self.chapters_restored == 0
     }
 }
 
@@ -113,6 +121,33 @@ fn add_missing_reviews(tx: &rusqlite::Transaction, reviews: &[ReviewLine], repor
         report.reviews_added += 1;
     }
 
+    let applied = apply_saved_standings(tx, reviews)?;
+    report.cards_rescheduled += applied.rescheduled;
+    report.cards_waiting_for_deck += applied.waiting_for_deck;
+
+    Ok(())
+}
+
+/// What one run of `apply_saved_standings` did.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub(crate) struct StandingsApplied {
+    /// Cards whose row took the standing of its newest line.
+    pub rescheduled: usize,
+    /// Cards with a saved standing and no row to put it in, because their deck is not synced yet (DS-15).
+    pub waiting_for_deck: usize,
+}
+
+/// Gives each card the standing of its newest line in the log.
+///
+/// Called twice, and safe both times. The startup restore calls it before any window exists, when a cache
+/// that was deleted, damaged or carried from another PC still has no card rows at all; `deck_sync` calls it
+/// again after it has made those rows. `last_review < ?5` writes only a standing older than the row's own
+/// last review, so a review done in the app is never undone by a replayed line, however often this runs.
+///
+/// A card with no row is counted, never invented: `fsrs_cards` needs the question, the answer, the chapter
+/// and the item type, and a review line holds none of the four. Its review history is back either way,
+/// which is what the heatmap and the totals are built from.
+pub(crate) fn apply_saved_standings(tx: &rusqlite::Transaction, reviews: &[ReviewLine]) -> Result<StandingsApplied> {
     // The newest standing of each card, so a card is written once however many lines it has.
     let mut newest: std::collections::HashMap<&str, &ReviewLine> = std::collections::HashMap::new();
     for review in reviews.iter().filter(|line| line.schedule.is_some()) {
@@ -124,11 +159,9 @@ fn add_missing_reviews(tx: &rusqlite::Transaction, reviews: &[ReviewLine], repor
         }
     }
 
+    let mut applied = StandingsApplied::default();
     for review in newest.into_values() {
         let standing = review.schedule.as_ref().expect("filtered above");
-        // `last_review < ?5` keeps a review done in the app: only an older standing is written over.
-        // A card that is not in the deck any more has no row to write. Its review history is back, which
-        // is what the heatmap and the totals are built from.
         let changed = tx.execute(
             "UPDATE fsrs_cards SET
                 state = ?1,
@@ -148,10 +181,25 @@ fn add_missing_reviews(tx: &rusqlite::Transaction, reviews: &[ReviewLine], repor
                 review.card_id,
             ],
         )?;
-        report.cards_rescheduled += changed;
+        applied.rescheduled += changed;
+        // Nothing changed for two different reasons: the row holds a newer review, or there is no row.
+        // Only the second one is a schedule still waiting to come back.
+        if changed == 0 && !card_has_a_row(tx, &review.card_id)? {
+            applied.waiting_for_deck += 1;
+        }
     }
 
-    Ok(())
+    Ok(applied)
+}
+
+/// True when `fsrs_cards` holds a row for this card.
+fn card_has_a_row(tx: &rusqlite::Transaction, card_id: &str) -> Result<bool> {
+    let rows: i64 = tx.query_row(
+        "SELECT COUNT(*) FROM fsrs_cards WHERE card_id = ?1",
+        params![card_id],
+        |row| row.get(0),
+    )?;
+    Ok(rows > 0)
 }
 
 /// The reading time of one chapter: its seconds, whether it was finished, and when it was read last.

@@ -9,6 +9,8 @@
 //! - Rows from older builds, whose ids came from deck positions, get their question id. When two rows hold
 //!   the same question, the row with more progress stays and the other one is archived.
 //! - A deck without any valid card changes nothing.
+//! - A card the vault knows a schedule for takes it back here. The startup restore ran before any of these
+//!   rows existed, so it had none to write onto (DS-15).
 
 use std::collections::HashSet;
 
@@ -52,6 +54,8 @@ pub fn sync_practice_deck_blocking(book_id: &str) -> Result<usize> {
     if cards.is_empty() {
         return Ok(0);
     }
+    // Read before the transaction opens, so the log is not read with the database write-locked.
+    let saved_reviews = crate::vault::study_log::read_book_log(book_id)?.reviews;
 
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -68,7 +72,16 @@ pub fn sync_practice_deck_blocking(book_id: &str) -> Result<usize> {
             archive_card(&tx, &card_id, NOT_IN_DECK, now)?;
         }
     }
+    // DS-15: the rows are here now, so a schedule the vault saved has somewhere to go. Only a standing
+    // older than the row's own last review is written, so a review made in the app is never undone.
+    let applied = super::restore::apply_saved_standings(&tx, &saved_reviews)?;
     tx.commit()?;
+    if applied.rescheduled > 0 {
+        eprintln!(
+            "Put back from the vault: {} card schedule(s) that were waiting for the deck of '{book_id}'.",
+            applied.rescheduled
+        );
+    }
     Ok(cards.len())
 }
 
