@@ -16,8 +16,10 @@ capital has to be taken from somewhere.
 from __future__ import annotations
 
 import ast
+from pathlib import Path
 
 from conftest import REPO
+from ingest.book_check import STEM_WRITTEN_AT_LEAST, book_problems
 from ingest.pdf_sanitizer import heal_drop_caps
 
 SANITIZER = REPO / "packages" / "ingestion" / "ingest" / "pdf_sanitizer.py"
@@ -228,3 +230,137 @@ def test_the_guard_above_can_tell_prose_from_code():
 
     assert "ork" in found, "a real list was missed"
     assert "exas" not in found and "ondon" not in found, "the docstring was read as code"
+
+
+# ---------------------------------------------------------------------------
+# The import check that lets this through
+# ---------------------------------------------------------------------------
+#
+# Fixing the rule stops the next book being damaged. It does nothing about a book that arrives damaged for some
+# other reason, and it did nothing for the 52 words already in the vault, because `book_problems` -- the check an
+# import must pass before the vault is touched -- only ever read anchors, footnote links and broken characters. A
+# chapter full of invented words passed it. A check that reads three things and blesses the fourth answers the
+# question, which is the thread running through nine of this register's 26 findings.
+
+
+def a_book(tmp_path: Path, chapters: dict[str, str]) -> Path:
+    """A book folder whose every block carries an anchor, so only the check under test can speak."""
+    folder = tmp_path / "book"
+    folder.mkdir(exist_ok=True)
+    for name, text in chapters.items():
+        blocks = [block.strip() for block in text.strip().split("\n\n")]
+        anchored = "\n\n".join(f"{block} ^p-{number:03}" for number, block in enumerate(blocks, 1))
+        (folder / f"{name}.md").write_text(anchored + "\n", encoding="utf-8")
+    return folder
+
+
+def test_a_paragraph_that_starts_with_a_word_the_book_does_not_have_fails_the_check(tmp_path):
+    """`book_problems` is what an import must pass before the vault is touched. Anything it returns stops it."""
+    book = a_book(
+        tmp_path,
+        {
+            "ch-01": (
+                "Cthe market moved against him that morning.\n\n"
+                "The market is the only thing that matters here.\n\n"
+                "The market does not care who is watching it.\n\n"
+                "The trader watches the market and the market watches back."
+            )
+        },
+    )
+
+    problems = book_problems(book)
+
+    assert len(problems) == 1, problems
+    assert problems[0].startswith("ch-01.md:")
+    assert "1 paragraph starts" in problems[0]
+    assert "Cthe" in problems[0], "the check must name the word, or nobody can find it"
+
+
+def test_the_message_names_every_such_word_in_the_chapter(tmp_path):
+    book = a_book(
+        tmp_path,
+        {
+            "ch-01": (
+                "Cthe market moved against him that morning.\n\n"
+                "Fthe market moved again in the afternoon session.\n\n"
+                "The market is the only thing that matters here.\n\n"
+                "The trader watches the market and the market watches back."
+            )
+        },
+    )
+
+    problems = book_problems(book)
+
+    assert len(problems) == 1, problems
+    assert "2 paragraphs start" in problems[0]
+    assert "Cthe" in problems[0] and "Fthe" in problems[0]
+
+
+def test_the_whole_book_proves_the_word_and_not_one_chapter(tmp_path):
+    """A word damaged in chapter two is proved by chapter one, which spells it correctly."""
+    book = a_book(
+        tmp_path,
+        {
+            "ch-01": (
+                "Volume tells the story of the day.\n\n"
+                "Volume is what the auction leaves behind it.\n\n"
+                "Volume and time are the two things to watch."
+            ),
+            "ch-02": (
+                "Pvolume was heavy at the open and stayed heavy.\n\nThe day went on and the trade held together."
+            ),
+        },
+    )
+
+    problems = book_problems(book)
+
+    assert len(problems) == 1, problems
+    assert problems[0].startswith("ch-02.md:")
+    assert "Pvolume" in problems[0]
+
+
+def test_a_book_with_nothing_wrong_passes(tmp_path):
+    """The control. Without it, a check that fails everything and a check that works both look the same."""
+    book = a_book(
+        tmp_path,
+        {
+            "ch-01": (
+                "The market opened quietly this morning.\n\n"
+                "The market closed quietly and the day was over.\n\n"
+                "There was nothing in the market to trade at all."
+            )
+        },
+    )
+
+    assert book_problems(book) == []
+
+
+def test_a_rare_word_is_not_called_invented(tmp_path):
+    """`Ashore` is a word. The stem has to be one the book writes often, not one it happens to hold once.
+
+    This is the whole reason there is a number here. A failing check stops an import, so a check that cannot tell
+    a rare word from a made-up one is a check that stops a reader importing a good book.
+    """
+    book = a_book(
+        tmp_path,
+        {
+            "ch-01": (
+                "Ashore the boats were drawn up for the winter months.\n\n"
+                "The shore was cold and the wind came off the water.\n\n"
+                "The men waited by the boats until the light went."
+            )
+        },
+    )
+
+    assert book_problems(book) == [], f"the stem is written once, and the limit is {STEM_WRITTEN_AT_LEAST}"
+
+
+def test_the_limit_is_what_decides_it(tmp_path):
+    """The same word, with the stem written enough times, is caught. That is the limit doing the work."""
+    shore_often = "\n\n".join(f"The shore was cold on day {day} and the wind came off the water." for day in range(5))
+    book = a_book(tmp_path, {"ch-01": "Ashore the boats were drawn up for the winter.\n\n" + shore_often})
+
+    problems = book_problems(book)
+
+    assert len(problems) == 1, problems
+    assert "Ashore" in problems[0]
