@@ -331,8 +331,15 @@ def test_joining_stops_instead_of_running_for_ever():
 
 
 def test_the_sanitizer_repairs_the_page_before_it_hands_the_text_on():
+    """The name has to be imported and called. How the import line is written is not this test's business.
+
+    It used to pin the whole line. CQ-08 added a second name to that same import and this went red for a change
+    it has no opinion about, which is a guard answering a question it was not asked.
+    """
     source = (Path(__file__).resolve().parents[1] / "ingest" / "pdf_sanitizer.py").read_text(encoding="utf-8")
-    assert "from ingest.text_repair import repair_page_text" in source
+    imported = re.search(r"^from ingest\.text_repair import (.+)$", source, re.MULTILINE)
+    assert imported, "the sanitizer does not import from ingest.text_repair at all"
+    assert "repair_page_text" in [name.strip() for name in imported.group(1).split(",")]
     assert "repair_page_text(cleaned_md)" in source
 
 
