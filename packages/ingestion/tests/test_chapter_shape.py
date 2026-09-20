@@ -301,7 +301,13 @@ def test_two_title_pages_in_a_row_both_join_the_chapter_after_them(tmp_path: Pat
 
 
 def test_a_title_page_with_no_chapter_after_it_loses_no_word(tmp_path: Path):
-    # The last page of a book can be a title with nothing after it. Its words still reach the reader.
+    """The last page of a book can be a title with nothing after it. Its words still reach the reader.
+
+    This test used to say that and check the opposite: that the words were **absent** from `ch-01.md`, and that
+    `total_words` equalled the sum of the per-chapter counts, which the import builds it by adding up and which
+    is therefore true of every book. Its name said the words were kept and both of its lines agreed that they
+    were not. `test_a_book_that_ends_on_a_title_page.py` is the full guard (CQ-10).
+    """
     meta, book_dir = import_book(
         tmp_path,
         {
@@ -310,10 +316,10 @@ def test_a_title_page_with_no_chapter_after_it_loses_no_word(tmp_path: Path):
         },
     )
 
-    assert meta["total_chapters"] == 1
-    # Nothing was written for it, and nothing of it was lost from the count either
-    assert "BOOK II" not in (book_dir / "ch-01.md").read_text(encoding="utf-8")
-    assert meta["total_words"] == sum(s["word_count"] for s in meta["spine"])
+    # Nowhere to go but a part of its own, named after its own title
+    assert meta["total_chapters"] == 2
+    assert blocks_of(book_dir, "ch-02.md") == ["## BOOK II. OF THE NATURE AND ACCUMULATION OF STOCK."]
+    assert [part["title"] for part in meta["spine"]][-1] == "BOOK II. OF THE NATURE AND ACCUMULATION OF STOCK."
 
 
 def test_a_page_of_a_picture_stays_a_chapter_of_its_own(tmp_path: Path):

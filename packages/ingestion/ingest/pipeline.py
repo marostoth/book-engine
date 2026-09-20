@@ -263,6 +263,48 @@ def _build_epub_book(
 
         chapter_index += 1
 
+    # A book can end on a page that holds nothing but a title: "BOOK II." with nothing after it, an afterword
+    # title, a colophon. Its headings were held over for the chapter they introduce, and no chapter came. Only
+    # the per-chapter branch above drained the holder, so the loop ended and those words were in no file of the
+    # book, while `docs/rules/ingestion.md` promised that no word is lost. They have nowhere else to go, so they
+    # are a part of the book in their own right, named after their own title (CQ-10).
+    if held_over.has_any():
+        held_blocks = held_over.in_front_of([])
+        held_markdown, held_anchor_count = inject_paragraph_anchors("\n\n".join(held_blocks), start_index=1)
+        held_words = len(re.findall(r"\b\w+\b", held_markdown))
+        total_words += held_words
+        held_id = f"ch-{chapter_index:02d}"
+        held_filename = f"{held_id}.md"
+        write_text_file(book_dir / held_filename, held_markdown)
+        held_title = chapter_name(held_blocks)
+        held_anchors = extract_anchors(held_markdown)
+        clean_held_text = clean_preview_text(held_markdown)
+        if clean_held_text:
+            all_clean_text.append(clean_held_text)
+        spine_metas.append(
+            ChapterMeta(
+                id=held_id,
+                title=unescape_markdown_text(held_title) if held_title else f"Chapter {chapter_index}",
+                file_path=held_filename,
+                order=chapter_index,
+                word_count=held_words,
+                anchor_count=held_anchor_count,
+                first_anchor=held_anchors[0][0] if held_anchors else None,
+                last_anchor=held_anchors[-1][0] if held_anchors else None,
+                footnotes_count=0,
+                inspectional_sampling=extract_inspectional_sampling(held_markdown),
+            )
+        )
+        # No practice card is made here. A page of a title holds no sentence, which is the same reason such a
+        # page is no chapter of its own while a chapter still follows it (CQ-04).
+        for document_name in held_over.take_names():
+            imported_documents[posixpath.normpath(document_name)] = ImportedDocument(chapter_file=held_filename)
+            # The reason this document gave on its way past is no longer true: no chapter came for it to
+            # introduce, and it made one of its own. A reason that has stopped being true is worth correcting,
+            # because the count below is read by a person (CQ-09).
+            became[document_name] = f"makes {held_filename}, because the book ended and no chapter came for it"
+        chapter_index += 1
+
     # Every document of the spine is counted against what became of it. Nothing compared the source against
     # the chapters written before this, so a page could go and leave no hole that anything measured (CQ-09).
     said_nothing = documents_that_said_nothing(became)
