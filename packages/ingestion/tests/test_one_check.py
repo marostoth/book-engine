@@ -34,6 +34,7 @@ TOOLS = {
     "tsc": "run tsc",
     "eslint": "run lint",
     "the frontend tests": "apps/desktop test",
+    "the script tests": "node --test",
     "ruff": "ruff check",
     "ruff format": "ruff format --check",
     "mypy": "mypy",
@@ -59,6 +60,16 @@ def the_whole_check() -> str:
 
     follow("check")
     return " && ".join(seen)
+
+
+def the_check_groups() -> list[str]:
+    """The scripts `npm run check` runs directly, in the order it runs them, read out of `package.json`.
+
+    The workflow must have a step for every one of these. This used to be three names written out below, and that
+    list went stale the day a fourth group arrived: `check:scripts` was added on 2026-09-19, one day after the
+    workflow was last touched, and never ran in CI once, because the guard held its own answer (TL-13).
+    """
+    return re.findall(r"npm run ([a-z:]+)", scripts_of(ROOT_PACKAGE)["check"])
 
 
 # ---------------------------------------------------------------------------
@@ -180,11 +191,21 @@ def test_the_workflow_runs_on_every_push_and_every_pull_request():
     assert "push:" in on and "pull_request:" in on, on
 
 
-def test_the_workflow_runs_the_one_command_and_nothing_of_its_own():
-    """A workflow that runs its own list of checks goes stale the day the one command changes."""
+def test_the_workflow_runs_every_group_of_the_one_command():
+    """A workflow that keeps its own list of checks goes stale the day the one command changes.
+
+    This test said that, and then kept a list of its own. `npm run check` grew a fourth group and the workflow and
+    this guard both stayed at three, so `check:scripts` ran on the author's computer and nowhere else. The names
+    now come from `package.json`, which is the only place they are written down (TL-13).
+    """
     text = WORKFLOW.read_text(encoding="utf-8")
-    for part in ("npm run check:rust", "npm run check:web", "npm run check:python"):
-        assert part in text, f"the workflow does not run {part}"
+    groups = the_check_groups()
+    assert len(groups) > 1, f"`npm run check` names no groups for this test to look for: {groups}"
+    missing = [group for group in groups if f"npm run {group}" not in text]
+    assert not missing, (
+        f"the workflow has no step for {missing}. Every group of `npm run check` needs one, or that group runs on "
+        "your computer and never on a push."
+    )
 
 
 def test_the_workflow_asks_for_the_node_the_readme_asks_for():
