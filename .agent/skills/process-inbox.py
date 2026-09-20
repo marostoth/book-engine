@@ -18,7 +18,7 @@ sys.path.insert(0, str(ROOT_DIR / "packages" / "ingestion"))
 from ingest.book_build import BookLeftAsideError  # noqa: E402
 from ingest.book_check import BookCheckError  # noqa: E402
 from ingest.console import allow_any_letter, say_what_was_done  # noqa: E402
-from ingest.ledger import read_ledger, write_ledger  # noqa: E402
+from ingest.ledger import LedgerDamaged, read_ledger, write_ledger  # noqa: E402
 from ingest.pipeline import ingest_book  # noqa: E402
 from ingest.reimport import BookAlreadyInVaultError, BookIdTakenError  # noqa: E402
 
@@ -136,7 +136,20 @@ def main() -> int:
 
     # One ledger module reads and writes `vault/_ledger.json`, and an import keeps its numbers
     # true for a book it already knows (`ingest/ledger.py`, CQ-05)
-    ledger_entries = read_ledger(VAULT_DIR)
+    #
+    # A ledger this run could not read is not a ledger with nothing in it. Reading it that way is what
+    # made this very loop add its one new record to nothing and write a one-line ledger over the record
+    # of every book ever taken in (DS-18). Nothing is taken in until a person has put the ledger right.
+    try:
+        ledger_entries = read_ledger(VAULT_DIR)
+    except LedgerDamaged as damage:
+        print(f"[-] {damage}", file=sys.stderr)
+        print(
+            "[-] No book was taken in. Put the ledger right, or bring back the last committed one with "
+            "`git restore vault/_ledger.json`, and run this again.",
+            file=sys.stderr,
+        )
+        return 1
     processed_hashes: dict[str, dict[str, Any]] = {
         entry["sha256"]: entry for entry in ledger_entries if isinstance(entry, dict) and "sha256" in entry
     }

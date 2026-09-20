@@ -767,6 +767,14 @@ book's chapter and word counts. Only the inbox adds a line, because only the inb
 into `inbox/processed/`. `keep_numbers_true` runs at the end of every import, so the counts follow the book
 whoever runs it.
 
+A ledger that is there and cannot be read is never read as no lines (DS-18). `read_ledger` raises
+`LedgerDamaged` and keeps the bytes in `_ledger.json.corrupt-<time>` beside the file, the same rule the vault's
+Rust reader has kept since DS-04. The inbox stops the whole run and takes no book in, because adding its one
+new record to nothing is what left a one-line ledger where the record of every book used to be.
+`keep_numbers_true` instead leaves the file exactly as it is and says so: the book is already in the vault by
+then, and a ledger nobody can read may not turn finished work into a failed import (IN-09). `write_ledger`
+refuses a write holding fewer lines than the file already holds unless the caller says `may_be_shorter=True`.
+
 ---
 
 ## 9. Reader features
