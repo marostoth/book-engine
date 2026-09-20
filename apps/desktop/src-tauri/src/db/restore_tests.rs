@@ -387,12 +387,18 @@ fn throwing_away_the_cache_loses_no_study_progress() {
 
     throw_away_the_cache();
     assert_eq!(count("SELECT COUNT(*) FROM review_logs"), 0, "the cache really is gone");
+
+    // The order the app really starts in: the setup closure first, the deck when the window mounts. This
+    // test synced the deck first until DS-15, which is the one order that hid the fault.
+    let report = restore_progress_blocking().expect("put the progress back");
     super::deck_sync::sync_practice_deck_blocking(BOOK).expect("the deck is built again from the vault");
 
-    let report = restore_progress_blocking().expect("put the progress back");
-
     assert_eq!(report.reviews_added, 1);
-    assert_eq!(report.cards_rescheduled, 1);
+    assert_eq!(report.cards_rescheduled, 0, "that early there is no card row to write");
+    assert_eq!(
+        report.cards_waiting_for_deck, 1,
+        "and the reader is told the schedule is safe"
+    );
     assert_eq!(report.chapters_restored, 1);
     let (state, stability, due, last_review, reps) = card_row(&card_id);
     assert_eq!(state as u8, schedule.state, "the card is where the reader left it");
@@ -568,3 +574,162 @@ fn a_damaged_reading_line_takes_no_reading_time_away_from_the_cache() {
         "and gets the good line: {rows:?}"
     );
 }
+
+// --- DS-15: the deck is built AFTER the restore, which is the order the app starts in ---
+
+/// The order the app really starts in, and the order no test used before DS-15.
+///
+/// `restore_progress_blocking` runs in the setup closure (`lib.rs`), before any window exists. The deck
+/// sync is an IPC command the window asks for after it mounts. So on a cache that was deleted, damaged or
+/// carried from another PC, the restore meets an empty `fsrs_cards` and has no row to write.
+fn start_the_app_the_way_it_starts() -> super::restore::RestoreReport {
+    let report = restore_progress_blocking().expect("the setup closure puts the progress back");
+    super::deck_sync::sync_practice_deck_blocking(BOOK).expect("the window syncs the deck after it mounts");
+    report
+}
+
+#[test]
+fn a_card_keeps_its_schedule_when_the_deck_is_built_after_the_restore() {
+    let sandbox = Sandbox::new();
+    sandbox.write_sample_book();
+    super::deck_sync::sync_practice_deck_blocking(BOOK).expect("sync the deck");
+    let card_id = sandbox.cloze_card_id(1);
+    let schedule = super::fsrs_store::submit_card_review_blocking(&card_id, 4).expect("review the card");
+    assert!(schedule.reps > 0, "the reader really practised the card");
+
+    throw_away_the_cache();
+    start_the_app_the_way_it_starts();
+
+    let (state, stability, due, last_review, reps) = card_row(&card_id);
+    assert_eq!(reps, schedule.reps, "a practised card must not come back as new");
+    assert_eq!(state as u8, schedule.state, "the card is where the reader left it");
+    assert_eq!(stability, schedule.stability);
+    assert_eq!(due, schedule.due);
+    assert_eq!(last_review, schedule.last_review);
+}
+
+#[test]
+fn a_restored_card_is_not_offered_as_a_new_card() {
+    let sandbox = Sandbox::new();
+    sandbox.write_sample_book();
+    sandbox.write_sample_deck(2, 0);
+    super::deck_sync::sync_practice_deck_blocking(BOOK).expect("sync the deck");
+    let practised = sandbox.cloze_card_id(1);
+    let untouched = sandbox.cloze_card_id(2);
+    super::fsrs_store::submit_card_review_blocking(&practised, 4).expect("review one card");
+
+    throw_away_the_cache();
+    start_the_app_the_way_it_starts();
+
+    let due = crate::db::get_due_cards_blocking(Some(BOOK), Some("cloze"), Some(10), None).expect("ask for cards");
+    let offered: Vec<&str> = due.iter().map(|card| card.card_id.as_str()).collect();
+    // The sight check: the card the reader never saw must still be offered, or this test asks nothing.
+    assert!(
+        offered.contains(&untouched.as_str()),
+        "the card that was never practised is still new: {offered:?}"
+    );
+    assert!(
+        !offered.contains(&practised.as_str()),
+        "a card rated Easy is due in days, not now: {offered:?}"
+    );
+}
+
+#[test]
+fn the_restore_says_how_many_cards_are_waiting_for_their_deck() {
+    let sandbox = Sandbox::new();
+    sandbox.write_sample_book();
+    super::deck_sync::sync_practice_deck_blocking(BOOK).expect("sync the deck");
+    let card_id = sandbox.cloze_card_id(1);
+    super::fsrs_store::submit_card_review_blocking(&card_id, 4).expect("review the card");
+
+    throw_away_the_cache();
+    let report = restore_progress_blocking().expect("the setup closure puts the progress back");
+
+    assert_eq!(report.reviews_added, 1, "the review history is back at once");
+    assert_eq!(report.cards_rescheduled, 0, "there is no card row yet to write");
+    assert_eq!(
+        report.cards_waiting_for_deck, 1,
+        "the reader is told the schedule is saved and waiting, not lost: {report:?}"
+    );
+    assert!(
+        !report.changed_nothing(),
+        "a start that saved a schedule is not a quiet start"
+    );
+}
+
+#[test]
+fn a_review_made_after_the_restore_is_not_pushed_back_by_the_next_deck_sync() {
+    let sandbox = Sandbox::new();
+    sandbox.write_sample_book();
+    super::deck_sync::sync_practice_deck_blocking(BOOK).expect("sync the deck");
+    let card_id = sandbox.cloze_card_id(1);
+    super::fsrs_store::submit_card_review_blocking(&card_id, 1).expect("the reader fails the card");
+
+    throw_away_the_cache();
+    start_the_app_the_way_it_starts();
+    let newer = super::fsrs_store::submit_card_review_blocking(&card_id, 4).expect("and gets it right today");
+    super::deck_sync::sync_practice_deck_blocking(BOOK).expect("the book is opened again");
+
+    let (_, _, due, last_review, reps) = card_row(&card_id);
+    assert_eq!(last_review, newer.last_review, "today's review stands");
+    assert_eq!(due, newer.due);
+    assert_eq!(reps, newer.reps);
+}
+
+#[test]
+fn a_card_the_vault_knows_nothing_about_still_starts_as_new() {
+    let sandbox = Sandbox::new();
+    sandbox.write_sample_book();
+
+    start_the_app_the_way_it_starts();
+
+    let card_id = sandbox.cloze_card_id(1);
+    let (state, stability, due, last_review, reps) = card_row(&card_id);
+    assert_eq!(reps, 0, "nothing was invented for a card that was never practised");
+    assert_eq!(state, 0);
+    assert_eq!(stability, 0.0);
+    assert_eq!(last_review, 0);
+    assert!(due > 0, "a new card is due now, which the deck sync sets");
+}
+
+#[test]
+fn one_book_s_saved_schedule_is_not_written_onto_another_book_s_sync() {
+    let sandbox = Sandbox::new();
+    sandbox.write_sample_book();
+    super::deck_sync::sync_practice_deck_blocking(BOOK).expect("sync the deck");
+    let card_id = sandbox.cloze_card_id(1);
+    let schedule = super::fsrs_store::submit_card_review_blocking(&card_id, 4).expect("review the card");
+    sandbox.write("books/other/_meta.json", OTHER_META);
+    sandbox.write(
+        "books/other/ch-01.md",
+        "# Other
+
+A sentence. ^p-001
+",
+    );
+
+    throw_away_the_cache();
+    restore_progress_blocking().expect("the setup closure puts the progress back");
+    super::deck_sync::sync_practice_deck_blocking("other").expect("the other book has no deck, so nothing happens");
+
+    assert_eq!(
+        count("SELECT COUNT(*) FROM fsrs_cards"),
+        0,
+        "the other book's sync must not raise this book's card"
+    );
+    super::deck_sync::sync_practice_deck_blocking(BOOK).expect("now this book syncs");
+    let (_, _, _, last_review, reps) = card_row(&card_id);
+    assert_eq!(reps, schedule.reps, "and only then is the schedule back");
+    assert_eq!(last_review, schedule.last_review);
+}
+
+const OTHER_META: &str = r#"{
+  "book_id": "other",
+  "title": "Another Book",
+  "author": "Test Author",
+  "total_words": 3,
+  "total_chapters": 1,
+  "spine": [
+    { "id": "ch-01", "title": "Chapter 1", "file_path": "ch-01.md", "order": 1 }
+  ]
+}"#;

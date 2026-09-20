@@ -80,6 +80,13 @@ pub fn run() {
                             report.reviews_added, report.cards_rescheduled, report.chapters_restored
                         );
                     }
+                    if report.cards_waiting_for_deck > 0 {
+                        // Saying "0 cards rescheduled" and nothing else read as a loss (DS-15).
+                        eprintln!(
+                            "{} card schedule(s) are saved and come back when their practice deck loads.",
+                            report.cards_waiting_for_deck
+                        );
+                    }
                     for line in &report.damaged_lines {
                         eprintln!("Warning: a line of your study log could not be read: {line}");
                     }
