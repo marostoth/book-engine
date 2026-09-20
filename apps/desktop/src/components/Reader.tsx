@@ -173,6 +173,32 @@ const ReaderView: React.FC<ReaderProps> = ({
   // the place where you stopped, runs after this.
   const chapterAtTop = useRef<ChapterRef | null | undefined>(undefined);
 
+  // How far down the chapter the reader is. Every report renders the app, so each whole percent is reported once
+  // and the many scroll events of one wheel turn do no more work than that (RD-06).
+  const [progress] = useState(createProgressTicker);
+
+  /**
+   * Reports how far down the chapter the reader is, and that the reader moved.
+   *
+   * Made once for a chapter, because the reader keeps its place between renders (RD-06) and because the effect
+   * below reports the place once a new chapter is shown. That effect used to reach DOWN the file for this handler,
+   * which had not been made yet at the line that read it: it worked only because an effect runs after the whole
+   * drawing. `react-hooks/immutability` says so, and `react-hooks/exhaustive-deps` said the effect never named it.
+   *
+   * Everything it reads is either made once (`placeWatcher`, `progress`) or already named by that effect
+   * (`markdownSource`), except the app's own report handler, which the app makes once as well. So adding this to
+   * that effect's list does not make a chapter be parsed and set again for a drawing. `nothingStaleIsShown.test.tsx`
+   * fails if one of them ever stops being made once.
+   */
+  const handleScroll = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    placeWatcher.moved();
+    const chapter = markdownSource ?? null;
+    const percent = progress.changed(container, chapter);
+    if (percent !== undefined) onProgressChange(percent, chapter);
+  }, [placeWatcher, progress, markdownSource, onProgressChange]);
+
   // Parse the chapter Markdown into a document of reader nodes, with the footnotes and the addresses of its pictures,
   // and show it in TipTap. The reader gets no HTML from a chapter file (RD-03).
   useEffect(() => {
@@ -190,7 +216,7 @@ const ReaderView: React.FC<ReaderProps> = ({
     if (containerRef.current) {
       setTimeout(handleScroll, 50);
     }
-  }, [editor, markdown, markdownSource, isBionic, bookId, vaultPath, placeWatcher]);
+  }, [editor, markdown, markdownSource, isBionic, bookId, vaultPath, placeWatcher, handleScroll]);
 
   // The saved highlights are drawn over the chapter, also with Bionic reading on. A new highlight shows without the
   // chapter being parsed and set again (RD-02).
@@ -227,20 +253,6 @@ const ReaderView: React.FC<ReaderProps> = ({
 
     return () => clearTimeout(timer);
   }, [targetAnchor, markdown, markdownSource, placeWatcher]);
-
-  // How far down the chapter the reader is. Every report renders the app, so each whole percent is reported once
-  // and the many scroll events of one wheel turn do no more work than that (RD-06).
-  const [progress] = useState(createProgressTicker);
-
-  // Handle scroll progress tracking
-  const handleScroll = () => {
-    const container = containerRef.current;
-    if (!container) return;
-    placeWatcher.moved();
-    const chapter = markdownSource ?? null;
-    const percent = progress.changed(container, chapter);
-    if (percent !== undefined) onProgressChange(percent, chapter);
-  };
 
   return (
     <div

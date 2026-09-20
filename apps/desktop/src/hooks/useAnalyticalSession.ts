@@ -31,6 +31,13 @@ export function useAnalyticalSession({
   const [asked, setAsked] = useState<{ of: string; read: boolean } | null>(null);
 
   const modals = useAnalyticalModals({ currentChapterFile, currentAnchor });
+  /**
+   * Shutting every window is taken out of `modals` on its own, because five of the calls below use only this one.
+   * They used to write `modals.closeModals` in their list of what they read, and a list cannot hold half an object:
+   * eslint read it as the whole of `modals`, which is a new object every drawing, and could say nothing about
+   * whether the six were still current. `closeModals` is made once, so naming it keeps all six made once too.
+   */
+  const { closeModals } = modals;
 
   /**
    * The book whose analytical data loaded. Changes are saved only for this book: a save of data that did not load
@@ -46,7 +53,7 @@ export function useAnalyticalSession({
   // Load analytical data whenever active book changes
   useEffect(() => {
     if (!bookId) {
-      modals.closeModals();
+      closeModals();
       return;
     }
     let isCurrent = true;
@@ -71,7 +78,7 @@ export function useAnalyticalSession({
     return () => {
       isCurrent = false;
     };
-  }, [bookId]);
+  }, [bookId, closeModals]);
 
   /** True when the analytical data of this book loaded. Otherwise shows why a change is not saved. */
   const canSave = useCallback((): boolean => {
@@ -111,10 +118,10 @@ export function useAnalyticalSession({
       };
 
       setNotes(newStore);
-      modals.closeModals();
+      closeModals();
       await saveStore(newStore);
     },
-    [bookId, analyticalStore, modals.closeModals, canSave, saveStore]
+    [bookId, analyticalStore, closeModals, canSave, saveStore]
   );
 
   const deleteTerm = useCallback(
@@ -147,10 +154,10 @@ export function useAnalyticalSession({
       };
 
       setNotes(newStore);
-      modals.closeModals();
+      closeModals();
       await saveStore(newStore);
     },
-    [bookId, analyticalStore, modals.closeModals, canSave, saveStore]
+    [bookId, analyticalStore, closeModals, canSave, saveStore]
   );
 
   const deleteArgument = useCallback(
@@ -193,10 +200,10 @@ export function useAnalyticalSession({
       };
 
       setNotes(newStore);
-      modals.closeModals();
+      closeModals();
       await saveStore(newStore);
     },
-    [bookId, analyticalStore, modals.closeModals, canSave, saveStore]
+    [bookId, analyticalStore, closeModals, canSave, saveStore]
   );
 
   const deleteCritique = useCallback(
@@ -231,10 +238,10 @@ export function useAnalyticalSession({
       };
 
       setNotes(newStore);
-      modals.closeModals();
+      closeModals();
       await saveStore(newStore);
     },
-    [bookId, analyticalStore, modals.closeModals, canSave, saveStore]
+    [bookId, analyticalStore, closeModals, canSave, saveStore]
   );
 
   const deleteInquiry = useCallback(

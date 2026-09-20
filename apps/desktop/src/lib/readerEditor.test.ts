@@ -302,3 +302,50 @@ test("the reader counts how far down a chapter it is through the progress ticker
     "Reader.tsx counts a percent of its own, so every scroll event renders the app again (RD-06)"
   );
 });
+
+/**
+ * TL-11: the effect that shows a chapter names the scroll handler it calls, and that handler is made once.
+ *
+ * The effect parses the chapter, hands it to TipTap and then reports where the reader is, by calling `handleScroll`
+ * fifty milliseconds later. `handleScroll` was written BELOW the effect, as a plain function made afresh on every
+ * drawing, and the effect did not say it read it: `react-hooks/immutability` and `react-hooks/exhaustive-deps` both
+ * said so.
+ *
+ * Saying so is only safe while everything `handleScroll` reads is either made once or already named by that effect,
+ * because otherwise the chapter would be parsed and given to TipTap again for a drawing that changed nothing, and
+ * the reader would be thrown back to the top of the chapter mid-sentence. The chain is three links long and each
+ * link is in a different file, so this test holds all three in one place.
+ */
+test("the reader parses a chapter for a new chapter, never for a new drawing (RD-06, TL-11)", () => {
+  const reader = readSource("../components/Reader.tsx");
+  const session = readSource("../hooks/useBookSession.ts");
+
+  // Link 1: the handler is made once for a chapter, and it is made ABOVE the effect that calls it.
+  const madeAt = reader.indexOf("const handleScroll = useCallback(");
+  assert.ok(madeAt > 0, "Reader.tsx must make handleScroll once, with useCallback");
+  const usedAt = reader.indexOf("setTimeout(handleScroll,");
+  assert.ok(usedAt > madeAt, "the effect reaches DOWN the file for handleScroll, which is not made yet at that line");
+
+  // Link 2: the only thing it reads that the effect does not already name is the app's report handler.
+  const deps = /const handleScroll = useCallback\([\s\S]*?\}, \[([^\]]*)\]\);/.exec(reader)?.[1] ?? "";
+  const named = deps.split(",").map((part) => part.trim()).filter(Boolean);
+  assert.deepEqual(
+    named,
+    ["placeWatcher", "progress", "markdownSource", "onProgressChange"],
+    "handleScroll reads something new. Every name here must be made once, or already named by the effect that " +
+      "shows a chapter, or that effect starts parsing chapters it has already shown"
+  );
+
+  // Link 3: the app's report handler is made once, from a ticker that is made once.
+  assert.match(
+    session,
+    /const \[readingTimer\] = useState\(/,
+    "useBookSession.ts makes the reading timer afresh, so handleProgressChange is a new function on every render"
+  );
+  assert.match(
+    session,
+    /const handleProgressChange = useCallback\([\s\S]*?\[readingTimer\]\s*\);/,
+    "useBookSession.ts hands the reader a report handler that is not made once. The reader would then parse the " +
+      "chapter again on every render of the app, and throw the reader back to the top of it (RD-06)"
+  );
+});

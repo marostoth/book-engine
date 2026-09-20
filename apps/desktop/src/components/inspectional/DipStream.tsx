@@ -11,19 +11,43 @@ interface DipStreamProps {
   singleKeyPagingEnabled?: boolean;
 }
 
+/**
+ * Names one chapter of one book, so two books cannot share an entry.
+ *
+ * The samples used to be kept under the chapter id alone. Two books name their chapters the same way, "ch-01", and
+ * this view stays on the page while the reader opens another book, so the first book's opening words were shown
+ * under the second book's chapter, and the second book's chapter was never read because the first one had been.
+ * The separator is a byte no book id or chapter id holds.
+ */
+function sampleKey(bookId: string, chapterId: string): string {
+  return `${bookId}\u0000${chapterId}`;
+}
+
 export const DipStream: React.FC<DipStreamProps> = ({
   bookMeta,
   onReadFullChapter,
   singleKeyPagingEnabled = true,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  /** The samples that arrived, under `sampleKey`. These are drawn, so they are state. */
   const [hydratedExcerpts, setHydratedExcerpts] = useState<
     Record<string, { head?: string; tail?: string; firstAnchor?: string }>
   >({});
+  /**
+   * The chapters a read was already started for, under `sampleKey`. Nothing draws this, so it is a ref (TL-11).
+   *
+   * The effect below used to decide the same thing from `hydratedExcerpts`, which it did not name as something it
+   * reads. Naming it would have made the effect run again each time one sample arrived, and each run cancels the
+   * reads still on their way and starts them afresh: one chapter's sample would have restarted every other
+   * chapter's. A chapter belongs in here the moment its read STARTS, not when it arrives, and that is the whole
+   * difference. `react-hooks/exhaustive-deps` says so.
+   */
+  const askedFor = useRef(new Set<string>());
 
   // Dynamic anchor hydration for chapters lacking pre-extracted inspectional head/tail previews
   useEffect(() => {
     if (!bookMeta) return;
+    const bookId = bookMeta.book_id;
 
     // The first and last words of a chapter have one name each, `head_text_preview` and `tail_text_preview`. Four
     // other names used to be read here too, under the belief that an older import had written them. None of the four
@@ -33,7 +57,7 @@ export const DipStream: React.FC<DipStreamProps> = ({
       const s = ch.inspectional_sampling;
       const hasHead = Boolean(s?.head_text_preview);
       const hasTail = Boolean(s?.tail_text_preview);
-      return (!hasHead || !hasTail) && !hydratedExcerpts[ch.id];
+      return (!hasHead || !hasTail) && !askedFor.current.has(sampleKey(bookId, ch.id));
     });
 
     if (chaptersToHydrate.length === 0) return;
@@ -41,9 +65,16 @@ export const DipStream: React.FC<DipStreamProps> = ({
     let cancelled = false;
 
     chaptersToHydrate.forEach(async (ch) => {
+      const key = sampleKey(bookId, ch.id);
+      askedFor.current.add(key);
       try {
-        const text = await fetchChapter(bookMeta.book_id, ch.file_path);
-        if (cancelled) return;
+        const text = await fetchChapter(bookId, ch.file_path);
+        // A read that was cancelled, or that failed, leaves no sample, so the chapter is asked for again the next
+        // time this view opens. Only a chapter whose sample IS kept stays in the set.
+        if (cancelled) {
+          askedFor.current.delete(key);
+          return;
+        }
 
         const blocks = text.split(/\n\s*\n/);
         // A paragraph with no anchor keeps none: the app used to give it `^p-001`, the anchor of the first block
@@ -67,9 +98,10 @@ export const DipStream: React.FC<DipStreamProps> = ({
 
         setHydratedExcerpts((prev) => ({
           ...prev,
-          [ch.id]: { head, tail, firstAnchor },
+          [key]: { head, tail, firstAnchor },
         }));
       } catch (e) {
+        askedFor.current.delete(key);
         reportBackendError("Could not load a chapter sample for the dip stream.", e);
       }
     });
@@ -164,7 +196,7 @@ export const DipStream: React.FC<DipStreamProps> = ({
       <div className="space-y-8">
         {chapters.map((chapter, idx) => {
           const sampling = chapter.inspectional_sampling;
-          const hydrated = hydratedExcerpts[chapter.id];
+          const hydrated = hydratedExcerpts[sampleKey(bookMeta.book_id, chapter.id)];
           const headPreview =
             sampling?.head_text_preview || hydrated?.head || "Opening summary unavailable for this chapter.";
           const tailPreview =

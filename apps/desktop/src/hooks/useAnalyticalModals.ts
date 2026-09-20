@@ -18,9 +18,17 @@ export function useAnalyticalModals({ currentChapterFile, currentAnchor }: UseAn
    * The citation of a modal that opens from a button, with no selection in the reader: the paragraph on screen, and no
    * anchor when the reader is not on one. The app used to write `^p-001` here, which named the first block of the
    * chapter wherever the reader was (RD-04).
+   *
+   * Made once for a place, because the four openers below are made once as well and each of them calls it (TL-11).
+   * They used to list the two values THIS function reads instead of listing this function, which was the same list
+   * by hand: a third value read here would have left all four openers pointing at the place before, with nothing to
+   * say so. `react-hooks/exhaustive-deps` says so.
    */
-  const placeOnScreen = (): AnchoredCitation | null =>
-    currentChapterFile ? { chapterFile: currentChapterFile, anchor: currentAnchor ?? "", quote: "" } : null;
+  const placeOnScreen = useCallback(
+    (): AnchoredCitation | null =>
+      currentChapterFile ? { chapterFile: currentChapterFile, anchor: currentAnchor ?? "", quote: "" } : null,
+    [currentChapterFile, currentAnchor]
+  );
 
   const [termModalOpen, setTermModalOpen] = useState<boolean>(false);
   const [argumentModalOpen, setArgumentModalOpen] = useState<boolean>(false);
@@ -56,7 +64,7 @@ export function useAnalyticalModals({ currentChapterFile, currentAnchor }: UseAn
       }
       setTermModalOpen(true);
     },
-    [currentChapterFile, currentAnchor]
+    [placeOnScreen]
   );
 
   const openArgumentModal = useCallback(
@@ -73,7 +81,7 @@ export function useAnalyticalModals({ currentChapterFile, currentAnchor }: UseAn
       }
       setArgumentModalOpen(true);
     },
-    [currentChapterFile, currentAnchor]
+    [placeOnScreen]
   );
 
   const openCritiqueModal = useCallback(
@@ -92,7 +100,7 @@ export function useAnalyticalModals({ currentChapterFile, currentAnchor }: UseAn
       }
       setCritiqueModalOpen(true);
     },
-    [currentChapterFile, currentAnchor]
+    [placeOnScreen]
   );
 
   const openInquiryModal = useCallback(
@@ -122,7 +130,8 @@ export function useAnalyticalModals({ currentChapterFile, currentAnchor }: UseAn
       }
       setInquiryModalOpen(true);
     },
-    [currentChapterFile, currentAnchor]
+    // This one reads the chapter and the anchor itself as well, for the staged question, so it names all three.
+    [placeOnScreen, currentChapterFile, currentAnchor]
   );
 
   const closeModals = useCallback(() => {
