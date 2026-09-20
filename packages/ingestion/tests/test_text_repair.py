@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 from ingest.layout_stitcher import (
+    WORD_ENDINGS,
     finishes_a_sentence,
     is_figure_label,
     stitch_layout_blocks,
@@ -15,6 +16,7 @@ from ingest.layout_stitcher import (
 )
 from ingest.pdf_sanitizer import sanitize_pdf_markdown
 from ingest.text_repair import (
+    JOINING_WORDS,
     close_cut_words,
     drop_empty_headings,
     first_letter_back,
@@ -84,6 +86,61 @@ def test_a_hyphen_and_a_space_close_into_one_word(cut, whole):
 )
 def test_a_hyphen_that_waits_for_the_next_word_stays(kept):
     assert close_cut_words(kept) == kept
+
+
+# --- a hyphen the line put there, which the book does not write ---
+
+
+@pytest.mark.parametrize(
+    "cut, whole",
+    [
+        ("manage- ment of the desk", "management of the desk"),
+        ("informa- tion about the day", "information about the day"),
+        ("aware- ness of the range", "awareness of the range"),
+        ("develop- ing a feel for it", "developing a feel for it"),
+        ("activ- ity in the market", "activity in the market"),
+        ("accept- ance of the price", "acceptance of the price"),
+    ],
+)
+def test_a_hyphen_that_only_cut_a_word_comes_off(cut, whole):
+    """A tail that is not a word of its own proves the hyphen belonged to the line, not to the book."""
+    assert close_cut_words(cut) == whole
+
+
+def test_the_head_may_be_a_capital_and_the_hyphen_still_comes_off():
+    assert close_cut_words("Manage- ment of the desk") == "Management of the desk"
+
+
+def test_the_four_compounds_keep_their_hyphens_for_a_reason_that_is_checked():
+    """Why `consumer-generated` is safe, said out loud instead of hoped for.
+
+    The rule above is only as safe as this list. If a real word is ever added to `WORD_ENDINGS`,
+    this test fails here rather than quietly taking hyphens out of the reader's book.
+    """
+    tails = ["generated", "expression", "pocketed", "packaged"]
+    assert tails, "nothing was checked, so this test is asking nothing"
+    assert [tail for tail in tails if tail in WORD_ENDINGS] == []
+
+
+def test_a_hanging_hyphen_is_still_left_alone_even_before_a_word_ending():
+    """`JOINING_WORDS` is asked first, and none of its words is a word ending."""
+    assert close_cut_words("heat- and moisture-resistant") == "heat- and moisture-resistant"
+    assert [word for word in JOINING_WORDS if word in WORD_ENDINGS] == []
+
+
+def test_the_whole_repair_closes_a_cut_word_with_no_hyphen_left():
+    page = "# T\n\nThe manage- ment of the desk.\n"
+    assert "management" in repair_page_text(page)
+    assert "manage-ment" not in repair_page_text(page)
+
+
+def test_the_repair_counts_the_two_kinds_of_closing_apart():
+    """A person reads this log, so a hyphen kept and a hyphen taken off are not one number."""
+    page = "consumer- generated and manage- ment\n"
+    notes = repairs_of(page)
+    assert any("hyphen" in note for note in notes), "nothing was reported, so this test is asking nothing"
+    assert any("kept" in note for note in notes)
+    assert any("taken off" in note or "came off" in note for note in notes)
 
 
 # --- a paragraph that lost its big first letter ---

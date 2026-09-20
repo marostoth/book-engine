@@ -9,6 +9,10 @@ Nothing here guesses a word. A letter goes back only when the chapter's own word
 it was, and only when exactly one letter fits. A hyphen closes only when the word after it is not a
 joining word, because "heat- and moisture-resistant" is how the book means to write it.
 
+Closing a cut word is two decisions, not one. The halves always come back together; whether the
+hyphen comes with them depends on what follows it. "consumer- generated" keeps its hyphen, because
+the book writes that compound. "manage- ment" loses it, because no book writes "ment" (CQ-11).
+
 The splits that run across two paragraphs are a different job: `layout_stitcher.py` does those.
 """
 
@@ -17,6 +21,8 @@ from __future__ import annotations
 import re
 import string
 from collections import Counter
+
+from ingest.layout_stitcher import WORD_ENDINGS
 
 # The book's own highlight. In the vault a <mark> means "the reader highlighted this", so a book
 # must never bring one of its own.
@@ -61,6 +67,20 @@ def drop_empty_headings(text: str) -> str:
     return EMPTY_HEADING.sub("", text)
 
 
+def hyphen_only_cut_the_word(tail: str) -> bool:
+    """True when the hyphen belonged to the printed line and not to the book.
+
+    `layout_stitcher.WORD_ENDINGS` already holds these fragments, and already for this reason: none
+    of them is an English word, so no book writes a compound that ends in one. A hyphen in front of
+    "ment", "tion" or "ing" is therefore the end of a printed line, and it comes off with the space.
+
+    The list is asked, rather than a second copy of it being kept here, so the two modules cannot
+    drift apart. `layout_stitcher` uses it on the halves of a sentence a page break cut; this uses
+    it on the halves of a word one line cut. Same question, two places a layout can cut.
+    """
+    return tail.lower() in WORD_ENDINGS
+
+
 def close_cut_words(text: str) -> str:
     """Closes a word that a hyphen and a space cut in two, and leaves a hanging hyphen alone."""
 
@@ -68,6 +88,8 @@ def close_cut_words(text: str) -> str:
         head, tail = match.group(1), match.group(2)
         if tail.lower() in JOINING_WORDS:
             return match.group(0)
+        if hyphen_only_cut_the_word(tail):
+            return f"{head}{tail}"
         return f"{head}-{tail}"
 
     return CUT_WORD.sub(_close, text)
@@ -123,9 +145,22 @@ def repairs_of(text: str) -> list[str]:
         lines.append(f"{headings} heading(s) with no words dropped")
     text = drop_empty_headings(text)
 
-    closed = len(CUT_WORD.findall(text)) - len(CUT_WORD.findall(close_cut_words(text)))
-    if closed:
-        lines.append(f"{closed} word(s) closed that a hyphen had cut in two")
+    # Two numbers, not one. A hyphen kept and a hyphen taken off are different changes to the
+    # reader's book, and a person reads this log (CQ-09, CQ-11).
+    kept = 0
+    came_off = 0
+    for match in CUT_WORD.finditer(text):
+        tail = match.group(2)
+        if tail.lower() in JOINING_WORDS:
+            continue
+        if hyphen_only_cut_the_word(tail):
+            came_off += 1
+        else:
+            kept += 1
+    if kept:
+        lines.append(f"{kept} word(s) closed with the hyphen kept, because the book writes that compound")
+    if came_off:
+        lines.append(f"{came_off} word(s) closed with the hyphen taken off, because a line had cut the word")
     text = close_cut_words(text)
 
     counts = words_of(text)
