@@ -1,8 +1,11 @@
 //! A book that leaves the vault leaves practice and analytics too (LC-02).
 //!
-//! The app knows a book by the name of its folder in `vault/books/`. A book has left the vault when that folder is gone
-//! or has no `_meta.json`. The index run (`indexer.rs`) finds these books when the app opens and on "Rescan library",
-//! and this module takes their study rows out of the cache:
+//! The app knows a book by the name of its folder in `vault/books/`. A book has left the vault when that folder is
+//! gone. A folder that is still there but has no `_meta.json` has not left: the library does not list it and it keeps
+//! no search rows, because search is rebuilt from the book files, but its study progress stays (DS-19). A folder can
+//! be half-arrived from a cloud client, hand-made, or left by an import that failed before IN-05, and none of those
+//! may cost the reader their practice history. The index run (`indexer.rs`) finds the books that really left when the
+//! app opens and on "Rescan library", and this module takes their study rows out of the cache:
 //!
 //! - Their practice cards move to `fsrs_cards_archive` with their progress. A card comes back with that progress when
 //!   the book is back and its deck syncs (`deck_sync.rs`).

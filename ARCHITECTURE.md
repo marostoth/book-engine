@@ -508,6 +508,12 @@ happened, is skipped.
 `~/Library/Application Support/book-engine/app_cache/index.db` on macOS. Delete it and the next start builds
 the search index again from the vault Markdown and puts the study progress back from the study log.
 
+The index run takes a book's practice cards, review history and reading time out of the cache when its folder
+is gone from `vault/books/` (`db/removed_books.rs`). A folder that is still there but has no `_meta.json` has
+not left the vault (DS-19): the library does not list it and its search rows go, because search is rebuilt from
+the book files, but its study progress stays. A books folder entry the run could not look at stops the whole
+removal for that run, because a run that did not see an entry may not say the book it holds left.
+
 Unit tests never open this database or the real vault. In test builds `get_db_path()` and `find_vault_root()`
 resolve only inside a per-test temporary sandbox (`src-tauri/src/test_support.rs`) and return an error when no
 sandbox is active.
