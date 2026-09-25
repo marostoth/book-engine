@@ -23,6 +23,8 @@ mod locate_tests;
 pub mod models;
 pub mod notes;
 #[cfg(test)]
+mod notes_drawer_tests;
+#[cfg(test)]
 mod notes_tests;
 pub mod paths;
 #[cfg(test)]

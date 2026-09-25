@@ -179,6 +179,21 @@ fn comment_range(notes: &str) -> Option<std::ops::Range<usize>> {
     Some(marker..end)
 }
 
+/// The reader's own text in a chapter's notes: the notes as they stay once the old comment's highlights are moved
+/// out, and nothing on the disk changes. The notes drawer reads a chapter through this, so it shows the same notes
+/// before the move and after it (RD-18).
+///
+/// A comment whose list cannot be read moves nothing, so only the comment itself is left out, as far as its first
+/// `-->`, which is all a damaged comment still says about where it ends.
+pub(super) fn reflections_in(notes: &str) -> String {
+    let moved: Vec<HighlightItem> = comment_json(notes)
+        .ok()
+        .flatten()
+        .and_then(|json| serde_json::from_str(json).ok())
+        .unwrap_or_default();
+    without_highlights_section(notes, &moved)
+}
+
 /// The notes text without the machine comment and without the quote lines the app wrote for the
 /// given highlights. A `## Highlights` heading is removed only when nothing else is left under it,
 /// so a heading the reader writes under, and any text of their own, stays.

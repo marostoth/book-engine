@@ -294,6 +294,7 @@ book-engine/
 │       │   │   ├── noteLine.ts               # One line of a chapter's notes as the notes drawer shows it
 │       │   │   ├── notesAggregator.ts        # Cross-chapter note aggregation, anchor sorting & summary compiler
 │       │   │   ├── notesAutosave.ts          # Chapter notes autosave
+│       │   │   ├── notesDrawerCases.json     # Notes files and what the drawer shows of them, read by the Rust & TS drawer tests
 │       │   │   ├── notesQuote.ts             # A quote sent to the chapter notes
 │       │   │   ├── practiceContract.json     # Exact get_due_cards scenario-card JSON shared by the Rust & TS contract tests
 │       │   │   ├── practiceSession.ts        # Pure practice/gatekeeper session

@@ -170,12 +170,53 @@ pub fn scan_all_notes(book_id: &str) -> Result<Vec<ChapterNoteFile>> {
     Ok(entries)
 }
 
+/// One note of the reader's own, as the drawer shows it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WrittenNote {
+    /// The line that holds the note, counted in the notes once the old highlights are left out.
+    pub line: usize,
+    /// The heading the note sits under, or `Reflections` above the first heading.
+    pub heading: String,
+    pub text: String,
+    pub anchor: Option<String>,
+}
+
+/// The reader's own notes in one chapter's notes text (RD-18).
+///
+/// The old highlights comment, and the quote lines the app wrote for it, are left out by the rule the move to the
+/// highlights file uses (`reflections_in`, `vault/highlights.rs`), so the drawer shows the same notes before a chapter
+/// is opened and after. The drawer had its own rule, and it was wrong twice. It cut the comment at its first `-->`,
+/// which a highlight's words may hold, and showed the rest of the JSON as notes. And it dropped every heading that
+/// merely started with `## Highlights`, with everything under it, so `## Highlights of the argument` and the notes
+/// under it never reached the drawer or the export, in any chapter, moved over or not.
+pub fn notes_written_in(content: &str) -> Vec<WrittenNote> {
+    let mut heading = "Reflections".to_string();
+    let mut notes = Vec::new();
+    for (line, raw_line) in super::highlights::reflections_in(content).lines().enumerate() {
+        let trimmed = raw_line.trim();
+        if trimmed.is_empty() || trimmed.starts_with("# ") {
+            continue;
+        }
+        if trimmed.starts_with("## ") || trimmed.starts_with("### ") {
+            heading = trimmed.trim_start_matches('#').trim().to_string();
+            continue;
+        }
+        // One rule for the markers, the anchor, the quote marks and the empty prompt (RD-08).
+        let Some((text, anchor)) = note_text_and_anchor(trimmed) else {
+            continue;
+        };
+        notes.push(WrittenNote {
+            line,
+            heading: heading.clone(),
+            text,
+            anchor,
+        });
+    }
+    notes
+}
+
 /// Scans and parses both human-written reflection Markdown and embedded W3C highlight JSON blocks
 /// across all `vault/notes/<book-id>/ch-*-notes.md`, grouping entries by chapter and anchor.
-#[expect(
-    clippy::string_slice,
-    reason = "every position comes from `find` or `rfind`, plus the length of an ASCII marker"
-)]
 pub fn parse_all_book_notes(book_id: &str) -> Result<Vec<AggregatedNoteItem>> {
     let note_files = scan_all_notes(book_id)?;
     let mut chapter_info: std::collections::HashMap<String, (String, usize)> = std::collections::HashMap::new();
@@ -229,53 +270,18 @@ pub fn parse_all_book_notes(book_id: &str) -> Result<Vec<AggregatedNoteItem>> {
             }
         }
 
-        // 2. Parse human-written reflection Markdown
-        // Strip out the highlights json comment and the human-readable highlights block
-        let mut clean_content = file.content.clone();
-        if let Some(start) = clean_content.find("<!-- highlights-json") {
-            if let Some(end) = clean_content[start..].find("-->") {
-                clean_content.replace_range(start..start + end + 3, "");
-            }
-        }
-
-        // Remove `## Highlights ...` section if present
-        if let Some(hl_sec) = clean_content.find("## Highlights") {
-            let next_sec = clean_content[hl_sec + 13..]
-                .find("\n## ")
-                .map(|pos| hl_sec + 13 + pos)
-                .unwrap_or(clean_content.len());
-            clean_content.replace_range(hl_sec..next_sec, "");
-        }
-
-        let lines: Vec<&str> = clean_content.lines().collect();
-        let mut current_heading = "Reflections".to_string();
-
-        for (line_idx, raw_line) in lines.iter().enumerate() {
-            let line = raw_line.trim();
-            if line.is_empty() || line.starts_with("# ") {
-                continue;
-            }
-
-            if line.starts_with("## ") || line.starts_with("### ") {
-                current_heading = line.trim_start_matches('#').trim().to_string();
-                continue;
-            }
-
-            // One rule for the markers, the anchor, the quote marks and the empty prompt (RD-08).
-            let Some((text, anchor)) = note_text_and_anchor(line) else {
-                continue;
-            };
-
+        // 2. The reader's own notes, without the old highlights comment (RD-18).
+        for note in notes_written_in(&file.content) {
             items.push(AggregatedNoteItem {
-                id: format!("note-{}-{}-{}", file.chapter_file, line_idx, items.len()),
+                id: format!("note-{}-{}-{}", file.chapter_file, note.line, items.len()),
                 item_type: "note".to_string(),
                 chapter_file: file.chapter_file.clone(),
                 chapter_title: ch_title.clone(),
                 chapter_order: ch_order,
-                anchor,
-                text,
+                anchor: note.anchor,
+                text: note.text,
                 color: None,
-                section_heading: Some(current_heading.clone()),
+                section_heading: Some(note.heading),
                 created_at: None,
             });
         }

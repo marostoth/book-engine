@@ -1,5 +1,5 @@
 import { BookMeta, ChapterNoteFile, AggregatedEntry } from "./types";
-import { parseHighlightsFromNotes } from "./highlights";
+import { parseHighlightsFromNotes, reflectionsIn } from "./highlights";
 import { noteLine } from "./noteLine";
 
 /**
@@ -10,6 +10,46 @@ function getAnchorIndex(anchor?: string): number {
   if (!anchor) return Infinity;
   const match = anchor.match(/\^?p-(\d+)/i);
   return match ? parseInt(match[1], 10) : Infinity;
+}
+
+/** One note of the reader's own, as the drawer shows it. */
+export interface WrittenNote {
+  /** The line that holds the note, counted in the notes once the old highlights are left out. */
+  line: number;
+  /** The heading the note sits under, or `Reflections` above the first heading. */
+  heading: string;
+  text: string;
+  anchor?: string;
+}
+
+/**
+ * The reader's own notes in one chapter's notes text (RD-18). This is the TypeScript half of `notes_written_in` in
+ * `src-tauri/src/vault/notes.rs`, and `notesDrawerCases.json` holds both halves to the same cases.
+ *
+ * The old highlights comment and the quote lines the app wrote for it are left out by `reflectionsIn`, the rule the
+ * move to the highlights file uses. This had its own rule, and it was wrong twice: it cut the comment at its first
+ * `-->`, which a highlight's words may hold, and showed the rest of the JSON as notes; and it dropped every heading
+ * that merely started with `## Highlights`, with everything under it.
+ */
+export function notesWrittenIn(content: string): WrittenNote[] {
+  const lines = reflectionsIn(content).split("\n");
+  const notes: WrittenNote[] = [];
+  let heading = "Reflections";
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line || line.startsWith("# ")) continue;
+    if (line.startsWith("## ") || line.startsWith("### ")) {
+      heading = line.replace(/^#+\s*/, "").trim();
+      continue;
+    }
+    // One rule for the markers, the anchor, the quote marks and the empty prompt (RD-08). `noteLine` is the
+    // TypeScript half of `note_text_and_anchor` in src-tauri/src/vault/notes.rs; the two must answer the same,
+    // and `tests/test_one_note_format.py` holds them to it.
+    const shown = noteLine(line);
+    if (!shown) continue;
+    notes.push({ line: i, heading, text: shown.text, anchor: shown.anchor });
+  }
+  return notes;
 }
 
 /**
@@ -52,45 +92,17 @@ export function aggregateBookNotes(
       });
     }
 
-    // 2. Parse Markdown reflections, bullets, and questions (excluding highlights JSON & readable list)
-    // Strip machine JSON block and any human-readable highlights block
-    const cleanNotes = file.content
-      .replace(/<!--\s*highlights-json[\s\S]*?-->/g, "")
-      .replace(/\n*## Highlights[\s\S]*?(?=\n##|$)/g, "")
-      .trim();
-
-    // Parse lines and sections
-    const lines = cleanNotes.split("\n");
-    let currentHeading = "Reflections";
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) continue;
-
-      // Skip top-level title
-      if (line.startsWith("# ")) continue;
-
-      // Track section headings (## Key Takeaways, ## Open Inquiries, etc.)
-      if (line.startsWith("## ") || line.startsWith("### ")) {
-        currentHeading = line.replace(/^#+\s*/, "").trim();
-        continue;
-      }
-
-      // One rule for the markers, the anchor, the quote marks and the empty prompt (RD-08). `noteLine` is the
-      // TypeScript half of `note_text_and_anchor` in src-tauri/src/vault/notes.rs; the two must answer the same,
-      // and `tests/test_one_note_format.py` holds them to it.
-      const shown = noteLine(line);
-      if (!shown) continue;
-
+    // 2. The reader's own notes, without the old highlights comment (RD-18).
+    for (const note of notesWrittenIn(file.content)) {
       entries.push({
-        id: `note-${file.chapter_file}-${i}-${Date.now().toString(36)}`,
+        id: `note-${file.chapter_file}-${note.line}-${Date.now().toString(36)}`,
         type: "note",
         chapterFile: file.chapter_file,
         chapterTitle: chapter.title,
         chapterOrder: chapter.order,
-        anchor: shown.anchor,
-        text: shown.text,
-        sectionHeading: currentHeading,
+        anchor: note.anchor,
+        text: note.text,
+        sectionHeading: note.heading,
       });
     }
   }
