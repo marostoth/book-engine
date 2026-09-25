@@ -308,6 +308,7 @@ book-engine/
 │       │   │   ├── readingPlace.ts           # Where you stopped
 │       │   │   ├── readingTime.ts            # Reading time
 │       │   │   ├── reviewDays.ts             # Review days
+│       │   │   ├── seamContract.json         # One example of every shape that crosses between Rust & TS, read by the Rust & TS seam tests
 │       │   │   ├── searchIndex.ts            # Search update when the app opens and on Rescan
 │       │   │   ├── searchQuery.ts            # Search box minimum length (2 characters), the same as the backend
 │       │   │   ├── savingBeforeClose.ts      # Every saver that runs, and is waited for, before the window closes

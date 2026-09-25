@@ -1,6 +1,13 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
-import { bookMetaFrom, highlightsFrom, isHighlight, isRecord, vocabularyFrom } from "./backendShapes.ts";
+import {
+  bookMetaFrom,
+  highlightsFrom,
+  isHighlight,
+  isRecord,
+  readableHighlightsFrom,
+  vocabularyFrom,
+} from "./backendShapes.ts";
 
 /** A book file with everything the app reads. Each test takes this and breaks one thing. */
 function goodBook(): Record<string, unknown> {
@@ -104,26 +111,44 @@ test("a book file with no total_chapters counts its own chapters", () => {
 
 // ---------------------------------------------------------------- saved highlights
 
-test("a damaged highlight is dropped and every good one is kept", () => {
+test("a damaged highlight rejects the list, so the next highlight cannot save over it", () => {
   const mixed = [goodHighlight(), { id: "h2", exact: "only this" }, { ...goodHighlight(), id: "h3" }];
-  const kept = highlightsFrom(mixed, "test");
-  assert.deepEqual(
-    kept.map((h) => h.id),
-    ["h1", "h3"],
-    "one bad entry used to reach the reader and throw while the chapter was being drawn"
+  assert.throws(
+    () => highlightsFrom(mixed, "The saved highlights of ch-01.md"),
+    /ch-01\.md: 1 of 3 saved highlights cannot be read/,
+    "the list on screen is what the next highlight saves, so a dropped entry was erased from the vault (TL-14)"
   );
 });
 
-test("a highlight with no createdAt is dropped", () => {
-  const missing = goodHighlight();
-  delete missing.createdAt;
-  assert.equal(highlightsFrom([missing], "test").length, 0);
+test("a list whose every entry names a field another way is rejected, not emptied", () => {
+  // What a field renamed on one side of the seam looks like: every entry is wrong in the same way
+  const drifted = [goodHighlight(), { ...goodHighlight(), id: "h2" }].map(({ createdAt, ...rest }) => ({
+    ...rest,
+    created_at: createdAt,
+  }));
+  assert.throws(() => highlightsFrom(drifted, "test"), /2 of 2 saved highlights cannot be read/);
 });
 
-test("a highlight list that is not a list gives an empty list, never a crash", () => {
-  assert.deepEqual(highlightsFrom(null, "test"), []);
-  assert.deepEqual(highlightsFrom("[]", "test"), []);
-  assert.deepEqual(highlightsFrom({ 0: goodHighlight() }, "test"), []);
+test("a highlight list that is not a list is rejected", () => {
+  assert.throws(() => highlightsFrom(null, "test"), /not a list/);
+  assert.throws(() => highlightsFrom("[]", "test"), /not a list/);
+  assert.throws(() => highlightsFrom({ 0: goodHighlight() }, "test"), /not a list/);
+});
+
+test("a list of good highlights is given back whole, and an empty list stays empty", () => {
+  const good = [goodHighlight(), { ...goodHighlight(), id: "h2", anchor: "^p-002", color: "blue" }];
+  assert.deepEqual(highlightsFrom(good, "test"), good);
+  assert.deepEqual(highlightsFrom([], "test"), []);
+});
+
+test("a list that is only read drops a damaged highlight and keeps every good one", () => {
+  const mixed = [goodHighlight(), { id: "h2", exact: "only this" }, { ...goodHighlight(), id: "h3" }];
+  assert.deepEqual(
+    readableHighlightsFrom(mixed, "test").map((h) => h.id),
+    ["h1", "h3"],
+    "one bad entry used to reach the reader and throw while the chapter was being drawn (RD-09)"
+  );
+  assert.deepEqual(readableHighlightsFrom(null, "test"), []);
 });
 
 test("isHighlight says no to a string, a null and a list", () => {

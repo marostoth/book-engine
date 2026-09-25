@@ -213,7 +213,7 @@ pub async fn get_vault_path() -> Result<String, String> {
 }
 
 /// Where the vault is, or why it was not found. The app asks this before it shows the library (LC-01).
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VaultStatus {
     /// The vault folder, or an empty string when there is none.

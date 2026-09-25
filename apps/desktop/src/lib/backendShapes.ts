@@ -110,10 +110,30 @@ export function isHighlight(value: unknown): value is HighlightItem {
 /**
  * The saved highlights of a chapter, from a value that may be anything.
  *
- * A damaged entry is dropped and the rest are kept, because one bad entry must not lose the reader every other
- * highlight of the chapter. The count of dropped entries goes to the console, so the loss is never silent.
+ * Rejects the whole list when one entry is wrong, and never drops the entry (TL-14). The list on screen is what the
+ * next highlight saves, over the file, so an entry dropped here was erased from the vault by the next highlight the
+ * reader made. A rejected list does not land on the screen, and the reader cannot add a highlight to a chapter whose
+ * highlights did not load. The backend reads the file the same way: one damaged entry, and it sends none.
+ *
+ * In the app an entry is wrong only when the Rust and TypeScript names of a field drift apart, and then every entry is
+ * wrong, so dropping them lost every highlight of the chapter. `seamContract.json` catches that drift in the tests.
  */
 export function highlightsFrom(value: unknown, where: string): HighlightItem[] {
+  if (!Array.isArray(value)) throw new Error(`${where} are not a list.`);
+  const damaged = value.filter((entry) => !isHighlight(entry)).length;
+  if (damaged > 0) {
+    throw new Error(`${where}: ${damaged} of ${value.length} saved highlights cannot be read, so none are shown.`);
+  }
+  return value as HighlightItem[];
+}
+
+/**
+ * The highlights of a list that is only read and never saved again, such as the old comment in a notes file.
+ *
+ * A damaged entry is dropped and the rest are kept, because no save can erase what is dropped here, and one bad entry
+ * must not lose the reader every other highlight on show (RD-09). The count goes to the console.
+ */
+export function readableHighlightsFrom(value: unknown, where: string): HighlightItem[] {
   if (!Array.isArray(value)) return [];
   const good = value.filter(isHighlight);
   if (good.length !== value.length) {
