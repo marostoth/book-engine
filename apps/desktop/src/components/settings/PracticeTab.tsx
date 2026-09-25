@@ -1,19 +1,21 @@
 import React from "react";
 import { useSettings } from "../../hooks/useSettings";
+import { countText } from "../../lib/analyticsText";
 import { ShieldCheck, Target, RefreshCw, BarChart3, BrainCircuit, ListOrdered } from "lucide-react";
 
 /** The settings come from `useSettings`, not from props (RD-09). */
 interface PracticeTabProps {
   onResyncDeck?: () => void;
   onOpenAnalytics?: () => void;
-  dueCardsCount?: number;
+  /** Null while the cards of the open book are not known: it shows a dash, not 0 (RD-14). */
+  dueCardsCount?: number | null;
   onClosePopover?: () => void;
 }
 
 export const PracticeTab: React.FC<PracticeTabProps> = ({
   onResyncDeck,
   onOpenAnalytics,
-  dueCardsCount = 0,
+  dueCardsCount = null,
   onClosePopover,
 }) => {
   const { settings: preferences, change: onPreferencesChange } = useSettings();
@@ -234,7 +236,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium text-[var(--theme-accent)] bg-[var(--theme-accent)]/10 hover:bg-[var(--theme-accent)]/20 border border-[var(--theme-accent)]/30 transition-colors ml-auto shadow-sm"
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            <span>Sync Deck ({dueCardsCount})</span>
+            <span>Sync Deck ({countText(dueCardsCount)})</span>
           </button>
         )}
       </div>

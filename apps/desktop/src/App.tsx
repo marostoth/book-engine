@@ -292,7 +292,7 @@ export const App: React.FC<AppProps> = ({ startingPreferences }) => {
           onOpenNotesDrawer={handleOpenNotesDrawer}
           onOpenAnalytics={() => setAnalyticsModalOpen(true)}
           onOpenGuide={() => setGuideOpen(true)}
-          onResyncDeck={() => refreshPracticeCards(activeBookId)}
+          onResyncDeck={refreshPracticeCards}
           activeLevel={activeLevel} inspectionalSession={inspectionalSession}
           isPacingRunning={isPacingRunning} onTogglePacer={handleTogglePacer}
         />

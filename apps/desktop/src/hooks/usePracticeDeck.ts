@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { PracticeCardItem, CardSchedule, ReaderPreferences, StudyPreferences } from "../lib/types";
 import { syncPracticeDeck, getDueCards } from "../lib/api";
-import { practiceCardType } from "../lib/practiceSession";
+import { type DueCards, practiceCardType } from "../lib/practiceSession";
 import { reportBackendError } from "../lib/backendErrors";
 
 /**
@@ -10,15 +10,15 @@ import { reportBackendError } from "../lib/backendErrors";
  * A plain function, outside the hook, so the effect below can await the fetch itself. An effect must not CALL
  * something that sets state: that sets it before the first drawing instead of after it (TL-11).
  *
- * It reports its own failures. A sync that fails still leaves the cards already in the database usable, and a fetch
- * that fails gives back no cards rather than the cards of the book before it.
+ * It reports its own failures. A sync that fails still leaves the cards already in the database usable. A fetch that
+ * fails gives back null: the cards are not known, which is not the same as no cards due (RD-14).
  */
 async function loadDueCards(
   bookId: string,
   mode: StudyPreferences["practiceMode"],
   dailyTarget: number,
   hybridRatio: number
-): Promise<PracticeCardItem[]> {
+): Promise<PracticeCardItem[] | null> {
   try {
     await syncPracticeDeck(bookId);
   } catch (err) {
@@ -29,12 +29,27 @@ async function loadDueCards(
     return await getDueCards(bookId, practiceCardType(mode), dailyTarget, hybridRatio);
   } catch (err) {
     reportBackendError("Could not load your practice cards.", err);
-    return [];
+    return null;
   }
 }
 
+/** The cards due for one question, and the question they answer. Cards for another book or mode are not these. */
+interface Deck {
+  to: string;
+  /** Null when the load failed. */
+  cards: PracticeCardItem[] | null;
+}
+
+/**
+ * The practice deck of the open book: the cards due now, and how many.
+ *
+ * `dueCards` is "loading" or "failed" while the cards of THIS book, mode and target are not known. It used to keep the cards of the book the reader had just left until the new ones came, so the badge showed
+ * the other book's number and the window showed the other book's cards (RD-14).
+ */
 export function usePracticeDeck(activeBookId: string, preferences: ReaderPreferences) {
-  const [dueCards, setDueCards] = useState<PracticeCardItem[]>([]);
+  const [deck, setDeck] = useState<Deck | null>(null);
+  /** Counts up when the reader asks for the deck again with "Sync Deck", so the same question is asked a second time. */
+  const [askedAgain, setAskedAgain] = useState(0);
   const [practiceModalOpen, setPracticeModalOpen] = useState<boolean>(false);
 
   const study = preferences.study;
@@ -42,37 +57,35 @@ export function usePracticeDeck(activeBookId: string, preferences: ReaderPrefere
   const dailyTarget = study.dailyTargetCards;
   const hybridRatio = study.hybridRatio ?? 0.5;
 
-  const refreshPracticeCards = useCallback(
-    async (bId?: string) => {
-      const targetBookId = bId || activeBookId;
-      if (!targetBookId) return;
-      setDueCards(await loadDueCards(targetBookId, practiceMode, dailyTarget, hybridRatio));
-    },
-    [activeBookId, practiceMode, dailyTarget, hybridRatio]
-  );
+  const asked = `${askedAgain} ${activeBookId} ${practiceMode} ${dailyTarget} ${hybridRatio}`;
+  const answered = activeBookId !== "" && deck?.to === asked;
+  const dueCards: DueCards = answered ? (deck.cards ?? "failed") : "loading";
 
-  // Re-fetch deck whenever book, practice mode, daily target, or hybrid ratio changes. The answer to an older book
-  // is thrown away: it used to be able to land after the reader had already opened another one.
+  // Ask whenever the book, the practice mode, the daily target, the hybrid ratio changes, or the reader asks again.
+  // The answer carries its question, so an answer to an older one is never shown.
   useEffect(() => {
     if (!activeBookId) return;
     let isCurrent = true;
     loadDueCards(activeBookId, practiceMode, dailyTarget, hybridRatio).then((cards) => {
-      if (isCurrent) setDueCards(cards);
+      if (isCurrent) setDeck({ to: asked, cards });
     });
     return () => {
       isCurrent = false;
     };
-  }, [activeBookId, practiceMode, dailyTarget, hybridRatio]);
+  }, [asked, activeBookId, practiceMode, dailyTarget, hybridRatio]);
+
+  const refreshPracticeCards = useCallback(() => setAskedAgain((count) => count + 1), []);
 
   const handleReviewSubmitted = useCallback((cardId: string, schedule: CardSchedule) => {
     if (schedule.interval_days > 0) {
-      setDueCards((prev) => prev.filter((c) => c.card_id !== cardId));
+      setDeck((prev) => (prev?.cards ? { ...prev, cards: prev.cards.filter((c) => c.card_id !== cardId) } : prev));
     }
   }, []);
 
   return {
     dueCards,
-    dueCardsCount: dueCards.length,
+    /** Null while the cards are not known. */
+    dueCardsCount: Array.isArray(dueCards) ? dueCards.length : null,
     practiceModalOpen,
     setPracticeModalOpen,
     refreshPracticeCards,

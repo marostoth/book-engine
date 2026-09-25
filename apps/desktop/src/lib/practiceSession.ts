@@ -1,6 +1,12 @@
 import type { PracticeCardItem } from "./practiceTypes";
 import type { StudyPreferences } from "./types";
 
+/**
+ * The cards due now for the open book, or why there are none to show: they are on their way, or they did not load.
+ * Neither of those is "no cards due", which is an empty list (RD-14).
+ */
+export type DueCards = PracticeCardItem[] | "loading" | "failed";
+
 /** The card type that `get_due_cards` and `get_chapter_due_cards` take for a practice mode. */
 export function practiceCardType(mode: StudyPreferences["practiceMode"]): "scenario" | "cloze" | "hybrid" {
   return mode === "mcq_scenario" ? "scenario" : mode === "verbatim" ? "cloze" : "hybrid";

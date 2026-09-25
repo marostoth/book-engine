@@ -37,7 +37,8 @@ interface TopNavProps {
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
   onOpenSearch: () => void;
-  dueCardsCount?: number;
+  /** Null while the cards of the open book are not known: the badge then shows no number (RD-14). */
+  dueCardsCount?: number | null;
   onOpenPractice?: () => void;
   onOpenNotesDrawer?: () => void;
   onOpenAnalytics?: () => void;
@@ -52,7 +53,7 @@ interface TopNavProps {
 export const TopNav: React.FC<TopNavProps> = ({
   chapterTitle, progressPercent, sidebarOpen, onToggleSidebar,
   theme, onThemeChange, viewMode, onViewModeChange,
-  onOpenSearch, dueCardsCount = 0, onOpenPractice, onOpenNotesDrawer,
+  onOpenSearch, dueCardsCount = null, onOpenPractice, onOpenNotesDrawer,
   onOpenAnalytics, onOpenGuide,
   onResyncDeck, activeLevel = "elementary", inspectionalSession,
   isPacingRunning, onTogglePacer,
@@ -134,7 +135,7 @@ export const TopNav: React.FC<TopNavProps> = ({
           >
             <Brain className="w-3.5 h-3.5 text-amber-600 dark:text-nord-accent flex-shrink-0" />
             <span className="hidden sm:inline">Practice</span>
-            {dueCardsCount > 0 && (
+            {dueCardsCount != null && dueCardsCount > 0 && (
               <span className="px-1.5 py-0.2 text-[9px] font-bold rounded-full bg-amber-600 dark:bg-nord-accent text-white flex-shrink-0">
                 {dueCardsCount}
               </span>

@@ -12,7 +12,14 @@ import { ClozeDrill } from "./practice/ClozeDrill";
 import { ScrambleDrill } from "./practice/ScrambleDrill";
 import { RatingBar } from "./practice/RatingBar";
 import { ScenarioCardView } from "./practice/ScenarioCardView";
-import { currentSessionCard, deckName, recordSessionReview, startSession, syncSession } from "../lib/practiceSession";
+import {
+  currentSessionCard,
+  deckName,
+  type DueCards,
+  recordSessionReview,
+  startSession,
+  syncSession,
+} from "../lib/practiceSession";
 import { reportBackendError } from "../lib/backendErrors";
 import { useDialog } from "../hooks/useDialog";
 import { useStartAgainWhen } from "../hooks/useStartAgainWhen";
@@ -20,29 +27,40 @@ import { useStartAgainWhen } from "../hooks/useStartAgainWhen";
 interface PracticeModalProps {
   isOpen: boolean;
   onClose: () => void;
-  cards: PracticeCardItem[];
+  /** The book the reader has open. The cards and the session belong to it. */
+  bookId: string;
+  /** The cards due now, or why there are none to show yet (RD-14). */
+  cards: DueCards;
   onReviewSubmitted: (cardId: string, schedule: CardSchedule) => void;
   onJumpToAnchor?: (chapterFile: string, anchor: string) => void;
   bookTitle?: string;
 }
 
+const NO_CARDS: PracticeCardItem[] = [];
+
 /**
  * The window is built only while it is open, so closing it takes the session off the page and the next opening
  * starts fresh. An effect used to put an empty session back after the window had closed (TL-11).
+ *
+ * It is built again for another book, too. A session keeps its own copy of the cards after the first rating, so a
+ * session that outlived its book would go on showing the other book's cards (RD-14).
  */
 export const PracticeModal: React.FC<PracticeModalProps> = (props) => {
   if (!props.isOpen) return null;
-  return <OpenPracticeModal {...props} />;
+  return <OpenPracticeModal key={props.bookId} {...props} />;
 };
 
 const OpenPracticeModal: React.FC<PracticeModalProps> = ({
   isOpen,
   onClose,
-  cards,
+  cards: due,
   onReviewSubmitted,
   onJumpToAnchor,
   bookTitle = "Book Engine",
 }) => {
+  const cardsKnown = Array.isArray(due);
+  const cards = Array.isArray(due) ? due : NO_CARDS;
+  const cardsFailed = due === "failed";
   // Walk a session copy of the due cards, because rating a card removes it from `cards`.
   const [session, setSession] = useState(() => startSession(cards));
   const [userAnswer, setUserAnswer] = useState("");
@@ -175,6 +193,18 @@ const OpenPracticeModal: React.FC<PracticeModalProps> = ({
                   Return to Reader
                 </button>
               </div>
+            </div>
+          ) : !currentCard && !cardsKnown ? (
+            // "No cards due" would be a claim about this book that nobody has checked yet (RD-14).
+            <div className="py-12 text-center space-y-4" role="status">
+              <h3 className="text-base font-bold text-[var(--theme-text)]">
+                {cardsFailed ? "Your Cards Did Not Load" : "Loading Your Cards…"}
+              </h3>
+              <p className="text-xs text-[var(--theme-muted)] max-w-sm mx-auto">
+                {cardsFailed
+                  ? "The reason is in the message at the bottom of the window. Use Sync Deck in the settings to try again."
+                  : "The practice deck of this book is being checked against its chapters."}
+              </p>
             </div>
           ) : !currentCard ? (
             <div className="py-12 text-center space-y-4">
