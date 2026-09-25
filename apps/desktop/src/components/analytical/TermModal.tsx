@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { AuthorTerm, AnchoredCitation } from "../../lib/types/analytical";
 import { citationPlace } from "../../lib/citations";
-import { formKey, termFormStart } from "../../lib/formStart";
+import { formKey, NO_CHAPTER_CHOSEN, termFormStart } from "../../lib/formStart";
 import { useDialog } from "../../hooks/useDialog";
 import { DiscardNotice } from "../DiscardNotice";
 
@@ -58,7 +58,7 @@ const OpenTermModal: React.FC<TermModalProps> = ({
       term: term.trim(),
       authorDefinition: definition.trim(),
       citation: {
-        chapterFile: chapterFile.trim() || currentChapterFile || "unknown.md",
+        chapterFile: chapterFile.trim() || currentChapterFile || NO_CHAPTER_CHOSEN,
         anchor: anchor.trim(),
         quote: quote.trim(),
       },

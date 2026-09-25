@@ -168,7 +168,8 @@ test("the guard knows a made-up anchor by its shape, not by one spelling of it (
  */
 const SAMPLE_BOOK = "lib/api/dev/";
 
-test("no file of the app makes up a paragraph anchor (RD-04, RD-11)", () => {
+/** Every line of code of the app, with where it is: no test, no sample book, no comment and no placeholder. */
+function codeOfTheApp(): { at: string; line: string }[] {
   const src = new URL("../", import.meta.url);
   const files = fs
     .readdirSync(src, { recursive: true, encoding: "utf8" })
@@ -181,17 +182,48 @@ test("no file of the app makes up a paragraph anchor (RD-04, RD-11)", () => {
   }
   assert.ok(files.length > 100, `the guard read only ${files.length} files`);
 
-  const madeUp = files.flatMap((file) =>
+  return files.flatMap((file) =>
     fs
       .readFileSync(new URL(file, src), "utf8")
       .split("\n")
       .map((line, index) => ({ at: `${file}:${index + 1}`, line: line.trim() }))
-      // A comment saves nothing, and a placeholder only shows the form of an anchor in a field that stays empty.
+      // A comment saves nothing, and a placeholder only shows the form of a name in a field that stays empty.
       .filter(({ line }) => !line.startsWith("//") && !line.startsWith("/*") && !line.startsWith("*"))
       .filter(({ line }) => !line.includes("placeholder"))
-      .filter(({ line }) => makesAnAnchor(line))
-      .map(({ at, line }) => `${at}  ${line}`)
   );
+}
+
+test("no file of the app makes up a paragraph anchor (RD-04, RD-11)", () => {
+  const madeUp = codeOfTheApp()
+    .filter(({ line }) => makesAnAnchor(line))
+    .map(({ at, line }) => `${at}  ${line}`);
 
   assert.deepEqual(madeUp, [], "a file writes an anchor of its own");
+});
+
+/**
+ * Whether a line of code names a chapter of its own: a quoted `ch-` and then a digit or an interpolation. Every
+ * imported book has a `ch-01.md`, so a citation that fell back to it named a real chapter that nobody chose (RD-16).
+ * A chapter the app does not know is `NO_CHAPTER_CHOSEN` (`lib/formStart.ts`).
+ */
+function makesAChapter(line: string): boolean {
+  return /["'`]ch-(?:\d|\$\{)/.test(line);
+}
+
+test("the guard knows a made-up chapter by its shape", () => {
+  assert.ok(makesAChapter('chapterFile: pChapter.trim() || "ch-01.md",'), "the fallback RD-16 removed");
+  assert.ok(makesAChapter('  currentChapterFile = "ch-01.md",'), "the default prop RD-16 removed");
+  assert.ok(makesAChapter("chapterFile: `ch-0${index + 1}.md`,"), "a chapter counted from something else");
+
+  assert.ok(!makesAChapter("chapterFile: pChapter.trim() || NO_CHAPTER_CHOSEN,"), "the name for no chapter");
+  assert.ok(!makesAChapter("const found = chapter.file_path.match(/ch-(\\d+)/);"), "a pattern that reads a chapter");
+  assert.ok(!makesAChapter('className="ch-full"'), "a word that starts with ch- and no digit");
+});
+
+test("no file of the app makes up a chapter (RD-16)", () => {
+  const madeUp = codeOfTheApp()
+    .filter(({ line }) => makesAChapter(line))
+    .map(({ at, line }) => `${at}  ${line}`);
+
+  assert.deepEqual(madeUp, [], "a file names a chapter that nobody chose");
 });

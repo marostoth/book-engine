@@ -11,6 +11,7 @@ import {
   formKey,
   inquiryFormStart,
   neutralTermFormStart,
+  NO_CHAPTER_CHOSEN,
   termFormStart,
 } from "./formStart.ts";
 
@@ -120,6 +121,13 @@ test("a new argument with no chapter open says so, rather than naming a chapter 
   const start = argumentFormStart(null, null, undefined);
   assert.equal(start.conclusion.chapterFile, "unknown.md");
   assert.equal(start.premises[0].chapterFile, "unknown.md");
+});
+
+test("the name for no chapter chosen is one no imported chapter has (RD-16)", () => {
+  // The rule `check_chapter_file` in `src-tauri/src/vault/paths.rs` holds every chapter name to.
+  const aChapterName = /^ch-\d{2,}\.md$/;
+  assert.ok(aChapterName.test("ch-01.md"), "the rule no longer matches a real chapter, so this test proves nothing");
+  assert.ok(!aChapterName.test(NO_CHAPTER_CHOSEN), "a citation nobody placed would point at a real chapter");
 });
 
 test("a staged argument with no chapter open falls back to the staged chapter", () => {
@@ -245,8 +253,12 @@ test("with nothing staged the perspective form points at the book and chapter op
   assert.equal(start.pQuote, "");
 });
 
-test("with no chapter open the perspective form names the first chapter", () => {
-  assert.equal(controversyFormStart(null, questions, null, null, undefined).pChapter, "ch-01.md");
+test("with no chapter open the perspective form names no chapter, rather than the first one (RD-16)", () => {
+  assert.equal(
+    controversyFormStart(null, questions, null, null, undefined).pChapter,
+    "",
+    "every book has a ch-01.md, so the form claims a real chapter the reader never chose"
+  );
 });
 
 // -------------------------------------------------------------------------------------------- the neutral term
@@ -290,6 +302,14 @@ test("a new neutral term with nothing staged opens on the book and chapter open 
   assert.equal(start.mapBookId, "wealth-of-nations");
   assert.equal(start.mapChapter, "ch-09.md");
   assert.equal(start.mapVariant, "");
+});
+
+test("a new neutral term with no chapter open names no chapter, rather than the first one (RD-16)", () => {
+  assert.equal(
+    neutralTermFormStart(null, null, "wealth-of-nations", undefined).mapChapter,
+    "",
+    "every book has a ch-01.md, so the form claims a real chapter the reader never chose"
+  );
 });
 
 // --------------------------------------------------------------------------------------- the exit assessment

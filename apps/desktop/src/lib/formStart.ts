@@ -35,6 +35,14 @@ import type {
 } from "./types/syntopicon.ts";
 import type { ExitAssessmentPayload } from "./types.ts";
 
+/**
+ * The chapter a citation names when nobody chose one. Every imported book has a `ch-01.md`, so a fallback to it
+ * pointed at a real chapter, and in the syntopicon at a real paragraph that does not hold the quote. No chapter the
+ * importer writes has this name, so the citation stays unlinked and the topic report says the chapter is not there
+ * (RD-16).
+ */
+export const NO_CHAPTER_CHOSEN = "unknown.md";
+
 /** A separator no chapter name, anchor or id holds, so two different forms can never share one key. */
 const BETWEEN_PARTS = "\u0000";
 
@@ -122,7 +130,7 @@ export function argumentFormStart(
       notes: "",
     };
   }
-  const chapterFile = currentChapterFile || "unknown.md";
+  const chapterFile = currentChapterFile || NO_CHAPTER_CHOSEN;
   return {
     title: "",
     inferenceType: "deductive",
@@ -242,7 +250,7 @@ export function controversyFormStart(
         pAnchor: stagedCitation.anchor,
         pQuote: stagedCitation.quote,
       }
-    : { pBookId: currentBookId || "", pChapter: currentChapterFile || "ch-01.md", pAnchor: "", pQuote: "" };
+    : { pBookId: currentBookId || "", pChapter: currentChapterFile || "", pAnchor: "", pQuote: "" };
   return { ...controversy, ...place };
 }
 
@@ -277,7 +285,7 @@ export function neutralTermFormStart(
       }
     : {
         mapBookId: currentBookId || "",
-        mapChapter: currentChapterFile || "ch-01.md",
+        mapChapter: currentChapterFile || "",
         mapAnchor: "",
         mapQuote: "",
         mapVariant: "",
