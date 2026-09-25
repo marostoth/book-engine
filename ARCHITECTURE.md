@@ -416,7 +416,8 @@ book-engine/
   (`ingest/line_endings.py`).
 - **Cache shape:** `PRAGMA user_version` holds the shape of `index.db` and `CACHE_SCHEMA_VERSION`
   (`db/schema.rs`) is the shape this build knows. A file stamped higher was made by a newer build and is not
-  opened.
+  opened. `db/cache_shapes/<version>.txt` holds the tables and columns of each version, so a test fails when
+  they change and the version does not.
 - **Newest load wins:** the reader takes a ticket for every load (`createLoadGuard`, `src/lib/readerLoads.ts`)
   and an answer that is no longer the newest is thrown away.
 - **One pane per chapter:** `App.tsx` gives the notes pane a key of book and chapter, so the notes of one

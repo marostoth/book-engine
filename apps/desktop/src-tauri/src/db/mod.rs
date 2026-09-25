@@ -6,6 +6,8 @@ mod analytics_tests;
 pub mod backfill;
 #[cfg(test)]
 mod backfill_tests;
+#[cfg(test)]
+mod cache_shape_tests;
 pub mod card_identity;
 pub mod chapter_blocks;
 #[cfg(test)]
