@@ -56,11 +56,9 @@ const OpenArgumentBuilderModal: React.FC<ArgumentBuilderModalProps> = ({
     if (premises.length >= 4) return;
     setPremises([
       ...premises,
-      {
-        chapterFile: currentChapterFile || conclusion.chapterFile,
-        anchor: `^p-00${premises.length + 2}`,
-        quote: "",
-      },
+      // The form has no box for an anchor, so a new premise names the chapter and no paragraph. It used to be given
+      // a block number counted from the premises, which the reader never saw and a click then opened (RD-11).
+      { chapterFile: currentChapterFile || conclusion.chapterFile, anchor: "", quote: "" },
     ]);
   };
 
