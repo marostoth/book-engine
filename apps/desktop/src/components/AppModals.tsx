@@ -1,6 +1,7 @@
 import React from "react";
 import { PracticeCardItem, CardSchedule, ReadingLevelMode } from "../lib/types";
 import { ReaderLocation } from "../lib/readerLocation";
+import type { DueCards } from "../lib/practiceSession";
 import { InspectionalSessionState } from "../hooks/useInspectionalSession";
 import { ChapterGate } from "../hooks/useChapterGate";
 import { useLibrary } from "../hooks/useLibrary";
@@ -46,7 +47,8 @@ interface AppModalsProps {
   guideOpen?: boolean;
   onCloseGuide?: () => void;
   activeLevel?: ReadingLevelMode;
-  dueCards: PracticeCardItem[];
+  /** The cards due now for the open book, or why there are none to show yet (RD-14). */
+  dueCards: DueCards;
   onGatekeeperComplete: () => void;
   onReviewSubmitted: (cardId: string, schedule: CardSchedule) => void;
   onNavigateAnchor: (chapterFile: string, anchor?: string) => void;
@@ -116,6 +118,7 @@ export const AppModals: React.FC<AppModalsProps> = ({
       <PracticeModal
         isOpen={practiceModalOpen}
         onClose={onClosePractice}
+        bookId={activeBookId}
         cards={dueCards}
         onReviewSubmitted={onReviewSubmitted}
         onJumpToAnchor={(chapterFile, anchor) => onNavigateAnchor(chapterFile, anchor)}

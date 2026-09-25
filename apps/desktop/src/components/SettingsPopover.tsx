@@ -10,7 +10,7 @@ import { PracticeTab } from "./settings/PracticeTab";
 interface SettingsPopoverProps {
   onResyncDeck?: () => void;
   onOpenAnalytics?: () => void;
-  dueCardsCount?: number;
+  dueCardsCount?: number | null;
   theme?: Theme;
   onThemeChange?: (theme: Theme) => void;
   isPacingRunning?: boolean;
@@ -22,7 +22,7 @@ type TabKey = "general" | "elementary" | "inspectional" | "practice";
 export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
   onResyncDeck,
   onOpenAnalytics,
-  dueCardsCount = 0,
+  dueCardsCount = null,
   theme,
   onThemeChange,
   isPacingRunning,
