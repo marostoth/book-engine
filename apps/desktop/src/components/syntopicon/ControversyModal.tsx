@@ -5,7 +5,7 @@ import {
   SyntopicPerspective,
   StagedCitation,
 } from "../../lib/types/syntopicon";
-import { controversyFormStart, formKey } from "../../lib/formStart";
+import { controversyFormStart, formKey, NO_CHAPTER_CHOSEN } from "../../lib/formStart";
 import { Plus, Trash2, Scale, Link } from "lucide-react";
 import { useDialog } from "../../hooks/useDialog";
 import { DiscardNotice } from "../DiscardNotice";
@@ -81,7 +81,7 @@ const OpenControversyModal: React.FC<ControversyModalProps> = ({
       ? [
           {
             bookId: pBookId.trim(),
-            chapterFile: pChapter.trim() || "ch-01.md",
+            chapterFile: pChapter.trim() || NO_CHAPTER_CHOSEN,
             anchor: pAnchor.trim(),
             quote: pQuote.trim(),
           },

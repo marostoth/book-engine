@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { NeutralTerm, TermMapping, StagedCitation } from "../../lib/types/syntopicon";
-import { formKey, neutralTermFormStart } from "../../lib/formStart";
+import { formKey, neutralTermFormStart, NO_CHAPTER_CHOSEN } from "../../lib/formStart";
 import { Plus, Trash2, Link, BookOpen } from "lucide-react";
 import { useDialog } from "../../hooks/useDialog";
 import { DiscardNotice } from "../DiscardNotice";
@@ -74,7 +74,7 @@ const OpenNeutralTermModal: React.FC<NeutralTermModalProps> = ({
       authorVariant: mapVariant.trim(),
       citation: {
         bookId: mapBookId.trim(),
-        chapterFile: mapChapter.trim() || "ch-01.md",
+        chapterFile: mapChapter.trim() || NO_CHAPTER_CHOSEN,
         anchor: mapAnchor.trim(),
         quote: mapQuote.trim(),
       },

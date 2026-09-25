@@ -7,7 +7,7 @@ import {
   AnchoredCitation,
   ArgumentNode,
 } from "../../lib/types/analytical";
-import { formKey, inquiryFormStart } from "../../lib/formStart";
+import { formKey, inquiryFormStart, NO_CHAPTER_CHOSEN } from "../../lib/formStart";
 import { useDialog } from "../../hooks/useDialog";
 import { DiscardNotice } from "../DiscardNotice";
 
@@ -39,7 +39,7 @@ const OpenInquiryModal: React.FC<InquiryModalProps> = ({
   stagedCitation,
   argumentsList,
   editingInquiry,
-  currentChapterFile = "ch-01.md",
+  currentChapterFile,
 }) => {
   const [start] = useState(() => inquiryFormStart(editingInquiry, stagedQuestion));
   const [question, setQuestion] = useState(start.question);
@@ -71,7 +71,7 @@ const OpenInquiryModal: React.FC<InquiryModalProps> = ({
         domain,
         priority,
         citation: editingInquiry?.citation || stagedCitation || {
-          chapterFile: currentChapterFile,
+          chapterFile: currentChapterFile || NO_CHAPTER_CHOSEN,
           anchor: "",
           quote: question.slice(0, 80),
         },
