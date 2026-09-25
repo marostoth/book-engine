@@ -17,7 +17,10 @@ export const SynthesisTab: React.FC<SynthesisTabProps> = ({ session }) => {
   const [copied, setCopied] = useState(false);
   const [exportSuccess, setExportSuccess] = useState<string | null>(null);
 
+  /** Set while words wait to be saved, and only then. */
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  /** The save the timer started. Closing the window waits for it instead of starting a second one. */
+  const savingRef = useRef<Promise<boolean> | null>(null);
   const latestNotesRef = useRef(synthesisNotes);
   const latestResRef = useRef(resolution);
 
@@ -36,26 +39,30 @@ export const SynthesisTab: React.FC<SynthesisTabProps> = ({ session }) => {
     setExportSuccess(null);
   });
 
-  /** Saves the words that are waiting, and gives back that save. Nothing is waiting: nothing is saved. */
+  /**
+   * Saves the words that are waiting, and gives back that save. Nothing is waiting: nothing is saved, and what comes
+   * back is the save still on its way, if there is one.
+   */
   const saveWhatIsWaiting = () => {
-    if (!debounceTimerRef.current) return;
+    if (!debounceTimerRef.current) return savingRef.current;
     clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = null;
     if (!activeTopic) return;
     return saveSynthesis(latestNotesRef.current, latestResRef.current);
   };
 
-  // Flush on unmount
+  // Leaving the tab, or the topic, saves the words that are waiting into the topic they were typed about. A timer
+  // left to fire later would put that topic back on screen over the one opened since, and the pane would load for
+  // ever. The clean-up is keyed on the topic's id and asks the newest `saveWhatIsWaiting` of that topic: the ref is
+  // written after every clean-up of a drawing has run. It used to be keyed on the topic itself, which every save
+  // replaces with a new object, so each save ran the clean-up and the clean-up saved again: 51 writes for one
+  // sentence (RD-12).
+  const topicId = activeTopic?.id;
+  const saveOnLeaving = useRef(saveWhatIsWaiting);
   useEffect(() => {
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-        if (activeTopic) {
-          void saveSynthesis(latestNotesRef.current, latestResRef.current);
-        }
-      }
-    };
-  }, [activeTopic, saveSynthesis]);
+    saveOnLeaving.current = saveWhatIsWaiting;
+  });
+  useEffect(() => () => void saveOnLeaving.current(), [topicId]);
 
   // Closing the window destroys this tab instead of unmounting it, so the clean-up above never runs then (DS-17).
   useSaveBeforeClose(saveWhatIsWaiting);
@@ -64,7 +71,11 @@ export const SynthesisTab: React.FC<SynthesisTabProps> = ({ session }) => {
     setSaveStatus("saving");
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(async () => {
-      setSaveStatus((await saveSynthesis(newNotes, newRes)) ? "saved" : "failed");
+      // The words stop waiting when their save starts. The timer used to stay set, so they waited for ever (RD-12).
+      debounceTimerRef.current = null;
+      const saving = saveSynthesis(newNotes, newRes);
+      savingRef.current = saving;
+      setSaveStatus((await saving) ? "saved" : "failed");
     }, 800);
   };
 
@@ -81,6 +92,7 @@ export const SynthesisTab: React.FC<SynthesisTabProps> = ({ session }) => {
   const handleExport = async () => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
       const saved = await saveSynthesis(synthesisNotes, resolution);
       setSaveStatus(saved ? "saved" : "failed");
       // Save-Before-Export: notes that were not saved are not exported.
