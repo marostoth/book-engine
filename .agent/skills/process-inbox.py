@@ -21,6 +21,7 @@ from ingest.console import allow_any_letter, say_what_was_done  # noqa: E402
 from ingest.ledger import LedgerDamaged, read_ledger, write_ledger  # noqa: E402
 from ingest.pipeline import ingest_book  # noqa: E402
 from ingest.reimport import BookAlreadyInVaultError, BookIdTakenError  # noqa: E402
+from ingest.vault_changes import again_when_held  # noqa: E402
 
 INBOX_DIR = ROOT_DIR / "inbox"
 PROCESSED_DIR = INBOX_DIR / "processed"
@@ -36,6 +37,28 @@ def compute_sha256(file_path: Path) -> str:
         while chunk := f.read(65536):
             hasher.update(chunk)
     return hasher.hexdigest()
+
+
+def leave_the_inbox(file_path: Path) -> None:
+    """Moves the file of a book that is in the vault and in the ledger to inbox/processed/ (TL-21).
+
+    Windows can hold the file for a moment, for example while OneDrive or a virus scanner reads it, so the move tries
+    again for a few seconds, as every other move of an import does. A file that Windows still holds stays in inbox/,
+    and the next run finds its book in the ledger and moves it. The book is in the vault either way, so this never
+    changes the row of the book.
+    """
+    dest_path = PROCESSED_DIR / file_path.name
+    try:
+        again_when_held(lambda: dest_path.unlink(missing_ok=True))
+        again_when_held(lambda: shutil.move(str(file_path), str(dest_path)))
+    except OSError as e:
+        say_what_was_done(
+            [
+                f"[!] '{file_path.name}' is in the vault, but it stays in inbox/: {e}",
+                "[!] The next run finds it in the ledger and moves it to inbox/processed/.",
+            ],
+            to_errors=True,
+        )
 
 
 def status_table(rows: list[dict[str, str]]) -> list[str]:
@@ -155,6 +178,9 @@ def main() -> int:
     }
 
     report_rows: list[dict[str, str]] = []
+    # The files whose book is in the vault and in the ledger. They leave the inbox after the loop, outside the `try`
+    # that decides the row of a book, so a file that Windows holds cannot turn a finished book into `Failed` (TL-21).
+    finished: list[Path] = []
 
     print(f"[*] Processing {len(candidate_files)} candidate book(s) (Force mode: {args.force})...", flush=True)
 
@@ -171,13 +197,7 @@ def main() -> int:
                     f"[SKIP] '{filename}' is already recorded in ledger (Book ID: {existing.get('book_id', 'unknown')}).",
                     flush=True,
                 )
-                # Move to processed if in inbox to keep inbox clean
-                if file_path.parent == INBOX_DIR:
-                    dest_path = PROCESSED_DIR / filename
-                    if dest_path.exists():
-                        dest_path.unlink()
-                    shutil.move(str(file_path), str(dest_path))
-
+                finished.append(file_path)
                 report_rows.append(
                     {
                         "book_id": existing.get("book_id", "-"),
@@ -212,13 +232,7 @@ def main() -> int:
             ledger_entries.append(ledger_record)
             processed_hashes[file_hash] = ledger_record
             write_ledger(VAULT_DIR, ledger_entries)
-
-            # Move binary to inbox/processed/ if in inbox
-            if file_path.parent == INBOX_DIR:
-                dest_path = PROCESSED_DIR / filename
-                if dest_path.exists():
-                    dest_path.unlink()
-                shutil.move(str(file_path), str(dest_path))
+            finished.append(file_path)
 
             # The book is in the vault and in the ledger now, so saying so may not make this book fail (IN-09)
             say_what_was_done([f"[+] Successfully ingested '{meta.title}' -> vault/books/{meta.book_id}"])
@@ -286,11 +300,17 @@ def main() -> int:
             )
             # Per specification: leave failed file in inbox/ for user inspection
 
-    # 4. Reporting: Print clean ASCII status table. Every book of it is in the vault already (IN-09).
+    # 4. Quarantine: the file of each book that is in the vault leaves the inbox, and keeps the inbox clean
+    for file_path in finished:
+        if file_path.parent == INBOX_DIR:
+            leave_the_inbox(file_path)
+
+    # 5. Reporting: Print clean ASCII status table. Every book of it is in the vault already (IN-09).
     if report_rows:
         say_what_was_done(status_table(report_rows))
 
-    return 0
+    # The table is not the only signal: a run with a book that failed gives back 1, so a script that runs this can tell
+    return 1 if any(row["status"] == "Failed" for row in report_rows) else 0
 
 
 if __name__ == "__main__":
