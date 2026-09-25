@@ -58,8 +58,13 @@ export const LexiconPopover: React.FC<LexiconPopoverProps> = ({
 
   if (!position || !word) return null;
 
+  // The word waits for the dictionary's answer. A save while the lookup ran stored "Vocabulary term: <word>" in place
+  // of the meaning that arrived a moment later, and the button then said "Saved to Vocab" over it (RD-17). A lookup
+  // that found nothing, or failed, still lets the word be saved, as the popover says.
+  const canSave = !loading && !isSaved && !saving;
+
   const handleSaveToVocab = async () => {
-    if (isSaved || saving) return;
+    if (!canSave) return;
     setSaving(true);
 
     // The chapter and the anchor say where the word was read. The app writes neither of its own: it used to save
@@ -165,11 +170,13 @@ export const LexiconPopover: React.FC<LexiconPopoverProps> = ({
 
           <button
             onClick={handleSaveToVocab}
-            disabled={isSaved || saving}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold ml-auto transition-all cursor-pointer ${
+            disabled={!canSave}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold ml-auto transition-all ${
               isSaved
                 ? "bg-emerald-600 text-white shadow-sm"
-                : "bg-[var(--theme-accent)] text-white hover:opacity-90 shadow-sm"
+                : loading
+                  ? "bg-[var(--theme-accent)] text-white shadow-sm opacity-50 cursor-wait"
+                  : "bg-[var(--theme-accent)] text-white hover:opacity-90 shadow-sm cursor-pointer"
             }`}
             title="Keep this word. It joins your notes and highlights in this book."
           >
