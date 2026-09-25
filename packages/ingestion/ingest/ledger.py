@@ -33,6 +33,12 @@ from ingest.line_endings import write_text_file
 
 LEDGER_NAME = "_ledger.json"
 
+#: The field of a line whose book the owner took out of the vault, holding the day it left, such as "2026-09-17"
+#: (TL-15). The line stays, because the ledger is the record of every file ever taken in. Without it the audit could
+#: not tell a book the owner moved out from a book the vault lost, so it failed on every run after the owner's
+#: choice. The owner writes it by hand; an import of the same file with `--force` writes a new line without it.
+SET_ASIDE = "set_aside"
+
 
 class LedgerDamaged(Exception):
     """The ledger is there and could not be read. It is never read as no lines (DS-18)."""

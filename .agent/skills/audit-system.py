@@ -53,7 +53,7 @@ from ingest.console import allow_any_letter  # noqa: E402
 from ingest.glyph_repair import REPLACEMENT  # noqa: E402
 
 # The import's own reading of the ledger, so the audit and the import never disagree (CQ-05)
-from ingest.ledger import lines_that_disagree  # noqa: E402
+from ingest.ledger import SET_ASIDE, lines_that_disagree  # noqa: E402
 
 # ANSI Color formatting
 ANSI_GREEN = "\033[92m"
@@ -62,6 +62,12 @@ ANSI_YELLOW = "\033[93m"
 ANSI_CYAN = "\033[96m"
 ANSI_BOLD = "\033[1m"
 ANSI_RESET = "\033[0m"
+
+
+#: What a check of the reader's own writing says when the reader has written nothing there yet (TL-15). The analytical
+#: and syntopical checks failed on an empty vault, so the audit could not pass for a reader who had not yet written a
+#: critique, and a check that always fails is a check nobody reads. They now say this, and the table says NONE.
+NOTHING_WRITTEN_YET = "Nothing written yet"
 
 
 class DiagnosticResult:
@@ -73,6 +79,7 @@ class DiagnosticResult:
         passed: bool,
         errors: list[str] | None = None,
         duration_s: float = 0.0,
+        nothing_to_check: bool = False,
     ) -> None:
         self.name = name
         self.target = target
@@ -80,6 +87,7 @@ class DiagnosticResult:
         self.passed = passed
         self.errors = errors or []
         self.duration_s = duration_s
+        self.nothing_to_check = nothing_to_check
 
 
 def compute_sha256(path: Path) -> str:
@@ -134,6 +142,7 @@ def check_ledger_and_vault_parity() -> DiagnosticResult:
 
     ledger_book_ids = set()
     ledger_filenames = set()
+    set_aside = set()
 
     for entry in ledger:
         book_id = entry.get("book_id")
@@ -147,9 +156,17 @@ def check_ledger_and_vault_parity() -> DiagnosticResult:
         ledger_book_ids.add(book_id)
         ledger_filenames.add(filename)
 
-        # Check vault directory and _meta.json
+        # A book the owner took out of the vault keeps its line, because the ledger records every file ever taken in,
+        # and the line says when it left (TL-15). The folder it names must then be gone.
         b_dir = BOOKS_DIR / book_id
-        if not b_dir.exists():
+        if entry.get(SET_ASIDE):
+            set_aside.add(book_id)
+            if b_dir.exists():
+                errors.append(
+                    f"Ledger says book '{book_id}' was set aside on {entry[SET_ASIDE]}, but '{b_dir}' is there. "
+                    f"Take '{SET_ASIDE}' off its line, or move the folder out of the vault."
+                )
+        elif not b_dir.exists():
             errors.append(f"Ledger references book_id '{book_id}', but '{b_dir}' does not exist.")
         elif not (b_dir / "_meta.json").exists():
             errors.append(f"Book '{book_id}' missing '_meta.json' manifest.")
@@ -190,7 +207,10 @@ def check_ledger_and_vault_parity() -> DiagnosticResult:
 
     duration = time.perf_counter() - start_time
     passed = len(errors) == 0
-    metric = f"{len(ledger_book_ids)} books, {len(ledger_filenames)} binaries synced"
+    metric = (
+        f"{len(ledger_book_ids) - len(set_aside)} books, {len(set_aside)} set aside, "
+        f"{len(ledger_filenames)} binaries synced"
+    )
 
     return DiagnosticResult(
         name="1. Ledger & Vault Parity",
@@ -887,6 +907,10 @@ def check_inspectional_parity(vault_dir: Path = VAULT_DIR) -> DiagnosticResult:
 # ----------------------------------------------------------------------
 # Vector 9: Analytical Logic & Citation Parity
 # ----------------------------------------------------------------------
+#: The lists of `analytical.json` this check reads, as `AnalyticalStore` in `src/lib/seamContract.json` names them.
+ANALYTICAL_LISTS = ("terms", "arguments", "critiques", "inquiries")
+
+
 def audit_analytical_parity(vault_dir: Path) -> tuple[bool, str]:
     """Validates Stage II and III analytical reading integrity (Rules 5-12)."""
     notes_dir = vault_dir / "notes"
@@ -897,6 +921,7 @@ def audit_analytical_parity(vault_dir: Path) -> tuple[bool, str]:
     total_args = 0
     total_critiques = 0
     total_inquiries = 0
+    analytical_files = 0
     books_verified: set[str] = set()
 
     if not notes_dir.exists():
@@ -921,10 +946,20 @@ def audit_analytical_parity(vault_dir: Path) -> tuple[bool, str]:
             errors.append(f"{book_id}/analytical.json: Malformed JSON: {e}")
             continue
 
+        analytical_files += 1
         terms = data.get("terms", [])
         args = data.get("arguments", [])
         critiques = data.get("critiques", [])
         inquiries = data.get("inquiries", [])
+
+        # A file whose entries sit under a name this check does not read would count as nothing written, and pass
+        # (TL-15). So a list under any other name is a fault: the app and this check have drifted apart.
+        unread = sorted(key for key, value in data.items() if key not in ANALYTICAL_LISTS and isinstance(value, list))
+        if unread:
+            errors.append(
+                f"{book_id}/analytical.json: holds lists this check does not read: {', '.join(unread)}. The check "
+                f"reads {', '.join(ANALYTICAL_LISTS)}."
+            )
 
         # Cache chapter markdown contents
         chapter_cache: dict[str, str] = {}
@@ -1057,14 +1092,14 @@ def audit_analytical_parity(vault_dir: Path) -> tuple[bool, str]:
 
             total_inquiries += 1
 
-        if terms and args and critiques and inquiries:
+        if terms or args or critiques or inquiries:
             books_verified.add(book_id)
 
-    # No-op guardrail: At least one book must contain verified terms, arguments, critiques, and inquiries
-    if total_terms == 0 or total_args == 0 or total_critiques == 0 or total_inquiries == 0 or len(books_verified) == 0:
-        errors.append(
-            "Zero analytical items verified across vault. At least one book must contain verified terms, arguments, critiques, and inquiries."
-        )
+    # A reader who has written nothing has nothing here to check, and that is not a fault (TL-15). This used to demand
+    # terms, arguments, critiques and inquiries in one book, so the audit could not pass until the reader had written
+    # all four; the vault has no analytical.json at all. A file this check cannot read is still a fault, above.
+    if not errors and total_terms + total_args + total_critiques + total_inquiries == 0:
+        return True, f"{NOTHING_WRITTEN_YET}: {analytical_files} analytical.json file(s), and no entry in them."
 
     passed = len(errors) == 0
     if passed:
@@ -1087,6 +1122,7 @@ def check_analytical_parity(vault_dir: Path) -> DiagnosticResult:
         passed=passed,
         errors=errors,
         duration_s=time.perf_counter() - start_time,
+        nothing_to_check=passed and msg.startswith(NOTHING_WRITTEN_YET),
     )
 
 
@@ -1095,12 +1131,14 @@ def audit_syntopicon_parity(vault_dir: Path) -> tuple[bool, str]:
     topics_dir = vault_dir / "syntopicon" / "topics"
     books_dir = vault_dir / "books"
 
-    if not topics_dir.exists():
-        return False, f"Topics directory '{topics_dir}' does not exist."
-
-    topic_files = sorted(topics_dir.glob("*.json"))
-    if not topic_files:
-        return False, f"Zero syntopical topics found in '{topics_dir}'. At least 1 verified topic required."
+    # The app makes the folder the first time the syntopicon is used. No topic and no report is a reader who has written
+    # nothing yet, which is not a fault (TL-15); it failed, so the audit could not pass on a vault with no topic. A
+    # report with no topic is still checked below, and fails there.
+    topic_files = sorted(topics_dir.glob("*.json")) if topics_dir.is_dir() else []
+    reports_dir = vault_dir / "syntopicon" / "reports"
+    report_files = sorted(reports_dir.glob("*.md")) if reports_dir.is_dir() else []
+    if not topic_files and not report_files:
+        return True, f"{NOTHING_WRITTEN_YET}: no topic in '{topics_dir}' and no report beside it."
 
     errors: list[str] = []
     total_topics = 0
@@ -1248,8 +1286,6 @@ def audit_syntopicon_parity(vault_dir: Path) -> tuple[bool, str]:
             )
 
     # Audit Syntopicon Dossier Reports (Rule 5)
-    reports_dir = vault_dir / "syntopicon" / "reports"
-    report_files = sorted(reports_dir.glob("*.md")) if reports_dir.exists() else []
     total_reports = 0
 
     known_topic_ids = set()
@@ -1313,6 +1349,7 @@ def check_syntopical_parity(vault_dir: Path) -> DiagnosticResult:
         passed=passed,
         errors=errors,
         duration_s=time.perf_counter() - start_time,
+        nothing_to_check=passed and msg.startswith(NOTHING_WRITTEN_YET),
     )
 
 
@@ -1409,6 +1446,66 @@ def check_elementary_reading_parity(vault_dir: Path) -> DiagnosticResult:
 # ----------------------------------------------------------------------
 # 12. Codebase Modularity & Vault Ephemeral Isolation Check
 # ----------------------------------------------------------------------
+#: The soft ceiling of `AGENTS.md`: a file past it wants its hooks, helpers or child components taken out.
+LINE_CEILING = 300
+
+#: The files that were already past the ceiling, each held at the length it had (TL-15). Forty were, so the check
+#: failed on every run and said nothing a reader could act on. Now a held file may not grow, and a new file may not
+#: pass the ceiling; a held file that gets shorter must have its number lowered, so the list only ever shrinks.
+LONG_FILES_NAME = "long-files.json"
+
+
+def source_line_counts() -> dict[str, int]:
+    """The number of lines of every source file the ceiling covers, by its path from the repository root."""
+    counts: dict[str, int] = {}
+
+    def count(p: Path) -> None:
+        try:
+            lines = len(p.read_text(encoding="utf-8", errors="ignore").splitlines())
+        except OSError:  # a file this check cannot read is not a file over the line
+            return
+        counts[p.relative_to(ROOT_DIR).as_posix() if p.is_relative_to(ROOT_DIR) else p.name] = lines
+
+    for p in (ROOT_DIR / "packages" / "ingestion" / "ingest").glob("*.py"):
+        count(p)
+    for p in (ROOT_DIR / "apps" / "desktop" / "src").rglob("*.ts*"):
+        if "node_modules" not in p.parts and not p.name.endswith(".d.ts"):
+            count(p)
+    # The Rust of the app, and the scripts of this folder, are source files too (TL-04). The check read neither,
+    # although AGENTS.md names `commands.rs` as its own example, and `audit-system.py` is the longest file here.
+    for folder, pattern in ((ROOT_DIR / "apps" / "desktop" / "src-tauri" / "src", "*.rs"), (SKILLS_DIR, "*.py")):
+        for p in sorted(folder.rglob(pattern)):
+            count(p)
+    return counts
+
+
+def files_held_long() -> dict[str, int]:
+    """The files `long-files.json` holds at a length past the ceiling. No list holds none."""
+    path = SKILLS_DIR / LONG_FILES_NAME
+    if not path.is_file():
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))["files"]
+
+
+def line_ceiling_faults(counts: dict[str, int], held: dict[str, int]) -> list[str]:
+    """What is wrong with the length of each file, as a sentence that says what to do."""
+    faults: list[str] = []
+    for name, lines in sorted(counts.items()):
+        if name not in held:
+            if lines > LINE_CEILING:
+                faults.append(f"{name} ({lines} lines) is over the {LINE_CEILING}-line ceiling. Split it")
+        elif lines > held[name]:
+            faults.append(f"{name} ({lines} lines) grew past the {held[name]} lines {LONG_FILES_NAME} holds it at")
+        elif lines < held[name]:
+            then = f"lower its number to {lines}" if lines > LINE_CEILING else "take it off the list"
+            faults.append(f"{name} ({lines} lines) is shorter than the {held[name]} it is held at, so {then}")
+    faults.extend(
+        f"{name} is held in {LONG_FILES_NAME} and is not there any more, so take it off the list"
+        for name in sorted(set(held) - set(counts))
+    )
+    return faults
+
+
 def check_modularity_and_vault_isolation() -> DiagnosticResult:
     """Enforces Directive 1.1 (zero ephemeral DB leaks in vault) and Directive 4 (<= 300 line modular ceiling)."""
     start_time = time.perf_counter()
@@ -1423,48 +1520,19 @@ def check_modularity_and_vault_isolation() -> DiagnosticResult:
         errors.append(f"Directive 1.1 violation: Ephemeral database file(s) leaked in vault: {', '.join(db_leaks)}")
 
     # 2. Check line counts of ingestion modules and desktop source files (Directive 4)
-    over_limit: list[str] = []
-    src_files = 0
-    ingest_dir = ROOT_DIR / "packages" / "ingestion" / "ingest"
-    if ingest_dir.exists():
-        for p in ingest_dir.glob("*.py"):
-            src_files += 1
-            lines = len(p.read_text(encoding="utf-8").splitlines())
-            if lines > 300:
-                over_limit.append(f"{p.name} ({lines} lines)")
-
-    desktop_src_dir = ROOT_DIR / "apps" / "desktop" / "src"
-    if desktop_src_dir.exists():
-        for p in desktop_src_dir.rglob("*.ts*"):
-            if "node_modules" in str(p) or p.name.endswith(".d.ts"):
-                continue
-            try:
-                src_files += 1
-                lines = len(p.read_text(encoding="utf-8", errors="ignore").splitlines())
-                if lines > 300:
-                    over_limit.append(f"{p.relative_to(desktop_src_dir)} ({lines} lines)")
-            except Exception:  # noqa: S110 -- a file this check cannot read is not a file over the line
-                pass
-
-    # The Rust of the app, and the scripts of this folder, are source files too (TL-04). The check read neither,
-    # although AGENTS.md names `commands.rs` as its own example, and `audit-system.py` is the longest file here.
-    for folder, pattern in ((ROOT_DIR / "apps" / "desktop" / "src-tauri" / "src", "*.rs"), (SKILLS_DIR, "*.py")):
-        if not folder.exists():
-            continue
-        for p in sorted(folder.rglob(pattern)):
-            src_files += 1
-            lines = len(p.read_text(encoding="utf-8", errors="ignore").splitlines())
-            if lines > 300:
-                named = p.relative_to(ROOT_DIR).as_posix() if p.is_relative_to(ROOT_DIR) else p.name
-                over_limit.append(f"{named} ({lines} lines)")
-
-    if over_limit:
-        errors.append(f"Directive 4 violation: Files exceeding 300-line modular ceiling: {', '.join(over_limit)}")
+    line_counts = source_line_counts()
+    held = files_held_long()
+    line_faults = line_ceiling_faults(line_counts, held)
+    if line_faults:
+        errors.append(f"Directive 4 violation: {'; '.join(line_faults)}")
 
     passed = len(errors) == 0
     # The line used to read "<= 300 lines (0 DB leaks)" whatever the check found, so a failed check still printed a
     # clean result beside the word FAIL (TL-04).
-    metric = f"{src_files} source files, {len(over_limit)} over 300 lines, {len(db_leaks)} DB leaks"
+    metric = (
+        f"{len(line_counts)} source files, {len(held)} held at their length, {len(line_faults)} over, "
+        f"{len(db_leaks)} DB leaks"
+    )
 
     return DiagnosticResult(
         name="12. Modularity & Isolation",
@@ -1502,11 +1570,9 @@ def print_audit_table(results: list[DiagnosticResult], use_color: bool = True) -
     print(sep, flush=True)
 
     for r in results:
-        status_raw = "PASS" if r.passed else "FAIL"
-        if use_color:
-            status_str = f"{ANSI_GREEN} PASS {ANSI_RESET}" if r.passed else f"{ANSI_RED} FAIL {ANSI_RESET}"
-        else:
-            status_str = f" {status_raw} "
+        status_raw = "NONE" if r.nothing_to_check else "PASS" if r.passed else "FAIL"
+        colour = ANSI_YELLOW if r.nothing_to_check else ANSI_GREEN if r.passed else ANSI_RED
+        status_str = f"{colour} {status_raw} {ANSI_RESET}" if use_color else f" {status_raw} "
 
         def fit(s: str, width: int) -> str:
             return s if len(s) <= width else s[: width - 3] + "..."
@@ -1603,11 +1669,12 @@ def main() -> int:
         print("\n" + status_msg + "\n", file=sys.stderr)
         return 1
 
-    pass_msg = (
-        f"{ANSI_GREEN}[+] SYSTEM HEALTH: 100% PASS. All {len(results)} diagnostic vectors passed.{ANSI_RESET}"
-        if use_color
-        else f"[+] SYSTEM HEALTH: 100% PASS. All {len(results)} diagnostic vectors passed."
-    )
+    # A check that had nothing to check is named, so a pass never hides that part of the vault is still empty (TL-15)
+    empty = [r.name for r in results if r.nothing_to_check]
+    said = f"[+] SYSTEM HEALTH: 100% PASS. All {len(results)} diagnostic vectors passed."
+    if empty:
+        said += f" {len(empty)} had nothing written yet to check: {', '.join(empty)}."
+    pass_msg = f"{ANSI_GREEN}{said}{ANSI_RESET}" if use_color else said
     print("\n" + pass_msg + "\n", flush=True)
     return 0
 

@@ -31,11 +31,12 @@ def test_audit_syntopicon_parity_catches_invalid_data(tmp_path: Path):
     """Verify that audit_syntopicon_parity catches missing books, bad anchors, orphan questions, and multi-book violations."""
     mod = get_audit_module()
 
-    # 1. Missing topics directory fails
+    # 1. No topic and no report is nothing written yet, not a fault (TL-15). It failed, so the audit could not pass
+    # on a vault whose reader had not made a topic; the app makes the folder the first time the syntopicon is used.
     empty_vault = tmp_path / "empty_vault"
-    passed, err = mod.audit_syntopicon_parity(empty_vault)
-    assert passed is False
-    assert "does not exist" in err
+    passed, said = mod.audit_syntopicon_parity(empty_vault)
+    assert passed is True
+    assert said.startswith(mod.NOTHING_WRITTEN_YET), said
 
     # Setup dummy vault with 2 books
     vault = tmp_path / "vault"

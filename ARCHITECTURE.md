@@ -78,6 +78,7 @@ book-engine/
 │       ├── audit-system.py                   # Health orchestrator; runs the 12 verification vectors
 │       ├── backup-vault.py                   # Makes a dated snapshot of the vault in every folder named, or checks a fresh one is there
 │       ├── benchmark-fts.py                  # Benchmarks FTS5 query latency on a copy of the index, never the live one
+│       ├── long-files.json                   # The files past the 300-line ceiling, each held at the length it has
 │       ├── process-inbox.py                  # Automated fail-safe batch book intake pipeline & ledger manager
 │       └── test-index-rebuild.py             # Verifies self-healing FTS5 index reconstruction from vault
 ├── AGENTS.md                                 # Canonical agent directives, operational guardrails & technology standards
@@ -783,6 +784,10 @@ new record to nothing is what left a one-line ledger where the record of every b
 then, and a ledger nobody can read may not turn finished work into a failed import (IN-09). `write_ledger`
 refuses a write holding fewer lines than the file already holds unless the caller says `may_be_shorter=True`.
 
+A book the owner takes out of the vault keeps its line, and the line gets `"set_aside": "<the day>"` (TL-15),
+written by hand. The audit then reads the missing folder as the owner's choice and not as a lost book, and the
+inbox names the mark when the same file comes back; `--force` brings the book back and writes a line without it.
+
 ---
 
 ## 9. Reader features
@@ -890,10 +895,11 @@ every dependency of all three ecosystems.
 ## 11. Health audit
 
 `.agent/skills/audit-system.py` runs 12 vectors. Each one fails when it read nothing, so an empty folder is
-never a pass.
+never a pass. The two that read the reader's own writing, 9 and 10, say NONE instead when nothing is written
+there yet, and the closing line names them (TL-15); a file they cannot read still fails.
 
 1. **Ledger & vault parity** — every book in `vault/books/` and every binary in `inbox/processed/` is in
-   `_ledger.json` with a matching SHA-256.
+   `_ledger.json` with a matching SHA-256. A line marked `set_aside` must have no folder.
 2. **Anchor & asset integrity** — paragraph anchors are present and unique, every footnote link has its
    definition, and every `![alt](assets/...)` names a file that exists.
 3. **Zero-hallucination guardrail** — every answer key and rationale quote is an exact substring of the
@@ -901,7 +907,8 @@ never a pass.
    term whose prompt shows the exact source.
 4. **Backend safety** — `cargo check` and `cargo test` with zero errors, inside the temporary sandbox.
 5. **Frontend safety** — TypeScript strict typecheck with zero errors.
-6. **FTS5 latency** — average query under 15 ms.
+6. **FTS5 latency** — each real word under 15 ms and each two-letter prefix under 120 ms. The words come out
+   of the index, from the rarest to one in 40% of the paragraphs, so they belong to the books in the vault.
 7. **Desktop runtime launch** — the release binary starts and stays up for 5 seconds.
 8. **Inspectional parity** — blueprints, pivotal chapters, non-overlapping dip samples, exit assessments.
 9. **Analytical parity** — terms, argument graphs, critiques and inquiry solutions in `analytical.json`.
@@ -910,4 +917,6 @@ never a pass.
 11. **Elementary parity** — readability metrics in `_meta.json` within bounds, and chapter word counts
     matching the spine.
 12. **Modularity & isolation** — no SQLite database anywhere inside `vault/`, and every source file in
-    `apps/desktop/src/` and `packages/ingestion/ingest/` at or under 300 lines.
+    `apps/desktop/src/`, `src-tauri/src/`, `packages/ingestion/ingest/` and `.agent/skills/` at or under 300
+    lines, or no longer than `.agent/skills/long-files.json` holds it. A held file that got shorter must have its
+    number lowered, and `tests/test_the_audit_can_pass.py` holds the whole repository to the list in CI.

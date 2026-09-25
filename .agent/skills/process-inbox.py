@@ -18,7 +18,7 @@ sys.path.insert(0, str(ROOT_DIR / "packages" / "ingestion"))
 from ingest.book_build import BookLeftAsideError  # noqa: E402
 from ingest.book_check import BookCheckError  # noqa: E402
 from ingest.console import allow_any_letter, say_what_was_done  # noqa: E402
-from ingest.ledger import LedgerDamaged, read_ledger, write_ledger  # noqa: E402
+from ingest.ledger import SET_ASIDE, LedgerDamaged, read_ledger, write_ledger  # noqa: E402
 from ingest.pipeline import ingest_book  # noqa: E402
 from ingest.reimport import BookAlreadyInVaultError, BookIdTakenError  # noqa: E402
 from ingest.vault_changes import again_when_held  # noqa: E402
@@ -193,10 +193,19 @@ def main() -> int:
             # Check deduplication ledger
             if file_hash in processed_hashes and not args.force:
                 existing = processed_hashes[file_hash]
-                print(
-                    f"[SKIP] '{filename}' is already recorded in ledger (Book ID: {existing.get('book_id', 'unknown')}).",
-                    flush=True,
-                )
+                if existing.get(SET_ASIDE):
+                    # The book of this file left the vault by the owner's choice, so "already recorded" would read as
+                    # "already in the vault", which it is not (TL-15)
+                    print(
+                        f"[SKIP] '{filename}' made the book '{existing.get('book_id', 'unknown')}', which was set "
+                        f"aside on {existing[SET_ASIDE]}. Run again with --force to bring it back.",
+                        flush=True,
+                    )
+                else:
+                    print(
+                        f"[SKIP] '{filename}' is already recorded in ledger (Book ID: {existing.get('book_id', 'unknown')}).",
+                        flush=True,
+                    )
                 finished.append(file_path)
                 report_rows.append(
                     {

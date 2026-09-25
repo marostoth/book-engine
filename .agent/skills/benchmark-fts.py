@@ -3,7 +3,7 @@
 
 Two kinds of search, two numbers, because they are not the same problem (SI-04):
 
-- A real word or phrase, which is what a reader types, must average under 15 ms.
+- A real word of the books, which is what a reader types, must take under 15 ms.
 - The broadest search the app allows, a two-letter prefix, must stay under 120 ms. It cannot meet 15 ms and never
   could: FTS5 has to rank every match before it can give the best 30, and `th*` matches 87% of this index.
 
@@ -32,27 +32,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "packages
 from ingest.chapter_shape import is_heading
 from ingest.console import allow_any_letter, say_what_was_done
 
-#: Real words and phrases: what a reader types when they are looking for something.
+#: Real words: what a reader types when they are looking for something. Each number is the share of the index that one
+#: word reaches, from the rarest word of the books to a common one, so the limit below has to be met by both (SI-04).
 #:
-#: The first ten were the whole benchmark, and they match between 1 and 338 paragraphs of a 10,292 paragraph index.
-#: The last four are ordinary English words that any book uses a lot, so the list holds a rare word and a common one
-#: and the limit below has to be met by both (SI-04).
-WORD_QUERIES = [
-    "linearizability*",
-    "consensus*",
-    "vector clocks*",
-    "paxos*",
-    "byzantine*",
-    "replication*",
-    "consistency*",
-    "fault tolerance*",
-    "state machine*",
-    "quorum*",
-    "people*",
-    "time*",
-    "work*",
-    "value*",
-]
+#: The words themselves come out of the index, so they belong to the books the reader has (TL-15). They used to be
+#: a fixed list of fourteen, ten of them about distributed systems, written for the sample book. Three books left
+#: the vault on 2026-09-17, 8 of the 14 then matched no paragraph of the book that stayed, and the benchmark failed
+#: on every run for a reason no change to the search could mend.
+WORD_SHARES = (0.0, 0.001, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.4)
+
+#: A real word is at least this long, so it is never the two-letter prefix that `BROAD_QUERIES` measures.
+SHORTEST_WORD = 4
 
 #: The broadest search the app will ever run. `MIN_SEARCH_CHARACTERS` is 2 (`src/lib/searchQuery.ts`, SI-03), so a
 #: reader can ask for a two-letter prefix and nothing shorter.
@@ -89,6 +79,32 @@ def queries_over(timings: dict[str, list[float]], queries: list[str], limit: flo
     easy ones would hide it again (SI-04).
     """
     return [q for q in queries if q in timings and middle_of(timings[q]) >= limit]
+
+
+def words_to_ask(conn: sqlite3.Connection, paragraphs: int) -> list[str]:
+    """The real words to time, as prefix searches: for each share of `WORD_SHARES`, the word of the index whose
+    paragraph count comes nearest to it.
+
+    The words are read from the index's own list of words (`fts5vocab`), in a temporary table, so a connection that
+    may only read the index can ask. They are stems, as the index keeps them, and a prefix search on a stem finds
+    every form of the word. A word holding anything but letters is left out.
+    """
+    conn.execute(
+        "CREATE VIRTUAL TABLE IF NOT EXISTS temp.words_of_the_index USING fts5vocab(main, search_index, 'row')"
+    )
+    counts = [
+        (term, doc)
+        for term, doc in conn.execute("SELECT term, doc FROM temp.words_of_the_index")
+        if len(term) >= SHORTEST_WORD and term.isalpha()
+    ]
+    chosen: list[str] = []
+    for share in WORD_SHARES:
+        wanted = share * paragraphs
+        left = [(abs(doc - wanted), term) for term, doc in counts if term not in chosen]
+        if not left:
+            break
+        chosen.append(min(left)[1])
+    return [f"{term}*" for term in chosen]
 
 
 def find_db_path() -> Path:
@@ -219,7 +235,16 @@ def run_benchmark() -> bool:
         cursor = conn.cursor()
         paragraphs = cursor.execute("SELECT count(*) FROM search_index").fetchone()[0]
 
-        every_query = WORD_QUERIES + BROAD_QUERIES
+        word_queries = words_to_ask(conn, paragraphs)
+        if len(word_queries) < len(WORD_SHARES):
+            conn.close()
+            print(
+                f"[-] FAIL: the index holds {len(word_queries)} words of {SHORTEST_WORD} letters or more, and this "
+                f"check times {len(WORD_SHARES)}, from a rare word to a common one. Import a book first.",
+                file=sys.stderr,
+            )
+            return False
+        every_query = word_queries + BROAD_QUERIES
 
         # What each query finds. A query that finds nothing measures nothing, however fast it comes back, and a
         # query that finds three paragraphs measures almost nothing.
@@ -254,7 +279,7 @@ def run_benchmark() -> bool:
 
         conn.close()
 
-        word_times = sorted(t for q in WORD_QUERIES for t in timings[q])
+        word_times = sorted(t for q in word_queries for t in timings[q])
         broad_times = sorted(t for q in BROAD_QUERIES for t in timings[q])
         word_average = sum(word_times) / len(word_times)
         broad_average = sum(broad_times) / len(broad_times)
@@ -266,7 +291,7 @@ def run_benchmark() -> bool:
             f"[*] SQLite FTS5 Benchmark Results ({len(word_times) + len(broad_times)} queries executed):",
             f"    - Database: {where_from} ({paragraphs:,} paragraphs)",
             "",
-            f"    Real words and phrases, which is what a reader types (limit {WORD_LIMIT_MS:.0f} ms):",
+            f"    Real words of the books, which is what a reader types (limit {WORD_LIMIT_MS:.0f} ms):",
             f"      - Average: {word_average:.3f} ms   p50 {at(word_times, 0.50):.3f}   "
             f"p95 {at(word_times, 0.95):.3f}   p99 {at(word_times, 0.99):.3f}",
             "",
@@ -304,7 +329,7 @@ def run_benchmark() -> bool:
             )
             return False
 
-        slow_words = queries_over(timings, WORD_QUERIES, WORD_LIMIT_MS)
+        slow_words = queries_over(timings, word_queries, WORD_LIMIT_MS)
         if slow_words:
             for q in slow_words:
                 middle = middle_of(timings[q])
@@ -326,7 +351,7 @@ def run_benchmark() -> bool:
                 )
             return False
 
-        slowest_word = max(middle_of(timings[q]) for q in WORD_QUERIES)
+        slowest_word = max(middle_of(timings[q]) for q in word_queries)
         slowest_broad = max(middle_of(timings[q]) for q in BROAD_QUERIES)
         print(
             f"[+] PASS: the slowest real word takes {slowest_word:.3f} ms (limit {WORD_LIMIT_MS:.0f}), and the "

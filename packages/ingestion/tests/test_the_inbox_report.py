@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 from ingest import vault_changes
-from ingest.ledger import read_ledger
+from ingest.ledger import SET_ASIDE, read_ledger, write_ledger
 from ingest.sample_generator import create_sample_epub
 
 TITLE = "Principles of Distributed Systems"
@@ -165,3 +165,23 @@ def test_a_run_where_every_book_went_in_gives_back_0(tmp_path: Path, monkeypatch
     assert inbox.main() == 0
 
     assert "Success" in row_of(capsys.readouterr().out, TITLE)
+
+
+def test_a_file_whose_book_was_set_aside_says_so_when_it_comes_back(tmp_path: Path, monkeypatch, capsys):
+    """ "Already recorded in ledger" reads as "already in the vault", and a book the owner set aside is not (TL-15)."""
+    inbox = an_inbox_on(tmp_path, monkeypatch)
+    create_sample_epub(tmp_path / "inbox" / FILE)
+    assert inbox.main() == 0
+    vault = tmp_path / "vault"
+    lines = read_ledger(vault)
+    lines[0][SET_ASIDE] = "2026-09-17"
+    write_ledger(vault, lines)
+    shutil.move(vault / "books" / the_book_id(tmp_path), tmp_path / "set-aside")
+    shutil.copy2(tmp_path / "inbox" / "processed" / FILE, tmp_path / "inbox" / FILE)
+    capsys.readouterr()
+
+    assert inbox.main() == 0
+
+    out = capsys.readouterr().out
+    assert "set aside on 2026-09-17" in out and "--force" in out, out
+    assert "already recorded" not in out, out

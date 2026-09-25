@@ -474,7 +474,9 @@ def test_the_inbox_and_the_audit_use_this_module():
     # It keeps no second copy of the reading and writing
     assert "def load_ledger" not in inbox
     assert "def save_ledger" not in inbox
-    assert "from ingest.ledger import lines_that_disagree" in audit
+    # The audit also imports `SET_ASIDE` now (TL-15), so again the name and not the order
+    (imported,) = [line for line in audit.splitlines() if line.startswith("from ingest.ledger import ")]
+    assert "lines_that_disagree" in imported and "SET_ASIDE" in imported, imported
     assert "lines_that_disagree(VAULT_DIR)" in audit
 
 
