@@ -10,6 +10,9 @@ const PREFIX_SUFFIX_LEN = 32;
 /** Start of the comment older chapters keep their highlights in. */
 const COMMENT_START = "<!-- highlights-json";
 
+/** End of that comment. */
+const COMMENT_END = "-->";
+
 const SPACE = /\s/;
 
 /**
@@ -229,6 +232,54 @@ export function parseHighlightsFromNotes(notesContent: string): HighlightItem[] 
     console.warn("Failed to parse highlights-json block:", e);
     return [];
   }
+}
+
+/**
+ * The reader's own text in a chapter's notes: the notes without the old highlights comment and without the quote lines
+ * the app wrote for its highlights (RD-18). The notes drawer reads a chapter through this in browser dev mode.
+ *
+ * This is the TypeScript half of `reflections_in` in `src-tauri/src/vault/highlights.rs`, which is the rule the move
+ * to the highlights file uses, and `notesDrawerCases.json` holds both halves to the same cases. The comment ends at
+ * the `-->` after its list, not at the first one, which a highlight's words may hold. A `## Highlights` heading goes
+ * only when nothing but blank lines is left under it, so a heading of the reader's own, and the notes under it, stay.
+ */
+export function reflectionsIn(notes: string): string {
+  const quoted = parseHighlightsFromNotes(notes).map((highlight) => `"${highlight.exact}"`);
+  const range = commentRange(notes);
+  const text = range ? notes.slice(0, range[0]) + notes.slice(range[1]) : notes;
+
+  const isMovedQuote = (line: string): boolean => {
+    const body = line.trim().replace(/^(?:- )*/, "").replace(/^>*/, "").trimStart();
+    return body !== "" && quoted.some((quote) => body.startsWith(quote));
+  };
+  const kept = text
+    .split("\n")
+    .map((line) => line.replace(/\r$/, ""))
+    .filter((line) => !isMovedQuote(line));
+  return withoutEmptyHighlightsHeading(kept).trimEnd() + "\n";
+}
+
+/** Where the old comment starts and where it ends, past its `-->`, or null when the notes have no comment. */
+function commentRange(notes: string): [number, number] | null {
+  const marker = notes.indexOf(COMMENT_START);
+  if (marker === -1) return null;
+  const bodyAt = marker + COMMENT_START.length;
+  const body = notes.slice(bodyAt);
+  const open = body.length - body.trimStart().length;
+  const close = body[open] === "[" ? jsonArrayEnd(body.slice(open)) : -1;
+  const afterList = close === -1 ? 0 : open + close + 1;
+  const end = body.indexOf(COMMENT_END, afterList);
+  return [marker, end === -1 ? bodyAt + afterList : bodyAt + end + COMMENT_END.length];
+}
+
+/** The lines joined, without a `## Highlights` heading that has nothing but blank lines under it. */
+function withoutEmptyHighlightsHeading(lines: string[]): string {
+  const heading = lines.findIndex((line) => line.trim() === "## Highlights");
+  if (heading === -1) return lines.join("\n");
+  const next = lines.slice(heading + 1).findIndex((line) => line.trimStart().startsWith("## "));
+  const sectionEnd = next === -1 ? lines.length : heading + 1 + next;
+  if (lines.slice(heading + 1, sectionEnd).some((line) => line.trim() !== "")) return lines.join("\n");
+  return [...lines.slice(0, heading), ...lines.slice(sectionEnd)].join("\n");
 }
 
 /**

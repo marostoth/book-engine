@@ -1,0 +1,81 @@
+{
+  "about": "What the notes drawer must show for the reader's own notes in one chapter's notes file (RD-18). Each case is a whole notes file and the notes it holds, as [section heading, text, anchor]. The highlights of the old comment are not in `shows`: the drawer reads them apart. The Rust tests (src-tauri/src/vault/notes_drawer_tests.rs) and the TypeScript tests (notesAggregator.test.ts) both read this file, so the two languages answer the same cases.",
+  "cases": [
+    {
+      "case": "the layout the old app wrote, with a highlight whose words hold an arrow",
+      "notes": "# Chapter I\n\n## Key Takeaways\n\n- Division raises output (#^p-002)\n\n## Highlights\n\n<!-- highlights-json\n[\n  {\n    \"id\": \"hl-1\",\n    \"exact\": \"It is the great multiplication --> of the productions of all the different arts\",\n    \"prefix\": \"\",\n    \"suffix\": \"\",\n    \"anchor\": \"^p-003\",\n    \"color\": \"yellow\",\n    \"createdAt\": \"2026-09-11T12:00:00.000Z\"\n  }\n]\n-->\n\n- > \"It is the great multiplication --> of the productions of all the different arts\" (^p-003)\n",
+      "shows": [
+        [
+          "Key Takeaways",
+          "Division raises output",
+          "^p-002"
+        ]
+      ]
+    },
+    {
+      "case": "an old comment with no Highlights heading above it, and a highlight whose words hold an arrow",
+      "notes": "# Chapter I\n\n<!-- highlights-json\n[\n  {\n    \"id\": \"hl-1\",\n    \"exact\": \"It is the great multiplication --> of the productions of all the different arts\",\n    \"prefix\": \"\",\n    \"suffix\": \"\",\n    \"anchor\": \"^p-003\",\n    \"color\": \"yellow\",\n    \"createdAt\": \"2026-09-11T12:00:00.000Z\"\n  }\n]\n-->\n\n## Key Takeaways\n\n- Division raises output\n",
+      "shows": [
+        [
+          "Key Takeaways",
+          "Division raises output",
+          null
+        ]
+      ]
+    },
+    {
+      "case": "a heading of the reader's own that starts with the word Highlights",
+      "notes": "# Chapter I\n\n## Highlights of the argument\n\n- The market limits the division of labour (#^p-010)\n\n## Key Takeaways\n\n- Division raises output\n",
+      "shows": [
+        [
+          "Highlights of the argument",
+          "The market limits the division of labour",
+          "^p-010"
+        ],
+        [
+          "Key Takeaways",
+          "Division raises output",
+          null
+        ]
+      ]
+    },
+    {
+      "case": "a note the reader wrote under the old Highlights heading, after the quote lines the app wrote",
+      "notes": "# Chapter I\n\n## Highlights\n\n<!-- highlights-json\n[\n  {\n    \"id\": \"hl-1\",\n    \"exact\": \"a workman not educated to this business could scarce make one pin in a day\",\n    \"prefix\": \"\",\n    \"suffix\": \"\",\n    \"anchor\": \"^p-003\",\n    \"color\": \"yellow\",\n    \"createdAt\": \"2026-09-11T12:00:00.000Z\"\n  }\n]\n-->\n\n- > \"a workman not educated to this business could scarce make one pin in a day\" (^p-003)\n- Compare the pin factory with the nail maker (#^p-004)\n",
+      "shows": [
+        [
+          "Highlights",
+          "Compare the pin factory with the nail maker",
+          "^p-004"
+        ]
+      ]
+    },
+    {
+      "case": "a Highlights heading with only the reader's own notes under it, in a chapter already moved over",
+      "notes": "# Chapter I\n\n## Highlights\n\n- The pin factory, again\n",
+      "shows": [
+        [
+          "Highlights",
+          "The pin factory, again",
+          null
+        ]
+      ]
+    },
+    {
+      "case": "the old layout with nothing of the reader's own shows nothing",
+      "notes": "# Chapter I\n\n## Highlights\n\n<!-- highlights-json\n[\n  {\n    \"id\": \"hl-1\",\n    \"exact\": \"a workman not educated to this business could scarce make one pin in a day\",\n    \"prefix\": \"\",\n    \"suffix\": \"\",\n    \"anchor\": \"^p-003\",\n    \"color\": \"yellow\",\n    \"createdAt\": \"2026-09-11T12:00:00.000Z\"\n  }\n]\n-->\n\n- > \"a workman not educated to this business could scarce make one pin in a day\" (^p-003)\n",
+      "shows": []
+    },
+    {
+      "case": "a quote the reader saved in the notes pane stays, when no highlight holds its words",
+      "notes": "# Chapter I\n\n## Key Takeaways\n\n> \"The division of labour is limited by the extent of the market.\" (#^p-020)\n- Reflection: \n\n## Highlights\n\n<!-- highlights-json\n[\n  {\n    \"id\": \"hl-1\",\n    \"exact\": \"a workman not educated to this business could scarce make one pin in a day\",\n    \"prefix\": \"\",\n    \"suffix\": \"\",\n    \"anchor\": \"^p-003\",\n    \"color\": \"yellow\",\n    \"createdAt\": \"2026-09-11T12:00:00.000Z\"\n  }\n]\n-->\n\n- > \"a workman not educated to this business could scarce make one pin in a day\" (^p-003)\n",
+      "shows": [
+        [
+          "Key Takeaways",
+          "The division of labour is limited by the extent of the market.",
+          "^p-020"
+        ]
+      ]
+    }
+  ]
+}
