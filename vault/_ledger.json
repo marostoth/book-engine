@@ -8,7 +8,8 @@
     "processed_at": "2026-09-11T12:00:00.000000+00:00",
     "total_chapters": 2,
     "total_words": 458,
-    "anchors_verified": "PASS"
+    "anchors_verified": "PASS",
+    "set_aside": "2026-09-17"
   },
   {
     "sha256": "f7f3714e486caaab4333bba1f71a5a2603eed132105418795cf1683490dbb3e5",
@@ -19,7 +20,8 @@
     "processed_at": "2026-09-11T12:00:00.000000+00:00",
     "total_chapters": 37,
     "total_words": 387438,
-    "anchors_verified": "PASS"
+    "anchors_verified": "PASS",
+    "set_aside": "2026-09-17"
   },
   {
     "sha256": "9083ff3f26ba3cb13cb45a64bd1d1d6713d4394b82ac393e36b18dae1c3e13da",
@@ -30,7 +32,8 @@
     "processed_at": "2026-09-13T15:14:48.641338+00:00",
     "total_chapters": 20,
     "total_words": 455709,
-    "anchors_verified": "PASS"
+    "anchors_verified": "PASS",
+    "set_aside": "2026-09-17"
   },
   {
     "sha256": "abffd067b20a3ec931a91a71d040d03c2a40d5247918b65ce0e499bebd381081",

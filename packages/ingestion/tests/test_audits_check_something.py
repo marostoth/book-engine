@@ -335,6 +335,12 @@ def test_the_modularity_check_reads_the_rust_and_its_own_scripts(tmp_path: Path)
 # ---------------------------------------------------------------------------
 
 
+#: Ten words of four letters or more, one for each share the benchmark times, and one word for each broad prefix.
+#: The benchmark takes its real words out of the index (TL-15), so an index needs ten of them before it is measured.
+TEN_WORDS = "market auction value price volume range balance trade order tempo"
+EVERY_PREFIX = "the in an"
+
+
 def a_small_index(path: Path, words: str) -> None:
     conn = sqlite3.connect(str(path))
     try:
@@ -371,20 +377,73 @@ def test_the_benchmark_fails_when_a_query_finds_nothing(tmp_path: Path, monkeypa
     """The fastest query there is, is one that finds nothing. The benchmark never looked at the results."""
     mod = benchmark()
     live = tmp_path / "index.db"
-    a_small_index(live, "a paragraph about nothing in this list")
+    # A real word comes out of the index, so it always finds a paragraph. A broad prefix is fixed, and no word here
+    # starts with "an".
+    a_small_index(live, f"{TEN_WORDS} the in")
     monkeypatch.setattr(mod, "find_db_path", lambda: live)
 
     assert mod.run_benchmark() is False
-    assert "found no paragraph at all" in capsys.readouterr().err
+    said = capsys.readouterr().err
+    assert "1 of 13 queries found no paragraph at all" in said and said.rstrip().endswith("an*"), said
 
 
 def test_the_benchmark_passes_when_every_query_finds_something(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     mod = benchmark()
     live = tmp_path / "index.db"
-    a_small_index(live, " ".join(query.rstrip("*") for query in mod.WORD_QUERIES + mod.BROAD_QUERIES))
+    a_small_index(live, f"{TEN_WORDS} {EVERY_PREFIX}")
     monkeypatch.setattr(mod, "find_db_path", lambda: live)
 
     assert mod.run_benchmark() is True
+
+
+def test_the_benchmark_times_words_of_the_books_the_vault_holds(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Its words were a fixed list about distributed systems. Three books left the vault, and 8 of its 14 words then
+    matched no paragraph of the book that stayed, so it failed on every run (TL-15). Now the words come out of the
+    index, from the rarest word to one that a large share of the paragraphs holds.
+    """
+    mod = benchmark()
+    live = tmp_path / "index.db"
+    a_small_index(live, f"{TEN_WORDS} {EVERY_PREFIX}")
+    conn = sqlite3.connect(str(live))
+    try:
+        # "common" is in 40 of the 100 paragraphs, "often" in 20 and "cat" in 30. Each of the ten words is in one.
+        for row in range(99):
+            words = ["the", "in", "an"] + ["common"] * (row < 40) + ["often"] * (row < 20) + ["cat"] * (row < 30)
+            conn.execute(
+                "INSERT INTO search_index (book_id, chapter_id, chapter_title, chapter_file, anchor, content) "
+                "VALUES ('b1', 'ch-02', 'Two', 'ch-02.md', ?, ?)",
+                (f"^p-{row:03d}", " ".join(words)),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+    monkeypatch.setattr(mod, "find_db_path", lambda: live)
+
+    conn = sqlite3.connect(f"file:{live}?mode=ro", uri=True)
+    try:
+        asked = mod.words_to_ask(conn, 100)
+        match = "SELECT count(*) FROM search_index WHERE search_index MATCH ?"
+        found = {q: conn.execute(match, (q,)).fetchone()[0] for q in asked}
+    finally:
+        conn.close()
+
+    assert len(asked) == len(mod.WORD_SHARES), asked
+    assert all(len(q) - 1 >= mod.SHORTEST_WORD and q[:-1].isalpha() and q.endswith("*") for q in asked), asked
+    assert found[asked[0]] == 1, "the first word must be one of the rarest the books hold"
+    assert "common*" in asked and "often*" in asked, "the words a large share of the paragraphs hold must be timed"
+    assert "cat*" not in asked, "a word of three letters is nearly as broad as a prefix, and is not a real word here"
+    assert mod.run_benchmark() is True
+
+
+def test_the_benchmark_fails_on_an_index_with_too_few_words(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys):
+    """An index of a few words cannot give a rare word and a common one, so there is nothing honest to time."""
+    mod = benchmark()
+    live = tmp_path / "index.db"
+    a_small_index(live, f"market auction value {EVERY_PREFIX}")
+    monkeypatch.setattr(mod, "find_db_path", lambda: live)
+
+    assert mod.run_benchmark() is False
+    assert "Import a book first" in capsys.readouterr().err
 
 
 def test_a_whole_benchmark_run_leaves_the_index_alone(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -395,7 +454,7 @@ def test_a_whole_benchmark_run_leaves_the_index_alone(tmp_path: Path, monkeypatc
     """
     mod = benchmark()
     live = tmp_path / "index.db"
-    a_small_index(live, " ".join(query.rstrip("*") for query in mod.WORD_QUERIES + mod.BROAD_QUERIES))
+    a_small_index(live, f"{TEN_WORDS} {EVERY_PREFIX}")
     monkeypatch.setattr(mod, "find_db_path", lambda: live)
     before = live.read_bytes(), live.stat().st_mtime_ns
 
@@ -455,8 +514,7 @@ def test_the_benchmark_fails_when_every_query_matches_almost_nothing(
     """
     mod = benchmark()
     live = tmp_path / "index.db"
-    words = " ".join(query.rstrip("*") for query in mod.WORD_QUERIES + mod.BROAD_QUERIES)
-    an_index_of_filler(live, words, filler_rows=100)
+    an_index_of_filler(live, f"{TEN_WORDS} {EVERY_PREFIX}", filler_rows=100)
     monkeypatch.setattr(mod, "find_db_path", lambda: live)
 
     assert mod.run_benchmark() is False
@@ -506,14 +564,20 @@ def test_the_benchmark_names_each_query_it_finds_too_slow(tmp_path: Path, monkey
     """The report has to name each query with its own time and its own match count."""
     mod = benchmark()
     live = tmp_path / "index.db"
-    an_index_of_filler(live, " ".join(q.rstrip("*") for q in mod.WORD_QUERIES + mod.BROAD_QUERIES), filler_rows=0)
+    an_index_of_filler(live, f"{TEN_WORDS} {EVERY_PREFIX}", filler_rows=0)
     monkeypatch.setattr(mod, "find_db_path", lambda: live)
     monkeypatch.setattr(mod, "WORD_LIMIT_MS", 0.0)
+    conn = sqlite3.connect(f"file:{live}?mode=ro", uri=True)
+    try:
+        asked = mod.words_to_ask(conn, 1)
+    finally:
+        conn.close()
 
     assert mod.run_benchmark() is False
     said = capsys.readouterr().err
-    for query in mod.WORD_QUERIES:
-        assert query in said, f"the report does not name {query}, so it is not judging each query on its own"
+    assert len(asked) == len(mod.WORD_SHARES), asked
+    for query in asked:
+        assert f"{query} takes" in said, f"the report does not name {query}, so it is not judging each query on its own"
 
 
 def test_the_documents_name_the_limits_the_benchmark_really_holds():
