@@ -40,7 +40,8 @@ enum RowsToKeep {
 /// chapter that is no longer in the vault are removed.
 ///
 /// A book is known by its folder name, as the library knows it (LC-02). The study rows of a book that left the vault
-/// leave the cache too (`removed_books.rs`), and a book folder that was renamed is named in `renamed_books`.
+/// leave the cache too (`removed_books.rs`), and a book folder that was renamed is named in `renamed_books`. A book
+/// has left the vault when its folder is gone, not when its `_meta.json` is missing (DS-19).
 pub fn index_vault_blocking() -> Result<IndexSummary> {
     let _one_run = INDEX_RUN.lock().unwrap_or_else(PoisonError::into_inner);
     let start_time = std::time::Instant::now();
@@ -51,6 +52,9 @@ pub fn index_vault_blocking() -> Result<IndexSummary> {
 
     // Every book folder with a `_meta.json`, and the rows of that book that stay.
     let mut books = HashMap::new();
+    // Every book folder this run saw, whatever its `_meta.json` says. A folder that is still there has not left the
+    // vault, so the study progress of the book it holds stays in the cache (DS-19).
+    let mut folders_in_vault = HashSet::new();
     // False when an entry of the books folder could not be read: a book that the run did not see can still be there.
     let mut saw_every_book = true;
     // The book folders whose `_meta.json` names another book: (folder, the name in `_meta.json`).
@@ -75,14 +79,27 @@ pub fn index_vault_blocking() -> Result<IndexSummary> {
                 continue;
             }
         };
-        if !book_path.is_dir() {
-            continue;
-        }
-
         let Some(book_id) = book_id_of(&book_path) else {
             // The library does not list it either: no file read could find the folder by that name.
             continue;
         };
+        let about = book_path.metadata();
+        match is_a_folder(&about) {
+            Some(true) => {}
+            // A file in the books folder is not a book.
+            Some(false) => continue,
+            None => {
+                saw_every_book = false;
+                if let Err(e) = about {
+                    summary
+                        .problems
+                        .push(problem(format!("books/{book_id}"), unreadable(&e)));
+                }
+                continue;
+            }
+        }
+        folders_in_vault.insert(book_id.clone());
+
         let rows_to_keep = match std::fs::read_to_string(book_path.join("_meta.json")) {
             Ok(meta) => {
                 if let Some(name) = book_id_in_meta(&meta).filter(|name| *name != book_id) {
@@ -105,15 +122,32 @@ pub fn index_vault_blocking() -> Result<IndexSummary> {
     remove_rows_that_left_the_vault(&mut conn, &books, saw_every_book)?;
     // Study progress is not rebuilt from the book files as search is, so it leaves the cache only when the run saw the
     // whole books folder. A books folder that is missing is a problem with the vault, not a sign that every book left.
+    // It is asked about the folders, not about `books`: a folder with no `_meta.json` keeps no search rows, because
+    // those are rebuilt from the book files, but the book has not left the vault and its practice history stays
+    // (DS-19).
     if books_folder_is_there && saw_every_book {
-        let in_vault: HashSet<String> = books.keys().cloned().collect();
-        set_aside_removed_books(&mut conn, &in_vault)?;
+        set_aside_removed_books(&mut conn, &folders_in_vault)?;
     }
     summary.renamed_books = renamed_books(&vault, &books, other_names);
 
     summary.problems.sort_by(|a, b| a.file.cmp(&b.file));
     summary.duration_ms = start_time.elapsed().as_millis();
     Ok(summary)
+}
+
+/// Whether the books-folder entry the disk said `about` is a folder. `None` when the disk gave no answer: this run
+/// did not see the entry, and a run that did not see an entry may not decide that the book it holds left the vault
+/// (DS-16, DS-19).
+///
+/// It is its own function because the disk cannot be made to refuse inside a test, so the refusal is handed to the
+/// rule instead.
+pub(crate) fn is_a_folder(about: &std::io::Result<std::fs::Metadata>) -> Option<bool> {
+    match about {
+        Ok(about) => Some(about.is_dir()),
+        // It was listed a moment ago and is not there now. That is an answer, and the books it held are gone.
+        Err(e) if e.kind() == ErrorKind::NotFound => Some(false),
+        Err(_) => None,
+    }
 }
 
 /// Reads the chapters that the `_meta.json` text `meta` lists, and writes the rows of every new or changed chapter in one

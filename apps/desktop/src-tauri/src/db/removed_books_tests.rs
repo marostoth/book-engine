@@ -170,6 +170,49 @@ fn a_book_that_comes_back_gets_its_cards_review_history_and_reading_time_back() 
 }
 
 #[test]
+fn a_book_folder_that_is_still_there_keeps_its_study_progress() {
+    let sandbox = Sandbox::new();
+    write_hume(&sandbox);
+    practice_one_card("hume");
+    record_reading_session_blocking("hume", "ch-01.md", 90, true).expect("read hume");
+    index();
+    let studied = cards_of("hume");
+    assert_eq!(all_books(), (2, 1, 90));
+
+    // The folder is still in the vault and only `_meta.json` is missing: a folder half-arrived from a cloud client,
+    // a hand-made one, or one left by an import that failed before IN-05. A folder that is still there has not left
+    // the vault, so its study progress stays (DS-19).
+    std::fs::remove_file(sandbox.vault().join("books/hume/_meta.json")).expect("remove _meta.json");
+    index();
+
+    assert_eq!(all_books(), (2, 1, 90), "the study progress stays in the cache");
+    assert_eq!(cards_of("hume"), studied, "no card was archived");
+    assert_eq!(books_in_practice(), ["hume"], "practice still gives its cards");
+}
+
+#[test]
+fn a_book_folder_that_is_still_there_gets_its_meta_file_back_and_changes_nothing() {
+    let sandbox = Sandbox::new();
+    write_hume(&sandbox);
+    practice_one_card("hume");
+    record_reading_session_blocking("hume", "ch-01.md", 90, true).expect("read hume");
+    index();
+    let studied = cards_of("hume");
+
+    let meta = sandbox.vault().join("books/hume/_meta.json");
+    let bytes = std::fs::read(&meta).expect("read _meta.json");
+    std::fs::remove_file(&meta).expect("remove _meta.json");
+    index();
+    std::fs::write(&meta, &bytes).expect("put _meta.json back");
+    index();
+
+    // Nothing had to come back, because nothing left. No restart and no deck sync are needed here, and that is the
+    // difference from a book that really left the vault.
+    assert_eq!(all_books(), (2, 1, 90), "the book is counted again");
+    assert_eq!(cards_of("hume"), studied, "the cards were never touched");
+}
+
+#[test]
 fn a_vault_with_no_books_folder_keeps_the_study_progress_in_the_cache() {
     let sandbox = Sandbox::new();
     write_hume(&sandbox);

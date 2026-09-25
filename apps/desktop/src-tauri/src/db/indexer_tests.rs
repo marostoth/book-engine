@@ -1,6 +1,7 @@
 //! Index tests: a broken book or chapter never stops the other books, and a book or a chapter that leaves the vault
 //! leaves search (SI-02).
 
+use crate::db::indexer::is_a_folder;
 use crate::db::{index_vault_blocking, search_vault_blocking, IndexSummary, RenamedBook};
 use crate::test_support::Sandbox;
 use crate::vault::scan_library_books;
@@ -200,7 +201,9 @@ fn a_deleted_book_leaves_search() {
     assert_eq!(found("lemmings"), ["unlisted/ch-01"]);
 
     std::fs::remove_dir_all(sandbox.vault().join("books/deleted")).expect("delete the book");
-    // A folder with no _meta.json is not a book, and the library does not list it.
+    // A folder with no _meta.json is not a book, and the library does not list it. Its search rows go, because
+    // search is rebuilt from the book files and comes back by itself. Its study progress stays, because that is
+    // not rebuilt from the book files (DS-19, `removed_books_tests.rs`).
     std::fs::remove_file(sandbox.vault().join("books/unlisted/_meta.json")).expect("remove _meta.json");
 
     let summary = index();
@@ -217,6 +220,34 @@ fn a_deleted_book_leaves_search() {
     std::fs::remove_dir_all(sandbox.vault().join("books")).expect("delete the books folder");
     index();
     assert_eq!(found("herons"), nothing());
+}
+
+/// The rule `is_a_folder` keeps: a books-folder entry the disk would not talk about is not read as "no folder here",
+/// because the run would then say every book in it left the vault (DS-19), the same shape as DS-16.
+#[test]
+fn a_books_folder_entry_that_could_not_be_looked_at_is_not_read_as_no_folder() {
+    let sandbox = Sandbox::new();
+    write_book(&sandbox, "atlas", &["Deserts cover a third of the land."]);
+    let folder = sandbox.vault().join("books/atlas");
+
+    assert_eq!(is_a_folder(&folder.metadata()), Some(true), "a book folder is a folder");
+    assert_eq!(
+        is_a_folder(&folder.join("ch-01.md").metadata()),
+        Some(false),
+        "a file is not a folder"
+    );
+    assert_eq!(
+        is_a_folder(&folder.join("no-such-thing").metadata()),
+        Some(false),
+        "nothing is there, and that is an answer"
+    );
+    // The disk cannot be made to refuse inside a test, so the refusal itself is handed to the rule.
+    let refused = Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "not allowed"));
+    assert_eq!(
+        is_a_folder(&refused),
+        None,
+        "an answer that could not be got is no answer, and this run did not see the entry"
+    );
 }
 
 #[test]
