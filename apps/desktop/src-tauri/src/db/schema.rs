@@ -12,6 +12,9 @@ use std::sync::Mutex;
 /// A file stamped higher than this was made by a newer build. It is not opened, because a newer shape can
 /// hold things this build would drop. The vault keeps your study progress either way (DS-01), so the
 /// answer is to use the newer build, not to let this one rewrite the file.
+///
+/// `cache_shapes/<version>.txt` holds the shape of each version, and `cache_shape_tests.rs` fails when the tables
+/// below change and this number does not (TL-16).
 pub const CACHE_SCHEMA_VERSION: i64 = 1;
 
 /// Test builds only place the database inside the active `test_support::Sandbox`.

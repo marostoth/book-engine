@@ -1,0 +1,65 @@
+table dictionary_entries
+  word TEXT notnull=0 default=none pk=1
+  part_of_speech TEXT notnull=0 default=none pk=0
+  pronunciation TEXT notnull=0 default=none pk=0
+  definition TEXT notnull=0 default=none pk=0
+  etymology TEXT notnull=0 default=none pk=0
+table fsrs_cards
+  card_id TEXT notnull=0 default=none pk=1
+  book_id TEXT notnull=1 default=none pk=0
+  chapter_file TEXT notnull=1 default=none pk=0
+  anchor TEXT notnull=0 default=none pk=0
+  item_type TEXT notnull=1 default=none pk=0
+  prompt TEXT notnull=1 default=none pk=0
+  answer TEXT notnull=1 default=none pk=0
+  state INTEGER notnull=1 default=0 pk=0
+  stability REAL notnull=1 default=0.0 pk=0
+  difficulty REAL notnull=1 default=0.0 pk=0
+  due INTEGER notnull=1 default=0 pk=0
+  last_review INTEGER notnull=1 default=0 pk=0
+  reps INTEGER notnull=1 default=0 pk=0
+  card_type TEXT notnull=0 default='cloze' pk=0
+  payload TEXT notnull=0 default=NULL pk=0
+table fsrs_cards_archive
+  archive_id INTEGER notnull=0 default=none pk=1
+  archived_at INTEGER notnull=1 default=none pk=0
+  reason TEXT notnull=1 default=none pk=0
+  card_id TEXT notnull=1 default=none pk=0
+  book_id TEXT notnull=1 default=none pk=0
+  chapter_file TEXT notnull=1 default=none pk=0
+  anchor TEXT notnull=0 default=none pk=0
+  item_type TEXT notnull=1 default=none pk=0
+  prompt TEXT notnull=1 default=none pk=0
+  answer TEXT notnull=1 default=none pk=0
+  state INTEGER notnull=1 default=none pk=0
+  stability REAL notnull=1 default=none pk=0
+  difficulty REAL notnull=1 default=none pk=0
+  due INTEGER notnull=1 default=none pk=0
+  last_review INTEGER notnull=1 default=none pk=0
+  reps INTEGER notnull=1 default=none pk=0
+  card_type TEXT notnull=0 default=none pk=0
+  payload TEXT notnull=0 default=none pk=0
+table indexed_chapters
+  book_id TEXT notnull=1 default=none pk=1
+  chapter_id TEXT notnull=1 default=none pk=2
+  file_path TEXT notnull=1 default=none pk=0
+  title TEXT notnull=1 default=none pk=0
+  content_hash TEXT notnull=1 default=none pk=0
+  indexed_at DATETIME notnull=0 default=CURRENT_TIMESTAMP pk=0
+table reading_sessions
+  book_id TEXT notnull=1 default=none pk=1
+  chapter_file TEXT notnull=1 default=none pk=2
+  seconds_spent INTEGER notnull=1 default=0 pk=0
+  words_read INTEGER notnull=1 default=0 pk=0
+  completed INTEGER notnull=1 default=0 pk=0
+  last_read_at INTEGER notnull=1 default=none pk=0
+table review_logs
+  id INTEGER notnull=0 default=none pk=1
+  card_id TEXT notnull=1 default=none pk=0
+  book_id TEXT notnull=1 default=none pk=0
+  rating INTEGER notnull=1 default=none pk=0
+  reviewed_at INTEGER notnull=1 default=none pk=0
+virtual search_index: CREATE VIRTUAL TABLE search_index USING fts5( book_id UNINDEXED, chapter_id UNINDEXED, chapter_title UNINDEXED, chapter_file UNINDEXED, anchor UNINDEXED, content, tokenize = 'porter unicode61' )
+index idx_fsrs_cards_archive_card: CREATE INDEX idx_fsrs_cards_archive_card ON fsrs_cards_archive (card_id)
+index idx_fsrs_due: CREATE INDEX idx_fsrs_due ON fsrs_cards (due, book_id)
+index idx_review_logs_date: CREATE INDEX idx_review_logs_date ON review_logs (reviewed_at)
