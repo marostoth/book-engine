@@ -286,7 +286,7 @@ def test_the_inbox_keeps_a_book_that_fails_the_check_out_of_the_vault(
     make_epub(tmp_path / "inbox" / f"{BOOK}.epub", THREE_CHAPTERS)
     drop_an_anchor(monkeypatch)
 
-    assert inbox.main() == 0
+    assert inbox.main() == 1, "a run with a Failed book gives back 1 (TL-21)"
     report = capsys.readouterr()
 
     assert vault_files(tmp_path / "vault") == {}, "no book, no notes and no ledger line"
