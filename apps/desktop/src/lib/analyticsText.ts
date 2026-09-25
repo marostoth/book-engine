@@ -18,6 +18,17 @@ export function countText(count: number | null | undefined): string {
   return count == null ? NO_DATA : count.toLocaleString();
 }
 
+/** The current streak, such as "12 days" or "1 day", 0 too. A dash while the review days are not known (RD-15). */
+export function streakText(days: number | null | undefined): string {
+  if (days == null) return NO_DATA;
+  return `${days} ${days === 1 ? "day" : "days"}`;
+}
+
+/** The longest streak, such as "12d", 0 too. A dash while the review days are not known (RD-15). */
+export function bestStreakText(days: number | null | undefined): string {
+  return days == null ? NO_DATA : `${days}d`;
+}
+
 /**
  * The finished chapters of all the chapters the cache counted, such as "2 / 66". Only the finished chapters when no
  * `_meta.json` could be read, and a dash while the analytics have not loaded.

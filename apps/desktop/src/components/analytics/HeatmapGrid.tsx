@@ -1,19 +1,30 @@
 import React, { useMemo, useState } from "react";
 import { Calendar } from "lucide-react";
 import { heatmapWeeks, reviewsInLastDays, startOfLocalDay } from "../../lib/reviewDays";
+import { countText } from "../../lib/analyticsText";
 
 interface HeatmapGridProps {
-  /** The number of reviews on each "YYYY-MM-DD" day, in the time zone of this window (`reviewsPerDay`). */
-  reviewsPerDay: Map<string, number>;
+  /**
+   * The number of reviews on each "YYYY-MM-DD" day, in the time zone of this window (`reviewsPerDay`). Null while
+   * the days are not known: the grid is drawn empty and faint, and no day states a count (RD-15).
+   */
+  reviewsPerDay: Map<string, number> | null;
 }
+
+/** No reviews, as one value, to draw the empty grid from while the days are not known. */
+const NO_DAYS = new Map<string, number>();
 
 export const HeatmapGrid: React.FC<HeatmapGridProps> = ({ reviewsPerDay }) => {
   const [hoveredDay, setHoveredDay] = useState<{ date: string; count: number } | null>(null);
+  const known = reviewsPerDay !== null;
 
   // 52 week columns with rows from Monday to Sunday; the last column ends today (AN-02)
-  const calendarGrid = useMemo(() => heatmapWeeks(reviewsPerDay, new Date()), [reviewsPerDay]);
+  const calendarGrid = useMemo(() => heatmapWeeks(reviewsPerDay ?? NO_DAYS, new Date()), [reviewsPerDay]);
 
-  const totalReviewsYear = useMemo(() => reviewsInLastDays(reviewsPerDay, new Date()), [reviewsPerDay]);
+  const totalReviewsYear = useMemo(
+    () => (reviewsPerDay ? reviewsInLastDays(reviewsPerDay, new Date()) : null),
+    [reviewsPerDay]
+  );
 
   const getCellColorClass = (count: number) => {
     if (count === 0) return "bg-black/[0.04] dark:bg-white/[0.05] border-black/5 dark:border-white/5";
@@ -32,12 +43,12 @@ export const HeatmapGrid: React.FC<HeatmapGridProps> = ({ reviewsPerDay }) => {
             FSRS Review Activity Heatmap
           </span>
           <span className="text-[11px] text-neutral-400">
-            ({totalReviewsYear} reviews in past 365 days)
+            ({countText(totalReviewsYear)} reviews in past 365 days)
           </span>
         </div>
 
         <div className="text-xs font-mono text-neutral-600 dark:text-neutral-300 h-5">
-          {hoveredDay ? (
+          {!known ? null : hoveredDay ? (
             <span>
               <strong>{hoveredDay.count}</strong> {hoveredDay.count === 1 ? "review" : "reviews"} on{" "}
               {startOfLocalDay(hoveredDay.date).toLocaleDateString(undefined, {
@@ -52,7 +63,7 @@ export const HeatmapGrid: React.FC<HeatmapGridProps> = ({ reviewsPerDay }) => {
         </div>
       </div>
 
-      <div className="overflow-x-auto pb-2">
+      <div className={`overflow-x-auto pb-2 ${known ? "" : "opacity-40"}`}>
         <div className="inline-flex flex-col gap-1 min-w-[720px]">
           {[0, 1, 2, 3, 4, 5, 6].map((dayIndex) => {
             const dayLabels = ["Mon", "", "Wed", "", "Fri", "", "Sun"];
@@ -66,6 +77,14 @@ export const HeatmapGrid: React.FC<HeatmapGridProps> = ({ reviewsPerDay }) => {
                     const dayData = week[dayIndex];
                     if (!dayData) {
                       return <div key={weekIndex} className="w-3 h-3 rounded-sm bg-transparent" />;
+                    }
+                    if (!known) {
+                      return (
+                        <div
+                          key={weekIndex}
+                          className={`w-3 h-3 rounded-[2.5px] border ${getCellColorClass(0)}`}
+                        />
+                      );
                     }
                     const isHovered = hoveredDay?.date === dayData.day;
                     return (
