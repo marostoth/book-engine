@@ -13,7 +13,7 @@ import {
 import { ReviewBlock, ReadingVelocityStats, StudyAnalytics } from "../lib/types";
 import { getStudyAnalytics, fetchReadingVelocity } from "../lib/api";
 import { reportBackendError } from "../lib/backendErrors";
-import { countText, NO_DATA, retentionText } from "../lib/analyticsText";
+import { bestStreakText, countText, NO_DATA, retentionText, streakText } from "../lib/analyticsText";
 import { reviewsPerDay, reviewStreaks } from "../lib/reviewDays";
 import { HeatmapGrid } from "./analytics/HeatmapGrid";
 import { VelocityTable } from "./analytics/VelocityTable";
@@ -26,14 +26,10 @@ interface AnalyticsModalProps {
   activeBookId: string;
 }
 
-/** No blocks, as one value. A fresh `[]` on every drawing would work the heatmap out again on every drawing. */
-const NO_BLOCKS: ReviewBlock[] = [];
-
 /** The numbers of one question, and the question they answer. Numbers for another question are not these. */
 interface Analytics {
   to: string;
   study: StudyAnalytics | null;
-  blocks: ReviewBlock[];
   velocity: ReadingVelocityStats | null;
 }
 
@@ -65,18 +61,20 @@ const OpenAnalyticsModal: React.FC<AnalyticsModalProps> = ({
   const asked = `${askedAgain} ${scope} ${targetBookId ?? ""}`;
   const loading = answer?.to !== asked;
   const studyAnalytics = answer?.to === asked ? answer.study : null;
-  const reviewBlocks = answer?.to === asked ? answer.blocks : NO_BLOCKS;
+  // No blocks is not the same as blocks that are not here yet. Null, while loading or after a failed load, shows a
+  // dash; an empty list is a reader with no reviews, and shows 0 (RD-15).
+  const reviewBlocks: ReviewBlock[] | null = studyAnalytics?.review_blocks ?? null;
   const velocityStats = answer?.to === asked ? answer.velocity : null;
 
   useEffect(() => {
     let isCurrent = true;
     Promise.all([getStudyAnalytics(targetBookId), fetchReadingVelocity(targetBookId)])
       .then(([study, velocity]) => {
-        if (isCurrent) setAnswer({ to: asked, study, blocks: study.review_blocks, velocity });
+        if (isCurrent) setAnswer({ to: asked, study, velocity });
       })
       .catch((err) => {
         // The window shows what it has. Asking again is one button away, and the reason is at the bottom.
-        if (isCurrent) setAnswer({ to: asked, study: null, blocks: NO_BLOCKS, velocity: null });
+        if (isCurrent) setAnswer({ to: asked, study: null, velocity: null });
         reportBackendError("Could not load your study analytics.", err);
       });
     return () => {
@@ -89,8 +87,8 @@ const OpenAnalyticsModal: React.FC<AnalyticsModalProps> = ({
   const { panelProps, titleId, close } = useDialog({ isOpen, onClose });
 
   // Reviews per day and the streaks, in the time zone of this window (AN-02)
-  const perDay = useMemo(() => reviewsPerDay(reviewBlocks), [reviewBlocks]);
-  const { current: currentStreak, longest: longestStreak } = useMemo(() => reviewStreaks(perDay, new Date()), [perDay]);
+  const perDay = useMemo(() => (reviewBlocks ? reviewsPerDay(reviewBlocks) : null), [reviewBlocks]);
+  const streaks = useMemo(() => (perDay ? reviewStreaks(perDay, new Date()) : null), [perDay]);
 
 
   return (
@@ -256,10 +254,10 @@ const OpenAnalyticsModal: React.FC<AnalyticsModalProps> = ({
             <div className="flex items-center gap-1.5 text-xs text-[var(--theme-muted)] font-mono">
               <Flame className="w-3.5 h-3.5 text-orange-500" />
               Streak:{" "}
-              <strong className="text-[var(--theme-text)]">
-                {currentStreak} {currentStreak === 1 ? "day" : "days"}
-              </strong>
-              <span className="text-[10px] text-[var(--theme-muted)] font-sans">(Best: {longestStreak}d)</span>
+              <strong className="text-[var(--theme-text)]">{streakText(streaks?.current)}</strong>
+              <span className="text-[10px] text-[var(--theme-muted)] font-sans">
+                (Best: {bestStreakText(streaks?.longest)})
+              </span>
             </div>
           </div>
         </div>
