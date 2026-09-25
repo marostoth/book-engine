@@ -3,6 +3,8 @@ import { BookMeta, ChapterMeta } from "../../lib/types";
 import { fetchChapter } from "../../lib/api";
 import { bookText, isHeadingBlock } from "../../lib/markdown";
 import { reportBackendError } from "../../lib/backendErrors";
+import { dipStreamShortcut, shortcutKey, type DipStreamShortcut } from "../../lib/readerShortcuts";
+import { aDialogIsOpen } from "../../hooks/useDialog";
 import { BookOpen, ArrowRight, Compass, Scissors, CornerDownRight } from "lucide-react";
 
 interface DipStreamProps {
@@ -22,6 +24,9 @@ interface DipStreamProps {
 function sampleKey(bookId: string, chapterId: string): string {
   return `${bookId}\u0000${chapterId}`;
 }
+
+/** How far each paging key scrolls the stream, in pixels. */
+const SCROLL_BY: Record<DipStreamShortcut, number> = { pageDown: 380, pageUp: -380, stepDown: 220, stepUp: -220 };
 
 export const DipStream: React.FC<DipStreamProps> = ({
   bookMeta,
@@ -123,45 +128,33 @@ export const DipStream: React.FC<DipStreamProps> = ({
     };
   }, [bookMeta]);
 
-  // Single-key paging handler with strict keyboard hygiene
+  // Single-key paging. The keys are the stream's only while the stream or nothing holds the focus. They used to be
+  // taken wherever the focus was, unless it was in a text field, and a cancelled Space presses no button: while this
+  // view was open, Space pressed no button of the app, not even in a dialog over it (RD-13).
   useEffect(() => {
     if (!singleKeyPagingEnabled) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore when focused on any input, textarea, or contentEditable element
-      const activeEl = document.activeElement;
-      const tagName = activeEl?.tagName.toLowerCase();
-      if (
-        tagName === "input" ||
-        tagName === "textarea" ||
-        (activeEl as HTMLElement)?.isContentEditable
-      ) {
-        return;
-      }
-
       const container = containerRef.current;
       if (!container) return;
-
-      const pageAmount = 380;
-
-      if (e.key === " " && !e.shiftKey) {
-        e.preventDefault();
-        container.scrollBy({ top: pageAmount, behavior: "smooth" });
-      } else if (e.key === " " && e.shiftKey) {
-        e.preventDefault();
-        container.scrollBy({ top: -pageAmount, behavior: "smooth" });
-      } else if (e.key.toLowerCase() === "j") {
-        e.preventDefault();
-        container.scrollBy({ top: 220, behavior: "smooth" });
-      } else if (e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        container.scrollBy({ top: -220, behavior: "smooth" });
-      }
+      const focus = document.activeElement;
+      const focusIsOnTheStream = !focus || focus === document.body || focus === container;
+      const shortcut = dipStreamShortcut(shortcutKey(e), focusIsOnTheStream);
+      if (!shortcut) return;
+      e.preventDefault();
+      container.scrollBy({ top: SCROLL_BY[shortcut], behavior: "smooth" });
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [singleKeyPagingEnabled]);
+
+  // The stream takes the focus when it opens, so Space pages it at once. The reader opens this view with a click, and
+  // the clicked button keeps the focus, so Space would press that button again instead. An open dialog keeps it.
+  const hasBook = bookMeta !== null;
+  useEffect(() => {
+    if (hasBook && !aDialogIsOpen()) containerRef.current?.focus({ preventScroll: true });
+  }, [hasBook]);
 
   if (!bookMeta) {
     return (

@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 
 import assert from "node:assert/strict";
-import { afterEach, test, vi } from "vitest";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, test, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { BookMeta } from "../../lib/types.ts";
+import { useDialog } from "../../hooks/useDialog.ts";
 
 /**
  * TL-11: the dip stream names the samples it already asked for.
@@ -211,4 +212,179 @@ test("a chapter that carries its own sample is never read from disk", async () =
 
   assert.equal(fetchChapter.mock.calls.length, 0, "a chapter whose sample the import already wrote was read anyway");
   assert.ok(screen.getByText(/The opening the import wrote/), "the import's own sample must be the one on the page");
+});
+
+/**
+ * RD-13: the stream's paging keys are its own only while nothing else holds the focus.
+ *
+ * The stream listens on `window` for Space, Shift+Space, J and K. It cancelled them wherever the focus was, unless it
+ * was in a text field. A focused button acts on Space when the key comes up, and a cancelled Space never does, so
+ * while the Dip Sampler was open Space pressed no button of the app: not the top navigation, not the stream's own
+ * "Read Chapter", not a button of a dialog opened over it. It took Ctrl+K too, which is search, and scrolled up.
+ */
+
+/** Where the stream was asked to scroll, one entry per `scrollBy`. jsdom lays nothing out, so it has no `scrollBy`. */
+const scrolled: number[] = [];
+const hadScrollBy = Object.getOwnPropertyDescriptor(Element.prototype, "scrollBy");
+
+beforeEach(() => {
+  scrolled.length = 0;
+  Element.prototype.scrollBy = function (options?: ScrollToOptions | number) {
+    scrolled.push(typeof options === "object" ? (options.top ?? 0) : 0);
+  } as Element["scrollBy"];
+});
+
+afterEach(() => {
+  if (hadScrollBy) Object.defineProperty(Element.prototype, "scrollBy", hadScrollBy);
+  else delete (Element.prototype as Partial<Element>).scrollBy;
+});
+
+/** The app around the stream: a button of the top navigation and a select, drawn outside the stream as App.tsx does. */
+function Page({ showStream = true }: { showStream?: boolean }) {
+  return (
+    <>
+      <button type="button">Practice</button>
+      <select aria-label="Theme">
+        <option>Paper</option>
+        <option>Nord</option>
+      </select>
+      {showStream && <DipStream bookMeta={book("wealth-of-nations", ["ch-01"])} onReadFullChapter={() => {}} />}
+    </>
+  );
+}
+
+/** A dialog of the app, open, with one button. `useDialog` puts the focus on that button. */
+function OpenDialog() {
+  const { panelProps } = useDialog({ isOpen: true, onClose: () => {}, label: "Practice" });
+  return (
+    <div {...panelProps}>
+      <button type="button">Again</button>
+    </div>
+  );
+}
+
+async function openStream(): Promise<void> {
+  fetchChapter.mockImplementation(() => Promise.resolve(chapterText("It opens", "and it closes")));
+  render(<Page />);
+  await settleAll();
+}
+
+/** True when something cancelled the key, which is what stops a focused button from being pressed by it. */
+function cancels(target: Element, key: string, init: Partial<KeyboardEventInit> = {}): boolean {
+  return !fireEvent.keyDown(target, { key, ...init });
+}
+
+/** Takes the focus off whatever holds it, so it is on the page itself. */
+function focusNothing(): void {
+  (document.activeElement as HTMLElement | null)?.blur();
+  assert.ok(document.activeElement === document.body, "sight check: the focus must be on the page itself");
+}
+
+test("Space on a focused button of the app presses the button, and does not page the stream", async () => {
+  await openStream();
+  const practice = screen.getByRole("button", { name: "Practice" });
+  practice.focus();
+
+  assert.equal(
+    cancels(practice, " "),
+    false,
+    "the stream cancelled Space on a focused button of the top navigation, so the button was never pressed (RD-13)"
+  );
+  assert.equal(cancels(practice, " ", { shiftKey: true }), false, "the stream cancelled Shift+Space on the button");
+  assert.deepEqual(scrolled, [], "the stream paged while a button of the app held the focus");
+});
+
+test("Space on the stream's own Read Chapter button presses it", async () => {
+  await openStream();
+  const read = screen.getByRole("button", { name: /Read Chapter/ });
+  read.focus();
+
+  assert.equal(cancels(read, " "), false, "the stream cancelled Space on its own Read Chapter button (RD-13)");
+  assert.deepEqual(scrolled, [], "the stream paged while its own button held the focus");
+});
+
+test("J and K leave a focused select alone", async () => {
+  await openStream();
+  const select = screen.getByRole("combobox", { name: "Theme" });
+  select.focus();
+
+  for (const key of ["j", "k"]) {
+    assert.equal(cancels(select, key), false, `the stream cancelled ${key} on a focused select, which picks by letter`);
+  }
+  assert.deepEqual(scrolled, [], "the stream paged while a select held the focus");
+});
+
+test("a key held with Ctrl, Cmd or Alt is someone else's shortcut", async () => {
+  await openStream();
+  focusNothing();
+
+  const shortcuts: [string, Partial<KeyboardEventInit>][] = [
+    ["k", { ctrlKey: true }],
+    ["k", { metaKey: true }],
+    ["j", { altKey: true }],
+    [" ", { ctrlKey: true }],
+  ];
+  for (const [key, held] of shortcuts) {
+    assert.equal(cancels(document.body, key, held), false, `the stream cancelled ${JSON.stringify({ key, ...held })}`);
+  }
+  assert.deepEqual(scrolled, [], "the stream paged on Ctrl+K, which opens search, so one press did both");
+});
+
+test("with the focus on the stream or on nothing, Space, Shift+Space, J and K page it", async () => {
+  await openStream();
+  const stream = screen.getByLabelText("Inspectional Dip Stream");
+  const keys: [string, Partial<KeyboardEventInit>][] = [
+    [" ", {}],
+    [" ", { shiftKey: true }],
+    ["j", {}],
+    ["k", {}],
+  ];
+
+  stream.focus();
+  for (const [key, held] of keys) assert.equal(cancels(stream, key, held), true, `${key} must page the stream`);
+  focusNothing();
+  for (const [key, held] of keys) assert.equal(cancels(document.body, key, held), true, `${key} must page it`);
+
+  assert.deepEqual(scrolled, [380, -380, 220, -220, 380, -380, 220, -220], "the stream must page by these amounts");
+});
+
+test("the stream takes the focus when it opens, so Space pages it at once", async () => {
+  fetchChapter.mockImplementation(() => Promise.resolve(chapterText("It opens", "and it closes")));
+  const view = render(<Page showStream={false} />);
+  // The reader opens the Dip Sampler with a click, and a clicked button keeps the focus.
+  screen.getByRole("button", { name: "Practice" }).focus();
+
+  view.rerender(<Page />);
+  await settleAll();
+
+  const stream = screen.getByLabelText("Inspectional Dip Stream");
+  assert.ok(
+    document.activeElement === stream,
+    "the focus stayed on the button that opened the view, so Space presses that button and pages nothing"
+  );
+  assert.equal(cancels(stream, " "), true, "Space must page the stream that holds the focus");
+  assert.deepEqual(scrolled, [380]);
+});
+
+test("the stream leaves the focus inside a dialog that is open when it opens", async () => {
+  fetchChapter.mockImplementation(() => Promise.resolve(chapterText("It opens", "and it closes")));
+  // One component for both drawings, so the dialog stays the same dialog when the stream appears beside it.
+  function DialogOverStream({ showStream }: { showStream: boolean }) {
+    return (
+      <>
+        <OpenDialog />
+        {showStream && <DipStream bookMeta={book("wealth-of-nations", ["ch-01"])} onReadFullChapter={() => {}} />}
+      </>
+    );
+  }
+  const view = render(<DialogOverStream showStream={false} />);
+  const again = screen.getByRole("button", { name: "Again" });
+  assert.ok(document.activeElement === again, "sight check: the dialog must hold the focus");
+
+  view.rerender(<DialogOverStream showStream={true} />);
+  await settleAll();
+
+  assert.ok(document.activeElement === again, "the stream took the focus out of an open dialog");
+  assert.equal(cancels(again, " "), false, "the stream cancelled Space on a button of an open dialog");
+  assert.deepEqual(scrolled, [], "the stream paged behind an open dialog");
 });
