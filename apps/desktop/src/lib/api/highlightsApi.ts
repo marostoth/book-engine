@@ -6,8 +6,8 @@ import { callBackend } from "./clientBase.ts";
  * The saved highlights of a chapter, from `vault/notes/<book-id>/<chapter>-highlights.json`.
  * A chapter that still keeps them in the old notes comment is moved over by the backend.
  *
- * Every entry is checked, and a damaged one is dropped on its own, so one bad entry cannot lose the reader every
- * other highlight of the chapter (RD-09).
+ * Every entry is checked. One that cannot be read rejects the list, because the next highlight saves the list on
+ * screen over the file and would erase an entry dropped here (TL-14).
  */
 export async function getChapterHighlights(bookId: string, chapterFile: string): Promise<HighlightItem[]> {
   const answer = await callBackend<unknown>(

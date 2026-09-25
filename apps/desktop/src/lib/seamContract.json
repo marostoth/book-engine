@@ -1,0 +1,348 @@
+{
+  "AggregatedNoteItem": {
+    "id": "hl-1",
+    "item_type": "highlight",
+    "chapter_file": "ch-02.md",
+    "chapter_title": "Of the Division of Labour",
+    "chapter_order": 2,
+    "anchor": "^p-004",
+    "text": "the division of labour",
+    "color": "yellow",
+    "section_heading": "Book I",
+    "created_at": "2026-09-25T10:00:00Z"
+  },
+  "AnalyticalStore": {
+    "terms": [],
+    "arguments": [],
+    "critiques": [],
+    "inquiries": [],
+    "overallVerdict": "agree"
+  },
+  "AnchoredCitation": {
+    "chapterFile": "ch-02.md",
+    "anchor": "^p-004",
+    "quote": "the division of labour"
+  },
+  "ArgumentNode": {
+    "id": "arg-1",
+    "title": "Labour divides",
+    "conclusion": { "chapterFile": "ch-02.md", "anchor": "^p-004", "quote": "the division of labour" },
+    "premises": [{ "chapterFile": "ch-02.md", "anchor": "^p-005", "quote": "a pin-maker" }],
+    "inferenceType": "deductive",
+    "notes": "a note"
+  },
+  "AuthorInquiry": {
+    "id": "inq-1",
+    "question": "What causes wealth?",
+    "domain": "theoretical",
+    "priority": "primary",
+    "citation": { "chapterFile": "ch-02.md", "anchor": "^p-004", "quote": "the division of labour" },
+    "resolution": "solved",
+    "solutionNotes": "labour",
+    "solutionArgumentIds": ["arg-1"],
+    "solutionCitation": { "chapterFile": "ch-02.md", "anchor": "^p-005", "quote": "a pin-maker" },
+    "createdAt": "2026-09-25T10:00:00Z"
+  },
+  "AuthorTerm": {
+    "id": "term-1",
+    "term": "labour",
+    "authorDefinition": "the work of hands",
+    "citation": { "chapterFile": "ch-02.md", "anchor": "^p-004", "quote": "the division of labour" }
+  },
+  "BookMetadata": {
+    "id": "wealth",
+    "title": "The Wealth of Nations",
+    "author": "Adam Smith",
+    "chapter_count": 3,
+    "total_words": 1200,
+    "elementary_metrics": { "flesch_kincaid_grade": 12.5, "avg_sentence_length_words": 30.5, "estimated_reading_minutes": 6 },
+    "inspectional_blueprint": { "front_matter": { "title": "The Wealth of Nations" }, "pivotal_chapters": ["ch-02.md"], "synthetic_index_clusters": [{ "label": "labour" }] }
+  },
+  "BookSummary": {
+    "book_id": "wealth",
+    "title": "The Wealth of Nations",
+    "author": "Adam Smith",
+    "total_chapters": 3,
+    "total_words": 1200
+  },
+  "BookBookmark": {
+    "bookId": "wealth",
+    "chapterFile": "ch-02.md",
+    "anchor": "^p-004",
+    "savedAt": "2026-09-25T10:00:00Z"
+  },
+  "Bookmark": {
+    "chapterFile": "ch-02.md",
+    "anchor": "^p-004",
+    "savedAt": "2026-09-25T10:00:00Z"
+  },
+  "CardSchedule": {
+    "card_id": "card-1",
+    "state": 2,
+    "stability": 3.5,
+    "difficulty": 5.5,
+    "due": 1790000000,
+    "last_review": 1789000000,
+    "reps": 4,
+    "interval_days": 3
+  },
+  "ChapterMeta": {
+    "id": "ch-02",
+    "title": "Of the Division of Labour",
+    "file_path": "ch-02.md",
+    "order": 2,
+    "word_count": 400,
+    "anchor_count": 12,
+    "first_anchor": "^p-001",
+    "last_anchor": "^p-012",
+    "footnotes_count": 1,
+    "inspectional_sampling": { "head_anchors": ["^p-001"], "tail_anchors": ["^p-012"], "head_text_preview": "The greatest", "tail_text_preview": "of labour." }
+  },
+  "ChapterNoteFile": {
+    "file_name": "ch-02-notes.md",
+    "chapter_file": "ch-02.md",
+    "content": "A note."
+  },
+  "ChapterReadingStatItem": {
+    "book_id": "wealth",
+    "book_title": "The Wealth of Nations",
+    "chapter_file": "ch-02.md",
+    "chapter_title": "Of the Division of Labour",
+    "seconds_spent": 90,
+    "completed": true,
+    "last_read_at": 1790000000
+  },
+  "CritiqueItem": {
+    "id": "crit-1",
+    "targetArgumentId": "arg-1",
+    "citation": { "chapterFile": "ch-02.md", "anchor": "^p-004", "quote": "the division of labour" },
+    "understandingDeclared": true,
+    "judgment": "disagree",
+    "defects": ["uninformed"],
+    "rationale": "a reason",
+    "createdAt": "2026-09-25T10:00:00Z"
+  },
+  "CrossBookCitation": {
+    "bookId": "wealth",
+    "chapterFile": "ch-02.md",
+    "anchor": "^p-004",
+    "quote": "the division of labour"
+  },
+  "DictionaryEntry": {
+    "word": "labour",
+    "partOfSpeech": "noun",
+    "pronunciation": "LAY-ber",
+    "definition": "work",
+    "etymology": "Latin labor"
+  },
+  "ElementaryMetrics": {
+    "flesch_kincaid_grade": 12.5,
+    "avg_sentence_length_words": 30.5,
+    "estimated_reading_minutes": 6
+  },
+  "ExitAssessmentPayload": {
+    "classification": "theoretical",
+    "unityStatement": "Wealth comes from labour.",
+    "partsStructure": ["Book I"],
+    "completedAt": "2026-09-25T10:00:00Z"
+  },
+  "HighlightItem": {
+    "id": "hl-1",
+    "exact": "the division of labour",
+    "prefix": "effects of ",
+    "suffix": " in the general",
+    "anchor": "^p-004",
+    "color": "yellow",
+    "createdAt": "2026-09-25T10:00:00Z"
+  },
+  "IndexProblem": {
+    "file": "ch-02.md",
+    "reason": "no title"
+  },
+  "IndexSummary": {
+    "chapters_indexed": 3,
+    "paragraphs_indexed": 36,
+    "problems": [{ "file": "ch-02.md", "reason": "no title" }],
+    "renamed_books": [{ "folder": "wealth", "old_name": "wealth-old" }],
+    "duration_ms": 120
+  },
+  "InquiryDomain": ["theoretical", "practical"],
+  "InquiryPriority": ["primary", "subordinate"],
+  "InspectionalBlueprint": {
+    "front_matter": { "title": "The Wealth of Nations" },
+    "pivotal_chapters": ["ch-02.md"],
+    "synthetic_index_clusters": [{ "label": "labour" }]
+  },
+  "InspectionalSampling": {
+    "head_anchors": ["^p-001"],
+    "tail_anchors": ["^p-012"],
+    "head_text_preview": "The greatest",
+    "tail_text_preview": "of labour."
+  },
+  "NeutralTerm": {
+    "id": "nt-1",
+    "term": "work",
+    "neutralDefinition": "effort",
+    "mappings": [
+      {
+        "bookId": "wealth",
+        "authorVariant": "labour",
+        "authorTermId": "term-1",
+        "citation": { "bookId": "wealth", "chapterFile": "ch-02.md", "anchor": "^p-004", "quote": "the division of labour" }
+      }
+    ]
+  },
+  "PracticeCardItem": {
+    "card_id": "card-1",
+    "book_id": "wealth",
+    "chapter_file": "ch-02.md",
+    "anchor": "^p-004",
+    "item_type": "cloze",
+    "prompt": "The division of ____",
+    "answer": "labour",
+    "state": 2,
+    "stability": 3.5,
+    "difficulty": 5.5,
+    "due": 1790000000,
+    "last_review": 1789000000,
+    "reps": 4,
+    "card_type": "scenario",
+    "scenario_payload": {
+      "scenario": "A pin factory splits its work.",
+      "options": [{ "key": "A", "text": "Output rises.", "is_correct": true }],
+      "citation": { "chapterFile": "ch-02.md", "anchor": "^p-004", "quote": "the division of labour" },
+      "rationale": "Each worker gets faster."
+    }
+  },
+  "ReadingVelocityStats": {
+    "total_seconds": 90,
+    "completed_chapters": 1,
+    "total_chapters": 3,
+    "chapter_stats": [
+      {
+        "book_id": "wealth",
+        "book_title": "The Wealth of Nations",
+        "chapter_file": "ch-02.md",
+        "chapter_title": "Of the Division of Labour",
+        "seconds_spent": 90,
+        "completed": true,
+        "last_read_at": 1790000000
+      }
+    ]
+  },
+  "RenamedBook": {
+    "folder": "wealth",
+    "old_name": "wealth-old"
+  },
+  "ResolutionStatus": ["solved", "unsolvedAcknowledged", "unsolvedUnrecognized"],
+  "RetentionMetrics": {
+    "due_today": 2,
+    "total_cards": 10,
+    "mastered_cards": 3,
+    "retention_rate": 0.75
+  },
+  "ReviewBlock": {
+    "started_at": 1790000000,
+    "count": 5
+  },
+  "ScenarioOption": {
+    "key": "A",
+    "text": "Output rises.",
+    "is_correct": true
+  },
+  "ScenarioPayload": {
+    "scenario": "A pin factory splits its work.",
+    "options": [{ "key": "A", "text": "Output rises.", "is_correct": true }],
+    "citation": { "chapterFile": "ch-02.md", "anchor": "^p-004", "quote": "the division of labour" },
+    "rationale": "Each worker gets faster."
+  },
+  "SearchResult": {
+    "book_id": "wealth",
+    "chapter_id": "ch-02",
+    "chapter_title": "Of the Division of Labour",
+    "chapter_file": "ch-02.md",
+    "anchor": "^p-004",
+    "snippet": "the <mark>division</mark> of labour",
+    "rank": 1.5
+  },
+  "StateCounts": {
+    "new_count": 1,
+    "learning_count": 2,
+    "review_count": 3,
+    "relearning_count": 4,
+    "total_cards": 10
+  },
+  "StudyAnalytics": {
+    "review_blocks": [{ "started_at": 1790000000, "count": 5 }],
+    "state_counts": { "new_count": 1, "learning_count": 2, "review_count": 3, "relearning_count": 4, "total_cards": 10 },
+    "retention_rate": 0.75,
+    "reviews_due": 2,
+    "new_cards": 1,
+    "mastered_cards": 3,
+    "total_vault_words": 1200,
+    "estimated_reading_time_mins": 6
+  },
+  "SyntopicControversy": {
+    "id": "con-1",
+    "questionId": "q-1",
+    "title": "Does labour make wealth?",
+    "perspectives": [
+      {
+        "bookId": "wealth",
+        "stance": "yes",
+        "argumentIds": ["arg-1"],
+        "citations": [{ "bookId": "wealth", "chapterFile": "ch-02.md", "anchor": "^p-004", "quote": "the division of labour" }]
+      }
+    ]
+  },
+  "SyntopicPerspective": {
+    "bookId": "wealth",
+    "stance": "yes",
+    "argumentIds": ["arg-1"],
+    "citations": [{ "bookId": "wealth", "chapterFile": "ch-02.md", "anchor": "^p-004", "quote": "the division of labour" }]
+  },
+  "SyntopicQuestion": {
+    "id": "q-1",
+    "question": "Does labour make wealth?",
+    "order": 1
+  },
+  "SyntopicTopic": {
+    "id": "topic-1",
+    "title": "Wealth",
+    "description": "Where wealth comes from.",
+    "neutralTerms": [],
+    "questions": [{ "id": "q-1", "question": "Does labour make wealth?", "order": 1 }],
+    "controversies": [],
+    "synthesisNotes": "notes",
+    "dialecticalResolution": "resolved",
+    "createdAt": "2026-09-25T10:00:00Z"
+  },
+  "SyntopicTopicSummary": {
+    "id": "topic-1",
+    "title": "Wealth",
+    "description": "Where wealth comes from.",
+    "termCount": 1,
+    "questionCount": 1,
+    "controversyCount": 1,
+    "booksInvolved": ["wealth"],
+    "createdAt": "2026-09-25T10:00:00Z"
+  },
+  "TermMapping": {
+    "bookId": "wealth",
+    "authorVariant": "labour",
+    "authorTermId": "term-1",
+    "citation": { "bookId": "wealth", "chapterFile": "ch-02.md", "anchor": "^p-004", "quote": "the division of labour" }
+  },
+  "VaultStatus": {
+    "path": "C:/books/vault",
+    "foundBy": "setting",
+    "message": "The vault is open."
+  },
+  "VocabularyEntry": {
+    "word": "labour",
+    "definition": "work",
+    "chapterFile": "ch-02.md",
+    "anchor": "^p-004",
+    "savedAt": "2026-09-25T10:00:00Z"
+  }
+}

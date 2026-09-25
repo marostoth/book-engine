@@ -254,7 +254,7 @@ const OpenPracticeModal: React.FC<PracticeModalProps> = ({
               </div>
 
               {/* Scenario Drill vs Cloze/Scramble Drill */}
-              {currentCard.card_type === "scenario" || currentCard.item_type === "scenario" || currentCard.cardType === "scenario" ? (
+              {currentCard.card_type === "scenario" || currentCard.item_type === "scenario" ? (
                 <ScenarioCardView
                   key={currentCard.card_id}
                   card={currentCard}

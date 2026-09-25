@@ -28,7 +28,5 @@ export interface PracticeCardItem {
   last_review: number;
   reps: number;
   card_type?: "cloze" | "scenario";
-  cardType?: "cloze" | "scenario";
   scenario_payload?: ScenarioPayload;
-  scenarioPayload?: ScenarioPayload;
 }

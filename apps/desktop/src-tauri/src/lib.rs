@@ -4,6 +4,8 @@ pub mod commands;
 pub mod db;
 pub mod fsrs;
 #[cfg(test)]
+mod seam_contract_tests;
+#[cfg(test)]
 mod security_config_tests;
 #[cfg(test)]
 mod test_support;

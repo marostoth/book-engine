@@ -227,15 +227,21 @@ def test_the_book_file_is_checked_before_the_app_believes_it():
 
 
 def test_saved_highlights_are_checked_before_they_are_drawn():
-    for file in ("lib/api/highlightsApi.ts", "lib/highlights.ts"):
+    # The list a save writes over the file is refused whole, so no save erases a dropped entry (TL-14). The old
+    # comment in a notes file is only read, so it drops a damaged entry and keeps the rest (RD-09).
+    for file, check in (
+        ("lib/api/highlightsApi.ts", " highlightsFrom("),
+        ("lib/highlights.ts", "readableHighlightsFrom("),
+    ):
         text = without_comments((SRC / file).read_text(encoding="utf-8"))
-        assert "highlightsFrom(" in text, f"{file} must drop a damaged highlight and keep the rest"
+        assert check in text, f"{file} must check its highlights with{check}"
 
 
 def test_the_checks_have_tests_of_their_own():
     tests = (SRC / "lib" / "backendShapes.test.ts").read_text(encoding="utf-8")
     assert "with no spine is refused" in tests, "the check for a book with no chapters needs a test"
-    assert "damaged highlight is dropped" in tests, "the check that keeps the good highlights needs a test"
+    assert "damaged highlight rejects the list" in tests, "the check that refuses a damaged list needs a test"
+    assert "drops a damaged highlight" in tests, "the check that keeps the good highlights needs a test"
     assert "damaged word is dropped" in tests, "the check that keeps the good saved words needs a test"
 
 

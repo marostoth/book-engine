@@ -33,7 +33,7 @@ pub struct Bookmark {
 }
 
 /// A bookmark and the book it belongs to.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BookBookmark {
     pub book_id: String,
