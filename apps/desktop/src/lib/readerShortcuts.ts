@@ -1,8 +1,9 @@
 /**
- * Reader keyboard shortcuts. Three window keydown listeners read keys: the App listener (App.tsx), which is
+ * Reader keyboard shortcuts. Four window keydown listeners read keys: the App listener (App.tsx), which is
  * always on, the elementary canvas listener (useElementaryMechanics.ts), which is on while the Reader shows,
- * and the dip stream listener (DipStream.tsx), which is on while the Dip Sampler shows. Each shortcut belongs
- * to one listener, so one key press runs it once.
+ * the dip stream listener (DipStream.tsx), which is on while the Dip Sampler shows, and the pacer listener
+ * (usePacerDrag.ts), which is on while the pacer runs with keyboard scrubbing. Each shortcut belongs to one
+ * listener, so one key press runs it once.
  */
 
 /** The parts of a keydown event that choose a shortcut. */
@@ -19,6 +20,7 @@ export interface ShortcutKey {
 export type AppShortcut = "search" | "togglePacer" | "guide";
 export type ElementaryCanvasShortcut = "slowerPacer" | "fasterPacer";
 export type DipStreamShortcut = "pageDown" | "pageUp" | "stepDown" | "stepUp";
+export type PacerShortcut = "lineUp" | "lineDown" | "chunkBack" | "chunkForward";
 
 /**
  * Shortcuts of the App listener. Ctrl+K or Cmd+K (search) works everywhere. Alt+P (pacer) and ? or F1
@@ -55,7 +57,39 @@ export function dipStreamShortcut(key: ShortcutKey, focusIsOnTheStream: boolean)
   return null;
 }
 
-/** Reads a keydown event for the three listeners. */
+/**
+ * Shortcuts of the pacer listener: the arrows step the running pacer by a line or by a few words. An element that
+ * answers the arrows itself keeps them, and so does anything in an open dialog, which the pacer is behind. The
+ * pacer used to take them from a select, from the tabs of the reading guide and from every dialog. A plain button
+ * answers no arrow, so the pacer still steps after its Start button is clicked. Ctrl, Cmd or Alt is another shortcut.
+ */
+export function pacerShortcut(key: ShortcutKey, focusKeepsTheArrows: boolean): PacerShortcut | null {
+  if (focusKeepsTheArrows || key.inTextEntry || key.ctrlKey || key.metaKey || key.altKey) return null;
+  const steps: Record<string, PacerShortcut> = {
+    ArrowUp: "lineUp",
+    ArrowDown: "lineDown",
+    ArrowLeft: "chunkBack",
+    ArrowRight: "chunkForward",
+  };
+  return steps[key.key] ?? null;
+}
+
+/** The roles whose elements move by the arrows: a tab set, a list, a menu, a slider, a grid, a tree. */
+const MOVES_BY_ARROWS = new Set([
+  "tab", "tablist", "listbox", "option", "menu", "menubar", "menuitem", "menuitemcheckbox", "menuitemradio",
+  "radio", "radiogroup", "slider", "spinbutton", "combobox", "grid", "gridcell", "tree", "treeitem",
+]);
+
+/** The element uses the arrow keys itself: a field moves its caret, a select its choice, a tab to the next tab. */
+export function answersArrows(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return true;
+  if (target instanceof HTMLSelectElement || target.isContentEditable) return true;
+  if (["", "true", "plaintext-only"].includes(target.getAttribute("contenteditable") ?? "false")) return true;
+  return MOVES_BY_ARROWS.has(target.getAttribute("role") ?? "");
+}
+
+/** Reads a keydown event for the four listeners. */
 export function shortcutKey(event: KeyboardEvent): ShortcutKey {
   const target = event.target as HTMLElement | null;
   return {
