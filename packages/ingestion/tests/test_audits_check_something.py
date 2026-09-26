@@ -8,6 +8,7 @@ days older than the Rust it was built from, and its modularity check printed a c
 import os
 import re
 import sqlite3
+import subprocess
 from pathlib import Path
 from types import ModuleType
 
@@ -317,11 +318,10 @@ def test_the_modularity_check_reads_the_rust_and_its_own_scripts(tmp_path: Path)
     point_at(mod, vault, tmp_path)
     mod.ROOT_DIR = tmp_path
     mod.SKILLS_DIR = tmp_path / "skills"
-    long_rust = tmp_path / "apps" / "desktop" / "src-tauri" / "src" / "commands.rs"
-    long_script = tmp_path / "skills" / "audit-everything.py"
-    for path in (long_rust, long_script):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("// a line\n" * 400, encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)  # git names the files it counts (TL-17)
+    for name in ("apps/desktop/src-tauri/src/commands.rs", "skills/audit-everything.py"):
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / name).write_text("// a line\n" * 400, encoding="utf-8")
 
     result = mod.check_modularity_and_vault_isolation()
     assert result.passed is False

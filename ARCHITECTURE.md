@@ -919,7 +919,7 @@ there yet, and the closing line names them (TL-15); a file they cannot read stil
     anchor resolving to a real paragraph. It reads and parses the topic files; it does not hash them.
 11. **Elementary parity** — readability metrics in `_meta.json` within bounds, and chapter word counts
     matching the spine. The sidebar shows the metrics at the elementary level (TL-20).
-12. **Modularity & isolation** — no SQLite database anywhere inside `vault/`, and every source file in
-    `apps/desktop/src/`, `src-tauri/src/`, `packages/ingestion/ingest/` and `.agent/skills/` at or under 300
-    lines, or no longer than `.agent/skills/long-files.json` holds it. A held file that got shorter must have its
-    number lowered, and `tests/test_the_audit_can_pass.py` holds the whole repository to the list in CI.
+12. **Modularity & isolation** — no SQLite database anywhere inside `vault/`, and every source file git sees,
+    tests and scripts too, at or under 300 lines, or no longer than `.agent/skills/long-files.json` holds it. A
+    held file that got shorter must have its number lowered, and `tests/test_the_audit_can_pass.py` holds the
+    whole repository to the list in CI.
