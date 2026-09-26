@@ -163,6 +163,7 @@ book-engine/
 │       │   │   │   ├── HeatmapGrid.tsx       # GitHub-style annual FSRS study activity heatmap
 │       │   │   │   └── VelocityTable.tsx     # Chapter reading time & completion table
 │       │   │   ├── elementary/               # Modular Level 1 Elementary Reading components & mechanics
+│       │   │   │   ├── BookReadability.tsx   # The open book's reading grade, words per sentence & time to read, in the sidebar
 │       │   │   │   ├── ElementaryCanvas.tsx  # Reading canvas wrapper with dynamic typographical measure
 │       │   │   │   ├── ElementaryPacingControls.tsx # TopNav pacer Play/Pause toggle, WPM stepper & focus ruler controls
 │       │   │   │   ├── FocusRuler.tsx        # Active reading block tracker & sibling paragraph dimmer
@@ -301,6 +302,7 @@ book-engine/
 │       │   │   ├── practiceSession.ts        # Pure practice/gatekeeper session
 │       │   │   ├── practiceTypes.ts          # FSRS practice models (ScenarioOption, ScenarioPayload, PracticeCardItem)
 │       │   │   ├── preferences.ts            # Reader settings
+│       │   │   ├── readabilityText.ts        # A book's reading grade, words per sentence & time to read as text
 │       │   │   ├── readerLoads.ts            # Book & chapter loading
 │       │   │   ├── readerLocation.ts         # Book + chapter file + anchor locations
 │       │   │   ├── readerProgress.ts         # How far down a chapter the reader is
@@ -643,7 +645,7 @@ six commands that no longer existed and missed nine that did.
 App.tsx (reader settings with the theme, viewMode, activeBook, activeChapter)
 ├── BackendErrorBar.tsx (every failed load or save, with a count and Dismiss)
 ├── VaultGate.tsx (shown instead of the reader when no vault folder was found)
-├── Sidebar.tsx (collapsible contents, active chapter, word & anchor counts)
+├── Sidebar.tsx (collapsible contents, active chapter, word & anchor counts; at the elementary level, the book's reading grade, words per sentence & time to read)
 ├── TopNav.tsx (progress bar, chapter title, theme toggles, view mode switches)
 └── [ Main Content Area ]
     ├── Reader.tsx (TipTap editor: mounts ONLY one chapter at a time)
@@ -916,7 +918,7 @@ there yet, and the closing line names them (TL-15); a file they cannot read stil
 10. **Syntopical parity** — neutral terms, universal questions, cross-book perspectives, and every citation
     anchor resolving to a real paragraph. It reads and parses the topic files; it does not hash them.
 11. **Elementary parity** — readability metrics in `_meta.json` within bounds, and chapter word counts
-    matching the spine.
+    matching the spine. The sidebar shows the metrics at the elementary level (TL-20).
 12. **Modularity & isolation** — no SQLite database anywhere inside `vault/`, and every source file in
     `apps/desktop/src/`, `src-tauri/src/`, `packages/ingestion/ingest/` and `.agent/skills/` at or under 300
     lines, or no longer than `.agent/skills/long-files.json` holds it. A held file that got shorter must have its

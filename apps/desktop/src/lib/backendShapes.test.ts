@@ -109,6 +109,35 @@ test("a book file with no total_chapters counts its own chapters", () => {
   assert.equal(bookMetaFrom(JSON.stringify(thin), "a-book").total_chapters, 1);
 });
 
+/** The measures the import writes into a book file, as the Python `ElementaryMetrics` writes them (TL-20). */
+const MEASURES = { flesch_kincaid_grade: 10.63, avg_sentence_length_words: 19.51, estimated_reading_minutes: 376 };
+
+test("a book file's reading measures reach the app as the import wrote them", () => {
+  const book = { ...goodBook(), elementary_metrics: MEASURES };
+  assert.deepEqual(bookMetaFrom(JSON.stringify(book), "a-book").elementary_metrics, MEASURES);
+});
+
+test("a book file with no reading measures still opens, with no measures", () => {
+  const meta = bookMetaFrom(JSON.stringify(goodBook()), "a-book");
+  assert.equal(meta.elementary_metrics, undefined, "a book from an older import has none, and must still open");
+});
+
+test("reading measures that are not measures are dropped, and the book still opens", () => {
+  const notMeasures: Record<string, unknown>[] = [
+    { ...MEASURES, flesch_kincaid_grade: "10.63" },
+    { ...MEASURES, estimated_reading_minutes: null },
+    { flesch_kincaid_grade: 10.63, avg_sentence_length_words: 19.51 },
+    // The import writes zeros for a book with no sentences, and a 0 is not a time to read it in (RD-15).
+    { flesch_kincaid_grade: 0, avg_sentence_length_words: 0, estimated_reading_minutes: 0 },
+    { ...MEASURES, flesch_kincaid_grade: -1 },
+  ];
+  for (const measures of notMeasures) {
+    const meta = bookMetaFrom(JSON.stringify({ ...goodBook(), elementary_metrics: measures }), "a-book");
+    assert.equal(meta.elementary_metrics, undefined, `kept ${JSON.stringify(measures)}`);
+    assert.equal(meta.book_id, "a-book");
+  }
+});
+
 // ---------------------------------------------------------------- saved highlights
 
 test("a damaged highlight rejects the list, so the next highlight cannot save over it", () => {

@@ -256,6 +256,4 @@ pub struct AnalyticalStore {
     pub critiques: Vec<CritiqueItem>,
     #[serde(default)]
     pub inquiries: Vec<AuthorInquiry>,
-    #[serde(default)]
-    pub overall_verdict: Option<String>,
 }

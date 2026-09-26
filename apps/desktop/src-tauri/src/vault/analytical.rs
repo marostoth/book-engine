@@ -123,7 +123,7 @@ mod tests {
     const ANALYTICAL_FILE: &str = "notes/sample/analytical.json";
     const TRUNCATED_STORE: &str = r#"{"terms":[{"id":"t1","term":"linearizabil"#;
 
-    /// An analytical store with one term and a verdict, written the way the app writes it.
+    /// An analytical store with one term, written the way the app writes it.
     fn one_term_store() -> String {
         let mut store = AnalyticalStore::default();
         store.terms.push(AuthorTerm {
@@ -136,7 +136,6 @@ mod tests {
                 quote: "linearizability is defined...".to_string(),
             },
         });
-        store.overall_verdict = Some("Worth a second reading.".to_string());
         serde_json::to_string_pretty(&store).expect("serialize store")
     }
 
@@ -205,7 +204,7 @@ mod tests {
 
         let store = load_analytical_store("sample").expect("a file with a byte order mark must load");
         assert_eq!(store.terms.len(), 1, "the saved term must stay");
-        assert_eq!(store.overall_verdict.as_deref(), Some("Worth a second reading."));
+        assert_eq!(store.terms[0].term, "linearizability");
     }
 
     #[test]
@@ -226,6 +225,14 @@ mod tests {
         assert!(store.arguments.is_empty());
         assert!(store.critiques.is_empty());
         assert!(store.inquiries.is_empty());
-        assert!(store.overall_verdict.is_none());
+    }
+
+    /// `overallVerdict` was a field no screen wrote and none showed, so it was taken out (TL-20). A file that
+    /// still holds one must load, with everything else in it.
+    #[test]
+    fn a_file_with_the_old_verdict_still_loads() {
+        let with_verdict = r#"{"terms":[],"arguments":[],"critiques":[],"inquiries":[],"overallVerdict":"agree"}"#;
+        let store: AnalyticalStore = serde_json::from_str(with_verdict).expect("a file with a verdict must load");
+        assert!(store.terms.is_empty() && store.inquiries.is_empty());
     }
 }

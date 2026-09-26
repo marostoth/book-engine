@@ -1,4 +1,4 @@
-import type { BookMeta, ChapterMeta, HighlightItem, VocabularyEntry } from "./types.ts";
+import type { BookMeta, ChapterMeta, ElementaryMetrics, HighlightItem, VocabularyEntry } from "./types.ts";
 
 /**
  * Checks what comes in from outside the app window before the app believes it (RD-09).
@@ -57,6 +57,22 @@ function chapterFrom(value: unknown, where: string): ChapterMeta {
 }
 
 /**
+ * The reading grade, the words per sentence and the minutes to read of a book, which the import measures (TL-20).
+ *
+ * Nothing when any of the three is missing or is not a measure: a book from an older import has none, and a book with
+ * no sentences gets zeros from the import. The book still opens, and the sidebar shows a dash for each (RD-15).
+ */
+function elementaryMetricsFrom(value: unknown): ElementaryMetrics | undefined {
+  if (!isRecord(value)) return undefined;
+  const grade = value.flesch_kincaid_grade;
+  const perSentence = value.avg_sentence_length_words;
+  const minutes = value.estimated_reading_minutes;
+  if (!isCount(grade) || !isCount(perSentence) || !isCount(minutes)) return undefined;
+  if (grade < 0 || perSentence <= 0 || minutes <= 0) return undefined;
+  return { flesch_kincaid_grade: grade, avg_sentence_length_words: perSentence, estimated_reading_minutes: minutes };
+}
+
+/**
  * The metadata of one book, from the text the backend sends.
  *
  * Rejects with the name of the first field that is wrong. The reader then sees one sentence in the error bar instead
@@ -88,6 +104,7 @@ export function bookMetaFrom(json: string, bookId?: string): BookMeta {
       total_chapters: isCount(raw.total_chapters) ? raw.total_chapters : spine.length,
       toc: Array.isArray(raw.toc) ? (raw.toc as BookMeta["toc"]) : [],
       spine,
+      elementary_metrics: elementaryMetricsFrom(raw.elementary_metrics),
     } as BookMeta;
   } catch (cause) {
     const why = cause instanceof ShapeError ? cause.message : String(cause);
