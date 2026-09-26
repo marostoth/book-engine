@@ -1,7 +1,13 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
 
-import { appShortcut, dipStreamShortcut, elementaryCanvasShortcut, type ShortcutKey } from "./readerShortcuts.ts";
+import {
+  appShortcut,
+  dipStreamShortcut,
+  elementaryCanvasShortcut,
+  pacerShortcut,
+  type ShortcutKey,
+} from "./readerShortcuts.ts";
 
 const LEVELS = ["inspectional", "elementary", "analytical", "syntopical"];
 
@@ -70,5 +76,22 @@ test("Space, Shift+Space, J and K page the dip stream only while the focus is on
   }
   for (const level of ["elementary", "analytical", "syntopical"]) {
     assert.deepEqual(actionsAt(level, press(" ")), [], `${level}: the dip stream is not open`);
+  }
+});
+
+test("the arrows step the pacer, unless the focus keeps them, the key types text or a modifier is held", () => {
+  assert.equal(pacerShortcut(press("ArrowUp"), false), "lineUp");
+  assert.equal(pacerShortcut(press("ArrowDown"), false), "lineDown");
+  assert.equal(pacerShortcut(press("ArrowLeft"), false), "chunkBack");
+  assert.equal(pacerShortcut(press("ArrowRight"), false), "chunkForward");
+  for (const key of ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]) {
+    assert.equal(pacerShortcut(press(key), true), null, `${key} on an element that answers the arrows is its own`);
+    assert.equal(pacerShortcut(press(key, { inTextEntry: true }), false), null, `${key} in text entry`);
+    assert.equal(pacerShortcut(press(key, { ctrlKey: true }), false), null, `Ctrl+${key}`);
+    assert.equal(pacerShortcut(press(key, { metaKey: true }), false), null, `Cmd+${key}`);
+    assert.equal(pacerShortcut(press(key, { altKey: true }), false), null, `Alt+${key}`);
+  }
+  for (const key of [" ", "j", "PageDown", "["]) {
+    assert.equal(pacerShortcut(press(key), false), null, `${JSON.stringify(key)} is not the pacer's`);
   }
 });

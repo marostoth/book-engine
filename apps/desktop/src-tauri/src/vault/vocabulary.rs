@@ -12,7 +12,7 @@ pub fn get_book_vocabulary(book_id: &str) -> Result<Vec<VocabularyEntry>> {
 
 /// Appends or updates a vocabulary term in `vault/notes/<book-id>/vocabulary.json`.
 /// Applies case-insensitive deduplication: if the term already exists, updates definition,
-/// anchor, and savedAt in place.
+/// chapter, anchor, and savedAt in place.
 ///
 /// The whole list is written back, so a damaged file stops the save instead of replacing
 /// every saved term with this one (DS-04).
@@ -27,6 +27,10 @@ pub fn save_vocabulary_term(book_id: &str, entry: VocabularyEntry) -> Result<()>
     for existing in entries.iter_mut() {
         if existing.word.trim().to_lowercase() == target_key {
             existing.definition = entry.definition.clone();
+            // A place is a chapter and an anchor together, so both come from the newest save. Half of the
+            // old place and half of the new one is a paragraph that does not exist. A save that knows no
+            // chapter leaves no place, which the drawer shows as unknown, not as the wrong paragraph.
+            existing.chapter_file = entry.chapter_file.clone();
             existing.anchor = entry.anchor.clone();
             existing.saved_at = entry.saved_at.clone();
             updated = true;
@@ -217,6 +221,45 @@ mod tests {
         let saved = get_book_vocabulary("sample").expect("read vocabulary back");
         assert_eq!(saved.len(), 2, "the same word must not be added twice");
         assert_eq!(saved[0].definition, "a changed definition");
+    }
+
+    fn read_at(word: &str, chapter_file: &str, anchor: &str) -> VocabularyEntry {
+        VocabularyEntry {
+            chapter_file: chapter_file.to_string(),
+            anchor: anchor.to_string(),
+            ..entry(word)
+        }
+    }
+
+    #[test]
+    fn a_word_saved_again_takes_its_whole_place_from_the_second_save() {
+        let _sandbox = Sandbox::new();
+
+        save_vocabulary_term("sample", read_at("pin", "ch-02.md", "^p-005")).expect("first save");
+        save_vocabulary_term("sample", read_at("Pin", "ch-07.md", "^p-031")).expect("second save");
+
+        let saved = get_book_vocabulary("sample").expect("read vocabulary back");
+        assert_eq!(saved.len(), 1, "the same word must not be added twice");
+        assert_eq!(
+            (saved[0].chapter_file.as_str(), saved[0].anchor.as_str()),
+            ("ch-07.md", "^p-031"),
+            "chapter and anchor must both come from the second save"
+        );
+    }
+
+    #[test]
+    fn a_word_saved_again_from_no_known_place_keeps_no_half_of_the_old_one() {
+        let _sandbox = Sandbox::new();
+
+        save_vocabulary_term("sample", read_at("pin", "ch-02.md", "^p-005")).expect("first save");
+        save_vocabulary_term("sample", read_at("pin", "", "")).expect("second save");
+
+        let saved = get_book_vocabulary("sample").expect("read vocabulary back");
+        assert_eq!(
+            (saved[0].chapter_file.as_str(), saved[0].anchor.as_str()),
+            ("", ""),
+            "an old chapter with no anchor of its own is a place nobody read"
+        );
     }
 
     #[test]

@@ -27,7 +27,7 @@ REPO = PACKAGE.parents[1]
 CODE_OF_THE_IMPORT = PACKAGE / "ingest"
 CODE_OF_THE_WORK = [PACKAGE / "tests", REPO / ".agent" / "skills"]
 
-# A module of this repository is never a package to install.
+# A module of this repository is never a package to install, and nor is a file beside the one that imports it.
 OUR_OWN = {"ingest", "tests", "conftest"}
 
 # The name a package is imported by is not always the name it is installed by. This computer is asked first
@@ -69,7 +69,7 @@ def imported_by(folder: Path) -> dict[str, list[str]]:
             elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
                 found.add(node.module.split(".")[0])
         for top in found:
-            if top not in sys.stdlib_module_names and top not in OUR_OWN:
+            if top not in sys.stdlib_module_names and top not in OUR_OWN and not (folder / f"{top}.py").exists():
                 outside.setdefault(top, []).append(path.name)
     return outside
 

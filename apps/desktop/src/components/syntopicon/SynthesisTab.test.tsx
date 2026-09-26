@@ -204,6 +204,6 @@ test("making a new topic while the words wait saves them to the topic they were 
   assert.equal(saved[0].id, "justice", "the words were saved into the new topic, not the one they were typed about");
   assert.equal(saved[0].synthesisNotes, SENTENCE, "the words that were waiting were lost");
   // A save of the old topic, made after the new one had opened, put the old topic back and left the pane loading.
-  assert.equal(screen.queryByText("Loading"), null, "the pane is still loading long after the new topic was made");
+  assert.ok(screen.queryByText("Loading") === null, "the pane is still loading long after the new topic was made");
   assert.equal(notesBox().value, "", "the tab shows words that belong to another topic");
 });

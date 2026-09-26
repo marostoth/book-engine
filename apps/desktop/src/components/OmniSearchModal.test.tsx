@@ -53,8 +53,8 @@ test("a tag in the text of a book shows as text, and the window never makes that
 
   await screen.findByText(/Write a picture as/);
 
-  assert.equal(document.querySelector("img"), null, "the book's text made a real <img> element in the window");
-  assert.equal(document.querySelector("[onerror]"), null, "an onerror handler reached the page");
+  assert.ok(document.querySelector("img") === null, "the book's text made a real <img> element in the window");
+  assert.ok(document.querySelector("[onerror]") === null, "an onerror handler reached the page");
   assert.ok(
     document.body.textContent?.includes('<img src=x onerror="alert(1)">'),
     "the tag was swallowed instead of being shown to the reader as the text of the book"

@@ -148,25 +148,13 @@ test("closing the window and opening it again starts the form over", () => {
 });
 
 test("the guide opens on the level the reader is at, and never shows another level first", () => {
-  /**
-   * The banner of every drawing that reached the screen.
-   *
-   * The tabs are marked with colour and weight only, so nothing in the markup says which tab is the open one. What
-   * the reader sees is the banner below them, which names the level in full: "Level III: Analytical Reading". The
-   * tabs carry the first word alone, so only the banner can hold the whole name.
-   */
-  const BANNERS = [
-    "Level I: Elementary Reading",
-    "Level II: Inspectional Reading",
-    "Level III: Analytical Reading",
-    "Level IV: Syntopical Reading",
-  ];
+  /** The open tab of every drawing that reached the screen, as the markup marks it. */
   const shown: string[] = [];
 
-  function WatchTheBanner() {
+  function WatchTheTab() {
     useLayoutEffect(() => {
-      const panel = document.querySelector<HTMLElement>('[role="dialog"]')?.textContent ?? "";
-      shown.push(BANNERS.filter((banner) => panel.includes(banner)).join(" and ") || "(none)");
+      const open = document.querySelectorAll('[role="dialog"] [role="tab"][aria-selected="true"]');
+      shown.push(Array.from(open, (tab) => tab.textContent).join(" and ") || "(none)");
     });
     return null;
   }
@@ -174,17 +162,14 @@ test("the guide opens on the level the reader is at, and never shows another lev
   render(
     <>
       <LevelGuideModal isOpen onClose={() => {}} activeLevel="analytical" />
-      <WatchTheBanner />
+      <WatchTheTab />
     </>
   );
 
-  assert.ok(
-    shown.length > 0 && !shown.includes("(none)"),
-    `the guide names no level in full, so this test reads nothing: ${JSON.stringify(shown)}`
-  );
+  assert.ok(shown.length > 0, "nothing was drawn, so this test reads nothing");
   assert.deepEqual(
     shown,
-    ["Level III: Analytical Reading"],
-    "the guide opened on another level and moved the tab afterwards, or shows two levels at once"
+    ["Level III(Analytical)"],
+    "the guide opened on another level and moved the tab afterwards, or marks two levels at once"
   );
 });

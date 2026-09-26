@@ -1,5 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { calculateSeekProgress } from "../../lib/elementaryPacer";
+import { answersArrows, pacerShortcut, shortcutKey } from "../../lib/readerShortcuts";
+import { aDialogIsOpen } from "../../hooks/useDialog";
 import { LineBox } from "./useLinePacer";
 
 interface UsePacerDragOptions {
@@ -114,7 +116,8 @@ export function usePacerDrag({ lines, overlayRef, chunkSize, onDragUpdate, onDra
 }
 
 /**
- * Hook for optional keyboard arrow stepping (lines and words).
+ * Hook for optional keyboard arrow stepping (lines and words). `pacerShortcut` (`lib/readerShortcuts.ts`) says when
+ * an arrow is the pacer's: never from an element that answers the arrows itself, and never behind a dialog.
  */
 export function usePacerKeyboard({
   enabled,
@@ -131,21 +134,11 @@ export function usePacerKeyboard({
     if (!enabled || !isRunning) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        onStepLine(-1);
-      } else if (e.key === "ArrowDown") {
-        e.preventDefault();
-        onStepLine(1);
-      } else if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        onStepChunk(-0.15);
-      } else if (e.key === "ArrowRight") {
-        e.preventDefault();
-        onStepChunk(0.15);
-      }
+      const shortcut = pacerShortcut(shortcutKey(e), aDialogIsOpen() || answersArrows(e.target));
+      if (!shortcut) return;
+      e.preventDefault();
+      if (shortcut === "lineUp" || shortcut === "lineDown") onStepLine(shortcut === "lineUp" ? -1 : 1);
+      else onStepChunk(shortcut === "chunkBack" ? -0.15 : 0.15);
     };
 
     window.addEventListener("keydown", handleKeyDown);
