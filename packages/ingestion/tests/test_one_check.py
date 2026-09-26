@@ -303,13 +303,13 @@ def test_the_frontend_test_runner_finds_its_test_files_by_itself():
 
 
 def test_every_frontend_test_file_is_somewhere_the_runner_looks():
-    """The pattern above is only worth having if it really reaches every test file that exists."""
-    source = REPO / "apps" / "desktop" / "src"
-    files = sorted(path for path in source.rglob("*.test.ts")) + sorted(source.rglob("*.test.tsx"))
+    """The pattern is worth having only if it reaches every test file. Git names them, in `src` or not (TL-18)."""
+    git = ["git", "-C", str(REPO / "apps" / "desktop"), "ls-files", "-z", "--cached", "--others", "--exclude-standard"]
+    names = subprocess.run(git, capture_output=True, encoding="utf-8", check=True).stdout.split(chr(0))
+    files = [name for name in names if re.search(r"\.(test|spec)\.[cm]?[jt]sx?$", name)]
     assert files, "no frontend test files were found at all, so this test is checking nothing"
-
-    outside = [path.relative_to(source).as_posix() for path in files if not path.is_relative_to(source)]
-    assert not outside, f"these test files are outside the folder the runner looks in: {outside}"
+    outside = [name for name in files if not re.fullmatch(r"src/.+\.test\.tsx?", name)]
+    assert not outside, f"vitest runs `src/**/*.test.{{ts,tsx}}`, so these test files never run: {outside}"
 
 
 def test_the_components_of_this_app_have_tests():
