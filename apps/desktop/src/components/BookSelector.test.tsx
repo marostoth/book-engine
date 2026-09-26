@@ -51,7 +51,7 @@ test("the list is closed until the reader clicks the book, and then it holds eve
       onSelectBook={() => {}}
     />
   );
-  assert.equal(screen.queryByText("How to Read a Book"), null, "the other book shows before the list is opened");
+  assert.ok(screen.queryByText("How to Read a Book") === null, "the other book shows before the list is opened");
 
   fireEvent.click(screen.getByRole("button", { name: /The Wealth of Nations/ }));
   assert.ok(screen.getByText("How to Read a Book"), "the other book is missing from the open list");
@@ -72,7 +72,7 @@ test("clicking a book in the list reports that book and closes the list", () => 
   fireEvent.click(screen.getByText("How to Read a Book"));
 
   assert.deepEqual(chosen, ["adler"], "the book the reader clicked was not reported");
-  assert.equal(screen.queryByText("How to Read a Book"), null, "the list stayed open after a book was chosen");
+  assert.ok(screen.queryByText("How to Read a Book") === null, "the list stayed open after a book was chosen");
 });
 
 test("the rescan button is in the open list, and one click runs one rescan", () => {
@@ -114,5 +114,5 @@ test("what the rescan found is announced, not only drawn", () => {
 
 test("a build with no rescan control draws no rescan button", () => {
   openTheList(undefined);
-  assert.equal(screen.queryByRole("button", { name: /Rescan/ }), null, "a rescan button showed with nothing behind it");
+  assert.ok(screen.queryByRole("button", { name: /Rescan/ }) === null, "a rescan button showed with nothing behind it");
 });

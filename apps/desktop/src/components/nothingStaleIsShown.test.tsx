@@ -80,9 +80,8 @@ test("results found for one query are never shown under another", async () => {
     searchVault.mockReturnValue(later<SearchResult[]>().promise);
     fireEvent.change(box, { target: { value: "labourers" } });
 
-    assert.equal(
-      screen.queryByText(/division of labour/),
-      null,
+    assert.ok(
+      screen.queryByText(/division of labour/) === null,
       "the hits for 'labour' are still on screen under a box that says 'labourers'"
     );
     assert.ok(screen.queryByText(/Querying/), "the window does not say it is still looking");
@@ -105,9 +104,8 @@ test("a query cut back below the minimum takes its results off the screen at onc
     assert.ok(screen.queryByText(/division of labour/), "the search found nothing, so this test reads nothing");
 
     fireEvent.change(box, { target: { value: "l" } });
-    assert.equal(
-      screen.queryByText(/division of labour/),
-      null,
+    assert.ok(
+      screen.queryByText(/division of labour/) === null,
       "one letter is not a search, and the hits of the last one are still under it"
     );
   } finally {
