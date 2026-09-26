@@ -240,8 +240,9 @@ def test_no_source_file_of_this_repository_is_longer_than_the_list_holds_it():
     and check 12 would fail on every run again, which is the fault TL-15 is about."""
     mod = system()
     held = mod.files_held_long()
-    counts = mod.source_line_counts()
+    counts = mod.source_line_counts(mod.ROOT_DIR)
 
     assert len(held) > 30, "the list of long files was not read, so this test checks nothing"
     assert len(counts) > 300, "the source files were not found, so this test checks nothing"
+    assert {"packages/ingestion/tests/test_ledger.py", "scripts/free-dev-port.mjs"} <= set(counts), "TL-17"
     assert mod.line_ceiling_faults(counts, held) == []

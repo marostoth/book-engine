@@ -1,8 +1,8 @@
 {
-  "why": "The files that were past the 300-line ceiling of AGENTS.md when TL-15 made check 12 a ratchet, each held at the length it had. A held file may not grow and a new file may not pass the ceiling. When a held file gets shorter, lower its number here, or take it off the list once it is 300 lines or less.",
+  "why": "The files that were past the 300-line ceiling of AGENTS.md when TL-15 made check 12 a ratchet, each held at the length it had; the 22 tests of the import joined when TL-17 made the check count every source file git sees. A held file may not grow and a new file may not pass the ceiling. When a held file gets shorter, lower its number here, or take it off the list once it is 300 lines or less.",
   "files": {
     ".agent/skills/audit-practice.py": 643,
-    ".agent/skills/audit-system.py": 1683,
+    ".agent/skills/audit-system.py": 1678,
     ".agent/skills/benchmark-fts.py": 369,
     ".agent/skills/process-inbox.py": 326,
     "apps/desktop/src-tauri/src/commands.rs": 448,
@@ -40,6 +40,28 @@
     "packages/ingestion/ingest/pdf_parser.py": 326,
     "packages/ingestion/ingest/pdf_sanitizer.py": 348,
     "packages/ingestion/ingest/pipeline.py": 403,
-    "packages/ingestion/ingest/places.py": 588
+    "packages/ingestion/ingest/places.py": 588,
+    "packages/ingestion/tests/test_a_page_is_read_in_column_order.py": 671,
+    "packages/ingestion/tests/test_any_book.py": 483,
+    "packages/ingestion/tests/test_audits_check_something.py": 602,
+    "packages/ingestion/tests/test_chapter_shape.py": 447,
+    "packages/ingestion/tests/test_cloze_cards.py": 343,
+    "packages/ingestion/tests/test_console.py": 424,
+    "packages/ingestion/tests/test_dialogs_follow_one_rule.py": 303,
+    "packages/ingestion/tests/test_frontend_stays_tidy.py": 634,
+    "packages/ingestion/tests/test_hash_paragraphs.py": 349,
+    "packages/ingestion/tests/test_import_changes.py": 320,
+    "packages/ingestion/tests/test_import_moves.py": 465,
+    "packages/ingestion/tests/test_ledger.py": 639,
+    "packages/ingestion/tests/test_licenses_stay_known.py": 400,
+    "packages/ingestion/tests/test_note_documents.py": 345,
+    "packages/ingestion/tests/test_one_check.py": 443,
+    "packages/ingestion/tests/test_pdf.py": 302,
+    "packages/ingestion/tests/test_pdf_outline.py": 332,
+    "packages/ingestion/tests/test_text_repair.py": 407,
+    "packages/ingestion/tests/test_the_docs_match_the_code.py": 497,
+    "packages/ingestion/tests/test_the_drop_cap_repair.py": 366,
+    "packages/ingestion/tests/test_the_skills_load.py": 302,
+    "packages/ingestion/tests/test_vault_has_a_second_copy.py": 528
   }
 }

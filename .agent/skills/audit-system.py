@@ -22,6 +22,7 @@ Exits code 0 on 100% pass; exits code 1 on any invariant failure.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import importlib.util
 import json
@@ -1455,27 +1456,21 @@ LINE_CEILING = 300
 LONG_FILES_NAME = "long-files.json"
 
 
-def source_line_counts() -> dict[str, int]:
-    """The number of lines of every source file the ceiling covers, by its path from the repository root."""
+#: What the ceiling covers: every source file git sees, tracked or new, in any folder (TL-17). It read four folders by
+#: name, so it held the Rust and TypeScript tests to the ceiling and let the Python tests and the scripts past it.
+SOURCE_SUFFIXES = (".py", ".ts", ".tsx", ".rs", ".js", ".mjs", ".cjs", ".jsx")
+
+
+def source_line_counts(root: Path) -> dict[str, int]:
+    """The number of lines of every source file the ceiling covers, by its path from the repository root. Git names
+    them, so a folder it ignores is never read and a new file counts before it is staged. A `.d.ts` holds no code."""
+    git = ["git", "-C", str(root), "ls-files", "-z", "--cached", "--others", "--exclude-standard"]
+    names = subprocess.run(git, capture_output=True, encoding="utf-8", check=True).stdout.split(chr(0))
     counts: dict[str, int] = {}
-
-    def count(p: Path) -> None:
-        try:
-            lines = len(p.read_text(encoding="utf-8", errors="ignore").splitlines())
-        except OSError:  # a file this check cannot read is not a file over the line
-            return
-        counts[p.relative_to(ROOT_DIR).as_posix() if p.is_relative_to(ROOT_DIR) else p.name] = lines
-
-    for p in (ROOT_DIR / "packages" / "ingestion" / "ingest").glob("*.py"):
-        count(p)
-    for p in (ROOT_DIR / "apps" / "desktop" / "src").rglob("*.ts*"):
-        if "node_modules" not in p.parts and not p.name.endswith(".d.ts"):
-            count(p)
-    # The Rust of the app, and the scripts of this folder, are source files too (TL-04). The check read neither,
-    # although AGENTS.md names `commands.rs` as its own example, and `audit-system.py` is the longest file here.
-    for folder, pattern in ((ROOT_DIR / "apps" / "desktop" / "src-tauri" / "src", "*.rs"), (SKILLS_DIR, "*.py")):
-        for p in sorted(folder.rglob(pattern)):
-            count(p)
+    for name in names:
+        if name.endswith(SOURCE_SUFFIXES) and not name.endswith(".d.ts"):
+            with contextlib.suppress(OSError):  # one it cannot read, or one deleted and not yet staged, is not over
+                counts[name] = len((root / name).read_text(encoding="utf-8", errors="ignore").splitlines())
     return counts
 
 
@@ -1514,29 +1509,29 @@ def check_modularity_and_vault_isolation() -> DiagnosticResult:
     # 1. Check vault for leaked databases or ephemeral files (Directive 1.1)
     db_leaks: list[str] = []
     for ext in [".db", ".sqlite", ".sqlite3", ".wal", ".shm"]:
-        for p in VAULT_DIR.rglob(f"*{ext}"):
-            db_leaks.append(str(p.relative_to(ROOT_DIR)))
+        db_leaks.extend(str(p.relative_to(ROOT_DIR)) for p in VAULT_DIR.rglob(f"*{ext}"))
     if db_leaks:
         errors.append(f"Directive 1.1 violation: Ephemeral database file(s) leaked in vault: {', '.join(db_leaks)}")
 
-    # 2. Check line counts of ingestion modules and desktop source files (Directive 4)
-    line_counts = source_line_counts()
+    # 2. Check the line count of every source file git sees (Directive 4)
+    try:
+        line_counts = source_line_counts(ROOT_DIR)
+    except (OSError, subprocess.CalledProcessError) as e:  # no git, or no repository: a fault, never a pass
+        line_counts = {}
+        errors.append(f"Directive 4 cannot be checked, because git could not list the source files: {e}")
     held = files_held_long()
-    line_faults = line_ceiling_faults(line_counts, held)
+    line_faults = line_ceiling_faults(line_counts, held) if line_counts else []
     if line_faults:
         errors.append(f"Directive 4 violation: {'; '.join(line_faults)}")
 
     passed = len(errors) == 0
     # The line used to read "<= 300 lines (0 DB leaks)" whatever the check found, so a failed check still printed a
     # clean result beside the word FAIL (TL-04).
-    metric = (
-        f"{len(line_counts)} source files, {len(held)} held at their length, {len(line_faults)} over, "
-        f"{len(db_leaks)} DB leaks"
-    )
+    metric = f"{len(line_counts)} source files, {len(held)} held, {len(line_faults)} over, {len(db_leaks)} DB leaks"
 
     return DiagnosticResult(
         name="12. Modularity & Isolation",
-        target="vault/ & src/ modules",
+        target="vault/ & source files",
         metric=metric,
         passed=passed,
         errors=errors,
