@@ -61,5 +61,4 @@ export interface AnalyticalStore {
   arguments: ArgumentNode[];
   critiques?: CritiqueItem[];
   inquiries?: AuthorInquiry[];
-  overallVerdict?: string | null;
 }

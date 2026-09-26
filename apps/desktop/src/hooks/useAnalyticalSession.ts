@@ -65,7 +65,6 @@ export function useAnalyticalSession({
           arguments: data?.arguments || [],
           critiques: data?.critiques || [],
           inquiries: data?.inquiries || [],
-          overallVerdict: data?.overallVerdict,
         });
         setAsked({ of: bookId, read: true });
       })

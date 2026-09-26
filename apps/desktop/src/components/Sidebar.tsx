@@ -12,6 +12,7 @@ import { ChapterMeta, TOCItem, ReadingLevelMode, InspectionalSubView } from "../
 import { BookSelector } from "./BookSelector";
 import { useLibrary } from "../hooks/useLibrary";
 import { TOCItemRow } from "./sidebar/TOCItemRow";
+import { BookReadability } from "./elementary/BookReadability";
 import { contentsOpenChapters, contentsTarget, type ContentsTarget } from "../lib/tableOfContents";
 import { Compass, BookCheck } from "lucide-react";
 
@@ -114,6 +115,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <ChevronLeft className="w-4 h-4" />
         </button>
       </div>
+
+      {/* How hard the book reads, at the level of the sentence (TL-20) */}
+      {activeLevel === "elementary" && <BookReadability />}
 
       {/* Inspectional Sub-Mode Switcher */}
       {activeLevel === "inspectional" && onSelectSubView && (
