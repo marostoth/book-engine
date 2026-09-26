@@ -279,7 +279,7 @@ def test_the_book_check_of_this_test_can_pass_and_can_fail(tmp_path: Path):
 
 
 def test_every_real_book_passes_the_check_the_app_now_makes():
-    """The check must not shut the reader out of their own books.
+    """The check must not shut the reader out of their own books. `test_vault_of_the_tests.py` names this test (TL-19).
 
     This reads the vault of this machine. It skips on the books, not on the folder: a fresh clone and CI both
     have `vault/books`, because `.gitkeep` is in it, and neither has a book inside.
