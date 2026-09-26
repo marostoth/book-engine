@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useId, useState } from "react";
 import { ReadingLevelMode } from "../lib/types";
 import { LEVEL_GUIDE_SECTIONS, UNIVERSAL_SHORTCUTS, LevelGuideSection } from "../lib/levelGuideData";
 import { formKey } from "../lib/formStart";
@@ -12,6 +12,13 @@ interface LevelGuideModalProps {
 }
 
 const TAB_LEVELS: ReadingLevelMode[] = ["elementary", "inspectional", "analytical", "syntopical"];
+
+/** The tab a key moves to, as in every tab set: the arrows step round, Home and End go to the ends. */
+function tabAfter(open: ReadingLevelMode, key: string): ReadingLevelMode | null {
+  const at = TAB_LEVELS.indexOf(open);
+  const step = { ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: TAB_LEVELS.length - 1 }[key];
+  return step === undefined ? null : TAB_LEVELS[(step + TAB_LEVELS.length) % TAB_LEVELS.length];
+}
 
 /**
  * The window is built only while it is open, and opening it at another reading level is a new `key`, so it starts
@@ -34,6 +41,19 @@ const OpenLevelGuideModal: React.FC<LevelGuideModalProps> = ({
   const { panelProps, titleId, close } = useDialog({ isOpen, onClose });
 
   const section: LevelGuideSection = LEVEL_GUIDE_SECTIONS[selectedTab];
+  const tabsId = useId();
+  const tabId = (level: ReadingLevelMode) => `${tabsId}-tab-${level}`;
+  const panelId = `${tabsId}-panel`;
+
+  // Colour alone told a screen reader nothing, so the markup now says which tab is open, and only that tab is in
+  // the Tab order; the arrows move between them.
+  const moveTab = (event: React.KeyboardEvent) => {
+    const next = tabAfter(selectedTab, event.key);
+    if (!next) return;
+    event.preventDefault();
+    setSelectedTab(next);
+    document.getElementById(tabId(next))?.focus();
+  };
 
   return (
     <div
@@ -74,7 +94,12 @@ const OpenLevelGuideModal: React.FC<LevelGuideModalProps> = ({
         </div>
 
         {/* Level Switcher Tabs */}
-        <div className="grid grid-cols-4 border-b border-[var(--theme-border)] bg-[var(--theme-bg)] text-xs font-medium shrink-0">
+        <div
+          role="tablist"
+          aria-label="Reading levels"
+          onKeyDown={moveTab}
+          className="grid grid-cols-4 border-b border-[var(--theme-border)] bg-[var(--theme-bg)] text-xs font-medium shrink-0"
+        >
           {TAB_LEVELS.map((lvl) => {
             const sec = LEVEL_GUIDE_SECTIONS[lvl];
             const isCurrent = selectedTab === lvl;
@@ -82,6 +107,11 @@ const OpenLevelGuideModal: React.FC<LevelGuideModalProps> = ({
             return (
               <button
                 key={lvl}
+                id={tabId(lvl)}
+                role="tab"
+                aria-selected={isCurrent}
+                aria-controls={panelId}
+                tabIndex={isCurrent ? 0 : -1}
                 onClick={() => setSelectedTab(lvl)}
                 className={`py-2 px-1 text-center transition-all border-b-2 cursor-pointer relative ${
                   isCurrent
@@ -100,7 +130,13 @@ const OpenLevelGuideModal: React.FC<LevelGuideModalProps> = ({
         </div>
 
         {/* Scrollable Content Body */}
-        <div className="p-4 overflow-y-auto space-y-4 max-h-[60vh] text-xs">
+        <div
+          id={panelId}
+          role="tabpanel"
+          aria-labelledby={tabId(selectedTab)}
+          tabIndex={0}
+          className="p-4 overflow-y-auto space-y-4 max-h-[60vh] text-xs"
+        >
           {/* Goal & Overview Banner */}
           <div className="p-3 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg)] space-y-1">
             <div className="flex items-center gap-1.5 text-[var(--theme-accent)] font-semibold">
